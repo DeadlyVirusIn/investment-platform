@@ -11,6 +11,12 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
 from apps.api.src.db.models import Asset, Transaction
+from apps.api.src.domain.ledger.account_service import (
+    AccountCreate,
+    as_jsonable,
+    create_account,
+    list_accounts,
+)
 from apps.api.src.domain.ledger.pnl_calculator import (
     compute_pnl_summary,
     compute_positions,
@@ -109,3 +115,28 @@ def get_pnl(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     return _jsonable(compute_pnl_summary(session, account_id))
+
+
+# ---------------------------------------------------------------------------
+# Accounts
+# ---------------------------------------------------------------------------
+
+
+@router.get("/accounts")
+def get_accounts(session: Session = Depends(get_session)) -> dict[str, Any]:
+    accounts = [as_jsonable(a) for a in list_accounts(session)]
+    return {"accounts": accounts, "count": len(accounts)}
+
+
+@router.post("/accounts", status_code=201)
+def post_account(
+    payload: AccountCreate,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    try:
+        out = create_account(session, payload)
+    except ValueError as exc:
+        session.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    session.commit()
+    return as_jsonable(out)

@@ -40,6 +40,7 @@ dev-dependencies = [
     "ruff>=0.4.4",
     "mypy>=1.10.0",
     "types-python-dateutil>=2.9.0.20240316",
+    "testcontainers[postgres]>=4.5.0",
 ]
 
 [tool.ruff]
@@ -59,3 +60,6 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths    = ["apps/api/tests", "apps/worker/tests"]
+markers      = [
+    "integration: requires Docker (Postgres via testcontainers). Run with '-m integration'.",
+]

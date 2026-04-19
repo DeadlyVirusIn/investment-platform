@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import datetime
+import datetime as dt
 from collections.abc import Callable, Coroutine
+from decimal import Decimal
 from typing import Any
 
 from loguru import logger
@@ -16,6 +17,30 @@ _UNIVERSE: list[str] = [
     "AAPL", "MSFT", "NVDA", "GOOGL", "AMZN",
     "META", "TSLA", "SPY",  "QQQ",  "VTI",
 ]
+
+
+def _parse_ts(s: object) -> dt.datetime | None:
+    """Parse Tiingo date strings (``2025-01-01T00:00:00.000Z``) → aware datetime."""
+    if s is None or s == "":
+        return None
+    if isinstance(s, dt.datetime):
+        return s if s.tzinfo else s.replace(tzinfo=dt.timezone.utc)
+    text = str(s)
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        return dt.datetime.fromisoformat(text)
+    except ValueError:
+        logger.warning("Could not parse timestamp: {}", s)
+        return None
+
+
+def _dec(v: object) -> Decimal | None:
+    if v is None:
+        return None
+    if isinstance(v, Decimal):
+        return v
+    return Decimal(str(v))
 
 
 # ---------------------------------------------------------------------------
@@ -34,8 +59,6 @@ async def tiingo_backfill_eod() -> None:
         logger.warning("TIINGO_API_KEY is not set – skipping tiingo_backfill_eod")
         return
 
-    from decimal import Decimal
-
     from sqlalchemy import select
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
@@ -44,17 +67,18 @@ async def tiingo_backfill_eod() -> None:
     from apps.api.src.providers.tiingo import TiingoAdapter
 
     adapter = TiingoAdapter(api_key=settings.TIINGO_API_KEY)
-    end_date   = datetime.date.today()
-    start_date = end_date - datetime.timedelta(days=365)
+    end_date = dt.date.today()
+    start_date = end_date - dt.timedelta(days=365)
+
+    total_fetched = 0
+    total_written = 0
 
     for symbol in _UNIVERSE:
         try:
             with SessionLocal() as session:
-                # Resolve asset row; create stub if absent
                 asset_row = session.scalars(
                     select(Asset).where(Asset.symbol == symbol)
                 ).first()
-
                 if asset_row is None:
                     asset_row = Asset(
                         symbol=symbol,
@@ -68,35 +92,46 @@ async def tiingo_backfill_eod() -> None:
                 bars = await adapter.fetch_prices(
                     symbol, start_date, end_date, session=session
                 )
+                total_fetched += len(bars)
                 logger.info("Fetched {} bars for {}", len(bars), symbol)
 
+                written = 0
                 for bar in bars:
+                    ts = _parse_ts(bar.get("ts"))
+                    if ts is None:
+                        continue
                     stmt = (
                         pg_insert(PriceBar)
                         .values(
                             asset_id=asset_row.id,
                             timeframe="1d",
-                            ts=bar["ts"],
-                            open=Decimal(str(bar["open"])) if bar["open"] is not None else None,
-                            high=Decimal(str(bar["high"])) if bar["high"] is not None else None,
-                            low=Decimal(str(bar["low"]))  if bar["low"]  is not None else None,
-                            close=Decimal(str(bar["close"])) if bar["close"] is not None else None,
-                            adjusted_close=Decimal(str(bar["adjusted_close"]))
-                            if bar["adjusted_close"] is not None else None,
-                            volume=bar["volume"],
+                            ts=ts,
+                            open=_dec(bar.get("open")),
+                            high=_dec(bar.get("high")),
+                            low=_dec(bar.get("low")),
+                            close=_dec(bar.get("close")),
+                            adjusted_close=_dec(bar.get("adjusted_close")),
+                            volume=bar.get("volume"),
                             provider="tiingo",
                         )
-                        .on_conflict_do_nothing(
-                            constraint="uq_price_bar"
-                        )
+                        .on_conflict_do_nothing(constraint="uq_price_bar")
                     )
-                    session.execute(stmt)
+                    result = session.execute(stmt)
+                    if result.rowcount:
+                        written += result.rowcount
 
                 session.commit()
+                total_written += written
+                logger.info("Wrote {} new price_bar rows for {}", written, symbol)
 
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 – we log and keep going
             logger.error("tiingo_backfill_eod failed for {}: {}", symbol, exc)
-            # Continue to next symbol – do not crash the entire job
+
+    logger.info(
+        "tiingo_backfill_eod complete: fetched={} written={}",
+        total_fetched,
+        total_written,
+    )
 
 
 # ---------------------------------------------------------------------------
