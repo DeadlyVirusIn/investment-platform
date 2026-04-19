@@ -90,14 +90,24 @@ def compute_positions(session: Session, account_id: str) -> list[dict[str, Any]]
 
 
 def compute_realized_pnl(session: Session, account_id: str) -> Decimal:
-    """Sum realized_pnl across all lot_close rows belonging to account."""
-    stmt = (
+    """Sum realized P&L: lot_close proceeds + dividend cash flows."""
+    sales_stmt = (
         select(func.coalesce(func.sum(LotClose.realized_pnl), 0))
         .join(Lot, LotClose.lot_id == Lot.id)
         .join(Transaction, Lot.open_transaction_id == Transaction.id)
         .where(Transaction.account_id == account_id)
     )
-    return _d(session.execute(stmt).scalar())
+    realized_from_sales = _d(session.execute(sales_stmt).scalar())
+
+    dividend_stmt = select(
+        func.coalesce(func.sum(Transaction.quantity * Transaction.price), 0)
+    ).where(
+        Transaction.account_id == account_id,
+        Transaction.action == "dividend",
+    )
+    realized_from_dividends = _d(session.execute(dividend_stmt).scalar())
+
+    return realized_from_sales + realized_from_dividends
 
 
 def compute_pnl_summary(session: Session, account_id: str) -> dict[str, Any]:

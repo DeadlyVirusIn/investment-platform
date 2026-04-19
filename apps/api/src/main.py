@@ -13,6 +13,7 @@ from loguru import logger
 
 from apps.api.src.api.alerts import router as alerts_router
 from apps.api.src.api.asset import router as asset_router
+from apps.api.src.api.assets import router as assets_router
 from apps.api.src.api.briefing import router as briefing_router
 from apps.api.src.api.jobs import router as jobs_router
 from apps.api.src.api.performance import router as performance_router
@@ -62,6 +63,7 @@ for _router in (
     portfolio_router,
     watchlist_router,
     asset_router,
+    assets_router,
     recommendations_router,
     briefing_router,
     alerts_router,
