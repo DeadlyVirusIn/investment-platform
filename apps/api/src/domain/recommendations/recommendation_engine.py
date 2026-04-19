@@ -258,8 +258,49 @@ def compute_for_asset(
 # ---------------------------------------------------------------------------
 
 
+def _find_existing_by_snapshot(
+    session: Session,
+    asset_id: str,
+    engine_version: str,
+    snapshot_hash: str,
+) -> Recommendation | None:
+    """Lookup the most recent Recommendation rows for (asset, engine_version)
+    and return one whose rationale encodes the same snapshot_hash."""
+    stmt = (
+        select(Recommendation)
+        .where(
+            Recommendation.asset_id == asset_id,
+            Recommendation.model_version == engine_version,
+        )
+        .order_by(Recommendation.generated_at.desc())
+        .limit(10)
+    )
+    for rec in session.scalars(stmt):
+        try:
+            parsed = json.loads(rec.rationale or "{}")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        if parsed.get("snapshot_hash") == snapshot_hash:
+            return rec
+    return None
+
+
 def persist(session: Session, result: RecommendationResult) -> str:
-    """Write Recommendation + evidence rows. Returns recommendation id."""
+    """Write Recommendation + evidence rows. Idempotent on snapshot_hash.
+
+    If the last 10 recs for (asset, engine_version) already contain a row with
+    the same snapshot_hash, returns the existing id and writes nothing.
+    """
+    existing = _find_existing_by_snapshot(
+        session,
+        asset_id=result.asset_id,
+        engine_version=result.engine_version,
+        snapshot_hash=result.snapshot_hash,
+    )
+    if existing is not None:
+        result.recommendation_id = existing.id
+        return existing.id
+
     rationale = {
         "thesis": result.thesis,
         "snapshot_hash": result.snapshot_hash,
@@ -298,6 +339,34 @@ def persist(session: Session, result: RecommendationResult) -> str:
     session.flush()
     result.recommendation_id = rec.id
     return rec.id
+
+
+def list_latest_per_asset(
+    session: Session, limit: int = 50
+) -> list[Recommendation]:
+    """Return the most recent Recommendation per asset (global, no account scope)."""
+    # Subquery: max(generated_at) per asset
+    from sqlalchemy import func
+
+    latest_ts_stmt = (
+        select(
+            Recommendation.asset_id.label("asset_id"),
+            func.max(Recommendation.generated_at).label("max_ts"),
+        )
+        .group_by(Recommendation.asset_id)
+        .subquery()
+    )
+    stmt = (
+        select(Recommendation)
+        .join(
+            latest_ts_stmt,
+            (Recommendation.asset_id == latest_ts_stmt.c.asset_id)
+            & (Recommendation.generated_at == latest_ts_stmt.c.max_ts),
+        )
+        .order_by(Recommendation.generated_at.desc())
+        .limit(limit)
+    )
+    return list(session.execute(stmt).scalars())
 
 
 # ---------------------------------------------------------------------------

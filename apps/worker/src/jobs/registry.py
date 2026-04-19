@@ -135,6 +135,67 @@ async def tiingo_backfill_eod() -> None:
 
 
 # ---------------------------------------------------------------------------
+# run_recommendations_for_all_accounts
+# ---------------------------------------------------------------------------
+
+
+async def run_recommendations_for_all_accounts() -> None:
+    """Run the recommendation engine for every account that exists.
+
+    Scheduled to run after the nightly price-ingestion job. Idempotent via
+    recommendation_engine.persist()'s snapshot_hash dedup — repeated runs on
+    unchanged inputs do not produce duplicate rows.
+    """
+    from sqlalchemy import select
+
+    from apps.api.src.db import SessionLocal
+    from apps.api.src.db.models import Account
+    from apps.api.src.domain.recommendations.recommendation_engine import (
+        load_engine_config,
+        run_for_account,
+    )
+
+    total_accounts = 0
+    total_recs = 0
+
+    try:
+        config = load_engine_config()
+    except Exception as exc:  # noqa: BLE001
+        logger.error("run_recommendations_for_all_accounts: config load failed: {}", exc)
+        return
+
+    with SessionLocal() as session:
+        account_ids = [
+            a[0] for a in session.execute(select(Account.id)).all()
+        ]
+
+    for account_id in account_ids:
+        try:
+            with SessionLocal() as session:
+                results = run_for_account(session, account_id, config=config)
+                session.commit()
+                total_accounts += 1
+                total_recs += len(results)
+                logger.info(
+                    "Recommendations: account={} generated={}",
+                    account_id,
+                    len(results),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "run_recommendations_for_all_accounts: account={} failed: {}",
+                account_id,
+                exc,
+            )
+
+    logger.info(
+        "run_recommendations_for_all_accounts complete: accounts={} recs={}",
+        total_accounts,
+        total_recs,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -142,4 +203,5 @@ JobFn = Callable[[], Coroutine[Any, Any, None]]
 
 REGISTRY: dict[str, JobFn] = {
     "tiingo_backfill_eod": tiingo_backfill_eod,
+    "run_recommendations_for_all_accounts": run_recommendations_for_all_accounts,
 }

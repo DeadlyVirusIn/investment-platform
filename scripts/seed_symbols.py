@@ -29,6 +29,11 @@ JOB_DEFS: list[dict[str, str | bool]] = [
         "cron_expr": "0 22 * * 1-5",   # 22:00 Mon-Fri
         "enabled": True,
     },
+    {
+        "name": "run_recommendations_for_all_accounts",
+        "cron_expr": "30 22 * * 1-5",  # 22:30 Mon-Fri, after price ingest
+        "enabled": True,
+    },
 ]
 
 
