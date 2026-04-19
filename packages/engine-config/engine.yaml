@@ -1,0 +1,129 @@
+# Investment Platform — Recommendation Engine Configuration
+# Version is hashed and stored on every recommendation row for reproducibility.
+# Changes here take effect after restarting the worker.
+
+version: "0.1.0"
+
+# ── Composite score → action thresholds ───────────────────────────────────────
+# Composite score is in [-1, +1]. Thresholds are inclusive lower bounds.
+action_thresholds:
+  STRONG_BUY: 0.65
+  BUY: 0.25
+  HOLD: -0.25         # [-0.25, +0.25) → HOLD
+  REDUCE: -0.65       # [-0.65, -0.25) → REDUCE
+  SELL: -1.0          # [-1.0, -0.65)  → SELL
+
+# ── Signal family weights (must sum to 1.0) ───────────────────────────────────
+family_weights:
+  valuation: 0.25
+  trend_momentum: 0.30
+  volatility_risk: 0.20
+  macro_regime: 0.15
+  exposure: 0.10
+
+# ── Per-family signal definitions ─────────────────────────────────────────────
+
+valuation:
+  signals:
+    pe_vs_sector:
+      weight: 0.40
+      # Positive score when P/E < sector 25th percentile
+      description: "Forward P/E relative to sector median"
+    pb_ratio:
+      weight: 0.25
+      description: "Price-to-book, lower is better for value"
+    ev_ebitda:
+      weight: 0.35
+      description: "EV/EBITDA vs trailing 5-year own median"
+
+trend_momentum:
+  signals:
+    ema_crossover:
+      weight: 0.35
+      short_period: 20
+      long_period: 50
+      description: "20-EMA above 50-EMA = positive"
+    rsi:
+      weight: 0.30
+      period: 14
+      oversold: 35        # Below → positive signal
+      overbought: 68      # Above → negative signal
+      description: "RSI 14 — avoid chasing overbought"
+    macd_signal:
+      weight: 0.35
+      fast: 12
+      slow: 26
+      signal_period: 9
+      description: "MACD histogram direction"
+
+volatility_risk:
+  signals:
+    atr_pct:
+      weight: 0.40
+      period: 14
+      description: "ATR/price — higher = more volatile = lower score"
+    beta:
+      weight: 0.35
+      benchmark: "SPY"
+      description: "Beta vs SPY; >1.5 penalised"
+    max_drawdown:
+      weight: 0.25
+      lookback_days: 252
+      description: "Max drawdown over trailing year"
+
+macro_regime:
+  signals:
+    yield_curve:
+      weight: 0.45
+      series: "T10Y2Y"    # FRED series — 10Y minus 2Y spread
+      description: "Positive slope = risk-on; inversion = risk-off"
+    fed_funds_direction:
+      weight: 0.35
+      series: "DFF"
+      lookback_weeks: 12
+      description: "Rising rates = headwind for equities"
+    unemployment_trend:
+      weight: 0.20
+      series: "UNRATE"
+      description: "Rising unemployment = macro weakness"
+
+exposure:
+  signals:
+    portfolio_weight:
+      weight: 0.60
+      max_single_position_pct: 15.0   # >15% → reduce score
+      target_concentration_hhi: 0.15  # Herfindahl index target
+      description: "Penalise overweight positions"
+    asset_class_balance:
+      weight: 0.40
+      target_equity_pct: 70.0
+      target_crypto_pct: 15.0
+      target_cash_pct: 15.0
+      description: "Score improves when allocation matches targets"
+
+# ── enough_data thresholds ────────────────────────────────────────────────────
+# Symbols that don't meet these thresholds receive HOLD(enough_data=false).
+
+enough_data:
+  equity:
+    price_bars_min: 90          # Trading days
+    fundamentals_required: true
+  crypto:
+    price_bars_min: 60
+    fundamentals_required: false
+  etf:
+    price_bars_min: 90
+    fundamentals_required: false
+
+# ── Options signals (DEFERRED — Phase 2) ─────────────────────────────────────
+# These signals are disabled. Enable when an options data source is available.
+
+options_signals:
+  enabled: false
+  signals:
+    iv_rank:
+      weight: 0.0
+      description: "IV rank vs 52-week range — high IV = expensive options"
+    put_call_ratio:
+      weight: 0.0
+      description: "Elevated put/call = bearish sentiment"

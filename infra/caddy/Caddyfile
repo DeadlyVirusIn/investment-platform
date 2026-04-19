@@ -1,0 +1,28 @@
+# Caddyfile — used in production (docker-compose.prod.yml).
+# In dev, Vite proxies /api directly; Caddy is not involved.
+
+:80 {
+    # Route API requests to the FastAPI backend
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+
+    # Serve the pre-built React SPA for everything else.
+    # The `try_files` directive enables client-side routing.
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+
+    # Compress responses
+    encode gzip zstd
+
+    # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+}

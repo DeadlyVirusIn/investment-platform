@@ -1,0 +1,53 @@
+version: "3.9"
+
+# Production overlay — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# TODO: Before going live:
+#   - Store secrets in Docker Secrets or a vault (not .env)
+#   - Point POSTGRES_PASSWORD + FERNET_KEY at secret references
+#   - Add TLS via ACME (Caddyfile already configured for HTTPS)
+#   - Set resource limits (mem_limit / cpus) per service
+#   - Enable pg_dump backup cron or use managed Postgres
+
+services:
+  # Override api to disable localhost-only port binding
+  api:
+    ports: []          # not exposed directly; Caddy proxies internally
+    restart: always
+
+  worker:
+    restart: always
+
+  db:
+    restart: always
+    ports: []          # never expose postgres publicly in prod
+
+  caddy:
+    image: caddy:2-alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3
+    volumes:
+      - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      # Web static build must be pre-built and copied here:
+      # docker build -f infra/docker/web.Dockerfile -t invest-web . && docker cp ...
+      - web_dist:/srv/web:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
+  web_dist:
+
+networks:
+  backend:
+    driver: bridge

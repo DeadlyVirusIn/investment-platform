@@ -1,0 +1,22 @@
+name: E2E Tests (Playwright)
+
+# TODO: Implement Playwright e2e tests in Phase 1.
+# Planned coverage:
+#   - Dashboard loads with stub data
+#   - Portfolio setup form renders all input method options
+#   - Asset page fetches and displays symbol data
+#   - Recommendations list renders action badges
+#   - Navigation between all pages works without JS errors
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  e2e-placeholder:
+    name: E2E placeholder (TODO)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Acknowledge e2e TODO
+        run: echo "TODO — Playwright e2e tests not yet implemented. See .github/workflows/e2e.yml for planned coverage."

@@ -1,0 +1,54 @@
+# ── Python ──────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+pip-wheel-metadata/
+
+# ── Testing / tooling ────────────────────────────────────────────
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# ── Environment / secrets ────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Node ─────────────────────────────────────────────────────────
+node_modules/
+apps/web/dist/
+apps/web/.vite/
+
+# ── Docker / data volumes ────────────────────────────────────────
+pgdata/
+infra/compose/pgdata/
+
+# ── IDE ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Claude Code local settings ──────────────────────────────────
+.claude/

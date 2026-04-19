@@ -1,0 +1,48 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply bg-surface text-text-primary;
+  }
+
+  body {
+    @apply min-h-screen bg-surface text-text-primary;
+  }
+
+  /* Scrollbar styling for dark theme */
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-surface;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-surface-border rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+@layer components {
+  .page-title {
+    @apply text-2xl font-semibold text-text-primary mb-6;
+  }
+
+  .card {
+    @apply bg-surface-card border border-surface-border rounded-lg p-4;
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-md text-sm font-medium transition-colors;
+  }
+
+  .btn-ghost {
+    @apply text-text-secondary hover:text-text-primary hover:bg-surface-hover px-3 py-2 rounded-md text-sm transition-colors;
+  }
+}
