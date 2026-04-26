@@ -145,11 +145,15 @@ async def run_recommendations_for_all_accounts() -> None:
     Scheduled to run after the nightly price-ingestion job. Idempotent via
     recommendation_engine.persist()'s snapshot_hash dedup — repeated runs on
     unchanged inputs do not produce duplicate rows.
+
+    Universe: an account's held assets ∪ all active assets. Union ensures
+    fresh Buy signals appear for seeded assets even before the account has
+    any lots (first-day bootstrap flow).
     """
     from sqlalchemy import select
 
     from apps.api.src.db import SessionLocal
-    from apps.api.src.db.models import Account
+    from apps.api.src.db.models import Account, Asset, Lot, Transaction
     from apps.api.src.domain.recommendations.recommendation_engine import (
         load_engine_config,
         run_for_account,
@@ -168,17 +172,41 @@ async def run_recommendations_for_all_accounts() -> None:
         account_ids = [
             a[0] for a in session.execute(select(Account.id)).all()
         ]
+        universe_ids = [
+            row[0] for row in session.execute(
+                select(Asset.id).where(Asset.is_active.is_(True))
+            ).all()
+        ]
+
+    if not universe_ids:
+        logger.warning("run_recommendations_for_all_accounts: no active assets")
+        return
 
     for account_id in account_ids:
         try:
             with SessionLocal() as session:
-                results = run_for_account(session, account_id, config=config)
+                held = {
+                    r[0] for r in session.execute(
+                        select(Lot.asset_id)
+                        .join(Transaction, Lot.open_transaction_id == Transaction.id)
+                        .where(
+                            Transaction.account_id == account_id,
+                            Lot.quantity_remaining > 0,
+                        )
+                        .distinct()
+                    ).all()
+                }
+                asset_ids = sorted(set(universe_ids) | held)
+                results = run_for_account(
+                    session, account_id, config=config, asset_ids=asset_ids
+                )
                 session.commit()
                 total_accounts += 1
                 total_recs += len(results)
                 logger.info(
-                    "Recommendations: account={} generated={}",
+                    "Recommendations: account={} universe={} generated={}",
                     account_id,
+                    len(asset_ids),
                     len(results),
                 )
         except Exception as exc:  # noqa: BLE001
@@ -201,7 +229,43 @@ async def run_recommendations_for_all_accounts() -> None:
 
 JobFn = Callable[[], Coroutine[Any, Any, None]]
 
+from apps.worker.src.jobs.backfill_prices import backfill_prices
+from apps.worker.src.jobs.compute_factor_snapshots import compute_factor_snapshots
+from apps.worker.src.jobs.compute_regime_snapshot import compute_regime_snapshot
+from apps.worker.src.jobs.fetch_news import fetch_news
+from apps.worker.src.jobs.generate_stock_candidates import generate_stock_candidates
+from apps.worker.src.jobs.ingest_prices_daily import ingest_prices_daily
+from apps.worker.src.jobs.run_daily_pipeline import run_daily_pipeline_job
+from apps.worker.src.jobs.run_paper_trading import run_paper_trading
+from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
+from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
+from apps.worker.src.jobs.v2_promotion_snapshot import (
+    run_v2_promotion_snapshot_job,
+)
+
 REGISTRY: dict[str, JobFn] = {
+    # Ingestion (new: Tiingo → Yahoo fallback)
+    "ingest_prices_daily": ingest_prices_daily,
+    "backfill_prices": backfill_prices,
+    # Ingestion (legacy: Tiingo-only, kept for backward compat)
     "tiingo_backfill_eod": tiingo_backfill_eod,
+    # Stock engine
+    "compute_regime_snapshot": compute_regime_snapshot,
+    "compute_factor_snapshots": compute_factor_snapshots,
+    "generate_stock_candidates": generate_stock_candidates,
+    "run_weekly_rebalance": run_weekly_rebalance,
+    "fetch_news": fetch_news,
+    # Downstream
     "run_recommendations_for_all_accounts": run_recommendations_for_all_accounts,
+    "score_recommendation_outcomes": score_recommendation_outcomes,
+    "run_paper_trading": run_paper_trading,
+    # Live-forward orchestrator (umbrella: candidates → paper trading → verify)
+    "run_daily_pipeline": run_daily_pipeline_job,
+    # V2 promotion-trigger weekly snapshot (Phase 8). Idempotent on
+    # (iso_year, iso_week). Read-only against paper_shadow_log; only
+    # writes to v2_promotion_snapshot. NEVER triggers execution /
+    # routing changes. Schedule target: cron `15 0 * * 1` evaluated
+    # in SCHEDULER_TZ (set SCHEDULER_TZ=UTC for design-spec
+    # Monday 00:15 UTC firing).
+    "v2_promotion_snapshot": run_v2_promotion_snapshot_job,
 }
