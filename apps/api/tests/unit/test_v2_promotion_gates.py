@@ -29,6 +29,8 @@ from src.research.v2_promotion_gates import (
     GATE3_MIN_EDGE_BPS,
     GATE4_MAX_P95_DELTA_NEGATIVE_BPS,
     GATE4_MAX_P99_DELTA_NEGATIVE_BPS,
+    GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL,
+    GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99,
     GATE4_WORST5_DEEPER_FACTOR,
     GATE5_MAX_NEUTRAL_NEG_EDGE_BPS,
     GATE5_MIN_DIRECTIONAL_EDGE_BPS,
@@ -56,8 +58,8 @@ SNAPSHOT_DATE_OK = FRAMEWORK_IMPLEMENTATION_DATE + timedelta(days=GATE1_MIN_OOS_
 
 def _bundle(
     *,
-    n_input=120,
-    n_div=40,
+    n_input=300,    # Phase 9B.1: bumped to satisfy Gate 4 sample guard (>=250)
+    n_div=60,       # Phase 9B.1: bumped to satisfy Gate 4 (>=50) + Gate 1 (>=30)
     n_b2flat=15,
     edge_bps=8.0,
     cum_pct=1.0,
@@ -1039,3 +1041,61 @@ def test_evaluate_all_gates_with_no_optional_inputs():
     assert not out["gate_7_governance"].passed
     # Gate 8 must run without approval_records — and fail
     assert not out["gate_8_operator_approval"].passed
+
+
+# ===========================================================================
+# Phase 9B.1 — Gate 4 internal sample guard + Gate 1 OOS floor 60d
+# ===========================================================================
+
+def test_gate1_oos_floor_now_60_days_not_10():
+    """Phase 9B.1: GATE1_MIN_OOS_DAYS raised from 10 to 60."""
+    assert GATE1_MIN_OOS_DAYS == 60
+    g = evaluate_gate_1(
+        _bundle(),
+        snapshot_as_of_date=FRAMEWORK_IMPLEMENTATION_DATE
+            + timedelta(days=30),
+    )
+    assert not g.passed
+    assert "oos_days" in g.reason
+    assert g.details["oos_days"] == 30
+
+
+def test_gate1_passes_at_exactly_60_oos_days():
+    g = evaluate_gate_1(
+        _bundle(n_input=GATE1_MIN_INPUT_ROWS,
+                n_div=GATE1_MIN_DIVERGENT_ROWS,
+                n_b2flat=GATE1_MIN_B2_FLAT_V2_LONG),
+        snapshot_as_of_date=FRAMEWORK_IMPLEMENTATION_DATE
+            + timedelta(days=GATE1_MIN_OOS_DAYS),
+    )
+    assert g.passed
+
+
+def test_gate4_insufficient_tail_sample_n_div_below_50():
+    """Phase 9B.1: Gate 4 fails fast when n_div < 50 with explicit reason."""
+    bundle = _bundle(n_div=GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL - 1, n_input=300)
+    g = evaluate_gate_4(bundle)
+    assert not g.passed
+    assert "INSUFFICIENT_TAIL_SAMPLE" in g.reason
+    assert g.details["n_divergent_days"] == GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL - 1
+
+
+def test_gate4_insufficient_tail_sample_b2_n_below_250():
+    """Phase 9B.1: Gate 4 fails when len(b2 returns) < 250 even if
+    other thresholds pass."""
+    bundle = _bundle(n_input=GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99 - 1, n_div=60)
+    g = evaluate_gate_4(bundle)
+    assert not g.passed
+    assert "INSUFFICIENT_TAIL_SAMPLE" in g.reason
+
+
+def test_gate4_passes_when_all_floors_met():
+    """Sanity — fixture defaults satisfy both 9B.1 floors."""
+    g = evaluate_gate_4(_bundle())
+    assert g.passed
+
+
+def test_gate4_floors_are_module_constants():
+    """Phase 9B.1: floors must be frozen module-level constants."""
+    assert GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL == 50
+    assert GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99 == 250

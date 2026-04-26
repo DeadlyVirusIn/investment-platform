@@ -1,7 +1,19 @@
 # V2 Promotion Trigger Framework — Design
 
-**Date:** 2026-04-25
-**Status:** DESIGN ONLY — awaiting operator approval before implementation
+**Date:** 2026-04-25 (initial); 2026-04-26 (Phase 9A + 9B revisions)
+**Status:** Phases 1–9 implemented + tested
+**Revision history:**
+
+| Date | Phase | Change |
+|---|---|---|
+| 2026-04-25 | Phases 1–8 initial | Schema, gates, state machine, snapshot job, API, UI, simulations, scheduler |
+| 2026-04-26 | Phase 9A.1 | Added `SUSPENDED` state. Tail emergency now forces SUSPENDED (not NOT_READY). SUSPENDED blocks all evaluation; exits only via operator `RESUME_FROM_SUSPENDED` action. Both streaks force-reset to 0 on SUSPENDED entry. SUSPENDED is parallel to forward progression — `STATE_ORDER` excludes it. |
+| 2026-04-26 | Phase 9A.2 | Migration 046 — added columns: `snapshot_content_hash` (sha256), `schema_version` (int), `code_version` (text), `evaluated_at_utc` (tz-aware), `timezone` (text); `snapshot_content_hash_at_approval` on approval table. Extended state CHECK to allow SUSPENDED, decision CHECK to allow `RESUME_FROM_SUSPENDED`. |
+| 2026-04-26 | Phase 9A.3 | Approval rows now bind to exact `snapshot_content_hash`. New endpoint `POST /api/v2-promotion/resume-from-suspended`. New API field `days_until_approval_expiry` (Phase 9A.4 surfaces warning at T−4 days via `approval_expiry_warning` flag). |
+| 2026-04-26 | Phase 9A.4 | "Comparison framework healthy" definition codified: `comparison_fetch_ok` AND bundle age ≤ 7 days. Worker deploy runbook updated to require `SCHEDULER_TZ=UTC` for design-spec Monday 00:15 UTC firing. |
+| 2026-04-26 | Phase 9B.1 | **Gate 4 internal sample guard**: requires `n_div ≥ 50` AND `tail.b2.n > 250` AND `tail.v2.n > 250`; otherwise fails with `INSUFFICIENT_TAIL_SAMPLE`. **Gate 1 OOS floor raised**: `GATE1_MIN_OOS_DAYS` 10 → 60 (one quarter of OOS evidence). Both per institutional model-risk audit (Opus #1, Sonnet #3, Gemini effective-N #2). |
+| 2026-04-26 | Phase 9B.2 | `confidence_basis` field on `ConfidenceBreakdown` — list of components scoring "vacuously high" (e.g. trend STABLE only because insufficient history). Persisted in `gates_json.confidence_breakdown.basis_warnings`. |
+| 2026-04-26 | Phase 9B.3 | `compute_all` now exposes `tail_by_regime` (per-regime p95/p99/worst-5). Bundle gains `schema_version=2`. Gate 5 stress sub-condition switched from `new_losses_avg_bps − avoided_losses_avg_bps` proxy to **literal**: `V2 stress p99 − B2 stress p99 ≥ -10 bps`. Falls back to proxy if `tail_by_regime` absent. |
 **Scope:** Governance layer above the advisory B2 vs V2 comparison framework
 **Related:**
 - `B2_V2_COMPARISON_FRAMEWORK_DESIGN.md` (the advisory comparison framework — v2)

@@ -34,7 +34,11 @@ from typing import Any
 GATE1_MIN_INPUT_ROWS = 60
 GATE1_MIN_DIVERGENT_ROWS = 30
 GATE1_MIN_B2_FLAT_V2_LONG = 10
-GATE1_MIN_OOS_DAYS = 10
+# Phase 9B.1 — raised from 10 to 60 days (one full quarter of OOS evidence)
+# per institutional model-risk audit (Opus D2). Ten days post-implementation
+# was statistically meaningless against a strategy whose parameter was
+# selected via observation of historical missed gains.
+GATE1_MIN_OOS_DAYS = 60
 FRAMEWORK_IMPLEMENTATION_DATE = date(2026, 4, 25)
 
 # Gate 2
@@ -52,6 +56,12 @@ GATE3_IMPACT_WEIGHTED_NOISE_BAND = 0.10  # ±10% noise tolerance
 GATE4_MAX_P99_DELTA_NEGATIVE_BPS = -10.0    # tail_delta_p99_bps must be ≥ this
 GATE4_MAX_P95_DELTA_NEGATIVE_BPS = -5.0
 GATE4_WORST5_DEEPER_FACTOR = 1.10            # V2 may be at most 10% deeper
+# Phase 9B.1 — internal sample guard for tail-claim validity. Per audit
+# (Opus #1, Sonnet #3, Gemini effective-N): p99 / worst-5 cannot be
+# defended on n_div >= 30 OR len(returns) <= 100. Gate 4 enforces a
+# stricter floor than Gate 1's general sample minimum.
+GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL = 50
+GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99 = 250
 
 # Gate 5
 GATE5_MIN_DIRECTIONAL_EDGE_BPS = 0.0         # strict > 0
@@ -449,6 +459,30 @@ def evaluate_gate_4(bundle: dict) -> GateResult:
     b2_w5 = list((tail.get("b2") or {}).get("worst_5_losses_bps") or [])
     v2_w5 = list((tail.get("v2") or {}).get("worst_5_losses_bps") or [])
 
+    # Phase 9B.1 — internal sample guard. Tail metrics on thin samples
+    # are statistically indefensible; fail fast with explicit reason.
+    n_div = int((bundle.get("metrics") or {}).get("n_divergent_days") or 0)
+    n_b2 = int((tail.get("b2") or {}).get("n") or 0)
+    n_v2 = int((tail.get("v2") or {}).get("n") or 0)
+    if n_div < GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL or \
+       n_b2 < GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99 or \
+       n_v2 < GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99:
+        return _r(
+            "gate_4_tail_risk",
+            passed=False,
+            reason=(
+                f"INSUFFICIENT_TAIL_SAMPLE: n_div={n_div} "
+                f"(need ≥ {GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL}); "
+                f"b2.n={n_b2}, v2.n={n_v2} "
+                f"(need ≥ {GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99})"
+            ),
+            n_divergent_days=n_div,
+            b2_n=n_b2,
+            v2_n=n_v2,
+            sample_guard_floor_div=GATE4_MIN_DIVERGENT_DAYS_FOR_TAIL,
+            sample_guard_floor_returns=GATE4_MIN_RETURN_OBSERVATIONS_FOR_P99,
+        )
+
     fails: list[str] = []
     if guard:
         fails.append("tail_guard_triggered=true")
@@ -523,34 +557,51 @@ def evaluate_gate_5(bundle: dict) -> GateResult:
             f"neutral edge_bps={neu_edge!r} < {GATE5_MAX_NEUTRAL_NEG_EDGE_BPS}"
         )
 
-    # Stress-tail proxy:
-    # bundle does NOT currently expose tail_by_regime; per Phase 2 spec
-    # we compute a defensible proxy from available stress-bucket fields.
-    # Proxy: V2 must NOT have introduced new losses on stress days that
-    # average more than 100 bps deeper than B2's stress-day baseline.
-    # When stress bucket is empty (n=0), this sub-condition is vacuously
-    # passing (no stress-day evidence to indict V2).
+    # Phase 9B.3 — literal stress-tail check from bundle's `tail_by_regime`.
+    # Falls back to the proxy if `tail_by_regime` is missing (older bundles).
+    tail_by_reg = bundle.get("tail_by_regime") or {}
+    stress_tail = (tail_by_reg.get("stress") or {}) if tail_by_reg else {}
+    b2_stress_p99 = _f((stress_tail.get("b2") or {}).get("p99_loss_bps"))
+    v2_stress_p99 = _f((stress_tail.get("v2") or {}).get("p99_loss_bps"))
     stress_n = int(stress.get("n_divergent_days") or 0)
-    stress_new_loss = _f(stress.get("new_losses_avg_bps"))
-    stress_avoided = _f(stress.get("avoided_losses_avg_bps"))
     stress_proxy_ok = True
-    stress_proxy_reason = "stress bucket empty → vacuously passing"
-    if stress_n > 0 and stress_new_loss is not None:
-        # If V2's added losses on stress days exceed avoided losses by
-        # more than abs(GATE5_STRESS_TAIL_DELTA_BPS), tail in stress is worse.
-        net = stress_new_loss - (stress_avoided or 0.0)
-        if net > abs(GATE5_STRESS_TAIL_DELTA_BPS):
+    stress_proxy_reason: str
+    if b2_stress_p99 is not None and v2_stress_p99 is not None:
+        # Literal: V2 stress p99 must be at most 10 bps deeper than B2's.
+        delta = v2_stress_p99 - b2_stress_p99
+        if delta < GATE5_STRESS_TAIL_DELTA_BPS:
             stress_proxy_ok = False
             stress_proxy_reason = (
-                f"stress new_losses {stress_new_loss:.2f} bps − "
-                f"avoided {stress_avoided or 0.0:.2f} bps = net {net:.2f} bps "
-                f"> {abs(GATE5_STRESS_TAIL_DELTA_BPS)} bps"
+                f"stress p99: V2 {v2_stress_p99:.2f} - B2 {b2_stress_p99:.2f} "
+                f"= {delta:.2f} bps < {GATE5_STRESS_TAIL_DELTA_BPS}"
             )
         else:
             stress_proxy_reason = (
-                f"stress net loss-introduction {net:.2f} bps "
-                f"≤ {abs(GATE5_STRESS_TAIL_DELTA_BPS)} bps"
+                f"stress p99 delta {delta:.2f} bps "
+                f"≥ {GATE5_STRESS_TAIL_DELTA_BPS} bps (literal)"
             )
+    elif stress_n == 0:
+        stress_proxy_reason = "stress bucket empty → vacuously passing"
+    else:
+        # Bundle predates Phase 9B.3 → fall back to proxy.
+        stress_new_loss = _f(stress.get("new_losses_avg_bps"))
+        stress_avoided = _f(stress.get("avoided_losses_avg_bps"))
+        if stress_new_loss is not None:
+            net = stress_new_loss - (stress_avoided or 0.0)
+            if net > abs(GATE5_STRESS_TAIL_DELTA_BPS):
+                stress_proxy_ok = False
+                stress_proxy_reason = (
+                    f"PROXY stress net loss-introduction {net:.2f} bps "
+                    f"> {abs(GATE5_STRESS_TAIL_DELTA_BPS)} bps "
+                    f"(bundle missing tail_by_regime)"
+                )
+            else:
+                stress_proxy_reason = (
+                    f"PROXY stress net {net:.2f} bps "
+                    f"≤ {abs(GATE5_STRESS_TAIL_DELTA_BPS)} bps"
+                )
+        else:
+            stress_proxy_reason = "stress bucket has no loss data"
     if not stress_proxy_ok:
         fails.append(f"stress_tail: {stress_proxy_reason}")
 

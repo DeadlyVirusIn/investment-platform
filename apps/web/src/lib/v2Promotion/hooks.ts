@@ -5,6 +5,7 @@ import { apiGet, apiPost } from "@/lib/api";
 
 export type V2PromotionState =
   | "NOT_READY"
+  | "SUSPENDED"
   | "WATCH"
   | "READY_FOR_REVIEW"
   | "STRONG_CANDIDATE"
@@ -31,13 +32,21 @@ export interface SnapshotSummary {
   impact_weighted_edge: number | null;
   comparison_fetch_ok: boolean;
   created_at: string;
+  // Phase 9A — governance hardening metadata
+  snapshot_content_hash: string | null;
+  schema_version: number;
+  code_version: string | null;
+  evaluated_at_utc: string | null;
+  timezone: string | null;
+  days_until_approval_expiry: number | null;
+  approval_expiry_warning: boolean;
 }
 
 
 export interface ApprovalRow {
   id: number;
   snapshot_id: number;
-  decision: "APPROVE" | "RESCIND";
+  decision: "APPROVE" | "RESCIND" | "RESUME_FROM_SUSPENDED";
   approver: string;
   rationale: string;
   approved_at: string;
@@ -184,6 +193,37 @@ export function useV2PromotionRescind() {
   return useMutation<RescindResponse, Error, RescindBody>({
     mutationFn: (body) =>
       apiPost<RescindResponse>("/v2-promotion/rescind", body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["v2Promotion.state"] });
+      qc.invalidateQueries({ queryKey: ["v2Promotion.gates"] });
+    },
+  });
+}
+
+
+// Phase 9A — RESUME_FROM_SUSPENDED operator action
+
+export interface ResumeBody {
+  snapshot_id: number;
+  approver: string;
+  rationale: string;
+}
+
+
+export interface ResumeResponse {
+  status: "inserted";
+  resume: ApprovalRow;
+  snapshot_id: number;
+  snapshot_state_at_resume_request: V2PromotionState;
+  note: string;
+}
+
+
+export function useV2PromotionResume() {
+  const qc = useQueryClient();
+  return useMutation<ResumeResponse, Error, ResumeBody>({
+    mutationFn: (body) =>
+      apiPost<ResumeResponse>("/v2-promotion/resume-from-suspended", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["v2Promotion.state"] });
       qc.invalidateQueries({ queryKey: ["v2Promotion.gates"] });

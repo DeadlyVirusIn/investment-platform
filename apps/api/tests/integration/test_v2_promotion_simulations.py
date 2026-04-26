@@ -309,21 +309,21 @@ def test_scenario_1_gradual_improvement(monkeypatch, pg_factory, pg_session):
     # Weeks 4-7: V2_BETTER + STRONG_CANDIDATE accumulate streaks
     for w in range(4):
         bundles.append(_build_bundle(
-            n_input=120 + w * 10, n_div=40 + w * 5,
+            n_input=300 + w * 10, n_div=50 + w * 5,
             n_b2flat=20 + w * 3, edge_bps=10.0, cum_pct=2.0,
             iwe=0.10, verdict="V2_BETTER",
             readiness="STRONG_CANDIDATE", confidence=0.85,
         ))
     # Week 8: same — should now satisfy STRONG_CANDIDATE
     bundles.append(_build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER",
         readiness="STRONG_CANDIDATE", confidence=0.90,
     ))
 
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 18),
+        bundles=bundles, start=_start_monday(2026, 27),
     )
     _print_trace("Scenario 1 — gradual improvement", results)
 
@@ -356,7 +356,7 @@ def test_scenario_2_streak_break_resets(monkeypatch, pg_factory, pg_session):
     """3 V2_BETTER weeks (streak grows), 1 INCONCLUSIVE (hard reset),
     3 V2_BETTER again (streak rebuilds from 1)."""
     base = lambda **kw: _build_bundle(
-        n_input=120, n_div=50, n_b2flat=25, edge_bps=10.0, cum_pct=2.0,
+        n_input=320, n_div=50, n_b2flat=25, edge_bps=10.0, cum_pct=2.0,
         iwe=0.08, **kw,
     )
     bundles = [
@@ -371,7 +371,7 @@ def test_scenario_2_streak_break_resets(monkeypatch, pg_factory, pg_session):
     ]
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 20),
+        bundles=bundles, start=_start_monday(2026, 29),
     )
     _print_trace("Scenario 2 — streak break", results)
 
@@ -404,7 +404,7 @@ def test_scenario_3_false_spike_never_promotes(monkeypatch, pg_factory, pg_sessi
     bundles = [weak, weak, spike, weak, weak, weak]
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 22),
+        bundles=bundles, start=_start_monday(2026, 31),
     )
     _print_trace("Scenario 3 — false spike", results)
 
@@ -421,12 +421,12 @@ def test_scenario_4_tail_failure_rolls_back_to_not_ready(monkeypatch, pg_factory
                                                           pg_session):
     """Build to STRONG_CANDIDATE then breach tail_delta_p99 < -25."""
     good = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.90,
     )
     breach = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.90, p99_delta=-30.0,  # hard breach
     )
@@ -434,12 +434,13 @@ def test_scenario_4_tail_failure_rolls_back_to_not_ready(monkeypatch, pg_factory
     bundles = [good, good, good, good, good, breach]
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 24),
+        bundles=bundles, start=_start_monday(2026, 33),
     )
     _print_trace("Scenario 4 — tail failure", results)
 
-    # Last week must be NOT_READY with tail-emergency rollback reason
-    assert results[-1].state == "NOT_READY"
+    # Last week must be SUSPENDED (Phase 9A; was NOT_READY) with
+    # tail-emergency rollback reason
+    assert results[-1].state == "SUSPENDED"
     assert results[-1].rollback_reason and "emergency" in results[-1].rollback_reason
     # Some prior week must have reached STRONG_CANDIDATE (otherwise the test is
     # validating something different)
@@ -454,7 +455,7 @@ def test_scenario_5_approval_flow(monkeypatch, pg_factory, pg_session):
     """Build to STRONG_CANDIDATE; operator writes approval; next snapshot
     advances to APPROVED_FOR_SHADOW_REPLACEMENT."""
     good = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.90,
     )
@@ -481,7 +482,7 @@ def test_scenario_5_approval_flow(monkeypatch, pg_factory, pg_session):
     bundles = [good] * 7
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 28),
+        bundles=bundles, start=_start_monday(2026, 37),
         approval_callback=_approve_when_strong,
     )
     _print_trace("Scenario 5 — approval flow", results)
@@ -503,7 +504,7 @@ def test_scenario_6_rescind_flow(monkeypatch, pg_factory, pg_session):
     """Reach APPROVED, then operator rescinds; next snapshot regresses
     to STRONG_CANDIDATE (gates 1–7 still pass)."""
     good = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.90,
     )
@@ -546,7 +547,7 @@ def test_scenario_6_rescind_flow(monkeypatch, pg_factory, pg_session):
     bundles = [good] * 9
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 36),
+        bundles=bundles, start=_start_monday(2026, 41),
         approval_callback=_operator,
     )
     _print_trace("Scenario 6 — rescind flow", results)
@@ -577,12 +578,12 @@ def test_scenario_7_post_approval_degradation(monkeypatch, pg_factory,
     """Reach APPROVED, then degrade with 2-consec tail-guard breach.
     APPROVED has only one auto exit: tail-risk emergency → NOT_READY."""
     good = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.90,
     )
     bad = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=12.0, cum_pct=2.5,
         iwe=0.10, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.90, tail_guard=True, p99_delta=-15.0,
     )
@@ -606,15 +607,16 @@ def test_scenario_7_post_approval_degradation(monkeypatch, pg_factory,
     bundles = [good] * 6 + [bad, bad]
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=bundles, start=_start_monday(2026, 44),
+        bundles=bundles, start=_start_monday(2026, 47),
         approval_callback=_approve_once,
     )
     _print_trace("Scenario 7 — post-approval degradation", results)
 
     states = [r.state for r in results]
     assert "APPROVED_FOR_SHADOW_REPLACEMENT" in states
-    # Final state must be NOT_READY (only auto exit from APPROVED is emergency)
-    assert results[-1].state == "NOT_READY"
+    # Final state must be SUSPENDED (Phase 9A; was NOT_READY).
+    # Only auto-exit from APPROVED is tail-risk emergency → SUSPENDED.
+    assert results[-1].state == "SUSPENDED"
     assert results[-1].rollback_reason and (
         "consecutive" in results[-1].rollback_reason
         or "emergency" in results[-1].rollback_reason
@@ -644,20 +646,24 @@ def test_no_oscillation_in_any_scenario(monkeypatch, pg_factory, pg_session):
     # over a longer 12-week run that mixes good and noisy bundles.
     rng_pattern = []
     good = _build_bundle(
-        n_input=160, n_div=60, n_b2flat=30, edge_bps=10.0, cum_pct=2.0,
+        n_input=320, n_div=60, n_b2flat=30, edge_bps=10.0, cum_pct=2.0,
         iwe=0.08, verdict="V2_BETTER", readiness="STRONG_CANDIDATE",
         confidence=0.85,
     )
+    # Phase 9B.1: mediocre bundle keeps V2_BETTER verdict + edge ≥ +5 so
+    # state stays in READY_FOR_REVIEW (no legitimate WATCH↔READY ping
+    # from operator-driven verdict regression). This isolates the
+    # invariant under test from intentional state-machine downgrades.
     mediocre = _build_bundle(
-        n_input=120, n_div=40, n_b2flat=20, edge_bps=4.0, cum_pct=0.4,
-        iwe=0.03, verdict="INCONCLUSIVE", readiness="REVIEW",
+        n_input=320, n_div=50, n_b2flat=20, edge_bps=6.0, cum_pct=0.6,
+        iwe=0.04, verdict="V2_BETTER", readiness="REVIEW",
         confidence=0.55,
     )
     pattern = [good, good, mediocre, good, good, good, mediocre,
                 good, good, good, good, good]
     results = _drive_simulation(
         monkeypatch=monkeypatch, pg_factory=pg_factory, pg_session=pg_session,
-        bundles=pattern, start=_start_monday(2026, 14),
+        bundles=pattern, start=_start_monday(2026, 27),
     )
     _print_trace("Anti-oscillation 12-week mixed run", results)
 

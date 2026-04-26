@@ -12,6 +12,7 @@
 |---|---|---|
 | v1 | 2026-04-25 | Initial 6-part framework |
 | v2 | 2026-04-25 | + Impact-weighted edge, regime-conditioned metrics, tail-sensitivity guard, UI extensions. **No threshold changes. No execution / promotion changes.** |
+| v3 | 2026-04-26 | Phase 9B.3 — `compute_all` bundle gains `schema_version=2` + `tail_by_regime` field (per-regime p95/p99/worst-5 via `tail_comparison` partitioned by `b2_regime`). Enables V2 promotion trigger Gate 5 to switch from new-loss proxy to literal stress-tail check. **No threshold changes. No execution changes.** |
 
 ---
 

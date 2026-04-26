@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import hashlib
+import json
+import os
 from decimal import Decimal
 from typing import Any
 
 from loguru import logger
-from sqlalchemy import select, text
+from sqlalchemy import delete, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -44,9 +47,21 @@ from apps.api.src.research.v2_promotion_gates import (
 )
 from apps.api.src.research.v2_promotion_state import (
     NOT_READY,
+    SUSPENDED,
     advance_or_rollback,
     compute_promotion_confidence,
+    detect_tail_emergency,
     update_streaks,
+)
+
+
+# Phase 9A — bundle schema version (bumped when compute_all output shape changes)
+COMPARISON_BUNDLE_SCHEMA_VERSION = 1
+# Phase 9A — code version: prefer git sha if available, else release tag
+CODE_VERSION = (
+    os.environ.get("V2_PROMOTION_CODE_VERSION")
+    or os.environ.get("APP_VERSION")
+    or "unset"
 )
 
 
@@ -223,18 +238,30 @@ def build_governance_state(
     *,
     comparison_fetch_ok: bool,
     engine_b_mode: str | None = None,
+    bundle_age_days: int | None = None,
 ) -> dict:
     """Construct the dict that Gate 7 consumes.
 
     Reads `settings.ENGINE_B_MODE` (config layer — not an execution
     module). ML status hard-coded True per design (this framework
     must abstain if ML is ever promoted; see design §Hard Rules).
+
+    Phase 9A.4 — "comparison framework healthy" definition:
+      * `comparison_fetch_ok` — True iff the most recent fetch did NOT
+        raise an exception AND returned a non-null verdict.
+      * `bundle_age_days` (optional) — age of the comparison bundle in
+        days; > 7 days indicates the comparison API is serving stale data.
+        Healthy iff fetch_ok AND age ≤ 7 days.
     """
     mode = engine_b_mode or getattr(settings, "ENGINE_B_MODE", "LEGACY")
+    age_ok = bundle_age_days is None or bundle_age_days <= 7
+    healthy = bool(comparison_fetch_ok) and age_ok
     return {
         "engine_b_mode": str(mode),
         "ml_advisory_only": True,
-        "comparison_framework_healthy": bool(comparison_fetch_ok),
+        "comparison_framework_healthy": healthy,
+        "comparison_fetch_ok": bool(comparison_fetch_ok),
+        "comparison_bundle_age_days": bundle_age_days,
         "b2_promotion_paused": False,   # informational only; not surfaced here
     }
 
@@ -353,6 +380,14 @@ def run_v2_promotion_snapshot(
             session, prior_snapshots, snapshot_as_of_date=target_date,
         )
 
+        # Phase 9A: detect operator RESUME_FROM_SUSPENDED for the prior
+        # snapshot id (only relevant when prior_state == SUSPENDED).
+        resume_records, _ = load_approvals_for_priors(
+            session, prior_snapshots, snapshot_as_of_date=target_date,
+            lookback_days=APPROVAL_LOOKBACK_DAYS,
+        )
+        resume_present = detect_resume_present(resume_records)
+
         # Governance state
         governance_state = build_governance_state(
             comparison_fetch_ok=comparison_fetch_ok,
@@ -371,12 +406,19 @@ def run_v2_promotion_snapshot(
             gates["gate_8_operator_approval"].passed
         )
 
-        # ----- 4. Update streaks -----
+        # ----- Phase 9A: detect tail emergency BEFORE streak update so
+        # we can force_reset both streaks atomically with SUSPENDED entry.
+        tail_emergency, tail_emergency_reason = detect_tail_emergency(
+            bundle, prior_snapshot=prior_snapshot,
+        )
+
+        # ----- 4. Update streaks (force_reset on emergency) -----
         verdict_block = (bundle.get("verdict") or {})
         streaks = update_streaks(
             prior_snapshot,
             current_verdict_label=verdict_block.get("verdict"),
             current_readiness_label=verdict_block.get("readiness"),
+            force_reset=tail_emergency,
         )
 
         # ----- 5. Compute promotion confidence -----
@@ -385,7 +427,7 @@ def run_v2_promotion_snapshot(
         )
 
         # ----- 7+8. State machine (advance_or_rollback handles tail
-        # emergency override internally as its first step) -----
+        # emergency → SUSPENDED internally as its first step) -----
         decision = advance_or_rollback(
             prior_state=prior_state,
             gates=gates,
@@ -394,6 +436,16 @@ def run_v2_promotion_snapshot(
             bundle=bundle,
             prior_snapshot=prior_snapshot,
             approval_present=approval_present,
+            resume_present=resume_present,
+        )
+
+        # ----- Phase 9A: prepare jsonable bundle + compute content hash -----
+        jsonable_bundle = _to_jsonable(bundle)
+        content_hash = compute_snapshot_content_hash(jsonable_bundle)
+        evaluated_at_utc = dt.datetime.now(dt.timezone.utc)
+        scheduler_tz = (
+            os.environ.get("SCHEDULER_TZ")
+            or "America/New_York"
         )
 
         # ----- 9. Insert -----
@@ -401,7 +453,7 @@ def run_v2_promotion_snapshot(
             as_of_date=target_date,
             iso_year=iso_year,
             iso_week=iso_week,
-            comparison_bundle_json=_to_jsonable(bundle),
+            comparison_bundle_json=jsonable_bundle,
             state=decision.new_state,
             prior_state=(prior_snapshot["state"] if prior_snapshot else None),
             promotion_confidence=Decimal(str(confidence.total)),
@@ -415,6 +467,12 @@ def run_v2_promotion_snapshot(
             verdict_streak=int(streaks.verdict_streak),
             readiness_streak=int(streaks.readiness_streak),
             rollback_reason=decision.rollback_reason,
+            # Phase 9A — governance hardening metadata
+            snapshot_content_hash=content_hash,
+            schema_version=COMPARISON_BUNDLE_SCHEMA_VERSION,
+            code_version=CODE_VERSION,
+            evaluated_at_utc=evaluated_at_utc,
+            timezone=scheduler_tz,
         )
         try:
             session.add(row)
@@ -461,6 +519,62 @@ def run_v2_promotion_snapshot(
 
 def _empty_bundle() -> dict:
     return compute_all([])
+
+
+# ---------------------------------------------------------------------------
+# Phase 9A helpers — content hashing + RESUME detection
+# ---------------------------------------------------------------------------
+
+def compute_snapshot_content_hash(bundle: dict) -> str:
+    """Stable SHA-256 over canonicalized bundle JSON.
+
+    Sort keys + drop whitespace to ensure two semantically-identical
+    bundles produce identical hashes regardless of dict iteration order.
+    """
+    canonical = json.dumps(
+        bundle, sort_keys=True, separators=(",", ":"), default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def detect_resume_present(approval_records: list[dict]) -> bool:
+    """Phase 9A — operator submitted RESUME_FROM_SUSPENDED for the
+    snapshot under consideration."""
+    return any(
+        r.get("decision") == "RESUME_FROM_SUSPENDED"
+        for r in approval_records
+    )
+
+
+def invalidate_stale_approvals(
+    session: Session,
+    *,
+    snapshot_id: int,
+    current_content_hash: str,
+) -> int:
+    """Phase 9A — when a snapshot's content hash changes (recompute /
+    backfill correction), delete any pending approvals that referenced
+    the prior hash. Returns count deleted.
+
+    NOTE: in current design, snapshots are immutable per ISO week. This
+    helper exists for the future `POST /api/v2-promotion/recompute-snapshot`
+    code path; called defensively from the snapshot job to clean up if
+    a content_hash mismatch is ever observed.
+    """
+    rows = session.execute(
+        select(V2PromotionApproval).where(
+            V2PromotionApproval.snapshot_id == snapshot_id,
+            V2PromotionApproval.snapshot_content_hash_at_approval.isnot(None),
+            V2PromotionApproval.snapshot_content_hash_at_approval
+                != current_content_hash,
+        )
+    ).scalars().all()
+    if not rows:
+        return 0
+    for r in rows:
+        session.delete(r)
+    session.flush()
+    return len(rows)
 
 
 # ---------------------------------------------------------------------------

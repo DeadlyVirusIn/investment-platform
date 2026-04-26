@@ -43,11 +43,13 @@ from src.research.v2_promotion_state import (
     READY_FOR_REVIEW,
     STATE_ORDER,
     STRONG_CANDIDATE,
+    SUSPENDED,
     TAIL_EMERGENCY_P99_DELTA_HARD_BPS,
     WATCH,
     StreakUpdate,
     advance_or_rollback,
     compute_promotion_confidence,
+    detect_tail_emergency,
     update_streaks,
 )
 
@@ -994,7 +996,8 @@ def test_approved_to_lower_state_on_rescission_when_gates_also_fail():
 # ===========================================================================
 
 @pytest.mark.parametrize("entry_state", list(STATE_ORDER))
-def test_tail_emergency_p99_hard_breach_forces_not_ready(entry_state):
+def test_tail_emergency_p99_hard_breach_forces_suspended(entry_state):
+    """Phase 9A: tail emergency now forces SUSPENDED, not NOT_READY."""
     decision = advance_or_rollback(
         prior_state=entry_state,
         gates=_all_pass_gates(),
@@ -1008,12 +1011,13 @@ def test_tail_emergency_p99_hard_breach_forces_not_ready(entry_state):
         prior_snapshot=None,
         approval_present=True,
     )
-    assert decision.new_state == NOT_READY
+    assert decision.new_state == SUSPENDED
     assert "emergency" in (decision.rollback_reason or "")
 
 
 @pytest.mark.parametrize("entry_state", list(STATE_ORDER))
-def test_tail_emergency_2_consec_guard_forces_not_ready(entry_state):
+def test_tail_emergency_2_consec_guard_forces_suspended(entry_state):
+    """Phase 9A: 2-consecutive guard fires SUSPENDED."""
     decision = advance_or_rollback(
         prior_state=entry_state,
         gates=_all_pass_gates(),
@@ -1024,7 +1028,7 @@ def test_tail_emergency_2_consec_guard_forces_not_ready(entry_state):
         prior_snapshot={"tail_guard_triggered": True},
         approval_present=True,
     )
-    assert decision.new_state == NOT_READY
+    assert decision.new_state == SUSPENDED
     assert "consecutive" in (decision.rollback_reason or "")
 
 
@@ -1129,3 +1133,150 @@ def test_determinism_same_inputs_same_outputs():
     out1 = advance_or_rollback(**inputs)
     out2 = advance_or_rollback(**inputs)
     assert out1 == out2
+
+
+# ===========================================================================
+# Phase 9A — SUSPENDED state + RESUME flow + force_reset streaks
+# ===========================================================================
+
+def test_suspended_stays_without_resume():
+    decision = advance_or_rollback(
+        prior_state=SUSPENDED,
+        gates=_all_pass_gates(),
+        streaks=_streaks(0, 0),
+        confidence=0.0,
+        bundle=_bundle(verdict="V2_BETTER"),
+        prior_snapshot=None,
+        approval_present=False,
+        resume_present=False,
+    )
+    assert decision.new_state == SUSPENDED
+    assert not decision.forward
+    assert not decision.backward
+
+
+def test_suspended_with_resume_re_evaluates_from_not_ready():
+    """RESUME → equivalent of fresh evaluation from NOT_READY. With Gate 1
+    passing, advances exactly one state to WATCH (no skipping)."""
+    decision = advance_or_rollback(
+        prior_state=SUSPENDED,
+        gates=_all_pass_gates(),
+        streaks=_streaks(0, 0),
+        confidence=0.0,
+        bundle=_bundle(verdict="V2_BETTER"),
+        prior_snapshot=None,
+        approval_present=False,
+        resume_present=True,
+    )
+    assert decision.new_state == WATCH
+    assert "RESUME_FROM_SUSPENDED" in " ".join(decision.notes)
+
+
+def test_suspended_resume_with_failing_gate1_stays_not_ready():
+    gates = _all_pass_gates()
+    gates["gate_1_minimum_sample"] = _gate(
+        "gate_1_minimum_sample", passed=False,
+    )
+    decision = advance_or_rollback(
+        prior_state=SUSPENDED,
+        gates=gates,
+        streaks=_streaks(0, 0),
+        confidence=0.0,
+        bundle=_bundle(verdict="V2_BETTER"),
+        prior_snapshot=None,
+        approval_present=False,
+        resume_present=True,
+    )
+    assert decision.new_state == NOT_READY
+
+
+def test_tail_emergency_overrides_resume():
+    """If tail emergency fires WHILE operator submitted resume, emergency wins."""
+    decision = advance_or_rollback(
+        prior_state=SUSPENDED,
+        gates=_all_pass_gates(),
+        streaks=_streaks(0, 0),
+        confidence=0.0,
+        bundle=_bundle(verdict="V2_BETTER",
+                        p99_delta=TAIL_EMERGENCY_P99_DELTA_HARD_BPS - 1),
+        prior_snapshot=None,
+        approval_present=False,
+        resume_present=True,
+    )
+    assert decision.new_state == SUSPENDED
+    assert "emergency" in (decision.rollback_reason or "")
+
+
+def test_force_reset_zeroes_both_streaks():
+    out = update_streaks(
+        {"verdict_streak": 99, "readiness_streak": 88},
+        current_verdict_label="V2_BETTER",
+        current_readiness_label="STRONG_CANDIDATE",
+        force_reset=True,
+    )
+    assert out.verdict_streak == 0
+    assert out.readiness_streak == 0
+
+
+def test_streaks_dont_accumulate_across_suspended():
+    """Prior snapshot in SUSPENDED state → streaks treated as zero
+    regardless of stored values."""
+    out = update_streaks(
+        {"verdict_streak": 99, "readiness_streak": 88, "state": SUSPENDED},
+        current_verdict_label="V2_BETTER",
+        current_readiness_label="STRONG_CANDIDATE",
+    )
+    assert out.verdict_streak == 1
+    assert out.readiness_streak == 1
+
+
+def test_detect_tail_emergency_p99_breach():
+    triggered, reason = detect_tail_emergency(
+        _bundle(p99_delta=TAIL_EMERGENCY_P99_DELTA_HARD_BPS - 0.01),
+        prior_snapshot=None,
+    )
+    assert triggered
+    assert reason and "hard floor" in reason
+
+
+def test_detect_tail_emergency_2_consec_guard():
+    triggered, reason = detect_tail_emergency(
+        _bundle(tail_guard=True),
+        prior_snapshot={"tail_guard_triggered": True},
+    )
+    assert triggered
+    assert reason and "consecutive" in reason
+
+
+def test_detect_tail_emergency_no_trigger():
+    triggered, reason = detect_tail_emergency(
+        _bundle(tail_guard=False, p99_delta=0.0),
+        prior_snapshot=None,
+    )
+    assert not triggered
+    assert reason is None
+
+
+def test_state_order_excludes_suspended():
+    """SUSPENDED is a parallel circuit-breaker state, not part of forward
+    progression. STATE_ORDER must remain 5 forward states only."""
+    assert SUSPENDED not in STATE_ORDER
+    assert len(STATE_ORDER) == 5
+
+
+def test_forward_arrow_skips_suspended():
+    """Operator-resumed snapshot from SUSPENDED → re-evaluated as
+    NOT_READY → WATCH. No state skipping observed."""
+    decision = advance_or_rollback(
+        prior_state=SUSPENDED,
+        gates=_all_pass_gates(),
+        streaks=_streaks(GATE2_VERDICT_STREAK_REQUIRED,
+                          GATE2_READINESS_STREAK_REQUIRED),
+        confidence=0.95,
+        bundle=_bundle(verdict="V2_BETTER"),
+        prior_snapshot=None,
+        approval_present=True,    # would normally allow APPROVED, but we
+                                    # routed through NOT_READY → WATCH only
+        resume_present=True,
+    )
+    assert decision.new_state == WATCH

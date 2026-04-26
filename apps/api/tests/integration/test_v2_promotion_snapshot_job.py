@@ -131,10 +131,14 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(autouse=True)
 def _ensure_paper_shadow_log_exists(pg_engine):
     """paper_shadow_log isn't an ORM model — create it via raw DDL once
-    per test so the snapshot job's SELECT does not error out."""
+    per test so the snapshot job's SELECT does not error out.
+
+    DROP+CREATE (not IF NOT EXISTS) so this fixture's full schema wins
+    over any abbreviated schema left by other test files in the same
+    pytest run."""
     with pg_engine.begin() as conn:
+        conn.execute(text("DROP TABLE IF EXISTS paper_shadow_log"))
         conn.execute(_PAPER_SHADOW_DDL)
-        conn.execute(text("TRUNCATE TABLE paper_shadow_log"))
     yield
 
 
@@ -271,7 +275,7 @@ def test_first_snapshot_prior_state_is_null(pg_factory, pg_session):
 
 def test_tail_emergency_forces_not_ready(pg_factory, pg_session, monkeypatch):
     """Bundle with tail_delta_p99_bps deeply negative → state forced
-    to NOT_READY regardless of other inputs."""
+    to SUSPENDED (Phase 9A; was NOT_READY)."""
     target = dt.date(2026, 5, 25)
 
     def _emergency_bundle(*args, **kwargs):
@@ -302,7 +306,7 @@ def test_tail_emergency_forces_not_ready(pg_factory, pg_session, monkeypatch):
         as_of=target, session_factory=pg_factory,
     )
     snap = pg_session.get(V2PromotionSnapshot, out["snapshot_id"])
-    assert snap.state == "NOT_READY"
+    assert snap.state == "SUSPENDED"
     assert snap.rollback_reason and "emergency" in snap.rollback_reason
 
 
@@ -339,7 +343,9 @@ def test_approval_present_advances_strong_to_approved(pg_factory, pg_session,
         lambda *a, **kw: _strong_candidate_bundle(),
     )
     # Walk forward four ISO weeks to build up streaks + state
-    base = dt.date(2026, 4, 27)  # Mon ISO 2026-W18
+    # Phase 9B.1: GATE1_MIN_OOS_DAYS raised to 60; start ≥ 60 days after
+    # FRAMEWORK_IMPLEMENTATION_DATE (2026-04-25) so Gate 1 can pass.
+    base = dt.date(2026, 6, 29)  # Mon ISO 2026-W27 (~65 days OOS)
     snapshot_ids: list[int] = []
     states: list[str] = []
     for w in range(6):
@@ -351,14 +357,13 @@ def test_approval_present_advances_strong_to_approved(pg_factory, pg_session,
         snap = pg_session.get(V2PromotionSnapshot, out["snapshot_id"])
         states.append(snap.state)
 
-    # Find first STRONG_CANDIDATE snapshot
-    strong_idx = next(
-        (i for i, s in enumerate(states)
-         if s == "STRONG_CANDIDATE"), None,
-    )
-    assert strong_idx is not None, f"expected STRONG_CANDIDATE in {states}"
+    # Find LAST STRONG_CANDIDATE snapshot — operator approves the most-
+    # recent one so that next snapshot's prior is the approved one.
+    strong_indices = [i for i, s in enumerate(states)
+                       if s == "STRONG_CANDIDATE"]
+    assert strong_indices, f"expected STRONG_CANDIDATE in {states}"
+    strong_idx = strong_indices[-1]
 
-    # Operator writes approval against that snapshot
     strong_snap_id = snapshot_ids[strong_idx]
     approval_dt = dt.datetime(
         base.year, base.month, base.day,
@@ -373,20 +378,9 @@ def test_approval_present_advances_strong_to_approved(pg_factory, pg_session,
     ))
     pg_session.commit()
 
-    # Run the next-week snapshot — should now advance to APPROVED
-    next_target = base + dt.timedelta(weeks=strong_idx + 1)
-    # If that week already has a snapshot, advance further
-    while True:
-        iy, iw = _isoweek(next_target)
-        existing = pg_session.scalar(
-            select(V2PromotionSnapshot).where(
-                V2PromotionSnapshot.iso_year == iy,
-                V2PromotionSnapshot.iso_week == iw,
-            )
-        )
-        if existing is None:
-            break
-        next_target += dt.timedelta(weeks=1)
+    # Run the next-week snapshot — should now advance to APPROVED.
+    # next_target = week immediately after the latest existing snapshot.
+    next_target = base + dt.timedelta(weeks=len(states))
 
     out = run_v2_promotion_snapshot(
         as_of=next_target, session_factory=pg_factory,
@@ -432,7 +426,7 @@ def test_comparison_fetch_failure_graceful_fallback(pg_factory, pg_session,
 def _strong_candidate_bundle() -> dict:
     """A bundle that satisfies all 7 quantitative gates with margin."""
     base = job_module.compute_all([])
-    base["n_input_rows"] = 200
+    base["n_input_rows"] = 300   # Phase 9B.1: bumped to satisfy Gate 4 floor
     base["n_divergent_rows"] = 80
     base["metrics"] = {
         "n_divergent_days": 80,
@@ -478,9 +472,9 @@ def _strong_candidate_bundle() -> dict:
         },
     }
     base["tail"] = {
-        "b2": {"n": 200, "p95_loss_bps": -100.0, "p99_loss_bps": -200.0,
+        "b2": {"n": 300, "p95_loss_bps": -100.0, "p99_loss_bps": -200.0,
                 "worst_5_losses_bps": [-200, -180, -150, -120, -100]},
-        "v2": {"n": 200, "p95_loss_bps": -100.0, "p99_loss_bps": -200.0,
+        "v2": {"n": 300, "p95_loss_bps": -100.0, "p99_loss_bps": -200.0,
                 "worst_5_losses_bps": [-200, -180, -150, -120, -100]},
         "tail_delta_p95_bps": 0.0,
         "tail_delta_p99_bps": 0.0,

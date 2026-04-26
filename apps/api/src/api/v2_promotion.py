@@ -52,6 +52,10 @@ RATIONALE_MIN_LEN = 20
 # Allowed states for each write endpoint. Strict — no fallthrough.
 APPROVE_REQUIRES_STATE = "STRONG_CANDIDATE"
 RESCIND_REQUIRES_STATE = "APPROVED_FOR_SHADOW_REPLACEMENT"
+RESUME_REQUIRES_STATE = "SUSPENDED"
+
+# Phase 9A — approval staleness window in days (mirror of state-machine constant)
+APPROVAL_STALENESS_DAYS = 14
 
 
 router = APIRouter(prefix="/v2-promotion", tags=["v2-promotion-trigger"])
@@ -74,15 +78,66 @@ class RescissionRequest(BaseModel):
     rationale: str = Field(..., min_length=RATIONALE_MIN_LEN)
 
 
+class ResumeRequest(BaseModel):
+    """Phase 9A — operator action to exit SUSPENDED state."""
+    snapshot_id: int = Field(..., description="ID of the SUSPENDED snapshot")
+    approver: str = Field(..., min_length=1, description="Allowlisted operator")
+    rationale: str = Field(
+        ..., min_length=RATIONALE_MIN_LEN,
+        description=f"Rationale ≥ {RATIONALE_MIN_LEN} chars explaining why "
+                     f"the tail-risk emergency that triggered SUSPENDED is "
+                     f"now considered safe to clear",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Snapshot serialization helpers
 # ---------------------------------------------------------------------------
 
-def _snapshot_summary(snap: V2PromotionSnapshot) -> dict[str, Any]:
+def _days_until_approval_expiry(
+    session: Session,
+    snapshot_id: int,
+    snapshot_as_of_date: dt.date,
+) -> int | None:
+    """Compute days remaining on the latest non-rescinded APPROVE row.
+
+    Returns None if no fresh APPROVE exists. Negative values mean already
+    expired. Phase 9A — surfaces approval-staleness countdown in /state.
+    """
+    approvals = session.scalars(
+        select(V2PromotionApproval)
+        .where(V2PromotionApproval.snapshot_id == snapshot_id)
+        .order_by(V2PromotionApproval.approved_at.desc())
+    ).all()
+    if not approvals:
+        return None
+    rescinded = any(a.decision == "RESCIND" for a in approvals)
+    if rescinded:
+        return None
+    approve_row = next(
+        (a for a in approvals if a.decision == "APPROVE"), None,
+    )
+    if approve_row is None:
+        return None
+    cutoff = dt.datetime(
+        snapshot_as_of_date.year,
+        snapshot_as_of_date.month,
+        snapshot_as_of_date.day,
+        tzinfo=dt.timezone.utc,
+    )
+    age_days = (cutoff - approve_row.approved_at.astimezone(dt.timezone.utc)).days
+    return APPROVAL_STALENESS_DAYS - age_days
+
+
+def _snapshot_summary(
+    snap: V2PromotionSnapshot,
+    *,
+    days_until_expiry: int | None = None,
+) -> dict[str, Any]:
     bundle = snap.comparison_bundle_json or {}
     verdict_block = (bundle.get("verdict") or {}) if isinstance(bundle, dict) else {}
     metrics_block = (bundle.get("metrics") or {}) if isinstance(bundle, dict) else {}
-    return {
+    out = {
         "snapshot_id": snap.id,
         "as_of_date": snap.as_of_date.isoformat(),
         "iso_year": snap.iso_year,
@@ -104,7 +159,21 @@ def _snapshot_summary(snap: V2PromotionSnapshot) -> dict[str, Any]:
             (snap.gates_json or {}).get("comparison_fetch_ok", True)
         ),
         "created_at": snap.created_at.isoformat(),
+        # Phase 9A — governance-hardening metadata
+        "snapshot_content_hash": snap.snapshot_content_hash,
+        "schema_version": snap.schema_version,
+        "code_version": snap.code_version,
+        "evaluated_at_utc": (
+            snap.evaluated_at_utc.isoformat()
+            if snap.evaluated_at_utc else None
+        ),
+        "timezone": snap.timezone,
+        "days_until_approval_expiry": days_until_expiry,
+        "approval_expiry_warning": (
+            days_until_expiry is not None and days_until_expiry <= 4
+        ),
     }
+    return out
 
 
 def _gate_passing_map(snap: V2PromotionSnapshot) -> dict[str, bool]:
@@ -160,8 +229,11 @@ def get_state(
             "note": "No snapshots yet — snapshot job has not run.",
         }
     approvals = _approvals_for_snapshot(session, snap.id)
+    days_until_expiry = _days_until_approval_expiry(
+        session, snap.id, snap.as_of_date,
+    )
     return {
-        "snapshot": _snapshot_summary(snap),
+        "snapshot": _snapshot_summary(snap, days_until_expiry=days_until_expiry),
         "approvals": [_approval_to_dict(a) for a in approvals],
         "gates_passing": _gate_passing_map(snap),
         "approver_allowlist_size": len(APPROVER_ALLOWLIST),
@@ -322,6 +394,7 @@ def post_approve(
         decision="APPROVE",
         approver=approver,
         rationale=rationale,
+        snapshot_content_hash_at_approval=latest.snapshot_content_hash,
     )
     session.add(approval)
     session.commit()
@@ -332,9 +405,12 @@ def post_approve(
         "approval": _approval_to_dict(approval),
         "snapshot_id": latest.id,
         "snapshot_state_at_approval": latest.state,
+        "snapshot_content_hash": latest.snapshot_content_hash,
         "note": (
             "State advancement to APPROVED_FOR_SHADOW_REPLACEMENT happens "
-            "in the next snapshot job run, not via this endpoint."
+            "in the next snapshot job run, not via this endpoint. If the "
+            "snapshot is recomputed (content hash changes), this approval "
+            "is automatically invalidated by the snapshot job."
         ),
     }
 
@@ -397,6 +473,7 @@ def post_rescind(
         decision="RESCIND",
         approver=approver,
         rationale=rationale,
+        snapshot_content_hash_at_approval=target.snapshot_content_hash,
     )
     session.add(rescission)
     session.commit()
@@ -410,5 +487,71 @@ def post_rescind(
         "note": (
             "State downgrade from APPROVED_FOR_SHADOW_REPLACEMENT happens "
             "in the next snapshot job run, not via this endpoint."
+        ),
+    }
+
+
+@router.post("/resume-from-suspended")
+def post_resume_from_suspended(
+    body: ResumeRequest,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Phase 9A — operator action to exit SUSPENDED.
+
+    Constraints:
+      * Latest snapshot's state must equal SUSPENDED.
+      * `snapshot_id` must equal the latest snapshot id (cannot resume
+        a stale SUSPENDED that has since been re-evaluated).
+      * Approver must be in allowlist; rationale ≥ 20 chars.
+      * Snapshot must not already carry a RESUME_FROM_SUSPENDED row.
+
+    Side effects: INSERT one row into v2_promotion_approval with
+    `decision='RESUME_FROM_SUSPENDED'`. State exit happens on the NEXT
+    snapshot job run; that run re-evaluates from NOT_READY (no streak
+    accumulation across SUSPENDED).
+    """
+    approver = _validate_approver(body.approver)
+    rationale = _validate_rationale(body.rationale)
+
+    latest = _latest_snapshot(session)
+    if latest is None:
+        raise HTTPException(status_code=404, detail="no snapshot to resume")
+    if body.snapshot_id != latest.id:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"snapshot_id mismatch: body={body.snapshot_id}, "
+                f"latest={latest.id}"
+            ),
+        )
+    if latest.state != RESUME_REQUIRES_STATE:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"resume requires state={RESUME_REQUIRES_STATE}; "
+                f"latest snapshot state={latest.state}"
+            ),
+        )
+    _check_no_existing_decision(session, latest.id, "RESUME_FROM_SUSPENDED")
+
+    resume_row = V2PromotionApproval(
+        snapshot_id=latest.id,
+        decision="RESUME_FROM_SUSPENDED",
+        approver=approver,
+        rationale=rationale,
+        snapshot_content_hash_at_approval=latest.snapshot_content_hash,
+    )
+    session.add(resume_row)
+    session.commit()
+    session.refresh(resume_row)
+    return {
+        "status": "inserted",
+        "resume": _approval_to_dict(resume_row),
+        "snapshot_id": latest.id,
+        "snapshot_state_at_resume_request": latest.state,
+        "note": (
+            "Operator RESUME_FROM_SUSPENDED recorded. The state machine "
+            "will re-evaluate from NOT_READY on the next snapshot job run. "
+            "Streaks remain reset; evidence rebuilds from scratch."
         ),
     }

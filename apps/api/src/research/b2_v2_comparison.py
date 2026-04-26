@@ -261,6 +261,25 @@ def metrics_by_regime(div_rows: list[dict]) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Phase 9B.3 — Per-regime tail decomposition
+# ---------------------------------------------------------------------------
+
+def tail_by_regime(rows: list[dict]) -> dict:
+    """Compute tail stats (p95, p99, worst_5) per B2 regime.
+
+    Uses ALL rows (not divergent-only) — same as `tail_comparison` —
+    but partitioned by B2's regime_label. Enables Gate 5's literal
+    stress-tail sub-condition (V2 stress-day p99 ≥ B2 stress-day p99
+    − 10 bps) instead of the pre-Phase-9B proxy.
+    """
+    out: dict = {}
+    for regime in REGIMES:
+        sub = [r for r in rows if r.get("b2_regime") == regime]
+        out[regime.lower()] = tail_comparison(sub)
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Part 3 — Tail comparison (over ALL rows, not just divergent)
 # ---------------------------------------------------------------------------
 
@@ -496,20 +515,31 @@ def verdict(metrics: dict, tail: dict, stability: dict) -> dict:
 # Bundle
 # ---------------------------------------------------------------------------
 
+SCHEMA_VERSION = 2  # Phase 9B.3 — added tail_by_regime field
+
+
 def compute_all(rows: list[dict]) -> dict:
-    """Full bundle: divergence + metrics + regime breakdown + tail + stability + verdict."""
+    """Full bundle: divergence + metrics + regime breakdown + tail + stability + verdict.
+
+    Phase 9B.3 — bundle now includes `tail_by_regime` (per-regime p95/p99
+    /worst-5) so Gate 5 can switch from new-loss proxy to literal stress-tail
+    sub-condition. `schema_version` field exposes the bundle's contract.
+    """
     div = extract_divergence(rows)
     metrics = divergence_metrics(div)
     by_regime = metrics_by_regime(div)
     tail = tail_comparison(rows)
+    by_regime_tail = tail_by_regime(rows)
     stab = stability_check(div)
     verd = verdict(metrics, tail, stab)
     return {
+        "schema_version": SCHEMA_VERSION,
         "n_input_rows": len(rows),
         "n_divergent_rows": len(div),
         "metrics": metrics,
         "metrics_by_regime": by_regime,
         "tail": tail,
+        "tail_by_regime": by_regime_tail,
         "stability": stab,
         "verdict": verd,
         "thresholds": {

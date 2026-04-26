@@ -16,12 +16,14 @@ import {
   useV2PromotionApprove,
   useV2PromotionGates,
   useV2PromotionRescind,
+  useV2PromotionResume,
   useV2PromotionState,
 } from "@/lib/v2Promotion/hooks";
 
 
 const STATE_LABELS: Record<V2PromotionState, string> = {
   NOT_READY: "NOT READY",
+  SUSPENDED: "SUSPENDED",
   WATCH: "WATCH",
   READY_FOR_REVIEW: "READY FOR REVIEW",
   STRONG_CANDIDATE: "STRONG CANDIDATE",
@@ -32,6 +34,7 @@ const STATE_LABELS: Record<V2PromotionState, string> = {
 function stateChipClass(state: V2PromotionState): string {
   switch (state) {
     case "NOT_READY":          return "u-chip u-chip-neutral";
+    case "SUSPENDED":          return "u-chip u-chip-danger";
     case "WATCH":              return "u-chip u-chip-info";
     case "READY_FOR_REVIEW":   return "u-chip u-chip-warning";
     case "STRONG_CANDIDATE":   return "u-chip u-chip-success border border-success";
@@ -265,6 +268,96 @@ function ApproveModal({
 // Rescind modal
 // ---------------------------------------------------------------------------
 
+function ResumeModal({
+  snapshot, onClose,
+}: {
+  snapshot: SnapshotSummary;
+  onClose: () => void;
+}) {
+  const [approver, setApprover] = useState("");
+  const [rationale, setRationale] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const mut = useV2PromotionResume();
+  const submitting = mut.isPending;
+  const trimmedRationale = rationale.trim();
+  const valid = approver.trim().length > 0 && trimmedRationale.length >= 20;
+
+  function handleSubmit() {
+    if (!valid || submitting) return;
+    mut.mutate(
+      {
+        snapshot_id: snapshot.snapshot_id,
+        approver: approver.trim(),
+        rationale: trimmedRationale,
+      },
+      { onSuccess: () => setConfirmed(true) },
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-bg u-card max-w-md w-full m-4">
+        <Label>Resume V2 promotion-trigger from SUSPENDED</Label>
+        {!confirmed && (
+          <>
+            <div className="u-caption-2 mt-2 mb-3 text-fg-2">
+              The framework was suspended because the tail-risk emergency
+              fired. Resuming clears the suspension; on the next snapshot,
+              evaluation restarts from NOT_READY with both streaks reset
+              to zero. Evidence rebuilds from scratch. This does NOT
+              modify production routing or thresholds.
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="u-caption-2 text-fg-3">Approver (allowlisted email)</label>
+                <input type="email" value={approver}
+                  onChange={(e) => setApprover(e.target.value)}
+                  className="w-full px-2 py-1 text-sm bg-bg-2 border border-b1 rounded font-mono"
+                  placeholder="ops@example.com" disabled={submitting} />
+              </div>
+              <div>
+                <label className="u-caption-2 text-fg-3">
+                  Rationale ({trimmedRationale.length} / 20)
+                </label>
+                <textarea value={rationale}
+                  onChange={(e) => setRationale(e.target.value)} rows={4}
+                  className="w-full px-2 py-1 text-sm bg-bg-2 border border-b1 rounded"
+                  disabled={submitting} />
+              </div>
+              {mut.isError && (
+                <div className="u-caption-2 text-danger">
+                  {String(mut.error?.message ?? "resume failed")}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button type="button" onClick={onClose} disabled={submitting}
+                className="u-btn u-btn-ghost">Cancel</button>
+              <button type="button" onClick={handleSubmit}
+                disabled={!valid || submitting} className="u-btn u-btn-warning">
+                {submitting ? "Submitting…" : "Submit RESUME_FROM_SUSPENDED"}
+              </button>
+            </div>
+          </>
+        )}
+        {confirmed && (
+          <div>
+            <div className="u-caption-2 mt-2 mb-4 text-success">
+              ✓ Resume request recorded. State machine will re-evaluate
+              from NOT_READY on the next snapshot job run.
+            </div>
+            <div className="flex justify-end">
+              <button type="button" onClick={onClose}
+                className="u-btn u-btn-primary">Close</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
 function RescindModal({
   approvedSnapshotId, onClose,
 }: {
@@ -385,6 +478,7 @@ export default function V2PromotionTriggerCard() {
 
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRescindModal, setShowRescindModal] = useState(false);
+  const [showResumeModal, setShowResumeModal] = useState(false);
 
   // Defensive: close modals if the underlying state changes out from under
   // the operator (e.g. a snapshot job ran while the modal was open).
@@ -393,6 +487,8 @@ export default function V2PromotionTriggerCard() {
       setShowApproveModal(false);
     if (stateData?.snapshot?.state !== "APPROVED_FOR_SHADOW_REPLACEMENT")
       setShowRescindModal(false);
+    if (stateData?.snapshot?.state !== "SUSPENDED")
+      setShowResumeModal(false);
   }, [stateData?.snapshot?.state]);
 
   if (isLoading || !stateData) {
@@ -430,6 +526,7 @@ export default function V2PromotionTriggerCard() {
 
   const showApproveButton = snap.state === "STRONG_CANDIDATE";
   const showRescindButton = snap.state === "APPROVED_FOR_SHADOW_REPLACEMENT";
+  const showResumeButton = snap.state === "SUSPENDED";
   const approvedSnapshotId =
     approvals.find((a) => a.decision === "APPROVE")?.snapshot_id ?? snap.snapshot_id;
 
@@ -552,8 +649,24 @@ export default function V2PromotionTriggerCard() {
         </div>
       )}
 
+      {/* Phase 9A — approval-expiry warning banner */}
+      {snap.approval_expiry_warning && snap.days_until_approval_expiry !== null && (
+        <div className="mb-3 px-3 py-2 bg-warning/10 border-l-2 border-warning u-caption-2 text-warning">
+          ⏱ Approval expires in {snap.days_until_approval_expiry} day(s).
+          State will auto-degrade if not re-approved.
+        </div>
+      )}
+
+      {/* Phase 9A — SUSPENDED banner */}
+      {snap.state === "SUSPENDED" && (
+        <div className="mb-3 px-3 py-2 bg-danger/10 border-l-2 border-danger u-caption-2 text-danger">
+          🛑 SUSPENDED: tail-risk emergency triggered. All gate evaluation
+          blocked until operator submits RESUME_FROM_SUSPENDED.
+        </div>
+      )}
+
       {/* Operator actions */}
-      {(showApproveButton || showRescindButton) && (
+      {(showApproveButton || showRescindButton || showResumeButton) && (
         <div className="pt-2 flex justify-end gap-2">
           {showApproveButton && (
             <button
@@ -573,6 +686,15 @@ export default function V2PromotionTriggerCard() {
               Rescind Approval…
             </button>
           )}
+          {showResumeButton && (
+            <button
+              type="button"
+              onClick={() => setShowResumeModal(true)}
+              className="u-btn u-btn-warning"
+            >
+              Resume from Suspended…
+            </button>
+          )}
         </div>
       )}
 
@@ -587,6 +709,12 @@ export default function V2PromotionTriggerCard() {
         <RescindModal
           approvedSnapshotId={approvedSnapshotId}
           onClose={() => setShowRescindModal(false)}
+        />
+      )}
+      {showResumeModal && snap && (
+        <ResumeModal
+          snapshot={snap}
+          onClose={() => setShowResumeModal(false)}
         />
       )}
     </div>

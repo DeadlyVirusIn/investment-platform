@@ -43,11 +43,15 @@ from apps.api.src.research.v2_promotion_gates import (
 # ---------------------------------------------------------------------------
 
 NOT_READY = "NOT_READY"
+SUSPENDED = "SUSPENDED"
 WATCH = "WATCH"
 READY_FOR_REVIEW = "READY_FOR_REVIEW"
 STRONG_CANDIDATE = "STRONG_CANDIDATE"
 APPROVED_FOR_SHADOW_REPLACEMENT = "APPROVED_FOR_SHADOW_REPLACEMENT"
 
+# Phase 9A: SUSPENDED is a parallel "circuit breaker" state, not part of
+# the forward progression. State-index ordering excludes it; SUSPENDED
+# blocks all evaluation and exits only via explicit operator RESUME.
 STATE_ORDER = (
     NOT_READY,
     WATCH,
@@ -55,6 +59,15 @@ STATE_ORDER = (
     STRONG_CANDIDATE,
     APPROVED_FOR_SHADOW_REPLACEMENT,
 )
+
+# All valid stored states (includes SUSPENDED). Used by DB CHECK +
+# JSON validators.
+ALL_STATES = STATE_ORDER + (SUSPENDED,)
+
+# Operator decision label that exits SUSPENDED → returns to a fresh
+# evaluation cycle starting at NOT_READY (or whatever the gates yield
+# in the next snapshot, no skipping).
+RESUME_DECISION_LABEL = "RESUME_FROM_SUSPENDED"
 
 # Tail-risk emergency thresholds (exact per design §Rollback Rules → Tail-risk)
 TAIL_EMERGENCY_P99_DELTA_HARD_BPS = -25.0
@@ -111,6 +124,11 @@ class ConfidenceBreakdown:
     regime: float
     stability: float
     total: float
+    # Phase 9B.2 — list of components whose score is "vacuously high"
+    # because their underlying input was insufficient (e.g. trend = STABLE
+    # only because last_30 history was too short). Operators should
+    # discount the total when basis warnings are present.
+    basis_warnings: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -153,14 +171,27 @@ def update_streaks(
     *,
     current_verdict_label: str | None,
     current_readiness_label: str | None,
+    force_reset: bool = False,
 ) -> StreakUpdate:
     """Increment / reset streaks based on current snapshot's labels.
 
     Reset is HARD — any non-target label sets the streak to 0. There
     is no soft reset, no leniency window, no decay.
+
+    Phase 9A: `force_reset=True` zeroes both streaks regardless of
+    labels. Used when the caller has detected tail-risk emergency or
+    SUSPENDED entry — both should invalidate accumulated evidence.
     """
+    if force_reset:
+        return StreakUpdate(verdict_streak=0, readiness_streak=0)
     prior_v = int((prior_snapshot or {}).get("verdict_streak") or 0)
     prior_r = int((prior_snapshot or {}).get("readiness_streak") or 0)
+    # Streaks accumulate only when prior state is NOT SUSPENDED.
+    # SUSPENDED snapshots carry streaks=0 by construction (force_reset
+    # at SUSPENDED entry); after RESUME, evidence rebuilds from scratch.
+    if (prior_snapshot or {}).get("state") == SUSPENDED:
+        prior_v = 0
+        prior_r = 0
     new_v = prior_v + 1 if current_verdict_label == "V2_BETTER" else 0
     new_r = (
         prior_r + 1
@@ -168,6 +199,20 @@ def update_streaks(
         else 0
     )
     return StreakUpdate(verdict_streak=new_v, readiness_streak=new_r)
+
+
+def detect_tail_emergency(
+    bundle: dict,
+    *,
+    prior_snapshot: dict | None,
+) -> tuple[bool, str | None]:
+    """Public helper exposing the tail-emergency check (Phase 9A).
+
+    Snapshot job calls this BEFORE update_streaks so it can pass
+    `force_reset=True` when the emergency fires (which forces SUSPENDED
+    in advance_or_rollback). Pure function; no side effects.
+    """
+    return _tail_emergency_active(bundle, prior_snapshot=prior_snapshot)
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +339,34 @@ def compute_promotion_confidence(
     regime = _regime_component(_gate(gates, "gate_5_regime_validation"))
     stability = _stability_component(_gate(gates, "gate_6_stability"))
 
+    # Phase 9B.2 — detect "vacuously high" components
+    basis_warnings: list[str] = []
+    g6 = _gate(gates, "gate_6_stability")
+    if g6 and g6.details.get("last_30_trend") == "INSUFFICIENT":
+        basis_warnings.append(
+            "stability: last_30 trend INSUFFICIENT (insufficient history)"
+        )
+    g5 = _gate(gates, "gate_5_regime_validation")
+    if g5 and g5.details.get("regime_concentration_max") is None and regime > 0:
+        basis_warnings.append(
+            "regime: no positive cumulative diff per regime "
+            "(concentration check N-A)"
+        )
+    if streaks.verdict_streak >= GATE2_VERDICT_STREAK_REQUIRED \
+       and (bundle.get("verdict") or {}).get("verdict") != "V2_BETTER":
+        # Streak met threshold but current snapshot isn't V2_BETTER —
+        # this should not happen via update_streaks, but guard anyway.
+        basis_warnings.append(
+            "verdict_streak: threshold met but current verdict is "
+            "not V2_BETTER (data inconsistency)"
+        )
+    g3 = _gate(gates, "gate_3_edge_quality")
+    if g3 and not g3.details.get("impact_weighted_series", []):
+        basis_warnings.append(
+            "edge_trend: insufficient impact-weighted history "
+            "(vacuously stable)"
+        )
+
     total = (
         CONFIDENCE_WEIGHT_SAMPLE * sample
         + CONFIDENCE_WEIGHT_VERDICT_STREAK * verdict
@@ -312,6 +385,7 @@ def compute_promotion_confidence(
         regime=round(regime, 6),
         stability=round(stability, 6),
         total=round(_clamp01(total), 6),
+        basis_warnings=tuple(basis_warnings),
     )
 
 
@@ -386,14 +460,18 @@ def advance_or_rollback(
     bundle: dict,
     prior_snapshot: dict | None,
     approval_present: bool,
+    resume_present: bool = False,
 ) -> StateDecision:
     """Single-step state machine. No state skipping on forward transitions.
 
-    Evaluation order (matches design):
-      1. Tail-risk emergency override (forces NOT_READY from any state,
-         only auto exit from APPROVED_FOR_SHADOW_REPLACEMENT)
-      2. Per-state rollback rules (downgrade-only, may skip levels)
-      3. Per-state forward rule (single-step only, no skipping)
+    Evaluation order (Phase 9A revised):
+      1. Tail-risk emergency override forces SUSPENDED (NOT NOT_READY)
+         from any state, including APPROVED_FOR_SHADOW_REPLACEMENT.
+         SUSPENDED is the ONLY auto-exit from APPROVED.
+      2. SUSPENDED + no resume → stay SUSPENDED (block all evaluation).
+      3. SUSPENDED + resume → re-evaluate as if from NOT_READY.
+      4. Per-state rollback rules (downgrade-only, may skip levels).
+      5. Per-state forward rule (single-step only, no skipping).
 
     Returns StateDecision with new_state, rollback_reason, forward/backward
     flags, and ordered notes for audit.
@@ -401,20 +479,44 @@ def advance_or_rollback(
     notes: list[str] = []
     prior_idx = _state_index(prior_state)
 
-    # 1. Tail emergency
+    # 1. Tail emergency → SUSPENDED (Phase 9A: was NOT_READY).
+    # Streaks must already be reset to 0 by the caller's update_streaks
+    # call when the new_state is SUSPENDED. See SUSPENDED handling below
+    # for documentation on this contract.
     emerg, emerg_reason = _tail_emergency_active(
         bundle, prior_snapshot=prior_snapshot,
     )
     if emerg:
-        notes.append(f"tail-risk emergency: {emerg_reason}")
-        new_idx = _state_index(NOT_READY)
+        notes.append(f"tail-risk emergency → SUSPENDED: {emerg_reason}")
         return StateDecision(
-            new_state=NOT_READY,
+            new_state=SUSPENDED,
             prior_state=prior_state,
             rollback_reason=f"tail-risk emergency: {emerg_reason}",
             forward=False,
-            backward=new_idx < prior_idx,
+            backward=prior_state != SUSPENDED,
             notes=notes,
+        )
+
+    # 2 + 3. SUSPENDED handling
+    if prior_state == SUSPENDED:
+        if not resume_present:
+            return StateDecision(
+                new_state=SUSPENDED,
+                prior_state=SUSPENDED,
+                rollback_reason=None,
+                forward=False,
+                backward=False,
+                notes=["awaiting operator RESUME_FROM_SUSPENDED"],
+            )
+        notes.append("operator RESUME_FROM_SUSPENDED detected")
+        # Operator resumed → re-evaluate as if entering from NOT_READY.
+        # Streaks remain reset (caller responsibility on SUSPENDED entry).
+        return _evaluate_from_state(
+            NOT_READY, gates=gates, streaks=streaks,
+            confidence=confidence, bundle=bundle,
+            approval_present=False,
+            prior_state_label=SUSPENDED,
+            extra_notes=notes,
         )
 
     # APPROVED_FOR_SHADOW_REPLACEMENT only auto-exits via tail emergency.
