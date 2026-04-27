@@ -18,6 +18,11 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
 from apps.api.src.options import service_readonly as svc
+from apps.api.src.options.observatory import diagnostics as obs_diagnostics
+from apps.api.src.options.observatory import observations as obs_observations
+from apps.api.src.options.observatory import performance as obs_performance
+from apps.api.src.options.observatory import replay as obs_replay
+from apps.api.src.options.observatory import rules as obs_rules
 
 
 router = APIRouter(prefix="/options", tags=["options"])
@@ -118,3 +123,100 @@ def get_risk_summary(session: Session = Depends(get_session)) -> dict[str, Any]:
     summary = svc.get_risk_summary(session)
     summary["notice"] = PAPER_ONLY_NOTICE
     return summary
+
+
+# ---------------------------------------------------------------------------
+# Phase 11G — Strategy Observatory (read-only, observation only)
+# ---------------------------------------------------------------------------
+
+
+OBSERVATION_ONLY_NOTICE = (
+    "Observation only — not investment advice or execution guidance"
+)
+
+
+@router.get("/strategies")
+def list_strategies() -> dict[str, Any]:
+    """Frozen v1 rule registry — names, summaries, criteria + descriptions."""
+    return {
+        "notice": PAPER_ONLY_NOTICE,
+        "observation_only_notice": OBSERVATION_ONLY_NOTICE,
+        "strategies": obs_rules.list_rule_defs(),
+    }
+
+
+@router.get("/strategy-observations")
+def list_strategy_observations(
+    underlying: str | None = Query(default=None, max_length=12),
+    qualified_only: bool = Query(default=False),
+    rule_id: str | None = Query(default=None, max_length=64),
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    limit: int = Query(default=50, ge=1, le=500),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = obs_observations.list_observations(
+        session,
+        underlying=underlying,
+        qualified_only=qualified_only,
+        rule_id=rule_id,
+        lookback_days=lookback_days,
+        limit=limit,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/strategy-observations/{observation_id}")
+def get_strategy_observation(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = obs_observations.get_observation(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="observation not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/performance-summary")
+def performance_summary(
+    underlying: str | None = Query(default=None, max_length=12),
+    strategy_name: str | None = Query(default=None, max_length=64),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = obs_performance.get_performance_summary(
+        session, underlying=underlying, strategy_name=strategy_name,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/diagnostics")
+def diagnostics(
+    lookback_days: int = Query(default=30, ge=1, le=180),
+    underlying: str | None = Query(default=None, max_length=12),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = obs_diagnostics.get_diagnostics(
+        session, lookback_days=lookback_days, underlying=underlying,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/scenario-replay")
+def scenario_replay(
+    symbol: str = Query(..., min_length=1, max_length=12),
+    as_of: str = Query(..., min_length=10, max_length=10),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    import datetime as _dt
+    try:
+        as_of_d = _dt.date.fromisoformat(as_of)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="invalid as_of date")
+    out = obs_replay.replay(session, symbol=symbol, as_of_date=as_of_d)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out

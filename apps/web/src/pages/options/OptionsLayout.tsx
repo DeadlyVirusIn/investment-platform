@@ -5,10 +5,14 @@ import { NavLink, Outlet } from 'react-router-dom';
 import OptionsPaperOnlyBanner from '@/components/options/OptionsPaperOnlyBanner';
 
 const TABS = [
-  { to: '/options/chain',   label: 'Chain' },
-  { to: '/options/features', label: 'Features' },
-  { to: '/options/trades',  label: 'Paper Trades' },
-  { to: '/options/risk',    label: 'Risk Dashboard' },
+  { to: '/options/chain',         label: 'Chain' },
+  { to: '/options/features',      label: 'Features' },
+  { to: '/options/trades',        label: 'Paper Trades' },
+  { to: '/options/risk',          label: 'Risk Dashboard' },
+  { to: '/options/observatory',   label: 'Strategy Observatory' },
+  { to: '/options/performance',   label: 'Paper Performance' },
+  { to: '/options/diagnostics',   label: 'Diagnostics' },
+  { to: '/options/replay',        label: 'Scenario Replay' },
 ];
 
 export default function OptionsLayout() {

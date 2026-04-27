@@ -5,11 +5,17 @@ import { useQuery } from '@tanstack/react-query';
 import {
   optionsApi,
   type ChainResponse,
+  type DiagnosticsResponse,
   type FeaturesResponse,
   type OptionsHealth,
   type PaperTradeDetail,
   type PaperTradesResponse,
+  type PerformanceSummary,
   type RiskSummary,
+  type ScenarioReplayResponse,
+  type StrategiesResponse,
+  type StrategyObservationDetail,
+  type StrategyObservationsResponse,
 } from './optionsApi';
 
 const STALE = 30_000;
@@ -80,6 +86,70 @@ export function useOptionsRiskSummary() {
   return useQuery<RiskSummary>({
     queryKey: ['options', 'risk-summary'],
     queryFn: optionsApi.riskSummary,
+    staleTime: STALE,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 11G — read-only observability hooks
+// ---------------------------------------------------------------------------
+
+export function useOptionsStrategies() {
+  return useQuery<StrategiesResponse>({
+    queryKey: ['options', 'strategies'],
+    queryFn: optionsApi.strategies,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useOptionsStrategyObservations(params: {
+  underlying?: string;
+  qualified_only?: boolean;
+  rule_id?: string;
+  lookback_days?: number;
+  limit?: number;
+} = {}) {
+  return useQuery<StrategyObservationsResponse>({
+    queryKey: ['options', 'strategy-observations', params],
+    queryFn: () => optionsApi.strategyObservations(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsStrategyObservationDetail(id: string | undefined) {
+  return useQuery<StrategyObservationDetail>({
+    queryKey: ['options', 'strategy-observations', 'detail', id],
+    queryFn: () => optionsApi.strategyObservationDetail(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsPerformanceSummary(params: {
+  underlying?: string; strategy_name?: string;
+} = {}) {
+  return useQuery<PerformanceSummary>({
+    queryKey: ['options', 'performance-summary', params],
+    queryFn: () => optionsApi.performanceSummary(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDiagnostics(params: {
+  lookback_days?: number; underlying?: string;
+} = {}) {
+  return useQuery<DiagnosticsResponse>({
+    queryKey: ['options', 'diagnostics', params],
+    queryFn: () => optionsApi.diagnostics(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsScenarioReplay(symbol: string | undefined, asOf: string | undefined) {
+  return useQuery<ScenarioReplayResponse>({
+    queryKey: ['options', 'scenario-replay', symbol, asOf],
+    queryFn: () => optionsApi.scenarioReplay(symbol!, asOf!),
+    enabled: !!symbol && !!asOf,
     staleTime: STALE,
   });
 }

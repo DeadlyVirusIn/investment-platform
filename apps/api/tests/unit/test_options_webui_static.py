@@ -224,3 +224,176 @@ def test_sidenav_includes_options_link():
     nav = (WEB_SRC / "components" / "shell" / "SideNav.tsx").read_text(encoding="utf-8")
     assert "/options" in nav
     assert "Options" in nav
+
+
+# ===========================================================================
+# Phase 11G — Strategy Observatory frontend assertions
+# ===========================================================================
+
+_PHASE_11G_PAGES = (
+    "OptionsStrategyObservatoryPage.tsx",
+    "OptionsPaperPerformancePage.tsx",
+    "OptionsStrategyDiagnosticsPage.tsx",
+    "OptionsScenarioReplayPage.tsx",
+)
+
+
+def test_phase_11g_pages_render_observation_only_banner():
+    """Every 11G page must render OptionsObservationOnlyBanner below the
+    paper-only banner."""
+    for name in _PHASE_11G_PAGES:
+        src = (PAGES_DIR / name).read_text(encoding="utf-8")
+        assert "OptionsPaperOnlyBanner" in src, f"{name}: missing paper-only banner"
+        assert "OptionsObservationOnlyBanner" in src, (
+            f"{name}: missing observation-only banner"
+        )
+
+
+def test_observation_only_banner_string_present():
+    src = (
+        COMP_DIR / "OptionsObservationOnlyBanner.tsx"
+    ).read_text(encoding="utf-8")
+    assert "Observation only — not investment advice or execution guidance" in src
+
+
+def test_phase_11g_app_routes_wired():
+    app_tsx = (WEB_SRC / "App.tsx").read_text(encoding="utf-8")
+    for token in (
+        "OptionsStrategyObservatoryPage",
+        "OptionsPaperPerformancePage",
+        "OptionsStrategyDiagnosticsPage",
+        "OptionsScenarioReplayPage",
+        "/options/observatory",   # comment marker is enough
+    ):
+        # Allow the path-suffix form too; routes use sub-paths
+        assert token in app_tsx or token.replace("/options/", '"') in app_tsx, (
+            f"App.tsx missing 11G wiring for {token!r}"
+        )
+
+
+def test_phase_11g_observatory_pages_use_allowed_wording():
+    """Spec mandates 'Observed / Simulated / Paper-only / Historical /
+    Candidate rule match / Rejected by rule / Diagnostic / Replay' over
+    'Recommended / Best / Signal / Confidence / Execute / Buy / Sell /
+    Place order / Auto-trade / Promote'.
+
+    The forbidden-word scan is already enforced for all options TSX in
+    `test_no_forbidden_labels_in_options_webui`; this test additionally
+    asserts at least one allowed token appears on each 11G page so the
+    UX uses the right language.
+    """
+    allowed = (
+        "Observed", "Observation", "Simulated", "Paper-only", "Historical",
+        "Candidate rule match", "Rejected by rule", "Diagnostic", "Replay",
+    )
+    for name in _PHASE_11G_PAGES:
+        src = (PAGES_DIR / name).read_text(encoding="utf-8")
+        # The page may delegate language to its components — also scan
+        # the components/options/ directory so the assertion isn't
+        # over-strict on the page file alone.
+        joined = src + "\n" + "\n".join(
+            (COMP_DIR / c).read_text(encoding="utf-8")
+            for c in (
+                "OptionsObservationOnlyBanner.tsx",
+                "OptionsRuleExplanationCard.tsx",
+                "OptionsObservationsTable.tsx",
+                "OptionsObservationDetailPanel.tsx",
+                "OptionsPerformanceCards.tsx",
+                "OptionsDiagnosticsPanel.tsx",
+                "OptionsReplayTimeline.tsx",
+            )
+            if (COMP_DIR / c).exists()
+        )
+        assert any(tok in joined for tok in allowed), (
+            f"{name} (and observatory components) lacks any of the "
+            f"allowed observation-only tokens: {allowed!r}"
+        )
+
+
+def _strip_ts_comments(src: str) -> str:
+    """Remove TS line + block comments so prose-style negations like
+    `// never use "best"` don't trigger word-scan tests."""
+    out_lines: list[str] = []
+    in_block = False
+    for ln in src.splitlines():
+        stripped = ln.strip()
+        if in_block:
+            if "*/" in ln:
+                in_block = False
+            continue
+        if stripped.startswith("//"):
+            continue
+        if stripped.startswith("/*"):
+            if "*/" not in stripped:
+                in_block = True
+            continue
+        if stripped.startswith("*"):
+            continue
+        # strip end-of-line // comments
+        if "//" in ln:
+            ln = ln.split("//", 1)[0]
+        out_lines.append(ln)
+    return "\n".join(out_lines)
+
+
+def test_phase_11g_pages_do_not_use_recommendation_language():
+    """Re-assert spec's stricter 11G forbidden list per page (code only,
+    not comments)."""
+    forbidden_extra = (
+        r"\bRecommended\b",
+        r"\bBest\b",
+        r"\bSignal\b",
+        r"\bConfidence\b",
+        r"\bExecute\b",
+        r"\bAuto-?trade\b",
+        r"\bPromote\b",
+    )
+    for name in _PHASE_11G_PAGES:
+        src = _strip_ts_comments(
+            (PAGES_DIR / name).read_text(encoding="utf-8"),
+        )
+        for pat in forbidden_extra:
+            assert not re.search(pat, src, re.IGNORECASE), (
+                f"{name}: forbidden Phase 11G word {pat!r}"
+            )
+
+
+def test_phase_11g_observatory_components_avoid_recommendation_language():
+    obs_components = (
+        "OptionsObservationOnlyBanner.tsx",
+        "OptionsRuleExplanationCard.tsx",
+        "OptionsObservationsTable.tsx",
+        "OptionsObservationDetailPanel.tsx",
+        "OptionsPerformanceCards.tsx",
+        "OptionsPerformanceTables.tsx",
+        "OptionsDiagnosticsPanel.tsx",
+        "OptionsReplayTimeline.tsx",
+    )
+    forbidden = (
+        r"\bRecommended\b", r"\bBest\b", r"\bSignal\b",
+        r"\bConfidence\b", r"\bExecute\b", r"\bAuto-?trade\b",
+        r"\bPromote\b",
+    )
+    for c in obs_components:
+        path = COMP_DIR / c
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        for pat in forbidden:
+            assert not re.search(pat, src, re.IGNORECASE), (
+                f"{c}: forbidden 11G word {pat!r}"
+            )
+
+
+def test_phase_11g_api_client_only_uses_apiGet():
+    """The 11G additions to optionsApi.ts must keep using apiGet only."""
+    src = (LIB_DIR / "optionsApi.ts").read_text(encoding="utf-8")
+    # New 11G-named endpoints use apiGet
+    for tok in ("strategies", "strategyObservations", "performanceSummary",
+                "diagnostics", "scenarioReplay"):
+        assert tok in src, f"optionsApi.ts missing 11G method {tok!r}"
+    # No mutating helpers
+    for forbidden in ("apiPost", "apiPut", "apiPatch", "apiDelete"):
+        assert forbidden not in src, (
+            f"optionsApi.ts must not import {forbidden}"
+        )

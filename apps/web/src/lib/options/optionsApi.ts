@@ -235,4 +235,213 @@ export const optionsApi = {
   paperTradeDetail: (id: number) =>
     apiGet<PaperTradeDetail>(`/options/paper-trades/${id}`),
   riskSummary: () => apiGet<RiskSummary>('/options/risk-summary'),
+
+  // Phase 11G — Strategy Observatory (read-only)
+  strategies: () => apiGet<StrategiesResponse>('/options/strategies'),
+  strategyObservations: (params: {
+    underlying?: string;
+    qualified_only?: boolean;
+    rule_id?: string;
+    lookback_days?: number;
+    limit?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (params.underlying)     q.set('underlying', params.underlying);
+    if (params.qualified_only) q.set('qualified_only', 'true');
+    if (params.rule_id)        q.set('rule_id', params.rule_id);
+    if (params.lookback_days)  q.set('lookback_days', String(params.lookback_days));
+    if (params.limit)          q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiGet<StrategyObservationsResponse>(
+      `/options/strategy-observations${qs ? `?${qs}` : ''}`,
+    );
+  },
+  strategyObservationDetail: (id: string) =>
+    apiGet<StrategyObservationDetail>(
+      `/options/strategy-observations/${encodeURIComponent(id)}`,
+    ),
+  performanceSummary: (params: { underlying?: string; strategy_name?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.underlying)    q.set('underlying', params.underlying);
+    if (params.strategy_name) q.set('strategy_name', params.strategy_name);
+    const qs = q.toString();
+    return apiGet<PerformanceSummary>(
+      `/options/performance-summary${qs ? `?${qs}` : ''}`,
+    );
+  },
+  diagnostics: (params: { lookback_days?: number; underlying?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.lookback_days) q.set('lookback_days', String(params.lookback_days));
+    if (params.underlying)    q.set('underlying', params.underlying);
+    const qs = q.toString();
+    return apiGet<DiagnosticsResponse>(
+      `/options/diagnostics${qs ? `?${qs}` : ''}`,
+    );
+  },
+  scenarioReplay: (symbol: string, asOf: string) =>
+    apiGet<ScenarioReplayResponse>(
+      `/options/scenario-replay?symbol=${encodeURIComponent(symbol)}&as_of=${encodeURIComponent(asOf)}`,
+    ),
 };
+
+// ---------------------------------------------------------------------------
+// Phase 11G types
+// ---------------------------------------------------------------------------
+
+export interface StrategyCriterion {
+  code: string;
+  label: string;
+  description: string;
+}
+
+export interface StrategyDef {
+  rule_id: string;
+  name: string;
+  summary: string;
+  criteria: StrategyCriterion[];
+}
+
+export interface StrategiesResponse {
+  notice: string;
+  observation_only_notice: string;
+  strategies: StrategyDef[];
+}
+
+export interface StrategyObservationListItem {
+  id: string;
+  underlying: string;
+  as_of_date: string;
+  rule_id: string;
+  rule_name: string;
+  qualified: boolean;
+  n_passed: number;
+  n_criteria: number;
+  n_chain_accepted: number;
+}
+
+export interface StrategyObservationsResponse {
+  notice: string;
+  observation_only_notice: string;
+  count: number;
+  observations: StrategyObservationListItem[];
+}
+
+export interface StrategyCheck {
+  code: string;
+  passed: boolean;
+  reason: string;
+}
+
+export interface StrategyEvaluation {
+  rule_id: string;
+  name: string;
+  qualified: boolean;
+  n_passed: number;
+  n_criteria: number;
+  checks: StrategyCheck[];
+  candidate: Record<string, unknown> | null;
+  notes: string[];
+}
+
+export interface StrategyObservationDetail {
+  notice: string;
+  observation_only_notice: string;
+  id: string;
+  underlying: string;
+  as_of_date: string;
+  n_chain_accepted: number;
+  evaluation: StrategyEvaluation;
+}
+
+export interface StrategyPerfRow {
+  strategy_name: string;
+  n: number;
+  n_assigned: number;
+  n_wins: number;
+  win_rate: string | null;
+  total_pnl_dollars: string | null;
+  total_fees_dollars: string | null;
+}
+
+export interface UnderlyingPerfRow {
+  underlying: string;
+  n: number;
+  n_wins: number;
+  win_rate: string | null;
+  total_pnl_dollars: string | null;
+}
+
+export interface PerformanceSummary {
+  notice: string;
+  observation_only_notice: string;
+  n_closed_trades: number;
+  n_wins: number;
+  n_losses: number;
+  n_max_loss_hits: number;
+  n_assigned: number;
+  n_expired_otm: number;
+  n_closed_pre_expiry: number;
+  win_rate: string | null;
+  max_loss_hit_rate: string | null;
+  assignment_rate: string | null;
+  pin_risk_frequency_per_expiration_event: string | null;
+  missing_settlement_per_expiration_event: string | null;
+  total_realized_pnl_dollars: string | null;
+  total_fees_dollars: string | null;
+  fee_drag_ratio_of_abs_pnl: string | null;
+  by_strategy: StrategyPerfRow[];
+  by_underlying: UnderlyingPerfRow[];
+  data_quality_flags: string[];
+}
+
+export interface DiagnosticsResponse {
+  notice: string;
+  observation_only_notice: string;
+  lookback_days: number;
+  lookback_cutoff: string;
+  chain: {
+    n_rows: number;
+    n_missing_iv: number;
+    n_missing_greeks: number;
+  };
+  features: {
+    n_rows: number;
+    flag_counts: Record<string, number>;
+    n_naive_gex_warnings: number;
+    n_insufficient_iv_history: number;
+    n_no_price_history: number;
+    n_insufficient_volume_history: number;
+  };
+  expirations: {
+    by_classification: { classification: string; n: number }[];
+    n_pin_risk: number;
+    n_missing_settlement: number;
+  };
+  assignments: { n_events: number };
+  naive_gex_label: string;
+}
+
+export interface ScenarioReplayResponse {
+  notice: string;
+  observation_only_notice: string;
+  symbol: string;
+  as_of_date: string;
+  chain_summary: {
+    n_raw: number;
+    n_accepted: number;
+    n_calls_accepted: number;
+    n_puts_accepted: number;
+    expiries_accepted: string[];
+  };
+  feature_row: FeatureRow | null;
+  rule_evaluations: StrategyEvaluation[];
+  nearby_trades: {
+    id: number;
+    strategy_name: string;
+    status: string;
+    opened_at: string | null;
+    closed_at: string | null;
+    realized_pnl_dollars: string | null;
+  }[];
+  data_quality_flags: string[];
+}
