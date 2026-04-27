@@ -1384,4 +1384,45 @@
   .bg-surface-elev     { background: var(--elevated); }
   .bg-surface-muted    { background: var(--ink); }
   .border-surface-border { border-color: var(--border); }
+
+  /* ── Phase 11M — focus + de-emphasis utility classes ─────────────
+     `u-hero-nav`        : NAV / portfolio hero — only true hero on
+                           the page. 64-72px tabular numbers.
+     `u-hero-secondary`  : portfolio metric cells just below the hero
+                           — large but not hero-large.
+     `u-deemphasised-num`: scores / rankings / contribution levels —
+                           kept smaller than NAV, slightly muted.
+                           Visual de-emphasis only — wording does
+                           NOT change.
+     `u-lane-separator`  : 1px muted separator used by OptionsLane
+                           wrapper (mirrors token --color-border).  */
+  .u-hero-nav {
+    font-size: 64px;
+    line-height: 1.05;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--color-bg);
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+  }
+  @media (min-width: 1280px) {
+    .u-hero-nav { font-size: 72px; }
+  }
+  .u-hero-secondary {
+    font-size: 28px;
+    line-height: 1.15;
+    font-weight: 600;
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .u-deemphasised-num {
+    font-size: 18px;
+    line-height: 1.25;
+    font-weight: 600;
+    color: var(--fg-2);
+    font-variant-numeric: tabular-nums;
+  }
+  .u-lane-separator {
+    border-top: 1px solid var(--color-border);
+  }
 }

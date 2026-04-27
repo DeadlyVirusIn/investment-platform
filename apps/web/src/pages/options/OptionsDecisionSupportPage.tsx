@@ -18,6 +18,8 @@ import OptionsReviewDetailDrawer from '@/components/options/OptionsReviewDetailD
 // Phase 11K guardrails — append-only integration
 import SelectionBiasNotice from '@/components/options/SelectionBiasNotice';
 import WhatThisDoesNotMean from '@/components/options/WhatThisDoesNotMean';
+// Phase 11M — clarity lanes (visual grouping, no behaviour change)
+import OptionsLane from '@/components/options/OptionsLane';
 import {
   useOptionsDecisionSupportBuckets,
   useOptionsDecisionSupportReviewQueue,
@@ -78,15 +80,14 @@ export default function OptionsDecisionSupportPage() {
         <OptionsReviewQueueSummaryCards data={summary.data} />
       ) : null}
 
-      <section>
-        <header className="mb-2 flex items-baseline justify-between">
-          <h2 className="text-sm font-semibold text-zinc-100">Review queue</h2>
-          {reviewQueue.data ? (
-            <span className="text-[11px] text-zinc-500">
-              {reviewQueue.data.count} included · {reviewQueue.data.excluded_count} excluded by filter
-            </span>
-          ) : null}
-        </header>
+      {/* Phase 11M: EVALUATION lane — review queue */}
+      <OptionsLane
+        lane="EVALUATION"
+        title="Review queue"
+        caption={reviewQueue.data
+          ? `${reviewQueue.data.count} included · ${reviewQueue.data.excluded_count} excluded by filter`
+          : undefined}
+      >
         {reviewQueue.isLoading ? (
           <p className="text-sm text-zinc-400">Loading review queue…</p>
         ) : reviewQueue.data ? (
@@ -95,21 +96,20 @@ export default function OptionsDecisionSupportPage() {
             onSelect={setSelectedId}
           />
         ) : null}
-      </section>
+      </OptionsLane>
 
-      <section>
-        <header className="mb-2">
-          <h2 className="text-sm font-semibold text-zinc-100">Shortlist buckets</h2>
-          <p className="text-[11px] text-zinc-500">
-            Computed views only — never persisted server-side, never mutated by user actions.
-          </p>
-        </header>
+      {/* Phase 11M: ATTRIBUTION lane — shortlist buckets */}
+      <OptionsLane
+        lane="ATTRIBUTION"
+        title="Shortlist buckets"
+        caption="Computed views only — never persisted server-side, never mutated by user actions."
+      >
         {buckets.isLoading ? (
           <p className="text-sm text-zinc-400">Loading buckets…</p>
         ) : buckets.data ? (
           <OptionsShortlistBuckets data={buckets.data} onSelect={setSelectedId} />
         ) : null}
-      </section>
+      </OptionsLane>
 
       {/* Phase 11K: universal "What this does NOT mean" page-level panel */}
       <WhatThisDoesNotMean />

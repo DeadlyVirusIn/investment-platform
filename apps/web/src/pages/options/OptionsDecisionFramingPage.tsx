@@ -15,6 +15,8 @@ import OptionsScenarioComparisonPanel from '@/components/options/OptionsScenario
 import SelectionBiasNotice from '@/components/options/SelectionBiasNotice';
 import WhatThisDoesNotMean from '@/components/options/WhatThisDoesNotMean';
 import RankingGuardrailBanner from '@/components/options/RankingGuardrailBanner';
+// Phase 11M — clarity lanes (visual grouping, no behaviour change)
+import OptionsLane from '@/components/options/OptionsLane';
 import {
   useOptionsDecisionFramingNarratives,
   useOptionsDecisionFramingSummary,
@@ -127,10 +129,8 @@ export default function OptionsDecisionFramingPage() {
         </div>
       ) : null}
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-100">
-          Review narrative cards
-        </h2>
+      {/* Phase 11M: EVALUATION lane — narratives over evaluation rows */}
+      <OptionsLane lane="EVALUATION" title="Review narrative cards">
         {narratives.isLoading ? (
           <p className="text-sm text-zinc-400">Loading narratives…</p>
         ) : narratives.data ? (
@@ -139,12 +139,10 @@ export default function OptionsDecisionFramingPage() {
             onSelect={setSelectedId}
           />
         ) : null}
-      </section>
+      </OptionsLane>
 
-      <section>
-        <h2 className="mb-2 text-sm font-semibold text-zinc-100">
-          Scenario comparison
-        </h2>
+      {/* Phase 11M: ATTRIBUTION lane — comparing two evaluation outputs */}
+      <OptionsLane lane="ATTRIBUTION" title="Scenario comparison">
         <div className="flex flex-wrap items-end gap-3">
           <label className="text-xs">
             <div className="mb-1 uppercase tracking-wide text-zinc-400">Observation A</div>
@@ -182,7 +180,7 @@ export default function OptionsDecisionFramingPage() {
             </div>
           ) : null}
         </div>
-      </section>
+      </OptionsLane>
 
       {/* Phase 11K: universal "What this does NOT mean" page-level panel */}
       <WhatThisDoesNotMean />
