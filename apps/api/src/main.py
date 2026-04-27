@@ -20,6 +20,7 @@ from apps.api.src.api.performance import router as performance_router
 from apps.api.src.api.portfolio import router as portfolio_router
 from apps.api.src.api.recommendations import router as recommendations_router
 from apps.api.src.api.watchlist import router as watchlist_router
+from apps.api.src.options.routes_readonly import router as options_readonly_router
 from apps.api.src.config import settings
 
 # ---------------------------------------------------------------------------
@@ -69,6 +70,7 @@ for _router in (
     alerts_router,
     jobs_router,
     performance_router,
+    options_readonly_router,
 ):
     app.include_router(_router, prefix="/api")
 

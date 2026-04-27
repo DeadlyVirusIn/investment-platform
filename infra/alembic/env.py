@@ -13,6 +13,7 @@ from sqlalchemy import engine_from_config, pool
 # ---------------------------------------------------------------------------
 from apps.api.src.db import Base
 import apps.api.src.db.models  # noqa: F401 – side-effect: registers all ORM classes
+import apps.api.src.db.options_models  # noqa: F401 – Phase 11B options schema
 
 # ---------------------------------------------------------------------------
 # Alembic Config object
