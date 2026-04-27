@@ -26,6 +26,7 @@ from apps.api.src.options.observatory import rules as obs_rules
 from apps.api.src.options.evaluation import score_service as eval_service
 from apps.api.src.options.decision_support import diagnostics as ds_diagnostics
 from apps.api.src.options.decision_support import review_queue as ds_review_queue
+from apps.api.src.options.decision_framing import framing_service as df_service
 
 
 router = APIRouter(prefix="/options", tags=["options"])
@@ -381,5 +382,100 @@ def decision_support_diagnostics(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     out = ds_diagnostics.get_diagnostics(session, lookback_days=lookback_days)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 11J — Assisted Decision Framing (read-only, paper-only)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/decision-framing/summary")
+def decision_framing_summary(
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = df_service.get_summary(session, lookback_days=lookback_days)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-framing/narratives")
+def decision_framing_narratives(
+    bucket: str | None = Query(default=None, max_length=64),
+    strategy: str | None = Query(default=None, max_length=64),
+    underlying: str | None = Query(default=None, max_length=12),
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    limit: int = Query(default=50, ge=1, le=500),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = df_service.list_narratives(
+        session,
+        bucket=bucket, strategy=strategy, underlying=underlying,
+        lookback_days=lookback_days, limit=limit,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-framing/narratives/{observation_id}")
+def decision_framing_narrative_detail(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = df_service.get_narrative_detail(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="narrative not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-framing/compare")
+def decision_framing_compare(
+    observation_id_a: str = Query(..., min_length=1, max_length=200),
+    observation_id_b: str = Query(..., min_length=1, max_length=200),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = df_service.compare_two(
+        session,
+        observation_id_a=observation_id_a,
+        observation_id_b=observation_id_b,
+    )
+    if out is None:
+        raise HTTPException(
+            status_code=404,
+            detail="one or both observation ids not found",
+        )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-framing/checklist/{observation_id}")
+def decision_framing_checklist(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = df_service.get_checklist(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="checklist not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-framing/context/{observation_id}")
+def decision_framing_context(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = df_service.get_context(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="context not found")
     out["notice"] = PAPER_ONLY_NOTICE
     return out

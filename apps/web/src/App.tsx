@@ -32,6 +32,9 @@ import OptionsStrategyEvaluationPage  from '@/pages/options/OptionsStrategyEvalu
 // Phase 11I — Decision Support (read-only, paper-only)
 import OptionsDecisionSupportPage     from '@/pages/options/OptionsDecisionSupportPage';
 
+// Phase 11J — Decision Framing (read-only, paper-only)
+import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFramingPage';
+
 export default function App() {
   return (
     <Routes>
@@ -66,6 +69,8 @@ export default function App() {
         <Route path="evaluation"   element={<OptionsStrategyEvaluationPage />} />
         {/* Phase 11I — Decision Support (read-only) */}
         <Route path="decision-support" element={<OptionsDecisionSupportPage />} />
+        {/* Phase 11J — Decision Framing (read-only) */}
+        <Route path="decision-framing" element={<OptionsDecisionFramingPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

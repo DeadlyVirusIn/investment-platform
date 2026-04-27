@@ -15,6 +15,7 @@ const TABS = [
   { to: '/options/replay',        label: 'Scenario Replay' },
   { to: '/options/evaluation',    label: 'Evaluation' },
   { to: '/options/decision-support', label: 'Decision Support' },
+  { to: '/options/decision-framing', label: 'Decision Framing' },
 ];
 
 export default function OptionsLayout() {

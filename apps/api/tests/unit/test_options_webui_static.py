@@ -674,3 +674,190 @@ def test_phase_11i_no_server_side_save_in_frontend():
             assert not re.search(pat, src), (
                 f"{path.name}: server-side shortlist mutation {pat!r}"
             )
+
+
+# ===========================================================================
+# Phase 11J — Decision Framing page assertions
+# ===========================================================================
+
+_PHASE_11J_PAGE = "OptionsDecisionFramingPage.tsx"
+
+_PHASE_11J_COMPONENTS = (
+    "OptionsDecisionFramingDisclaimer.tsx",
+    "OptionsReviewNarrativeCards.tsx",
+    "OptionsNarrativeDetailDrawer.tsx",
+    "OptionsScenarioComparisonPanel.tsx",
+    "OptionsHumanReviewChecklist.tsx",
+    "OptionsContextCaveatsPanel.tsx",
+)
+
+
+def test_phase_11j_page_renders_five_banner_stack():
+    """Decision Framing page must render all five banners."""
+    src = (PAGES_DIR / _PHASE_11J_PAGE).read_text(encoding="utf-8")
+    for banner in (
+        "OptionsPaperOnlyBanner",
+        "OptionsObservationOnlyBanner",
+        "OptionsEvaluationDisclaimer",
+        "OptionsDecisionSupportDisclaimer",
+        "OptionsDecisionFramingDisclaimer",
+    ):
+        assert banner in src, f"{_PHASE_11J_PAGE}: missing {banner}"
+
+
+def test_phase_11j_decision_framing_disclaimer_string_present():
+    src = (
+        COMP_DIR / "OptionsDecisionFramingDisclaimer.tsx"
+    ).read_text(encoding="utf-8")
+    flat = re.sub(r"\s+", " ", src)
+    assert "Decision framing provides deterministic review context only" in flat
+    assert "not advice, recommendation, or execution guidance" in flat
+
+
+def test_phase_11j_app_route_wired():
+    app_tsx = (WEB_SRC / "App.tsx").read_text(encoding="utf-8")
+    for token in ("OptionsDecisionFramingPage", "decision-framing"):
+        assert token in app_tsx, f"App.tsx missing 11J wiring for {token!r}"
+
+
+def test_phase_11j_layout_includes_decision_framing_tab():
+    src = (PAGES_DIR / "OptionsLayout.tsx").read_text(encoding="utf-8")
+    assert "/options/decision-framing" in src
+    assert "Decision Framing" in src
+
+
+_PHASE_11J_ALL_FILES = (
+    [PAGES_DIR / _PHASE_11J_PAGE]
+    + [COMP_DIR / c for c in _PHASE_11J_COMPONENTS]
+)
+
+
+def test_phase_11j_files_avoid_recommendation_language():
+    """Spec forbidden list (Phase 11J — strict superset).
+
+    The Decision Framing disclaimer banner *must* contain the words
+    'recommendation' and 'advice' in negated form (e.g. 'not advice,
+    recommendation, or execution guidance'); we explicitly exempt
+    that disclaimer file. All other 11J files are scanned for the
+    full forbidden list.
+    """
+    forbidden = (
+        r"\bRecommended\b",
+        r"\bRecommendation\b",
+        r"\bBest\b",
+        r"\bSignal\b",
+        r"\bConfidence\b",
+        r"\bExecute\b",
+        r"\bAuto-?trade\b",
+        r"\bPromote\b",
+        r"\bTrade now\b",
+        r"\bTop pick\b",
+        r">\s*Buy\s*<",
+        r">\s*Sell\s*<",
+        r"\bPlace order\b",
+        r"\bStrong setup\b",
+        r"\bThesis\b",
+        r"\bConviction\b",
+        r"\bgenerate alpha\b", r"\bcapture alpha\b",
+        r"\benter (?:a |the )?trade\b",
+        r"\bexit (?:a |the )?trade\b",
+    )
+    EXEMPT_DISCLAIMER_FILES = {"OptionsDecisionFramingDisclaimer.tsx"}
+    for path in _PHASE_11J_ALL_FILES:
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        for pat in forbidden:
+            if path.name in EXEMPT_DISCLAIMER_FILES and pat in (
+                r"\bRecommended\b", r"\bRecommendation\b",
+            ):
+                # Disclaimer banner legitimately contains these words
+                # in negation form — required by spec.
+                continue
+            assert not re.search(pat, src, re.IGNORECASE), (
+                f"{path.name}: forbidden Phase 11J wording {pat!r}"
+            )
+
+
+def test_phase_11j_api_client_uses_only_apiGet():
+    src = (LIB_DIR / "optionsApi.ts").read_text(encoding="utf-8")
+    for tok in ("decisionFramingSummary", "decisionFramingNarratives",
+                "decisionFramingNarrativeDetail",
+                "decisionFramingCompare", "decisionFramingChecklist",
+                "decisionFramingContext"):
+        assert tok in src, f"optionsApi.ts missing 11J method {tok!r}"
+    for forbidden in ("apiPost", "apiPut", "apiPatch", "apiDelete"):
+        assert forbidden not in src
+
+
+def test_phase_11j_no_useMutation_in_decision_framing_files():
+    for path in _PHASE_11J_ALL_FILES:
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        assert "useMutation(" not in src, (
+            f"{path.name}: useMutation forbidden on 11J pages"
+        )
+        for forbidden in ("apiPost(", "apiPut(", "apiPatch(", "apiDelete("):
+            assert forbidden not in src, (
+                f"{path.name}: {forbidden} forbidden on 11J files"
+            )
+
+
+def test_phase_11j_narrative_drawer_includes_required_sections():
+    src = (
+        COMP_DIR / "OptionsNarrativeDetailDrawer.tsx"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "Why it appears",
+        "Why caution is still required",
+        "OptionsHumanReviewChecklist",
+        "OptionsContextCaveatsPanel",
+        "non_action_footer",
+        "OptionsFlagList",
+    ):
+        assert token in src, f"OptionsNarrativeDetailDrawer missing {token!r}"
+
+
+def test_phase_11j_scenario_comparison_avoids_preference_wording():
+    src = _strip_ts_comments(
+        (COMP_DIR / "OptionsScenarioComparisonPanel.tsx").read_text(encoding="utf-8"),
+    )
+    forbidden = (
+        r"\bbetter\b", r"\bworse\b",
+        r"\bchoose\b", r"\bpreferable\b",
+        r"\bavoid\b",
+    )
+    for pat in forbidden:
+        assert not re.search(pat, src, re.IGNORECASE), (
+            f"OptionsScenarioComparisonPanel emits forbidden word {pat!r}"
+        )
+
+
+def test_phase_11j_no_llm_or_prompt_imports_in_frontend():
+    """Frontend must not import LLM/AI client libraries."""
+    forbidden = (
+        r"\bopenai\b", r"\banthropic\b", r"\bcohere\b",
+        r"\b@google/generative-ai\b",
+        r"\btransformers\b",
+    )
+    for path in _PHASE_11J_ALL_FILES:
+        if not path.exists():
+            continue
+        src = path.read_text(encoding="utf-8")
+        import_lines = [
+            ln for ln in src.splitlines()
+            if "import " in ln and "from" in ln
+        ]
+        joined = "\n".join(import_lines)
+        for pat in forbidden:
+            assert not re.search(pat, joined, re.IGNORECASE), (
+                f"{path.name}: LLM/AI client import {pat!r}"
+            )
+
+
+def test_phase_11j_narrative_card_includes_review_context_only():
+    src = (
+        COMP_DIR / "OptionsReviewNarrativeCards.tsx"
+    ).read_text(encoding="utf-8")
+    assert "non_action_footer" in src

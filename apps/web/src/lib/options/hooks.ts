@@ -26,6 +26,12 @@ import {
   type DecisionSupportReviewDetail,
   type DecisionSupportBucketsResponse,
   type DecisionSupportDiagnostics,
+  type DecisionFramingSummary,
+  type DecisionFramingNarrativesResponse,
+  type DecisionFramingNarrativeDetail,
+  type DecisionFramingCompareResponse,
+  type DecisionFramingChecklistResponse,
+  type DecisionFramingContextResponse,
 } from './optionsApi';
 
 const STALE = 30_000;
@@ -268,6 +274,70 @@ export function useOptionsDecisionSupportDiagnostics(lookback_days?: number) {
   return useQuery<DecisionSupportDiagnostics>({
     queryKey: ['options', 'decision-support', 'diagnostics', lookback_days],
     queryFn: () => optionsApi.decisionSupportDiagnostics(lookback_days),
+    staleTime: STALE,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 11J — read-only decision framing hooks
+// ---------------------------------------------------------------------------
+
+export function useOptionsDecisionFramingSummary(lookback_days?: number) {
+  return useQuery<DecisionFramingSummary>({
+    queryKey: ['options', 'decision-framing', 'summary', lookback_days],
+    queryFn: () => optionsApi.decisionFramingSummary(lookback_days),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionFramingNarratives(params: {
+  bucket?: string;
+  strategy?: string;
+  underlying?: string;
+  lookback_days?: number;
+  limit?: number;
+} = {}) {
+  return useQuery<DecisionFramingNarrativesResponse>({
+    queryKey: ['options', 'decision-framing', 'narratives', params],
+    queryFn: () => optionsApi.decisionFramingNarratives(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionFramingNarrativeDetail(id: string | undefined) {
+  return useQuery<DecisionFramingNarrativeDetail>({
+    queryKey: ['options', 'decision-framing', 'narratives', 'detail', id],
+    queryFn: () => optionsApi.decisionFramingNarrativeDetail(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionFramingCompare(
+  idA: string | undefined, idB: string | undefined,
+) {
+  return useQuery<DecisionFramingCompareResponse>({
+    queryKey: ['options', 'decision-framing', 'compare', idA, idB],
+    queryFn: () => optionsApi.decisionFramingCompare(idA!, idB!),
+    enabled: !!idA && !!idB,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionFramingChecklist(id: string | undefined) {
+  return useQuery<DecisionFramingChecklistResponse>({
+    queryKey: ['options', 'decision-framing', 'checklist', id],
+    queryFn: () => optionsApi.decisionFramingChecklist(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionFramingContext(id: string | undefined) {
+  return useQuery<DecisionFramingContextResponse>({
+    queryKey: ['options', 'decision-framing', 'context', id],
+    queryFn: () => optionsApi.decisionFramingContext(id!),
+    enabled: !!id,
     staleTime: STALE,
   });
 }

@@ -382,7 +382,147 @@ export const optionsApi = {
       `/options/decision-support/diagnostics${qs}`,
     );
   },
+
+  // Phase 11J — Assisted Decision Framing (read-only)
+  decisionFramingSummary: (lookback_days?: number) => {
+    const qs = lookback_days ? `?lookback_days=${lookback_days}` : '';
+    return apiGet<DecisionFramingSummary>(
+      `/options/decision-framing/summary${qs}`,
+    );
+  },
+  decisionFramingNarratives: (params: {
+    bucket?: string;
+    strategy?: string;
+    underlying?: string;
+    lookback_days?: number;
+    limit?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (params.bucket)        q.set('bucket', params.bucket);
+    if (params.strategy)      q.set('strategy', params.strategy);
+    if (params.underlying)    q.set('underlying', params.underlying);
+    if (params.lookback_days) q.set('lookback_days', String(params.lookback_days));
+    if (params.limit)         q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiGet<DecisionFramingNarrativesResponse>(
+      `/options/decision-framing/narratives${qs ? `?${qs}` : ''}`,
+    );
+  },
+  decisionFramingNarrativeDetail: (id: string) =>
+    apiGet<DecisionFramingNarrativeDetail>(
+      `/options/decision-framing/narratives/${encodeURIComponent(id)}`,
+    ),
+  decisionFramingCompare: (idA: string, idB: string) =>
+    apiGet<DecisionFramingCompareResponse>(
+      `/options/decision-framing/compare?observation_id_a=${encodeURIComponent(idA)}&observation_id_b=${encodeURIComponent(idB)}`,
+    ),
+  decisionFramingChecklist: (id: string) =>
+    apiGet<DecisionFramingChecklistResponse>(
+      `/options/decision-framing/checklist/${encodeURIComponent(id)}`,
+    ),
+  decisionFramingContext: (id: string) =>
+    apiGet<DecisionFramingContextResponse>(
+      `/options/decision-framing/context/${encodeURIComponent(id)}`,
+    ),
 };
+
+// ---------------------------------------------------------------------------
+// Phase 11J types
+// ---------------------------------------------------------------------------
+
+export interface NarrativeBlock {
+  id: string;
+  bucket: string;
+  bucket_label: string;
+  underlying: string;
+  rule_id: string;
+  as_of_date: string;
+  total_score: number | null;
+  qualified: boolean;
+  rank_position: number | null;
+  why_it_appears: string;
+  caution_paragraph: string;
+  caveats: string[];
+  flags: string[];
+  non_action_footer: string;
+  paper_only_reminder: string;
+}
+
+export interface DecisionFramingEnvelope {
+  notice: string;
+  observation_only_notice: string;
+  decision_framing_disclaimer: string;
+  review_context_only_footer: string;
+  paper_only_reminder: string;
+}
+
+export interface DecisionFramingSummary extends DecisionFramingEnvelope {
+  n_total_observations: number;
+  by_bucket: { bucket: string; count: number }[];
+}
+
+export interface DecisionFramingNarrativesResponse extends DecisionFramingEnvelope {
+  count: number;
+  narratives: NarrativeBlock[];
+}
+
+export interface DecisionFramingNarrativeDetail extends DecisionFramingEnvelope {
+  id: string;
+  narrative: NarrativeBlock;
+  ranking_explanation: string;
+  tie_breakers: string[];
+  inclusion_reason: string;
+  components: ScoreComponent[];
+  penalties: ScorePenalty[];
+}
+
+export interface ComparisonSummaryFacts {
+  id: string;
+  underlying: string;
+  rule_id: string;
+  as_of_date: string;
+  total_score: number;
+  qualified: boolean;
+  bucket: string;
+  bucket_label: string | null;
+  rank_position: number | null;
+  flags: string[];
+  n_penalties: number;
+  liquidity_component_score: number;
+}
+
+export interface DecisionFramingCompareResponse extends DecisionFramingEnvelope {
+  comparison: {
+    a: ComparisonSummaryFacts;
+    b: ComparisonSummaryFacts;
+    factual_deltas: string[];
+    bucket_phrase: string;
+    ranking_phrase: string;
+    flags_only_in_a: string[];
+    flags_only_in_b: string[];
+    non_preference_notice: string;
+  };
+  caveats_a: string[];
+  caveats_b: string[];
+}
+
+export interface ChecklistItem {
+  code: string;
+  label: string;
+  description: string;
+}
+
+export interface DecisionFramingChecklistResponse extends DecisionFramingEnvelope {
+  id: string;
+  checklist: ChecklistItem[];
+}
+
+export interface DecisionFramingContextResponse extends DecisionFramingEnvelope {
+  id: string;
+  narrative: NarrativeBlock;
+  checklist: ChecklistItem[];
+  context_caveats: string[];
+}
 
 // ---------------------------------------------------------------------------
 // Phase 11I types
