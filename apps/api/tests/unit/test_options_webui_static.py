@@ -532,3 +532,145 @@ def test_phase_11h_null_handling_uses_insufficient_or_unavailable():
     # Spot-check 11H summary card uses "Insufficient data" wording
     summary = (COMP_DIR / "OptionsEvaluationSummaryCards.tsx").read_text(encoding="utf-8")
     assert "Insufficient data" in summary or "_val(" in summary
+
+
+# ===========================================================================
+# Phase 11I — Decision Support page assertions
+# ===========================================================================
+
+_PHASE_11I_PAGE = "OptionsDecisionSupportPage.tsx"
+
+_PHASE_11I_COMPONENTS = (
+    "OptionsDecisionSupportDisclaimer.tsx",
+    "OptionsReviewQueueSummaryCards.tsx",
+    "OptionsReviewQueueFilters.tsx",
+    "OptionsReviewQueueTable.tsx",
+    "OptionsShortlistBuckets.tsx",
+    "OptionsReviewDetailDrawer.tsx",
+    "OptionsRankingExplanation.tsx",
+)
+
+
+def test_phase_11i_page_renders_four_banner_stack():
+    """Decision Support page must render all four banners/disclaimers."""
+    src = (PAGES_DIR / _PHASE_11I_PAGE).read_text(encoding="utf-8")
+    for banner in (
+        "OptionsPaperOnlyBanner",
+        "OptionsObservationOnlyBanner",
+        "OptionsEvaluationDisclaimer",
+        "OptionsDecisionSupportDisclaimer",
+    ):
+        assert banner in src, f"{_PHASE_11I_PAGE}: missing {banner}"
+
+
+def test_phase_11i_decision_support_disclaimer_string_present():
+    src = (
+        COMP_DIR / "OptionsDecisionSupportDisclaimer.tsx"
+    ).read_text(encoding="utf-8")
+    flat = re.sub(r"\s+", " ", src)
+    assert "Review queues are for human inspection only" in flat
+    assert "not trade recommendations or execution guidance" in flat
+
+
+def test_phase_11i_app_route_wired():
+    app_tsx = (WEB_SRC / "App.tsx").read_text(encoding="utf-8")
+    for token in (
+        "OptionsDecisionSupportPage",
+        "decision-support",
+    ):
+        assert token in app_tsx, f"App.tsx missing 11I wiring for {token!r}"
+
+
+def test_phase_11i_layout_includes_decision_support_tab():
+    src = (PAGES_DIR / "OptionsLayout.tsx").read_text(encoding="utf-8")
+    assert "/options/decision-support" in src
+    assert "Decision Support" in src
+
+
+def test_phase_11i_review_detail_drawer_includes_required_sections():
+    src = (
+        COMP_DIR / "OptionsReviewDetailDrawer.tsx"
+    ).read_text(encoding="utf-8")
+    for token in (
+        "OptionsRankingExplanation",  # ranking explanation block
+        "Score breakdown",             # score breakdown
+        "Penalties",                   # penalties section
+        "OptionsFlagList",             # flags
+        "Human review required",       # required wording
+    ):
+        assert token in src, f"OptionsReviewDetailDrawer missing {token!r}"
+
+
+_PHASE_11I_ALL_FILES = (
+    [PAGES_DIR / _PHASE_11I_PAGE]
+    + [COMP_DIR / c for c in _PHASE_11I_COMPONENTS]
+)
+
+
+def test_phase_11i_files_avoid_recommendation_language():
+    forbidden = (
+        r"\bRecommended\b",
+        r"\bRecommendation\b",
+        r"\bBest\b",
+        r"\bSignal\b",
+        r"\bConfidence\b",
+        r"\bExecute\b",
+        r"\bAuto-?trade\b",
+        r"\bPromote\b",
+        r"\bTrade now\b",
+        r"\bTop pick\b",
+        r">\s*Buy\s*<",
+        r">\s*Sell\s*<",
+        r"\bPlace order\b",
+    )
+    for path in _PHASE_11I_ALL_FILES:
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        for pat in forbidden:
+            assert not re.search(pat, src, re.IGNORECASE), (
+                f"{path.name}: forbidden Phase 11I wording {pat!r}"
+            )
+
+
+def test_phase_11i_api_client_uses_only_apiGet():
+    src = (LIB_DIR / "optionsApi.ts").read_text(encoding="utf-8")
+    for tok in ("decisionSupportSummary", "decisionSupportReviewQueue",
+                "decisionSupportReviewDetail", "decisionSupportBuckets",
+                "decisionSupportDiagnostics"):
+        assert tok in src, f"optionsApi.ts missing 11I method {tok!r}"
+    for forbidden in ("apiPost", "apiPut", "apiPatch", "apiDelete"):
+        assert forbidden not in src
+
+
+def test_phase_11i_no_useMutation_in_decision_support_files():
+    for path in _PHASE_11I_ALL_FILES:
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        assert "useMutation(" not in src, (
+            f"{path.name}: useMutation forbidden on 11I pages"
+        )
+        for forbidden in ("apiPost(", "apiPut(", "apiPatch(", "apiDelete("):
+            assert forbidden not in src, (
+                f"{path.name}: {forbidden} forbidden on 11I files"
+            )
+
+
+def test_phase_11i_no_server_side_save_in_frontend():
+    """Shortlists are computed views only — no UI shall offer to
+    "save" a shortlist server-side."""
+    forbidden_save_patterns = (
+        r"\bsaveShortlist\b",
+        r"\bcreateShortlist\b",
+        r"\bpersistShortlist\b",
+        r"\bupsertShortlist\b",
+    )
+    for path in _PHASE_11I_ALL_FILES:
+        if not path.exists():
+            continue
+        src = path.read_text(encoding="utf-8")
+        for pat in forbidden_save_patterns:
+            assert not re.search(pat, src), (
+                f"{path.name}: server-side shortlist mutation {pat!r}"
+            )

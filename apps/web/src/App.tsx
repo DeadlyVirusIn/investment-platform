@@ -29,6 +29,9 @@ import OptionsScenarioReplayPage      from '@/pages/options/OptionsScenarioRepla
 // Phase 11H — Strategy Evaluation (read-only, paper-only, deterministic)
 import OptionsStrategyEvaluationPage  from '@/pages/options/OptionsStrategyEvaluationPage';
 
+// Phase 11I — Decision Support (read-only, paper-only)
+import OptionsDecisionSupportPage     from '@/pages/options/OptionsDecisionSupportPage';
+
 export default function App() {
   return (
     <Routes>
@@ -61,6 +64,8 @@ export default function App() {
         <Route path="replay"       element={<OptionsScenarioReplayPage />} />
         {/* Phase 11H — Strategy Evaluation (read-only) */}
         <Route path="evaluation"   element={<OptionsStrategyEvaluationPage />} />
+        {/* Phase 11I — Decision Support (read-only) */}
+        <Route path="decision-support" element={<OptionsDecisionSupportPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

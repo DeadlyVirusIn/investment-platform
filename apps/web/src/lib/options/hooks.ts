@@ -21,6 +21,11 @@ import {
   type EvaluationScoreDetail,
   type EvaluationDistribution,
   type EvaluationDiagnostics,
+  type DecisionSupportSummary,
+  type DecisionSupportReviewQueueResponse,
+  type DecisionSupportReviewDetail,
+  type DecisionSupportBucketsResponse,
+  type DecisionSupportDiagnostics,
 } from './optionsApi';
 
 const STALE = 30_000;
@@ -209,6 +214,60 @@ export function useOptionsEvaluationDiagnostics(lookback_days?: number) {
   return useQuery<EvaluationDiagnostics>({
     queryKey: ['options', 'evaluation', 'diagnostics', lookback_days],
     queryFn: () => optionsApi.evaluationDiagnostics(lookback_days),
+    staleTime: STALE,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 11I — read-only decision support hooks
+// ---------------------------------------------------------------------------
+
+export function useOptionsDecisionSupportSummary(lookback_days?: number) {
+  return useQuery<DecisionSupportSummary>({
+    queryKey: ['options', 'decision-support', 'summary', lookback_days],
+    queryFn: () => optionsApi.decisionSupportSummary(lookback_days),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionSupportReviewQueue(params: {
+  strategy?: string;
+  underlying?: string;
+  min_score?: number;
+  qualified_only?: boolean;
+  exclude_severe_flags?: boolean;
+  bucket?: string;
+  lookback_days?: number;
+  limit?: number;
+} = {}) {
+  return useQuery<DecisionSupportReviewQueueResponse>({
+    queryKey: ['options', 'decision-support', 'review-queue', params],
+    queryFn: () => optionsApi.decisionSupportReviewQueue(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionSupportReviewDetail(id: string | undefined) {
+  return useQuery<DecisionSupportReviewDetail>({
+    queryKey: ['options', 'decision-support', 'review-queue', 'detail', id],
+    queryFn: () => optionsApi.decisionSupportReviewDetail(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionSupportBuckets(lookback_days?: number) {
+  return useQuery<DecisionSupportBucketsResponse>({
+    queryKey: ['options', 'decision-support', 'buckets', lookback_days],
+    queryFn: () => optionsApi.decisionSupportBuckets(lookback_days),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsDecisionSupportDiagnostics(lookback_days?: number) {
+  return useQuery<DecisionSupportDiagnostics>({
+    queryKey: ['options', 'decision-support', 'diagnostics', lookback_days],
+    queryFn: () => optionsApi.decisionSupportDiagnostics(lookback_days),
     staleTime: STALE,
   });
 }

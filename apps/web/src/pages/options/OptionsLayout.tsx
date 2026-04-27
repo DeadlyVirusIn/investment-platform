@@ -14,6 +14,7 @@ const TABS = [
   { to: '/options/diagnostics',   label: 'Diagnostics' },
   { to: '/options/replay',        label: 'Scenario Replay' },
   { to: '/options/evaluation',    label: 'Evaluation' },
+  { to: '/options/decision-support', label: 'Decision Support' },
 ];
 
 export default function OptionsLayout() {

@@ -333,7 +333,150 @@ export const optionsApi = {
       `/options/evaluation/diagnostics${qs}`,
     );
   },
+
+  // Phase 11I — Decision Support Layer (read-only)
+  decisionSupportSummary: (lookback_days?: number) => {
+    const qs = lookback_days ? `?lookback_days=${lookback_days}` : '';
+    return apiGet<DecisionSupportSummary>(
+      `/options/decision-support/summary${qs}`,
+    );
+  },
+  decisionSupportReviewQueue: (params: {
+    strategy?: string;
+    underlying?: string;
+    min_score?: number;
+    qualified_only?: boolean;
+    exclude_severe_flags?: boolean;
+    bucket?: string;
+    lookback_days?: number;
+    limit?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (params.strategy)               q.set('strategy', params.strategy);
+    if (params.underlying)             q.set('underlying', params.underlying);
+    if (params.min_score !== undefined)
+      q.set('min_score', String(params.min_score));
+    if (params.qualified_only)         q.set('qualified_only', 'true');
+    if (params.exclude_severe_flags)   q.set('exclude_severe_flags', 'true');
+    if (params.bucket)                 q.set('bucket', params.bucket);
+    if (params.lookback_days)          q.set('lookback_days', String(params.lookback_days));
+    if (params.limit)                  q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiGet<DecisionSupportReviewQueueResponse>(
+      `/options/decision-support/review-queue${qs ? `?${qs}` : ''}`,
+    );
+  },
+  decisionSupportReviewDetail: (id: string) =>
+    apiGet<DecisionSupportReviewDetail>(
+      `/options/decision-support/review-queue/${encodeURIComponent(id)}`,
+    ),
+  decisionSupportBuckets: (lookback_days?: number) => {
+    const qs = lookback_days ? `?lookback_days=${lookback_days}` : '';
+    return apiGet<DecisionSupportBucketsResponse>(
+      `/options/decision-support/buckets${qs}`,
+    );
+  },
+  decisionSupportDiagnostics: (lookback_days?: number) => {
+    const qs = lookback_days ? `?lookback_days=${lookback_days}` : '';
+    return apiGet<DecisionSupportDiagnostics>(
+      `/options/decision-support/diagnostics${qs}`,
+    );
+  },
 };
+
+// ---------------------------------------------------------------------------
+// Phase 11I types
+// ---------------------------------------------------------------------------
+
+export const BUCKET_HIGH_REVIEW_PRIORITY     = 'HIGH_REVIEW_PRIORITY';
+export const BUCKET_DATA_QUALITY_REVIEW      = 'NEEDS_REVIEW_DATA_QUALITY';
+export const BUCKET_MODEL_LIMITATION_REVIEW  = 'NEEDS_REVIEW_MODEL_LIMITATION';
+export const BUCKET_NEUTRAL                  = 'NEUTRAL_NEEDS_REVIEW';
+export const BUCKET_EXCLUDED                 = 'EXCLUDED_BY_REVIEW_RULES';
+
+export type BucketToken =
+  | typeof BUCKET_HIGH_REVIEW_PRIORITY
+  | typeof BUCKET_DATA_QUALITY_REVIEW
+  | typeof BUCKET_MODEL_LIMITATION_REVIEW
+  | typeof BUCKET_NEUTRAL
+  | typeof BUCKET_EXCLUDED;
+
+export interface ReviewQueueRow extends EvaluationScoreItem {
+  rank_position: number;
+  ranking_explanation: string;
+  tie_breakers: string[];
+  bucket: BucketToken | string;
+  bucket_label: string;
+  inclusion_reason: string;
+  severe_flags: string[];
+  has_severe_flag: boolean;
+  has_data_quality_penalty: boolean;
+}
+
+export interface DecisionSupportSummary {
+  notice: string;
+  observation_only_notice: string;
+  decision_support_disclaimer: string;
+  human_review_note: string;
+  n_total: number;
+  by_bucket: { bucket: string; label: string; count: number }[];
+  n_high_review_priority: number;
+  n_data_quality_review: number;
+  n_model_limitation_review: number;
+  n_neutral: number;
+  n_excluded: number;
+  median_score: string | null;
+  tie_breakers: string[];
+}
+
+export interface DecisionSupportReviewQueueResponse {
+  notice: string;
+  observation_only_notice: string;
+  decision_support_disclaimer: string;
+  human_review_note: string;
+  count: number;
+  excluded_count: number;
+  filters: Record<string, unknown>;
+  tie_breakers: string[];
+  review_queue: ReviewQueueRow[];
+}
+
+export interface DecisionSupportReviewDetail extends ReviewQueueRow {
+  notice: string;
+  observation_only_notice: string;
+  decision_support_disclaimer: string;
+  human_review_note: string;
+  tie_breakers: string[];
+}
+
+export interface DecisionSupportBucketsResponse {
+  notice: string;
+  observation_only_notice: string;
+  decision_support_disclaimer: string;
+  human_review_note: string;
+  groups: {
+    bucket: string;
+    label: string;
+    count: number;
+    rows: ReviewQueueRow[];
+  }[];
+  tie_breakers: string[];
+}
+
+export interface DecisionSupportDiagnostics {
+  notice: string;
+  observation_only_notice: string;
+  decision_support_disclaimer: string;
+  human_review_note: string;
+  by_bucket: { bucket: string; label: string; count: number }[];
+  exclusion_drivers: {
+    low_score: number;
+    unqualified_no_severe: number;
+    severe_combined_with_unqualified_or_low_score: number;
+  };
+  common_severe_flag_drivers: { code: string; count: number }[];
+  common_data_quality_penalty_drivers: { code: string; count: number }[];
+}
 
 // ---------------------------------------------------------------------------
 // Phase 11H types

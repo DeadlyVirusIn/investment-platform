@@ -24,6 +24,8 @@ from apps.api.src.options.observatory import performance as obs_performance
 from apps.api.src.options.observatory import replay as obs_replay
 from apps.api.src.options.observatory import rules as obs_rules
 from apps.api.src.options.evaluation import score_service as eval_service
+from apps.api.src.options.decision_support import diagnostics as ds_diagnostics
+from apps.api.src.options.decision_support import review_queue as ds_review_queue
 
 
 router = APIRouter(prefix="/options", tags=["options"])
@@ -301,5 +303,83 @@ def evaluation_diagnostics(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     out = eval_service.get_diagnostics(session, lookback_days=lookback_days)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 11I — Decision Support Layer (read-only, paper-only)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/decision-support/summary")
+def decision_support_summary(
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ds_review_queue.get_summary(session, lookback_days=lookback_days)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-support/review-queue")
+def decision_support_review_queue(
+    strategy: str | None = Query(default=None, max_length=64),
+    underlying: str | None = Query(default=None, max_length=12),
+    min_score: int | None = Query(default=None, ge=0, le=100),
+    qualified_only: bool = Query(default=False),
+    exclude_severe_flags: bool = Query(default=False),
+    bucket: str | None = Query(default=None, max_length=64),
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    limit: int = Query(default=50, ge=1, le=500),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ds_review_queue.get_review_queue(
+        session,
+        strategy=strategy,
+        underlying=underlying,
+        min_score=min_score,
+        qualified_only=qualified_only,
+        exclude_severe_flags=exclude_severe_flags,
+        bucket=bucket,
+        lookback_days=lookback_days,
+        limit=limit,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-support/review-queue/{observation_id}")
+def decision_support_review_detail(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ds_review_queue.get_review_detail(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(
+            status_code=404, detail="review queue entry not found",
+        )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-support/buckets")
+def decision_support_buckets(
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ds_review_queue.get_buckets(session, lookback_days=lookback_days)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/decision-support/diagnostics")
+def decision_support_diagnostics(
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ds_diagnostics.get_diagnostics(session, lookback_days=lookback_days)
     out["notice"] = PAPER_ONLY_NOTICE
     return out
