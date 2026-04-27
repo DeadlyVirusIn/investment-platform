@@ -3,6 +3,7 @@
 // review bucket label means + what it does NOT imply.
 
 import { useOptionsGuardrailsBucket } from '@/lib/options/hooks';
+import GuardrailsGate from './GuardrailsGate';
 
 export default function BucketMeaningPanel({
   observationId,
@@ -18,17 +19,19 @@ export default function BucketMeaningPanel({
   if (!data) return null;
   const bi = data.bucket_interpretation;
   return (
-    <section className="rounded-md border border-zinc-700/60 bg-zinc-800/40 p-3 text-sm text-zinc-200">
-      <header className="mb-1 text-xs uppercase tracking-wide text-zinc-400">
-        Bucket meaning
-      </header>
-      <div className="text-[11px] font-mono text-zinc-500">{data.bucket}</div>
-      <p className="mt-1 font-semibold">{bi.headline}</p>
-      <p className="mt-1 text-[12px] text-zinc-300">{bi.is_what}</p>
-      <ul className="mt-2 list-disc list-inside text-[11px] text-zinc-300">
-        {bi.is_not_what.map((line, i) => (<li key={i}>{line}</li>))}
-      </ul>
-      <p className="mt-2 text-[11px] text-zinc-400">{bi.review_only_footer}</p>
-    </section>
+    <GuardrailsGate>
+      <section className="rounded-md border border-zinc-700/60 bg-zinc-800/40 p-3 text-sm text-zinc-200">
+        <header className="mb-1 text-xs uppercase tracking-wide text-zinc-400">
+          Bucket meaning
+        </header>
+        <div className="text-[11px] font-mono text-zinc-500">{data.bucket}</div>
+        <p className="mt-1 font-semibold">{bi.headline}</p>
+        <p className="mt-1 text-[12px] text-zinc-300">{bi.is_what}</p>
+        <ul className="mt-2 list-disc list-inside text-[11px] text-zinc-300">
+          {bi.is_not_what.map((line, i) => (<li key={i}>{line}</li>))}
+        </ul>
+        <p className="mt-2 text-[11px] text-zinc-400">{bi.review_only_footer}</p>
+      </section>
+    </GuardrailsGate>
   );
 }

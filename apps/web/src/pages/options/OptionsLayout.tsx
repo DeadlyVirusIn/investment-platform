@@ -3,6 +3,8 @@
 
 import { NavLink, Outlet } from 'react-router-dom';
 import OptionsPaperOnlyBanner from '@/components/options/OptionsPaperOnlyBanner';
+// Phase 11L — UI-only guardrails toggle button
+import GuardrailsToggleButton from '@/components/options/GuardrailsToggleButton';
 
 const TABS = [
   { to: '/options/chain',         label: 'Chain' },
@@ -26,6 +28,9 @@ export default function OptionsLayout() {
         <h1 className="text-xl font-semibold">Options (observation)</h1>
         <span className="text-xs text-zinc-500">
           Paper-trading only · simulated lifecycle
+        </span>
+        <span className="ml-auto">
+          <GuardrailsToggleButton />
         </span>
       </header>
       <nav className="flex gap-1 border-b border-zinc-800">

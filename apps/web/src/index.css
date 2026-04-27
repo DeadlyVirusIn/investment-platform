@@ -2,47 +2,1386 @@
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================================
+   ELITE QUANT TERMINAL DESIGN SYSTEM
+   =========================================================================
+   PURPOSE — not tokens for tokens. Every value has a job.
+
+   COLOR:
+     Deep navy-indigo family. Brighter than the previous dark — lifts
+     perceived contrast without looking washed out. Accent = pure blue
+     (authority). Success/danger kept vivid (operator trust).
+
+   TYPE:
+     Base 14 → 15 for body. Labels at 11 (not 10). Numbers 30/40 for
+     hero stats. Mono font for identifiers. Uppercase 0.14em tracking
+     for all labels (quiet density).
+
+   SPACING:
+     Strict 4/8/12/16/20/24/32/48. No arbitrary px.
+
+   RADIUS:
+     4 (pills) / 8 (tight) / 12 (cards) / 16 (hero)
+========================================================================== */
+
+/* ──────────────────────────────────────────────────────────────────────
+   PHASE 3 — UNIFIED DESIGN TOKEN SYSTEM
+   Default theme = dark. Switch via `[data-theme="light"]` on <html>.
+   Theme persisted in localStorage["theme"].
+   ────────────────────────────────────────────────────────────────────── */
+
+:root,
+:root[data-theme="dark"] {
+  /* Surfaces */
+  --bg:           #10172A;
+  --surface-1:    #1A2234;
+  --surface-2:    #242E47;
+  --surface-3:    #0C1122;
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  /* Text */
+  --text-primary:   #EEF1F7;
+  --text-secondary: #B0BAC9;
+  --text-muted:     #7A8499;
+  --text-inverse:   #0F1623;
+
+  /* Semantic */
+  --accent:         #4B8BFF;
+  --accent-soft:    rgba(75, 139, 255, 0.10);
+  --success:        #26CA72;
+  --success-soft:   rgba(38, 202, 114, 0.16);
+  --warning:        #F8A638;
+  --warning-soft:   rgba(248, 166, 56, 0.14);
+  --danger:         #F25053;
+  --danger-soft:    rgba(242, 80, 83, 0.14);
+  --neutral:        #7A8499;
+  --neutral-soft:   rgba(255, 255, 255, 0.06);
+
+  /* Charts / signals */
+  --chart-line:     #4B8BFF;
+  --chart-positive: #26CA72;
+  --chart-negative: #F25053;
+  --chart-muted:    #4C5468;
+  --spark-fill:     rgba(75, 139, 255, 0.10);
+
+  /* Interaction */
+  --focus-ring:     var(--accent);
+  --hover-bg:       rgba(255, 255, 255, 0.04);
+  --active-bg:      rgba(255, 255, 255, 0.07);
+
+  /* Density */
+  --radius-card:  6px;
+  --radius-chip:  4px;
+  --radius-modal: 8px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* Typography */
+  --font-ui:    'Inter', -apple-system, system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono', 'SF Mono', Menlo, Monaco, monospace;
+  --fs-hero:  28px;
+  --fs-title: 22px;
+  --fs-body:  14px;
+  --fs-small: 12px;
+  --fs-micro: 11px;
+
+  /* ── Backwards-compatible aliases (existing utility classes
+        reference these names; do NOT remove until full migration). */
+  --ink:      #0A0F1C;
+  --surface:  var(--bg);
+  --card:     var(--surface-1);
+  --elevated: var(--surface-2);
+  --sunken:   var(--surface-3);
+  --border:   var(--border-subtle);
+  --border-2: rgba(255, 255, 255, 0.11);
+  --border-3: var(--border-strong);
+  --fg:   var(--text-primary);
+  --fg-2: var(--text-secondary);
+  --fg-3: var(--text-muted);
+  --fg-4: #4C5468;
+  --accent-hover:  #6FA3FF;
+  --accent-muted:  rgba(75, 139, 255, 0.20);
+  --accent-subtle: var(--accent-soft);
+  --success-muted: var(--success-soft);
+  --warning-muted: var(--warning-soft);
+  --danger-muted:  var(--danger-soft);
+  --mono: var(--font-mono);
+
+  /* ── PHASE 11L — spec-aliased token names ─────────────────────────
+     Map existing tokens onto the spec's --color-* palette so the
+     11L UX layer can reference a stable, named palette without
+     reshuffling existing utility classes. NO color values change.
+     Success/warning are mapped onto their existing 'soft' variants
+     so 11L surfaces use the calmer (neutralised) tone by default —
+     red/green never act as action signals.  */
+  --color-bg:        var(--bg);
+  --color-surface:   var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-accent:    var(--accent);
+  --color-muted:     var(--text-muted);
+  --color-success:   var(--success-soft);
+  --color-warning:   var(--warning-soft);
+  --color-border:    var(--border-subtle);
+  /* Soft shadow (terminal polish) */
+  --shadow-soft:     0 1px 2px rgba(0,0,0,0.16),
+                     0 6px 18px rgba(0,0,0,0.18);
+  /* Frozen radius scale (2xl = hero) */
+  --radius-pill: 4px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+}
+
+/* ── LIGHT THEME ─────────────────────────────────────────────────────
+   Daylight institutional terminal — warm paper, NOT pure white.
+   1px borders, no glow, restrained shadows. */
+:root[data-theme="light"] {
+  /* Surfaces */
+  --bg:           #F4F5F8;
+  --surface-1:    #FFFFFF;
+  --surface-2:    #F9FAFC;
+  --surface-3:    #EEF1F6;
+  --border-subtle: #D7DCE5;
+  --border-strong: #B8C0CC;
+
+  /* Text */
+  --text-primary:   #111827;
+  --text-secondary: #4B5563;
+  --text-muted:     #6B7280;
+  --text-inverse:   #FFFFFF;
+
+  /* Semantic — slightly deeper to keep contrast on warm paper */
+  --accent:         #1E5FE0;
+  --accent-soft:    rgba(30, 95, 224, 0.08);
+  --success:        #0F8C4F;
+  --success-soft:   rgba(15, 140, 79, 0.10);
+  --warning:        #A56300;
+  --warning-soft:   rgba(165, 99, 0, 0.10);
+  --danger:         #B92419;
+  --danger-soft:    rgba(185, 36, 25, 0.10);
+  --neutral:        #6B7280;
+  --neutral-soft:   rgba(0, 0, 0, 0.04);
+
+  /* Charts */
+  --chart-line:     #1E5FE0;
+  --chart-positive: #0F8C4F;
+  --chart-negative: #B92419;
+  --chart-muted:    #94A3B8;
+  --spark-fill:     rgba(30, 95, 224, 0.10);
+
+  /* Interaction */
+  --focus-ring:     var(--accent);
+  --hover-bg:       rgba(0, 0, 0, 0.03);
+  --active-bg:      rgba(0, 0, 0, 0.06);
+
+  /* Aliases */
+  --ink:      #FFFFFF;
+  --surface:  var(--bg);
+  --card:     var(--surface-1);
+  --elevated: var(--surface-2);
+  --sunken:   var(--surface-3);
+  --border:   var(--border-subtle);
+  --border-2: #D7DCE5;
+  --border-3: var(--border-strong);
+  --fg:   var(--text-primary);
+  --fg-2: var(--text-secondary);
+  --fg-3: var(--text-muted);
+  --fg-4: #94A3B8;
+  --accent-hover:  #1A4FBE;
+  --accent-muted:  rgba(30, 95, 224, 0.18);
+  --accent-subtle: var(--accent-soft);
+  --success-muted: var(--success-soft);
+  --warning-muted: var(--warning-soft);
+  --danger-muted:  var(--danger-soft);
+  --mono: var(--font-mono);
+
+  /* ── PHASE 11L — spec-aliased token names (light theme) ───────── */
+  --color-bg:        var(--bg);
+  --color-surface:   var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-accent:    var(--accent);
+  --color-muted:     var(--text-muted);
+  --color-success:   var(--success-soft);
+  --color-warning:   var(--warning-soft);
+  --color-border:    var(--border-subtle);
+  --shadow-soft:     0 1px 2px rgba(15,23,42,0.04),
+                     0 6px 18px rgba(15,23,42,0.06);
+  --radius-pill: 4px;
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+}
+
+/* Light mode: neutralize glow filters + text-shadows. Institutional
+   terminals don't glow in daylight. */
+:root[data-theme="light"] .u-glow-success,
+:root[data-theme="light"] .u-glow-danger,
+:root[data-theme="light"] .u-glow-accent,
+:root[data-theme="light"] .u-glow-warning,
+:root[data-theme="light"] .u-chart-glow {
+  filter: none !important;
+  text-shadow: none !important;
+}
+:root[data-theme="light"] .u-dot-pulse {
+  animation: none !important;
+}
+/* Phase 4 — reduce dot pulse intensity in dark too. Pulse remains only
+   on actively-firing/active states, not idle status. */
+:root[data-theme="dark"] .u-dot-pulse::after {
+  animation-duration: 2.4s !important;
+}
+
+/* Override the dark navy gradient on .u-card-lg for light theme. */
+:root[data-theme="light"] .u-card-lg {
+  background: var(--surface-1);
+  box-shadow: 0 1px 2px rgba(15, 22, 35, 0.04);
+}
+:root[data-theme="light"] .u-card-highlight {
+  box-shadow: none;
+}
+:root[data-theme="light"] body {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
 @layer base {
-  html {
-    @apply bg-surface text-text-primary;
-  }
-
+  html, body { background: var(--surface); color: var(--fg); }
   body {
-    @apply min-h-screen bg-surface text-text-primary;
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv02", "cv03", "cv11", "tnum";
   }
-
-  /* Scrollbar styling for dark theme */
-  ::-webkit-scrollbar {
-    @apply w-1.5 h-1.5;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-surface;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-surface-border rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-text-muted;
-  }
+  ::selection { background: var(--accent-muted); color: var(--fg); }
+  :focus-visible { outline: none; box-shadow: 0 0 0 1px var(--accent); }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--fg-4); }
 }
 
 @layer components {
-  .page-title {
-    @apply text-2xl font-semibold text-text-primary mb-6;
+
+  /* -------- CARD SYSTEM (3 hierarchy levels) --------
+     PRIMARY = .u-card-lg (hero / command bridge)
+     SECONDARY = .u-card (standard content)
+     TERTIARY = .u-card-tight (inline list/metric tiles)
+     HIGHLIGHT = .u-card-highlight (accent glow — use sparingly)
+  ---------------------------------------------------- */
+  .u-card {
+    background: var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-card);
+    padding: 18px 20px;
+  }
+  .u-card-lg {
+    background: linear-gradient(180deg,
+      rgba(26, 34, 52, 1) 0%, rgba(22, 29, 47, 1) 100%);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-modal);
+    padding: 22px 24px;
+    box-shadow:
+      0 2px 8px rgba(0, 0, 0, 0.35),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.025),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .u-card-tight {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    padding: 12px 14px;
+  }
+  .u-card-highlight {
+    background:
+      linear-gradient(180deg,
+        rgba(75, 139, 255, 0.08) 0%,
+        rgba(75, 139, 255, 0.02) 100%),
+      var(--card);
+    border: 1px solid rgba(75, 139, 255, 0.28);
+    border-radius: var(--radius-card);
+    padding: 16px 18px;
+    box-shadow:
+      0 0 0 1px rgba(75, 139, 255, 0.10),
+      0 6px 18px -6px rgba(75, 139, 255, 0.25),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    position: relative;
+  }
+  .u-card-highlight::before {
+    content: '';
+    position: absolute; left: 0; top: 10%; bottom: 10%;
+    width: 2px; border-radius: 2px;
+    background: linear-gradient(180deg, var(--accent), transparent);
+  }
+  .u-card-hover {
+    transition: background-color 120ms ease-out,
+                border-color 120ms ease-out,
+                transform 120ms ease-out;
+  }
+  .u-card-hover:hover {
+    background: var(--elevated);
+    border-color: var(--border-3);
   }
 
-  .card {
-    @apply bg-surface-card border border-surface-border rounded-lg p-4;
+  /* Left accent bar (status indicator)
+     4px gradient — tone defaults to success (profit) */
+  .u-card-accent-l     { position: relative; overflow: hidden; }
+  .u-card-accent-l::before {
+    content: ''; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 4px;
+    background: linear-gradient(180deg,
+      rgba(38, 202, 114, 1) 0%,
+      rgba(38, 202, 114, 0.35) 100%);
+  }
+  .u-card-accent-l.is-success::before {
+    background: linear-gradient(180deg,
+      rgba(38, 202, 114, 1) 0%,
+      rgba(38, 202, 114, 0.35) 100%);
+  }
+  .u-card-accent-l.is-danger::before {
+    background: linear-gradient(180deg,
+      rgba(242, 80, 83, 1) 0%,
+      rgba(242, 80, 83, 0.35) 100%);
+  }
+  .u-card-accent-l.is-warning::before {
+    background: linear-gradient(180deg,
+      rgba(248, 166, 56, 1) 0%,
+      rgba(248, 166, 56, 0.35) 100%);
+  }
+  .u-card-accent-l.is-accent::before {
+    background: linear-gradient(180deg,
+      rgba(75, 139, 255, 1) 0%,
+      rgba(75, 139, 255, 0.35) 100%);
   }
 
-  .btn-primary {
-    @apply bg-accent hover:bg-accent-hover text-white px-4 py-2 rounded-md text-sm font-medium transition-colors;
+  /* -------- TYPOGRAPHY -------- */
+  .u-title {
+    font-size: 22px; line-height: 28px; letter-spacing: -0.015em;
+    font-weight: 600; color: var(--fg);
+  }
+  .u-title-lg {
+    font-size: 28px; line-height: 32px; letter-spacing: -0.02em;
+    font-weight: 600; color: var(--fg);
+  }
+  .u-label {
+    font-size: 11px; line-height: 14px; letter-spacing: 0.14em;
+    text-transform: uppercase; font-weight: 600; color: var(--fg-3);
+  }
+  .u-label-sm {
+    font-size: 10px; line-height: 12px; letter-spacing: 0.18em;
+    text-transform: uppercase; font-weight: 600; color: var(--fg-3);
+  }
+  .u-body     { font-size: 15px; line-height: 22px; color: var(--fg-2); }
+  .u-body-fg  { font-size: 15px; line-height: 22px; color: var(--fg); }
+  .u-caption  { font-size: 13px; line-height: 18px; color: var(--fg-2); }
+  .u-caption-2 { font-size: 12px; line-height: 16px; color: var(--fg-3); }
+  .u-mono     {
+    font-family: var(--mono);
+    font-size: 13px; line-height: 18px; color: var(--fg);
+    font-variant-numeric: tabular-nums;
+  }
+  .u-mono-sm  {
+    font-family: var(--mono);
+    font-size: 11px; line-height: 14px; color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
   }
 
-  .btn-ghost {
-    @apply text-text-secondary hover:text-text-primary hover:bg-surface-hover px-3 py-2 rounded-md text-sm transition-colors;
+  /* -------- NUMBER SIZES --------
+     MEGA > HERO > DISPLAY > XL > LG > MD > SM — strict hierarchy
+  -------------------------------- */
+  .u-num-mega {
+    font-size: 72px; line-height: 72px; letter-spacing: -0.045em;
+    font-weight: 650; font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "ss01";
   }
+  .u-num-hero {
+    font-size: 64px; line-height: 64px; letter-spacing: -0.04em;
+    font-weight: 600; font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "ss01";
+  }
+  .u-num-display {
+    font-size: 52px; line-height: 54px; letter-spacing: -0.035em;
+    font-weight: 600; font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum", "ss01";
+  }
+  .u-num-sec {
+    font-size: 28px; line-height: 32px; letter-spacing: -0.02em;
+    font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .u-num-xl { font-size: 36px; line-height: 40px; letter-spacing: -0.025em;
+              font-weight: 600; font-variant-numeric: tabular-nums; }
+  .u-num-lg { font-size: 28px; line-height: 32px; letter-spacing: -0.02em;
+              font-weight: 600; font-variant-numeric: tabular-nums; }
+  .u-num-md { font-size: 18px; line-height: 22px; letter-spacing: -0.015em;
+              font-weight: 600; font-variant-numeric: tabular-nums; }
+  .u-num-sm { font-size: 14px; line-height: 18px; font-weight: 500;
+              font-variant-numeric: tabular-nums; }
+
+  /* Hero headline — aggressive 46px/700 */
+  .u-hero-headline {
+    font-size: 46px; line-height: 50px; letter-spacing: -0.03em;
+    font-weight: 700;
+  }
+  .u-section-title {
+    font-size: 22px; line-height: 26px; letter-spacing: -0.015em;
+    font-weight: 650; color: var(--fg);
+  }
+
+  /* -------- PILLS -------- */
+  .u-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; line-height: 14px; letter-spacing: 0.08em;
+    text-transform: uppercase; font-weight: 700;
+    padding: 4px 8px; border-radius: 4px; border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .u-pill-success { background: var(--success-muted); color: var(--success);
+                    border-color: rgba(38, 202, 114, 0.40); }
+  .u-pill-danger  { background: var(--danger-muted); color: var(--danger);
+                    border-color: rgba(242, 80, 83, 0.40); }
+  .u-pill-warning { background: var(--warning-muted); color: var(--warning);
+                    border-color: rgba(248, 166, 56, 0.40); }
+  .u-pill-accent  { background: var(--accent-subtle); color: var(--accent);
+                    border-color: rgba(75, 139, 255, 0.40); }
+  .u-pill-neutral { background: var(--elevated); color: var(--fg-2);
+                    border-color: var(--border-2); }
+
+  /* -------- DIVIDERS -------- */
+  .u-divider { border-top: 1px solid var(--border-2); }
+  .u-divider-v { border-left: 1px solid var(--border-2); }
+
+  /* -------- TABLES (DENSE) -------- */
+  .u-table { width: 100%; border-collapse: collapse; }
+  .u-table thead th {
+    font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--fg-3); font-weight: 700; padding: 10px 14px;
+    border-bottom: 1px solid var(--border-2); text-align: left;
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .u-table tbody td {
+    font-size: 14px; padding: 11px 14px;
+    border-bottom: 1px solid var(--border); color: var(--fg);
+  }
+  .u-table tbody tr { transition: background-color 100ms ease-out; }
+  .u-table tbody tr:hover { background: var(--elevated); cursor: pointer; }
+  .u-table tbody tr.selected { background: var(--accent-subtle); }
+
+  /* -------- BUTTONS -------- */
+  .u-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 16px; border-radius: 8px; font-size: 14px;
+    font-weight: 500; border: 1px solid transparent;
+    transition: all 120ms ease-out; cursor: pointer;
+  }
+  .u-btn-primary { background: var(--accent); color: #fff; }
+  .u-btn-primary:hover { background: var(--accent-hover); }
+  .u-btn-ghost { background: transparent; color: var(--fg-2);
+                 border-color: var(--border-2); }
+  .u-btn-ghost:hover { background: var(--elevated); color: var(--fg); }
+
+  /* -------- STATUS DOT -------- */
+  .u-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 9999px;
+    background: var(--fg-3);
+  }
+  .u-dot-success { background: var(--success); }
+  .u-dot-danger  { background: var(--danger); }
+  .u-dot-warning { background: var(--warning); }
+  .u-dot-accent  { background: var(--accent); }
+  .u-dot-pulse { position: relative; }
+  .u-dot-pulse::after {
+    content: ''; position: absolute; inset: 0; border-radius: 9999px;
+    background: inherit; opacity: 0.35; animation: u-ping 2s ease-out infinite;
+  }
+  @keyframes u-ping {
+    0%   { transform: scale(1); opacity: 0.5; }
+    80%  { transform: scale(2.8); opacity: 0; }
+    100% { transform: scale(2.8); opacity: 0; }
+  }
+
+  /* -------- NON-PROD MARKER -------- */
+  .u-nonprod-ribbon {
+    background: rgba(248, 166, 56, 0.04);
+    border: 1px dashed rgba(248, 166, 56, 0.40);
+    border-radius: 12px;
+  }
+  .u-nonprod-label {
+    font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase;
+    font-weight: 700; color: var(--warning);
+  }
+
+  /* -------- STAT SPARK (baseline indicator for zero data) -------- */
+  .u-zero-state {
+    background: repeating-linear-gradient(
+      90deg, transparent 0 8px, var(--border) 8px 9px
+    );
+    height: 2px; width: 100%; border-radius: 1px; opacity: 0.5;
+  }
+
+  /* -------- TICKER STRIP (micro insights) -------- */
+  .u-ticker {
+    display: flex; align-items: stretch;
+    background: linear-gradient(180deg,
+      rgba(255,255,255,0.015) 0%, transparent 100%);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .u-ticker-cell {
+    flex: 1 1 0; min-width: 0;
+    padding: 10px 14px;
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .u-ticker-cell:last-child { border-right: 0; }
+  .u-ticker-label {
+    font-size: 9px; letter-spacing: 0.22em; font-weight: 700;
+    text-transform: uppercase; color: var(--fg-3);
+  }
+  .u-ticker-value {
+    font-family: var(--mono);
+    font-size: 14px; line-height: 18px; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .u-ticker-sub {
+    font-size: 10px; color: var(--fg-3);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  /* -------- SPARK BAR (inline, zero-axis, signed) -------- */
+  .u-spark {
+    position: relative;
+    height: 18px; width: 100%;
+    background: var(--sunken);
+    border-radius: 3px; overflow: hidden;
+  }
+  .u-spark::before {
+    content: ''; position: absolute;
+    left: 50%; top: 0; bottom: 0; width: 1px;
+    background: var(--border-2);
+  }
+  .u-spark-fill {
+    position: absolute; top: 2px; bottom: 2px;
+    border-radius: 2px;
+  }
+  .u-spark-fill.is-pos { background: var(--success); }
+  .u-spark-fill.is-neg { background: var(--danger); }
+
+  /* -------- CHIP (tight status rect) -------- */
+  .u-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 6px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .u-chip-accent  { color: var(--accent);
+                    background: var(--accent-subtle);
+                    border-color: rgba(75,139,255,0.30); }
+  .u-chip-success { color: var(--success);
+                    background: var(--success-muted);
+                    border-color: rgba(38,202,114,0.30); }
+  .u-chip-danger  { color: var(--danger);
+                    background: var(--danger-muted);
+                    border-color: rgba(242,80,83,0.30); }
+  .u-chip-warning { color: var(--warning);
+                    background: var(--warning-muted);
+                    border-color: rgba(248,166,56,0.30); }
+  .u-chip-neutral { color: var(--fg-3);
+                    background: transparent;
+                    border-color: var(--border-2); }
+
+  /* -------- COMPACT-CARD VARIANTS (Phase UX-PHASE2 HI-6) ---------
+     Replace repeated inline `style={{ background: var(--accent-subtle),
+     borderColor: rgba(75,139,255,0.25) }}` site-by-site drift. */
+  .u-card-tight-accent {
+    background: var(--accent-subtle);
+    border-color: rgba(75, 139, 255, 0.25);
+  }
+  .u-card-tight-warning {
+    background: rgba(255, 176, 63, 0.08);
+    border-color: rgba(255, 176, 63, 0.35);
+  }
+
+  /* -------- FEED ROW (Phase UX-PHASE2 HI-5) -----------
+     Compact clickable row used in DailyActivityCard. Hover background
+     subtly indicates expandability without visual noise. */
+  .u-feed-row-clickable {
+    cursor: pointer;
+    transition: background 120ms ease;
+  }
+  .u-feed-row-clickable:hover { background: rgba(255,255,255,0.03); }
+  .u-feed-row-clickable:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  /* -------- PUNCH CARD CELLS (Phase UX-PHASE2 HI-1) -----------
+     One small square per recent job run. Tooltip on hover via the
+     native title attribute. */
+  .u-punch-cell {
+    display: inline-block;
+    width: 10px;
+    height: 14px;
+    border-radius: 2px;
+    border: 1px solid transparent;
+  }
+  .u-punch-cell-success  { background: var(--success);
+                            border-color: rgba(34,197,94,0.55); }
+  .u-punch-cell-danger   { background: var(--danger);
+                            border-color: rgba(239,68,68,0.55); }
+  .u-punch-cell-accent   { background: var(--accent);
+                            border-color: rgba(59,130,246,0.55); }
+  .u-punch-cell-neutral  { background: var(--fg-3);
+                            border-color: var(--border-2); }
+  .u-punch-cell-disabled { background: transparent;
+                            border-color: var(--border-2); }
+  .u-punch-cell-empty    { background: transparent;
+                            border-color: var(--border-1); }
+
+  /* -------- ACTION BUTTON (Phase UX-PHASE1 CF-2) ----------------
+     Distinct from u-chip status pills. Used for state-mutating
+     controls — Hybrid Advisor enable/mode toggles. */
+  .u-btn-toggle:hover  { background: rgba(255,255,255,0.04); }
+  .u-btn-toggle:active { background: rgba(255,255,255,0.07); }
+  .u-btn-toggle:focus-visible {
+    box-shadow: 0 0 0 2px rgba(59,130,246,0.55),
+                0 0 0 4px var(--bg);
+  }
+  .u-btn-toggle[aria-pressed="true"]:hover,
+  .u-btn-toggle[aria-checked="true"]:hover {
+    background: rgba(59,130,246,0.18);
+  }
+
+  /* -------- STAT STRIP (space-separated, no hard borders) -------- */
+  .u-stat-cell {
+    padding: 4px 0;
+    min-width: 0;
+  }
+  .u-stat-strip {
+    display: grid;
+    gap: 48px;
+    padding: 20px 24px;
+  }
+
+  /* -------- CHART GLOW (equity stroke emphasis) -------- */
+  .u-chart-glow {
+    filter: drop-shadow(0 0 4px rgba(38, 202, 114, 0.55))
+            drop-shadow(0 0 10px rgba(38, 202, 114, 0.22))
+            drop-shadow(0 0 20px rgba(38, 202, 114, 0.08));
+  }
+  .u-chart-glow.is-danger {
+    filter: drop-shadow(0 0 4px rgba(242, 80, 83, 0.55))
+            drop-shadow(0 0 10px rgba(242, 80, 83, 0.22))
+            drop-shadow(0 0 20px rgba(242, 80, 83, 0.08));
+  }
+
+  /* Chart container — darker than page, vignette edges */
+  .u-chart-frame {
+    position: relative;
+    background:
+      radial-gradient(ellipse 100% 100% at 50% 50%,
+        rgba(12, 17, 34, 1) 0%,
+        rgba(8, 12, 24, 1) 100%);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 10px 6px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03),
+                inset 0 0 40px rgba(0, 0, 0, 0.25);
+  }
+  .u-chart-frame::after {
+    content: ''; position: absolute; inset: 0;
+    pointer-events: none; border-radius: inherit;
+    background: radial-gradient(ellipse 100% 100% at 50% 50%,
+      transparent 60%, rgba(0, 0, 0, 0.25) 100%);
+  }
+
+  /* -------- ACTIVITY ROW (48px, left profit/loss strip) -------- */
+  .u-act-row {
+    position: relative;
+    display: grid; align-items: center;
+    grid-template-columns: 120px 52px 120px 1fr 80px 80px;
+    gap: 16px; padding: 0 16px 0 22px;
+    height: 48px;
+    border-bottom: 1px solid var(--border);
+    transition: background 160ms ease-out,
+                transform 120ms ease-out,
+                box-shadow 160ms ease-out;
+    cursor: default;
+  }
+  .u-act-row::before {
+    content: ''; position: absolute;
+    left: 0; top: 6px; bottom: 6px; width: 4px;
+    border-radius: 2px;
+    background: var(--fg-4);
+  }
+  .u-act-row:hover {
+    transform: translateX(2px);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04),
+                0 4px 14px -6px rgba(0, 0, 0, 0.4);
+  }
+  .u-act-row.is-pos:hover::before {
+    box-shadow: 0 0 10px rgba(38, 202, 114, 0.55);
+  }
+  .u-act-row.is-neg:hover::before {
+    box-shadow: 0 0 10px rgba(242, 80, 83, 0.55);
+  }
+  .u-act-row.is-pos::before { background: var(--success); }
+  .u-act-row.is-neg::before { background: var(--danger);  }
+  .u-act-row.is-open::before { background: var(--warning); }
+  .u-act-row:hover { background: var(--elevated); }
+  .u-act-header {
+    display: grid;
+    grid-template-columns: 120px 52px 120px 1fr 80px 80px;
+    gap: 16px; padding: 0 16px 0 20px;
+    height: 32px; align-items: center;
+    font-size: 10px; letter-spacing: 0.18em; font-weight: 700;
+    text-transform: uppercase; color: var(--fg-3);
+    border-bottom: 1px solid var(--border-2);
+    background: rgba(255,255,255,0.015);
+  }
+
+  /* -------- GLOW TEXT (accent numbers) — Phase 4 dimmed --------
+     Original glow was retail-leaning. Reduced opacity + radius for
+     institutional feel. Light mode strips text-shadow entirely (see
+     [data-theme="light"] override block above). */
+  .u-glow-accent  { color: var(--accent);
+                    text-shadow: 0 0 8px rgba(75,139,255,0.18); }
+  .u-glow-success { color: var(--success);
+                    text-shadow: 0 0 10px rgba(38,202,114,0.18); }
+  .u-glow-danger  { color: var(--danger);
+                    text-shadow: 0 0 10px rgba(242,80,83,0.18); }
+  .u-glow-warning { color: var(--warning);
+                    text-shadow: 0 0 10px rgba(248,166,56,0.18); }
+
+  /* -------- HERO CARD (tier 1 — command center) -------- */
+  .u-card-hero {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse 90% 70% at 0% 0%,
+        rgba(75, 139, 255, 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 80% at 100% 100%,
+        rgba(38, 202, 114, 0.07) 0%, transparent 60%),
+      radial-gradient(ellipse 120% 90% at 100% 0%,
+        rgba(0, 0, 0, 0.28) 0%, transparent 60%),
+      linear-gradient(160deg,
+        rgba(32, 44, 72, 1) 0%, rgba(14, 20, 38, 1) 100%);
+    border: 1px solid var(--border-2);
+    border-radius: 18px;
+    padding: 34px 38px;
+    box-shadow:
+      0 32px 72px -28px rgba(0, 0, 0, 0.75),
+      0 8px 20px -8px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  }
+  /* Vignette overlay on hero */
+  .u-card-hero::after {
+    content: ''; position: absolute; inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 120% 100% at 50% 50%,
+        transparent 40%, rgba(0, 0, 0, 0.18) 100%);
+  }
+  .u-card-hero.is-danger {
+    background:
+      radial-gradient(ellipse 90% 70% at 0% 0%,
+        rgba(242, 80, 83, 0.22) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 80% at 100% 100%,
+        rgba(242, 80, 83, 0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 120% 90% at 100% 0%,
+        rgba(0, 0, 0, 0.28) 0%, transparent 60%),
+      linear-gradient(160deg,
+        rgba(52, 28, 38, 1) 0%, rgba(22, 14, 24, 1) 100%);
+  }
+  .u-card-hero.is-warning {
+    background:
+      radial-gradient(ellipse 90% 70% at 0% 0%,
+        rgba(248, 166, 56, 0.18) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 80% at 100% 100%,
+        rgba(248, 166, 56, 0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 120% 90% at 100% 0%,
+        rgba(0, 0, 0, 0.28) 0%, transparent 60%),
+      linear-gradient(160deg,
+        rgba(48, 36, 24, 1) 0%, rgba(22, 18, 16, 1) 100%);
+  }
+  .u-card-hero.u-card-accent-l::before {
+    width: 6px; top: 0; bottom: 0;
+    box-shadow: 0 0 16px 2px rgba(38, 202, 114, 0.35);
+  }
+  .u-card-hero.is-danger.u-card-accent-l::before {
+    box-shadow: 0 0 16px 2px rgba(242, 80, 83, 0.40);
+  }
+  .u-card-hero.is-warning.u-card-accent-l::before {
+    box-shadow: 0 0 16px 2px rgba(248, 166, 56, 0.40);
+  }
+
+  /* -------- NAV STRIP (terminal rail) -------- */
+  .u-nav-strip {
+    position: relative;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, transparent 55%),
+      linear-gradient(180deg, transparent 70%, rgba(0, 0, 0, 0.25) 100%),
+      var(--card);
+    border: 1px solid var(--border-2);
+    border-radius: 14px;
+    padding: 28px 36px;
+    box-shadow:
+      0 6px 18px -4px rgba(0, 0, 0, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+  }
+  .u-nav-strip::before {
+    content: ''; position: absolute;
+    left: 24px; right: 24px; top: 0; height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(75, 139, 255, 0.35) 12%,
+      rgba(75, 139, 255, 0.15) 88%,
+      transparent 100%);
+  }
+  .u-nav-strip .u-stat-cell {
+    padding: 6px 8px; border-radius: 6px;
+    transition: background-color 160ms ease-out, box-shadow 160ms ease-out;
+  }
+  .u-nav-strip .u-stat-cell:hover {
+    background: rgba(75, 139, 255, 0.04);
+    box-shadow: 0 0 0 1px rgba(75, 139, 255, 0.08),
+                inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  /* Stronger highlight card — animated shimmer */
+  @keyframes u-shimmer-slide {
+    0%   { transform: translateX(-60%); opacity: 0; }
+    30%  { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { transform: translateX(140%); opacity: 0; }
+  }
+  @keyframes u-pulse-glow {
+    0%, 100% { box-shadow:
+        0 0 0 1px rgba(75, 139, 255, 0.22),
+        0 10px 26px -6px rgba(75, 139, 255, 0.42),
+        0 2px 8px rgba(75, 139, 255, 0.18),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+    50%      { box-shadow:
+        0 0 0 1px rgba(75, 139, 255, 0.40),
+        0 14px 34px -6px rgba(75, 139, 255, 0.62),
+        0 2px 12px rgba(75, 139, 255, 0.30),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08); }
+  }
+  .u-card-highlight-pro {
+    position: relative; overflow: hidden;
+    background:
+      radial-gradient(ellipse 100% 80% at 0% 0%,
+        rgba(75, 139, 255, 0.22) 0%, transparent 60%),
+      linear-gradient(165deg,
+        rgba(75, 139, 255, 0.12) 0%,
+        rgba(75, 139, 255, 0.04) 55%,
+        rgba(75, 139, 255, 0.02) 100%),
+      var(--card);
+    border: 1px solid rgba(75, 139, 255, 0.55);
+    border-radius: 12px;
+    padding: 22px 24px;
+    animation: u-pulse-glow 3.5s ease-in-out infinite;
+  }
+  .u-card-highlight-pro::before {
+    content: ''; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 5px;
+    background: linear-gradient(180deg,
+      var(--accent) 0%, rgba(75, 139, 255, 0.25) 100%);
+    box-shadow: 0 0 16px 2px rgba(75, 139, 255, 0.4);
+  }
+  .u-card-highlight-pro::after {
+    content: ''; position: absolute; inset: 0;
+    background: linear-gradient(110deg,
+      transparent 30%,
+      rgba(75, 139, 255, 0.14) 50%,
+      transparent 70%);
+    animation: u-shimmer-slide 5s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* -------- HORIZONTAL BAR (attribution / patterns) -------- */
+  .u-bar-track {
+    position: relative; height: 8px;
+    background: var(--sunken);
+    border: 1px solid var(--border);
+    border-radius: 5px; overflow: hidden;
+  }
+  .u-bar-track.is-thick { height: 10px; }
+  .u-bar-fill {
+    position: absolute; top: 0; bottom: 0;
+    border-radius: 4px;
+    transition: width 250ms ease-out;
+  }
+  .u-bar-fill.is-pos {
+    background: linear-gradient(90deg,
+      rgba(38, 202, 114, 0.9) 0%, rgba(38, 202, 114, 1) 100%);
+    box-shadow: 0 0 8px rgba(38, 202, 114, 0.35);
+  }
+  .u-bar-fill.is-neg {
+    background: linear-gradient(90deg,
+      rgba(242, 80, 83, 1) 0%, rgba(242, 80, 83, 0.9) 100%);
+    box-shadow: 0 0 8px rgba(242, 80, 83, 0.35);
+  }
+  .u-bar-fill.is-accent {
+    background: linear-gradient(90deg,
+      rgba(75, 139, 255, 0.9) 0%, rgba(75, 139, 255, 1) 100%);
+    box-shadow: 0 0 8px rgba(75, 139, 255, 0.35);
+  }
+  .u-bar-fill.is-warning {
+    background: linear-gradient(90deg,
+      rgba(248, 166, 56, 0.9) 0%, rgba(248, 166, 56, 1) 100%);
+    box-shadow: 0 0 8px rgba(248, 166, 56, 0.35);
+  }
+
+  /* -------- ACTIVITY ROW tint + thicker strip -------- */
+  .u-act-row::before { width: 4px; }
+  .u-act-row.is-pos {
+    background: linear-gradient(90deg,
+      rgba(38, 202, 114, 0.04) 0%, transparent 40%);
+  }
+  .u-act-row.is-neg {
+    background: linear-gradient(90deg,
+      rgba(242, 80, 83, 0.04) 0%, transparent 40%);
+  }
+  .u-act-row.is-pos:hover {
+    background: linear-gradient(90deg,
+      rgba(38, 202, 114, 0.12) 0%, var(--elevated) 60%);
+  }
+  .u-act-row.is-neg:hover {
+    background: linear-gradient(90deg,
+      rgba(242, 80, 83, 0.12) 0%, var(--elevated) 60%);
+  }
+
+  /* -------- TIMELINE TRADE CARD (Decisions) -------- */
+  .u-trade-card {
+    position: relative; overflow: hidden;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px 14px 18px;
+    cursor: pointer;
+    transition: background-color 120ms ease-out,
+                border-color 120ms ease-out,
+                transform 120ms ease-out;
+  }
+  .u-trade-card::before {
+    content: ''; position: absolute;
+    left: 0; top: 0; bottom: 0; width: 4px;
+    background: var(--fg-4);
+  }
+  .u-trade-card.is-pos::before  { background: var(--success); }
+  .u-trade-card.is-neg::before  { background: var(--danger);  }
+  .u-trade-card.is-open::before { background: var(--warning); }
+  .u-trade-card:hover {
+    background: var(--elevated);
+    border-color: var(--border-3);
+    transform: translateX(3px);
+    box-shadow: 0 4px 14px -6px rgba(0, 0, 0, 0.5);
+  }
+  .u-trade-card.is-selected {
+    background:
+      linear-gradient(100deg,
+        rgba(75, 139, 255, 0.18) 0%,
+        rgba(75, 139, 255, 0.06) 100%);
+    border-color: rgba(75, 139, 255, 0.75);
+    transform: translateX(4px);
+    box-shadow:
+      0 0 0 1px rgba(75, 139, 255, 0.35),
+      0 8px 22px -6px rgba(75, 139, 255, 0.40),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .u-trade-card.is-selected::before {
+    width: 5px;
+    box-shadow: 0 0 12px 1px rgba(75, 139, 255, 0.55);
+  }
+
+  /* -------- RANK BADGE (top wins/losses) -------- */
+  .u-rank {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: 6px;
+    font-family: var(--mono); font-size: 13px; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    background: var(--sunken); color: var(--fg-3);
+    border: 1px solid var(--border);
+  }
+  .u-rank.is-gold {
+    background: linear-gradient(180deg, rgba(248, 166, 56, 0.22), rgba(248, 166, 56, 0.08));
+    color: #FFC76F; border-color: rgba(248, 166, 56, 0.45);
+    box-shadow: 0 0 14px rgba(248, 166, 56, 0.25);
+  }
+  .u-rank.is-silver {
+    background: linear-gradient(180deg, rgba(180, 195, 220, 0.18), rgba(180, 195, 220, 0.06));
+    color: #D9E0EC; border-color: rgba(180, 195, 220, 0.35);
+  }
+  .u-rank.is-bronze {
+    background: linear-gradient(180deg, rgba(205, 127, 50, 0.2), rgba(205, 127, 50, 0.06));
+    color: #E4A672; border-color: rgba(205, 127, 50, 0.4);
+  }
+
+  /* -------- MARKET TICKER (premium context ribbon) -------- */
+  @keyframes u-ticker-scroll {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  /* Fix (SYSTEM-UI-BEGINNER): ticker reserves right gutter equal to
+     toggle width so scrolling symbols never slide under the controls. */
+  :root { --u-ticker-toggle-w: 168px; }
+
+  .u-market-ticker {
+    position: relative;
+    height: 36px; width: 100%;
+    display: flex; align-items: stretch;
+    overflow: hidden;
+    /* Reserve space for toggle on the right */
+    padding-right: var(--u-ticker-toggle-w);
+    background:
+      linear-gradient(180deg,
+        rgba(16, 22, 42, 0.96) 0%,
+        rgba(10, 15, 28, 0.96) 100%);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(6px);
+  }
+  .u-market-ticker::before,
+  .u-market-ticker::after {
+    content: ''; position: absolute;
+    top: 0; bottom: 0; width: 56px;
+    z-index: 2; pointer-events: none;
+  }
+  .u-market-ticker::before {
+    left: 0;
+    background: linear-gradient(90deg,
+      rgba(10, 15, 28, 1) 10%, transparent 100%);
+  }
+  .u-market-ticker::after {
+    /* right-edge fade sits flush against the reserved toggle gutter */
+    right: var(--u-ticker-toggle-w);
+    background: linear-gradient(270deg,
+      rgba(10, 15, 28, 1) 10%, transparent 100%);
+  }
+  .u-ticker-track {
+    display: flex;
+    flex: 1 1 0; min-width: 0;      /* allow horizontal shrink */
+    animation: u-ticker-scroll 80s linear infinite;
+    will-change: transform;
+  }
+  .u-market-ticker:hover .u-ticker-track {
+    animation-play-state: paused;
+  }
+  .u-ticker-item {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 0 22px; height: 36px;
+    white-space: nowrap;
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    position: relative;
+    transition: background-color 140ms ease-out;
+    cursor: default;
+  }
+  .u-ticker-item::after {
+    content: ''; position: absolute; right: 0;
+    top: 10px; bottom: 10px; width: 1px;
+    background: var(--border);
+  }
+  .u-ticker-item:hover {
+    background: linear-gradient(180deg,
+      rgba(75, 139, 255, 0.08) 0%, rgba(75, 139, 255, 0.02) 100%);
+  }
+  .u-ticker-item:hover .u-ticker-sym { color: var(--fg); }
+  .u-ticker-sym {
+    font-size: 11px; letter-spacing: 0.10em; font-weight: 700;
+    color: var(--fg-2);
+    transition: color 140ms ease-out;
+  }
+  .u-ticker-px {
+    font-size: 12.5px; font-weight: 600; color: var(--fg);
+  }
+  .u-ticker-chg {
+    font-size: 11px; font-weight: 600;
+    color: var(--fg-3);
+  }
+  .u-ticker-chg.is-pos { color: var(--success); }
+  .u-ticker-chg.is-neg { color: var(--danger); }
+
+  .u-ticker-toggle {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    width: var(--u-ticker-toggle-w);
+    z-index: 3;
+    display: flex; align-items: center; justify-content: flex-end;
+    gap: 4px;
+    padding: 0 12px 0 20px;
+    background: linear-gradient(90deg,
+      transparent 0%, rgba(10, 15, 28, 0.95) 35%, rgba(10, 15, 28, 1) 100%);
+  }
+  .u-ticker-toggle button { cursor: pointer; }
+
+  /* -------- BEGINNER GUIDANCE HELPERS -------- */
+  .u-help-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; border-radius: 50%;
+    font-size: 9px; font-weight: 700; line-height: 1;
+    color: var(--fg-3); background: var(--sunken);
+    border: 1px solid var(--border-2);
+    cursor: help; user-select: none;
+    margin-left: 4px;
+  }
+  .u-help-icon:hover {
+    color: var(--accent); border-color: var(--accent);
+  }
+  .u-plain {
+    font-size: 13px; line-height: 18px;
+    color: var(--fg-2); font-style: italic;
+  }
+  .u-guidance-card {
+    background:
+      linear-gradient(180deg,
+        rgba(75, 139, 255, 0.04) 0%, transparent 100%),
+      var(--card);
+    border: 1px solid rgba(75, 139, 255, 0.18);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .u-gate-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 0;
+    font-size: 12px;
+  }
+  .u-gate-ok     { color: var(--success); }
+  .u-gate-fail   { color: var(--danger); }
+  .u-gate-unknown { color: var(--fg-3); }
+
+  /* -------- STATUS RAIL (NOW · NEXT · RISK) -------- */
+  .u-status-rail {
+    display: flex; align-items: stretch;
+    height: 30px; width: 100%;
+    background: linear-gradient(180deg,
+      rgba(16, 22, 42, 0.92) 0%, rgba(10, 15, 28, 0.92) 100%);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(6px);
+  }
+  .u-status-seg {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 0 18px; height: 100%; min-width: 0;
+    border-right: 1px solid var(--border);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .u-status-seg:last-child { border-right: 0; flex: 1; }
+  .u-status-seg-label {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.22em;
+    text-transform: uppercase; color: var(--fg-3); flex-shrink: 0;
+  }
+  .u-status-seg-value {
+    font-family: var(--mono); font-size: 11.5px;
+    color: var(--fg-2); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .u-status-seg.is-pos    .u-status-seg-value { color: var(--success); }
+  .u-status-seg.is-neg    .u-status-seg-value { color: var(--danger); }
+  .u-status-seg.is-warn   .u-status-seg-value { color: var(--warning); }
+  .u-status-seg.is-accent .u-status-seg-value { color: var(--accent); }
+
+  /* -------- REGIME HEATMAP (last 30d memory strip) -------- */
+  .u-regime-map {
+    display: flex; gap: 3px;
+    height: 26px; width: 100%; align-items: stretch;
+  }
+  .u-regime-cell {
+    flex: 1 1 0; min-width: 8px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.04);
+    position: relative;
+    transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+    cursor: default;
+  }
+  .u-regime-cell:hover {
+    transform: scaleY(1.18);
+    box-shadow: 0 0 0 1px var(--accent),
+                0 4px 12px rgba(75, 139, 255, 0.3);
+    z-index: 2;
+  }
+  .u-regime-cell.is-stress {
+    background: linear-gradient(180deg,
+      rgba(242, 80, 83, 0.85), rgba(242, 80, 83, 0.45));
+  }
+  .u-regime-cell.is-directional {
+    background: linear-gradient(180deg,
+      rgba(38, 202, 114, 0.85), rgba(38, 202, 114, 0.45));
+  }
+  .u-regime-cell.is-neutral {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .u-regime-cell.has-trade::after {
+    content: ''; position: absolute;
+    left: 50%; bottom: 3px; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%;
+    background: var(--fg);
+    box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+  }
+  .u-regime-cell.has-anomaly {
+    box-shadow: inset 0 0 0 2px rgba(248, 166, 56, 0.75);
+  }
+
+  /* -------- SPARKLINE (inline, ticker) -------- */
+  .u-spark-inline {
+    display: inline-block; vertical-align: middle;
+    width: 52px; height: 16px;
+  }
+  .u-spark-line {
+    fill: none; stroke-width: 1.25;
+    stroke-linecap: round; stroke-linejoin: round;
+  }
+  .u-spark-line.is-pos { stroke: var(--success); }
+  .u-spark-line.is-neg { stroke: var(--danger); }
+  .u-spark-area.is-pos { fill: rgba(38, 202, 114, 0.18); }
+  .u-spark-area.is-neg { fill: rgba(242, 80, 83, 0.18); }
+
+  /* -------- TRADE BLOTTER (live feed) -------- */
+  .u-blotter {
+    display: flex; flex-direction: column; min-height: 0;
+    max-height: 240px; overflow-y: auto;
+  }
+  .u-blotter-row {
+    display: grid; align-items: center;
+    grid-template-columns: 58px 72px 82px 1fr 72px;
+    gap: 12px;
+    padding: 0 14px; height: 28px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11.5px; color: var(--fg-2);
+    transition: background-color 100ms ease-out;
+    white-space: nowrap;
+  }
+  .u-blotter-row:hover { background: var(--elevated); }
+  .u-blotter-row:last-child { border-bottom: 0; }
+  .u-blotter-ts { color: var(--fg-3); font-size: 11px; }
+  .u-blotter-type {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.10em;
+    text-transform: uppercase;
+  }
+  .u-blotter-type.is-enter { color: var(--success); }
+  .u-blotter-type.is-exit  { color: var(--fg-2); }
+  .u-blotter-type.is-skip  { color: var(--warning); }
+  .u-blotter-type.is-anom  { color: var(--danger); }
+  .u-blotter-type.is-run   { color: var(--accent); }
+  .u-blotter-actor {
+    font-size: 11px; font-weight: 600; color: var(--fg);
+  }
+  .u-blotter-detail {
+    overflow: hidden; text-overflow: ellipsis;
+    color: var(--fg-2);
+  }
+  .u-blotter-amt {
+    text-align: right; font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* -------- CHANGED CARD (compact diff) -------- */
+  .u-changed-row {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: 10px; align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .u-changed-row:last-child { border-bottom: 0; }
+  .u-changed-glyph {
+    width: 16px; height: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+    border-radius: 3px;
+  }
+  .u-changed-glyph.is-up    { color: var(--success); background: var(--success-muted); }
+  .u-changed-glyph.is-down  { color: var(--danger);  background: var(--danger-muted); }
+  .u-changed-glyph.is-same  { color: var(--fg-3);    background: var(--sunken); }
+  .u-changed-glyph.is-warn  { color: var(--warning); background: var(--warning-muted); }
+
+  /* -------- ALPHA LAB MODE — experimental environment tone -------- */
+  .u-lab-mode {
+    position: relative;
+    padding: 32px 32px 28px;
+    margin: -24px -24px 0;
+    background:
+      radial-gradient(ellipse 60% 100% at 15% 0%,
+        rgba(124, 94, 255, 0.10) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 100% at 85% 0%,
+        rgba(64, 200, 220, 0.06) 0%, transparent 60%),
+      linear-gradient(180deg,
+        rgba(24, 22, 42, 0.6) 0%, transparent 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .u-lab-mode::before {
+    content: ''; position: absolute;
+    left: 32px; right: 32px; top: 0; height: 1px;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(124, 94, 255, 0.35) 20%,
+      rgba(64, 200, 220, 0.25) 80%,
+      transparent 100%);
+  }
+  .u-lab-chip {
+    background: linear-gradient(180deg,
+      rgba(124, 94, 255, 0.18), rgba(124, 94, 255, 0.08));
+    color: #B4A4FF; border-color: rgba(124, 94, 255, 0.45);
+  }
+  .u-lab-tab-active {
+    border-color: #7C5EFF !important;
+    color: var(--fg) !important;
+    box-shadow: 0 2px 0 0 #7C5EFF;
+  }
+}
+
+/* =========================================================================
+   UTILITY TOKENS — color/bg/border aliases
+========================================================================== */
+@layer utilities {
+  .text-fg      { color: var(--fg); }
+  .text-fg-2    { color: var(--fg-2); }
+  .text-fg-3    { color: var(--fg-3); }
+  .text-fg-4    { color: var(--fg-4); }
+  .text-accent  { color: var(--accent); }
+  .text-success { color: var(--success); }
+  .text-danger  { color: var(--danger); }
+  .text-warning { color: var(--warning); }
+
+  .bg-ink       { background: var(--ink); }
+  .bg-surface   { background: var(--surface); }
+  .bg-card      { background: var(--card); }
+  .bg-elev      { background: var(--elevated); }
+  .bg-sunken    { background: var(--sunken); }
+
+  .bg-accent         { background: var(--accent); }
+  .bg-accent-subtle  { background: var(--accent-subtle); }
+  .bg-accent-muted   { background: var(--accent-muted); }
+  .bg-success        { background: var(--success); }
+  .bg-success-muted  { background: var(--success-muted); }
+  .bg-danger         { background: var(--danger); }
+  .bg-danger-muted   { background: var(--danger-muted); }
+  .bg-warning        { background: var(--warning); }
+  .bg-warning-muted  { background: var(--warning-muted); }
+
+  .border-b1 { border-color: var(--border); }
+  .border-b2 { border-color: var(--border-2); }
+  .border-b3 { border-color: var(--border-3); }
+
+  /* Legacy aliases */
+  .text-text-primary   { color: var(--fg); }
+  .text-text-secondary { color: var(--fg-2); }
+  .text-text-muted     { color: var(--fg-3); }
+  .text-text-faint     { color: var(--fg-4); }
+  .bg-surface-card     { background: var(--card); }
+  .bg-surface-elev     { background: var(--elevated); }
+  .bg-surface-muted    { background: var(--ink); }
+  .border-surface-border { border-color: var(--border); }
 }

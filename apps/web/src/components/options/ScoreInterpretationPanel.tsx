@@ -3,6 +3,7 @@
 // evaluation score IS and IS NOT.
 
 import { useOptionsGuardrailsScore } from '@/lib/options/hooks';
+import GuardrailsGate from './GuardrailsGate';
 
 export default function ScoreInterpretationPanel({
   observationId,
@@ -18,16 +19,18 @@ export default function ScoreInterpretationPanel({
   if (!data) return null;
   const si = data.score_interpretation;
   return (
-    <section className="rounded-md border border-zinc-700/60 bg-zinc-800/40 p-3 text-sm text-zinc-200">
-      <header className="mb-1 text-xs uppercase tracking-wide text-zinc-400">
-        Score interpretation
-      </header>
-      <p className="font-semibold">{si.headline}</p>
-      <p className="mt-1 text-[12px] text-zinc-300">{si.is_what}</p>
-      <ul className="mt-2 list-disc list-inside text-[11px] text-zinc-300">
-        {si.is_not_what.map((line, i) => (<li key={i}>{line}</li>))}
-      </ul>
-      <p className="mt-2 text-[11px] text-zinc-400">{si.review_only_footer}</p>
-    </section>
+    <GuardrailsGate>
+      <section className="rounded-md border border-zinc-700/60 bg-zinc-800/40 p-3 text-sm text-zinc-200">
+        <header className="mb-1 text-xs uppercase tracking-wide text-zinc-400">
+          Score interpretation
+        </header>
+        <p className="font-semibold">{si.headline}</p>
+        <p className="mt-1 text-[12px] text-zinc-300">{si.is_what}</p>
+        <ul className="mt-2 list-disc list-inside text-[11px] text-zinc-300">
+          {si.is_not_what.map((line, i) => (<li key={i}>{line}</li>))}
+        </ul>
+        <p className="mt-2 text-[11px] text-zinc-400">{si.review_only_footer}</p>
+      </section>
+    </GuardrailsGate>
   );
 }
