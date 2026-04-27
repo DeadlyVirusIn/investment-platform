@@ -397,3 +397,138 @@ def test_phase_11g_api_client_only_uses_apiGet():
         assert forbidden not in src, (
             f"optionsApi.ts must not import {forbidden}"
         )
+
+
+# ===========================================================================
+# Phase 11H — Strategy Evaluation page assertions
+# ===========================================================================
+
+_PHASE_11H_PAGE = "OptionsStrategyEvaluationPage.tsx"
+
+_PHASE_11H_COMPONENTS = (
+    "OptionsEvaluationDisclaimer.tsx",
+    "OptionsEvaluationSummaryCards.tsx",
+    "OptionsEvaluationScoreTable.tsx",
+    "OptionsEvaluationDetailDrawer.tsx",
+    "OptionsEvaluationDiagnosticsPanel.tsx",
+    "OptionsEvaluationDistribution.tsx",
+)
+
+
+def test_phase_11h_page_renders_three_banner_stack():
+    """Phase 11H page must render all three banners (paper-only,
+    observation-only, evaluation disclaimer)."""
+    src = (PAGES_DIR / _PHASE_11H_PAGE).read_text(encoding="utf-8")
+    assert "OptionsPaperOnlyBanner"           in src, "missing paper-only banner"
+    assert "OptionsObservationOnlyBanner"     in src, "missing observation-only banner"
+    assert "OptionsEvaluationDisclaimer"      in src, "missing evaluation disclaimer"
+
+
+def test_phase_11h_evaluation_disclaimer_string_present():
+    src = (
+        COMP_DIR / "OptionsEvaluationDisclaimer.tsx"
+    ).read_text(encoding="utf-8")
+    # Normalise whitespace because JSX wraps the string across lines
+    flat = re.sub(r"\s+", " ", src)
+    assert (
+        "Evaluation scores are fixed rule-based paper analytics. "
+        "They are not trade recommendations."
+    ) in flat
+
+
+def test_phase_11h_app_route_wired():
+    app_tsx = (WEB_SRC / "App.tsx").read_text(encoding="utf-8")
+    for token in (
+        "OptionsStrategyEvaluationPage",
+        '"evaluation"',
+    ):
+        assert token in app_tsx, f"App.tsx missing 11H wiring for {token!r}"
+
+
+def test_phase_11h_layout_includes_evaluation_tab():
+    src = (PAGES_DIR / "OptionsLayout.tsx").read_text(encoding="utf-8")
+    assert "/options/evaluation" in src
+    assert "Evaluation" in src
+
+
+def test_phase_11h_score_detail_drawer_includes_required_sections():
+    src = (
+        COMP_DIR / "OptionsEvaluationDetailDrawer.tsx"
+    ).read_text(encoding="utf-8")
+    # Component breakdown
+    assert "Component breakdown" in src
+    # Penalties
+    assert "Penalties" in src
+    # Flags
+    assert "Model limitation flags" in src or "OptionsFlagList" in src
+    # Formula inputs (audit)
+    assert "Formula inputs" in src or "inputs" in src
+
+
+_PHASE_11H_ALL_FILES = (
+    [PAGES_DIR / _PHASE_11H_PAGE]
+    + [COMP_DIR / c for c in _PHASE_11H_COMPONENTS]
+)
+
+
+def test_phase_11h_files_avoid_recommendation_language():
+    """Spec forbidden list (Phase 11H code-only scan, comments stripped)."""
+    forbidden = (
+        r"\bRecommended\b",
+        r"\bRecommendation\b",
+        r"\bBest\b",
+        r"\bSignal\b",
+        r"\bConfidence\b",
+        r"\bExecute\b",
+        r"\bAuto-?trade\b",
+        r"\bPromote\b",
+        r"\bTrade now\b",
+        r"\bTop pick\b",
+        # Naked verbs as buttons
+        r">\s*Buy\s*<",
+        r">\s*Sell\s*<",
+        r"\bPlace order\b",
+    )
+    for path in _PHASE_11H_ALL_FILES:
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        for pat in forbidden:
+            assert not re.search(pat, src, re.IGNORECASE), (
+                f"{path.name}: forbidden Phase 11H wording {pat!r}"
+            )
+
+
+def test_phase_11h_api_client_uses_only_apiGet():
+    src = (LIB_DIR / "optionsApi.ts").read_text(encoding="utf-8")
+    for tok in ("evaluationSummary", "evaluationScores",
+                "evaluationScoreDetail", "evaluationDistribution",
+                "evaluationDiagnostics"):
+        assert tok in src, f"optionsApi.ts missing 11H method {tok!r}"
+    for forbidden in ("apiPost", "apiPut", "apiPatch", "apiDelete"):
+        assert forbidden not in src
+
+
+def test_phase_11h_no_useMutation_in_evaluation_files():
+    for path in _PHASE_11H_ALL_FILES:
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        assert "useMutation(" not in src, (
+            f"{path.name}: useMutation forbidden on 11H pages"
+        )
+        for forbidden in ("apiPost(", "apiPut(", "apiPatch(", "apiDelete("):
+            assert forbidden not in src, (
+                f"{path.name}: {forbidden} forbidden on 11H files"
+            )
+
+
+def test_phase_11h_null_handling_uses_insufficient_or_unavailable():
+    """NULL must never render as 0. Components route Money/Insufficient
+    text through `format.ts` helpers; verify their default labels remain."""
+    src = (COMP_DIR / "format.ts").read_text(encoding="utf-8")
+    assert "nullText = 'Unavailable'" in src
+    assert "nullText = 'Insufficient data'" in src
+    # Spot-check 11H summary card uses "Insufficient data" wording
+    summary = (COMP_DIR / "OptionsEvaluationSummaryCards.tsx").read_text(encoding="utf-8")
+    assert "Insufficient data" in summary or "_val(" in summary

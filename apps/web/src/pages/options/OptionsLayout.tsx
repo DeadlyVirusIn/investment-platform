@@ -13,6 +13,7 @@ const TABS = [
   { to: '/options/performance',   label: 'Paper Performance' },
   { to: '/options/diagnostics',   label: 'Diagnostics' },
   { to: '/options/replay',        label: 'Scenario Replay' },
+  { to: '/options/evaluation',    label: 'Evaluation' },
 ];
 
 export default function OptionsLayout() {

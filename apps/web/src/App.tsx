@@ -26,6 +26,9 @@ import OptionsPaperPerformancePage    from '@/pages/options/OptionsPaperPerforma
 import OptionsStrategyDiagnosticsPage from '@/pages/options/OptionsStrategyDiagnosticsPage';
 import OptionsScenarioReplayPage      from '@/pages/options/OptionsScenarioReplayPage';
 
+// Phase 11H — Strategy Evaluation (read-only, paper-only, deterministic)
+import OptionsStrategyEvaluationPage  from '@/pages/options/OptionsStrategyEvaluationPage';
+
 export default function App() {
   return (
     <Routes>
@@ -56,6 +59,8 @@ export default function App() {
         <Route path="performance"  element={<OptionsPaperPerformancePage />} />
         <Route path="diagnostics"  element={<OptionsStrategyDiagnosticsPage />} />
         <Route path="replay"       element={<OptionsScenarioReplayPage />} />
+        {/* Phase 11H — Strategy Evaluation (read-only) */}
+        <Route path="evaluation"   element={<OptionsStrategyEvaluationPage />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

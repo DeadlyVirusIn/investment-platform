@@ -23,6 +23,7 @@ from apps.api.src.options.observatory import observations as obs_observations
 from apps.api.src.options.observatory import performance as obs_performance
 from apps.api.src.options.observatory import replay as obs_replay
 from apps.api.src.options.observatory import rules as obs_rules
+from apps.api.src.options.evaluation import score_service as eval_service
 
 
 router = APIRouter(prefix="/options", tags=["options"])
@@ -218,5 +219,87 @@ def scenario_replay(
     except ValueError:
         raise HTTPException(status_code=422, detail="invalid as_of date")
     out = obs_replay.replay(session, symbol=symbol, as_of_date=as_of_d)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 11H — Controlled Strategy Evaluation Layer (read-only, paper-only)
+# ---------------------------------------------------------------------------
+
+EVALUATION_DISCLAIMER = (
+    "Evaluation scores are fixed rule-based paper analytics. "
+    "They are not trade recommendations."
+)
+
+
+@router.get("/evaluation/summary")
+def evaluation_summary(
+    underlying: str | None = Query(default=None, max_length=12),
+    strategy: str | None = Query(default=None, max_length=64),
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = eval_service.get_summary(
+        session, underlying=underlying, strategy=strategy,
+        lookback_days=lookback_days,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/evaluation/scores")
+def evaluation_scores(
+    strategy: str | None = Query(default=None, max_length=64),
+    underlying: str | None = Query(default=None, max_length=12),
+    min_score: int | None = Query(default=None, ge=0, le=100),
+    qualified_only: bool = Query(default=False),
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    limit: int = Query(default=50, ge=1, le=500),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = eval_service.list_scores(
+        session,
+        strategy=strategy,
+        underlying=underlying,
+        min_score=min_score,
+        qualified_only=qualified_only,
+        lookback_days=lookback_days,
+        limit=limit,
+    )
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/evaluation/scores/{observation_id}")
+def evaluation_score_detail(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = eval_service.get_score_detail(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="evaluation score not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/evaluation/distribution")
+def evaluation_distribution(
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = eval_service.get_distribution(session, lookback_days=lookback_days)
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/evaluation/diagnostics")
+def evaluation_diagnostics(
+    lookback_days: int = Query(default=14, ge=1, le=120),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = eval_service.get_diagnostics(session, lookback_days=lookback_days)
     out["notice"] = PAPER_ONLY_NOTICE
     return out

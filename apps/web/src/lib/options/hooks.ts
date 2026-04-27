@@ -16,6 +16,11 @@ import {
   type StrategiesResponse,
   type StrategyObservationDetail,
   type StrategyObservationsResponse,
+  type EvaluationSummary,
+  type EvaluationScoresResponse,
+  type EvaluationScoreDetail,
+  type EvaluationDistribution,
+  type EvaluationDiagnostics,
 } from './optionsApi';
 
 const STALE = 30_000;
@@ -150,6 +155,60 @@ export function useOptionsScenarioReplay(symbol: string | undefined, asOf: strin
     queryKey: ['options', 'scenario-replay', symbol, asOf],
     queryFn: () => optionsApi.scenarioReplay(symbol!, asOf!),
     enabled: !!symbol && !!asOf,
+    staleTime: STALE,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 11H — read-only evaluation hooks
+// ---------------------------------------------------------------------------
+
+export function useOptionsEvaluationSummary(params: {
+  underlying?: string; strategy?: string; lookback_days?: number;
+} = {}) {
+  return useQuery<EvaluationSummary>({
+    queryKey: ['options', 'evaluation', 'summary', params],
+    queryFn: () => optionsApi.evaluationSummary(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsEvaluationScores(params: {
+  strategy?: string;
+  underlying?: string;
+  min_score?: number;
+  qualified_only?: boolean;
+  lookback_days?: number;
+  limit?: number;
+} = {}) {
+  return useQuery<EvaluationScoresResponse>({
+    queryKey: ['options', 'evaluation', 'scores', params],
+    queryFn: () => optionsApi.evaluationScores(params),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsEvaluationScoreDetail(id: string | undefined) {
+  return useQuery<EvaluationScoreDetail>({
+    queryKey: ['options', 'evaluation', 'scores', 'detail', id],
+    queryFn: () => optionsApi.evaluationScoreDetail(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsEvaluationDistribution(lookback_days?: number) {
+  return useQuery<EvaluationDistribution>({
+    queryKey: ['options', 'evaluation', 'distribution', lookback_days],
+    queryFn: () => optionsApi.evaluationDistribution(lookback_days),
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsEvaluationDiagnostics(lookback_days?: number) {
+  return useQuery<EvaluationDiagnostics>({
+    queryKey: ['options', 'evaluation', 'diagnostics', lookback_days],
+    queryFn: () => optionsApi.evaluationDiagnostics(lookback_days),
     staleTime: STALE,
   });
 }

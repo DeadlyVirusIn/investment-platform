@@ -282,7 +282,155 @@ export const optionsApi = {
     apiGet<ScenarioReplayResponse>(
       `/options/scenario-replay?symbol=${encodeURIComponent(symbol)}&as_of=${encodeURIComponent(asOf)}`,
     ),
+
+  // Phase 11H — Controlled Strategy Evaluation Layer (read-only)
+  evaluationSummary: (params: {
+    underlying?: string; strategy?: string; lookback_days?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (params.underlying)    q.set('underlying', params.underlying);
+    if (params.strategy)      q.set('strategy', params.strategy);
+    if (params.lookback_days) q.set('lookback_days', String(params.lookback_days));
+    const qs = q.toString();
+    return apiGet<EvaluationSummary>(
+      `/options/evaluation/summary${qs ? `?${qs}` : ''}`,
+    );
+  },
+  evaluationScores: (params: {
+    strategy?: string;
+    underlying?: string;
+    min_score?: number;
+    qualified_only?: boolean;
+    lookback_days?: number;
+    limit?: number;
+  } = {}) => {
+    const q = new URLSearchParams();
+    if (params.strategy)       q.set('strategy', params.strategy);
+    if (params.underlying)     q.set('underlying', params.underlying);
+    if (params.min_score !== undefined)
+      q.set('min_score', String(params.min_score));
+    if (params.qualified_only) q.set('qualified_only', 'true');
+    if (params.lookback_days)  q.set('lookback_days', String(params.lookback_days));
+    if (params.limit)          q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiGet<EvaluationScoresResponse>(
+      `/options/evaluation/scores${qs ? `?${qs}` : ''}`,
+    );
+  },
+  evaluationScoreDetail: (id: string) =>
+    apiGet<EvaluationScoreDetail>(
+      `/options/evaluation/scores/${encodeURIComponent(id)}`,
+    ),
+  evaluationDistribution: (lookback_days?: number) => {
+    const qs = lookback_days ? `?lookback_days=${lookback_days}` : '';
+    return apiGet<EvaluationDistribution>(
+      `/options/evaluation/distribution${qs}`,
+    );
+  },
+  evaluationDiagnostics: (lookback_days?: number) => {
+    const qs = lookback_days ? `?lookback_days=${lookback_days}` : '';
+    return apiGet<EvaluationDiagnostics>(
+      `/options/evaluation/diagnostics${qs}`,
+    );
+  },
 };
+
+// ---------------------------------------------------------------------------
+// Phase 11H types
+// ---------------------------------------------------------------------------
+
+export interface ScoreComponent {
+  component: string;
+  weight_max: number;
+  score: number;
+  explanation: string;
+}
+
+export interface ScorePenalty {
+  code: string;
+  label: string;
+  points: number;        // negative
+  reason: string;
+}
+
+export interface EvaluationScoreItem {
+  id: string;
+  rule_id: string;
+  underlying: string;
+  as_of_date: string;
+  qualified: boolean;
+  total_score: number;
+  components: ScoreComponent[];
+  penalties: ScorePenalty[];
+  flags: string[];
+  inputs: Record<string, unknown>;
+  model_version: string;
+}
+
+export interface EvaluationScoresResponse {
+  notice: string;
+  observation_only_notice: string;
+  evaluation_disclaimer: string;
+  count: number;
+  excluded_count: number;
+  scores: EvaluationScoreItem[];
+  model_version: string;
+}
+
+export interface EvaluationScoreDetail extends EvaluationScoreItem {
+  notice: string;
+  observation_only_notice: string;
+  evaluation_disclaimer: string;
+}
+
+export interface EvaluationSummary {
+  notice: string;
+  observation_only_notice: string;
+  evaluation_disclaimer: string;
+  n_observations_scored: number;
+  n_included_by_filter: number;
+  n_excluded_by_filter: number;
+  average_score: string | null;
+  median_score: string | null;
+  score_distribution_buckets: { lo: number; hi: number; count: number }[];
+  threshold: number;
+  n_at_or_above_threshold: number;
+  n_below_threshold: number;
+  model_version: string;
+}
+
+export interface EvaluationDistribution {
+  notice: string;
+  observation_only_notice: string;
+  evaluation_disclaimer: string;
+  by_strategy: {
+    strategy: string;
+    n: number;
+    mean_score: string | null;
+    buckets: { lo: number; hi: number; count: number }[];
+  }[];
+  by_underlying: {
+    underlying: string;
+    n: number;
+    mean_score: string | null;
+    buckets: { lo: number; hi: number; count: number }[];
+  }[];
+  buckets_definition: { lo: number; hi: number }[];
+  model_version: string;
+}
+
+export interface EvaluationDiagnostics {
+  notice: string;
+  observation_only_notice: string;
+  evaluation_disclaimer: string;
+  n_total_scored: number;
+  threshold: number;
+  n_at_or_above_threshold: number;
+  n_below_threshold: number;
+  common_penalty_drivers: { code: string; count: number }[];
+  common_missing_data_drivers: { code: string; count: number }[];
+  model_version: string;
+}
 
 // ---------------------------------------------------------------------------
 // Phase 11G types
