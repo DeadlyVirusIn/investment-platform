@@ -424,7 +424,96 @@ export const optionsApi = {
     apiGet<DecisionFramingContextResponse>(
       `/options/decision-framing/context/${encodeURIComponent(id)}`,
     ),
+
+  // Phase 11K — Cognitive Guardrails (read-only, paper-only)
+  guardrailsScore: (id: string) =>
+    apiGet<GuardrailsScoreResponse>(
+      `/options/interpretation-guardrails/score/${encodeURIComponent(id)}`,
+    ),
+  guardrailsBucket: (id: string) =>
+    apiGet<GuardrailsBucketResponse>(
+      `/options/interpretation-guardrails/bucket/${encodeURIComponent(id)}`,
+    ),
+  guardrailsRanking: (id: string) =>
+    apiGet<GuardrailsRankingResponse>(
+      `/options/interpretation-guardrails/ranking/${encodeURIComponent(id)}`,
+    ),
+  guardrailsPageContext: () =>
+    apiGet<GuardrailsPageContextResponse>(
+      `/options/interpretation-guardrails/page-context`,
+    ),
 };
+
+// ---------------------------------------------------------------------------
+// Phase 11K types
+// ---------------------------------------------------------------------------
+
+export interface WhatThisDoesNotMeanBlock {
+  not_expected_profitability: string;
+  not_probability_of_success: string;
+  not_suitability_for_trading: string;
+  not_instruction_to_act: string;
+  not_live_market_signal: string;
+}
+
+interface GuardrailsEnvelope {
+  notice: string;
+  observation_only_notice: string;
+  interpretation_guardrails_notice: string;
+}
+
+export interface GuardrailsScoreResponse extends GuardrailsEnvelope {
+  id: string;
+  total_score: number | null;
+  score_interpretation: {
+    headline: string;
+    is_what: string;
+    is_not_what: string[];
+    review_only_footer: string;
+    what_this_does_not_mean: WhatThisDoesNotMeanBlock;
+  };
+}
+
+export interface GuardrailsBucketResponse extends GuardrailsEnvelope {
+  id: string;
+  bucket: string;
+  bucket_label: string;
+  bucket_interpretation: {
+    bucket: string;
+    headline: string;
+    is_what: string;
+    is_not_what: string[];
+    review_only_footer: string;
+    what_this_does_not_mean: WhatThisDoesNotMeanBlock;
+  };
+}
+
+export interface GuardrailsRankingResponse extends GuardrailsEnvelope {
+  id: string;
+  rank_position: number | null;
+  tie_breakers: string[];
+  ranking_interpretation: {
+    headline: string;
+    is_what: string;
+    is_not_what: string[];
+    deterministic_ordering_phrase: string;
+    review_only_footer: string;
+    what_this_does_not_mean: WhatThisDoesNotMeanBlock;
+  };
+}
+
+export interface GuardrailsPageContextResponse extends GuardrailsEnvelope {
+  page_context: {
+    notice_paper_only: string;
+    notice_observation_only: string;
+    notice_evaluation: string;
+    notice_decision_support: string;
+    notice_decision_framing: string;
+    notice_interpretation_guardrails: string;
+    what_this_does_not_mean: WhatThisDoesNotMeanBlock;
+    selection_bias_banner_default_text: string;
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Phase 11J types

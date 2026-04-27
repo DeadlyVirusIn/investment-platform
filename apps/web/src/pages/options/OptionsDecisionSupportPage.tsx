@@ -15,6 +15,9 @@ import OptionsReviewQueueFilters, {
 import OptionsReviewQueueTable from '@/components/options/OptionsReviewQueueTable';
 import OptionsShortlistBuckets from '@/components/options/OptionsShortlistBuckets';
 import OptionsReviewDetailDrawer from '@/components/options/OptionsReviewDetailDrawer';
+// Phase 11K guardrails — append-only integration
+import SelectionBiasNotice from '@/components/options/SelectionBiasNotice';
+import WhatThisDoesNotMean from '@/components/options/WhatThisDoesNotMean';
 import {
   useOptionsDecisionSupportBuckets,
   useOptionsDecisionSupportReviewQueue,
@@ -46,6 +49,14 @@ export default function OptionsDecisionSupportPage() {
       <OptionsObservationOnlyBanner />
       <OptionsEvaluationDisclaimer />
       <OptionsDecisionSupportDisclaimer />
+
+      {/* Phase 11K: selection-bias notice when filter view is narrow */}
+      <SelectionBiasNotice
+        state={{
+          bucketFilter: filters.bucket,
+          sortMode: 'SCORE_DESC',
+        }}
+      />
 
       <header>
         <h1 className="text-xl font-semibold text-zinc-100">Decision Support</h1>
@@ -99,6 +110,9 @@ export default function OptionsDecisionSupportPage() {
           <OptionsShortlistBuckets data={buckets.data} onSelect={setSelectedId} />
         ) : null}
       </section>
+
+      {/* Phase 11K: universal "What this does NOT mean" page-level panel */}
+      <WhatThisDoesNotMean />
 
       <OptionsReviewDetailDrawer
         observationId={selectedId}

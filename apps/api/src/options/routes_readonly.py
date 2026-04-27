@@ -27,6 +27,9 @@ from apps.api.src.options.evaluation import score_service as eval_service
 from apps.api.src.options.decision_support import diagnostics as ds_diagnostics
 from apps.api.src.options.decision_support import review_queue as ds_review_queue
 from apps.api.src.options.decision_framing import framing_service as df_service
+from apps.api.src.options.interpretation_guardrails import (
+    guardrail_service as ig_service,
+)
 
 
 router = APIRouter(prefix="/options", tags=["options"])
@@ -477,5 +480,61 @@ def decision_framing_context(
     )
     if out is None:
         raise HTTPException(status_code=404, detail="context not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Phase 11K — Cognitive Guardrails Layer (read-only, paper-only)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/interpretation-guardrails/score/{observation_id}")
+def interpretation_guardrails_score(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ig_service.get_score_interpretation(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="observation not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/interpretation-guardrails/bucket/{observation_id}")
+def interpretation_guardrails_bucket(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ig_service.get_bucket_interpretation(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="observation not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/interpretation-guardrails/ranking/{observation_id}")
+def interpretation_guardrails_ranking(
+    observation_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    out = ig_service.get_ranking_interpretation(
+        session, observation_id=observation_id,
+    )
+    if out is None:
+        raise HTTPException(status_code=404, detail="observation not found")
+    out["notice"] = PAPER_ONLY_NOTICE
+    return out
+
+
+@router.get("/interpretation-guardrails/page-context")
+def interpretation_guardrails_page_context() -> dict[str, Any]:
+    """Static page-level guardrails. No DB read required.
+    Returns frozen text + universal "does not mean" block."""
+    out = ig_service.get_page_context()
     out["notice"] = PAPER_ONLY_NOTICE
     return out

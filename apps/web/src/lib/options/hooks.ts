@@ -32,6 +32,10 @@ import {
   type DecisionFramingCompareResponse,
   type DecisionFramingChecklistResponse,
   type DecisionFramingContextResponse,
+  type GuardrailsScoreResponse,
+  type GuardrailsBucketResponse,
+  type GuardrailsRankingResponse,
+  type GuardrailsPageContextResponse,
 } from './optionsApi';
 
 const STALE = 30_000;
@@ -339,5 +343,44 @@ export function useOptionsDecisionFramingContext(id: string | undefined) {
     queryFn: () => optionsApi.decisionFramingContext(id!),
     enabled: !!id,
     staleTime: STALE,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Phase 11K — read-only interpretation guardrails hooks
+// ---------------------------------------------------------------------------
+
+export function useOptionsGuardrailsScore(id: string | undefined) {
+  return useQuery<GuardrailsScoreResponse>({
+    queryKey: ['options', 'guardrails', 'score', id],
+    queryFn: () => optionsApi.guardrailsScore(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsGuardrailsBucket(id: string | undefined) {
+  return useQuery<GuardrailsBucketResponse>({
+    queryKey: ['options', 'guardrails', 'bucket', id],
+    queryFn: () => optionsApi.guardrailsBucket(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsGuardrailsRanking(id: string | undefined) {
+  return useQuery<GuardrailsRankingResponse>({
+    queryKey: ['options', 'guardrails', 'ranking', id],
+    queryFn: () => optionsApi.guardrailsRanking(id!),
+    enabled: !!id,
+    staleTime: STALE,
+  });
+}
+
+export function useOptionsGuardrailsPageContext() {
+  return useQuery<GuardrailsPageContextResponse>({
+    queryKey: ['options', 'guardrails', 'page-context'],
+    queryFn: () => optionsApi.guardrailsPageContext(),
+    staleTime: 5 * 60_000,
   });
 }

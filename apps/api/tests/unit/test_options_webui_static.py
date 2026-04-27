@@ -861,3 +861,177 @@ def test_phase_11j_narrative_card_includes_review_context_only():
         COMP_DIR / "OptionsReviewNarrativeCards.tsx"
     ).read_text(encoding="utf-8")
     assert "non_action_footer" in src
+
+
+# ===========================================================================
+# Phase 11K — Cognitive Guardrails Layer assertions
+# ===========================================================================
+
+_PHASE_11K_COMPONENTS = (
+    "ScoreInterpretationPanel.tsx",
+    "BucketMeaningPanel.tsx",
+    "RankingGuardrailBanner.tsx",
+    "WhatThisDoesNotMean.tsx",
+    "SelectionBiasNotice.tsx",
+)
+
+
+def test_phase_11k_components_exist():
+    for c in _PHASE_11K_COMPONENTS:
+        path = COMP_DIR / c
+        assert path.exists(), f"missing 11K component {c}"
+
+
+def test_phase_11k_selection_bias_notice_copy_matches_spec():
+    src = _strip_ts_comments(
+        (COMP_DIR / "SelectionBiasNotice.tsx").read_text(encoding="utf-8"),
+    )
+    flat = re.sub(r"\s+", " ", src)
+    # Spec banner copy (verbatim)
+    assert "Viewing only a subset of observations may create selection bias" in flat
+    assert "does not indicate suitability, preference, or an action" in flat
+
+
+def test_phase_11k_selection_bias_notice_exposes_three_triggers():
+    src = (COMP_DIR / "SelectionBiasNotice.tsx").read_text(encoding="utf-8")
+    for trigger in (
+        "ONLY_HIGH_REVIEW_PRIORITY_BUCKET",
+        "SCORE_DESC_SORT_ACTIVE",
+        "ONLY_ONE_BUCKET_SELECTED",
+    ):
+        assert trigger in src, f"SelectionBiasNotice missing trigger {trigger!r}"
+
+
+def test_phase_11k_ranking_guardrail_uses_deterministic_ordering_phrase():
+    """The banner must surface the spec phrase 'appears earlier under
+    deterministic ordering rules' (which the backend supplies). The
+    banner MUST NOT contain 'ranked above' / 'better' / 'worse' /
+    'prefer' / 'choose' in code (banner copy comes from API)."""
+    src = _strip_ts_comments(
+        (COMP_DIR / "RankingGuardrailBanner.tsx").read_text(encoding="utf-8"),
+    )
+    # Spec phrase keyword fragment
+    assert "deterministic_ordering_phrase" in src
+    # Forbidden ranking words (code, not comments) absent
+    for forbidden in (r"\bbetter\b", r"\bworse\b",
+                      r"\bprefer\b", r"\bchoose\b",
+                      r"ranked above"):
+        assert not re.search(forbidden, src, re.IGNORECASE), (
+            f"RankingGuardrailBanner emits forbidden word {forbidden!r}"
+        )
+
+
+def test_phase_11k_what_this_does_not_mean_renders_five_lines():
+    src = (COMP_DIR / "WhatThisDoesNotMean.tsx").read_text(encoding="utf-8")
+    for tok in (
+        "not_expected_profitability",
+        "not_probability_of_success",
+        "not_suitability_for_trading",
+        "not_instruction_to_act",
+        "not_live_market_signal",
+    ):
+        assert tok in src, f"WhatThisDoesNotMean missing field {tok!r}"
+
+
+def test_phase_11k_narrative_drawer_integrates_guardrail_panels():
+    src = (
+        COMP_DIR / "OptionsNarrativeDetailDrawer.tsx"
+    ).read_text(encoding="utf-8")
+    for tok in (
+        "ScoreInterpretationPanel",
+        "BucketMeaningPanel",
+        "RankingGuardrailBanner",
+        "WhatThisDoesNotMean",
+    ):
+        assert tok in src, f"narrative drawer missing 11K panel {tok!r}"
+
+
+def test_phase_11k_decision_framing_page_integrates_guardrail_panels():
+    src = (PAGES_DIR / "OptionsDecisionFramingPage.tsx").read_text(encoding="utf-8")
+    for tok in (
+        "SelectionBiasNotice",
+        "WhatThisDoesNotMean",
+        "RankingGuardrailBanner",
+    ):
+        assert tok in src, f"decision framing page missing 11K panel {tok!r}"
+
+
+def test_phase_11k_decision_support_page_integrates_selection_bias_notice():
+    src = (PAGES_DIR / "OptionsDecisionSupportPage.tsx").read_text(encoding="utf-8")
+    for tok in ("SelectionBiasNotice", "WhatThisDoesNotMean"):
+        assert tok in src, f"decision support page missing 11K panel {tok!r}"
+
+
+def test_phase_11k_components_use_apiGet_only():
+    """Every 11K component reads via React Query hooks defined in
+    hooks.ts; no direct apiPost/apiPut/apiPatch/apiDelete calls."""
+    for c in _PHASE_11K_COMPONENTS:
+        path = COMP_DIR / c
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        for forbidden in ("apiPost(", "apiPut(", "apiPatch(",
+                          "apiDelete(", "useMutation("):
+            assert forbidden not in src, (
+                f"{c}: forbidden mutation call {forbidden}"
+            )
+
+
+def test_phase_11k_no_recommendation_language_outside_negation():
+    """Code-only scan (comments stripped). Allowed only via spec
+    negation phrases like 'not a recommendation' / 'is not a signal'."""
+    forbidden_assertion_phrases = (
+        r"\brecommended trade\b",
+        r"\bbest trade\b",
+        r"\btop pick\b",
+        r"\btrade now\b",
+        r"\bplace order\b",
+        r"\benter (?:a |the )?trade\b",
+        r"\bexit (?:a |the )?trade\b",
+        r"\bgenerate alpha\b",
+        r"\bcapture alpha\b",
+        # Banner-as-a-button-label forbidden
+        r">\s*Buy\s*<",
+        r">\s*Sell\s*<",
+    )
+    for c in _PHASE_11K_COMPONENTS:
+        path = COMP_DIR / c
+        if not path.exists():
+            continue
+        src = _strip_ts_comments(path.read_text(encoding="utf-8"))
+        for pat in forbidden_assertion_phrases:
+            assert not re.search(pat, src, re.IGNORECASE), (
+                f"{c}: forbidden assertion phrase {pat!r}"
+            )
+
+
+def test_phase_11k_no_llm_imports_in_components():
+    forbidden = (
+        r"\bopenai\b", r"\banthropic\b", r"\bcohere\b",
+        r"\b@google/generative-ai\b", r"\btransformers\b",
+    )
+    for c in _PHASE_11K_COMPONENTS:
+        path = COMP_DIR / c
+        if not path.exists():
+            continue
+        src = path.read_text(encoding="utf-8")
+        import_lines = [
+            ln for ln in src.splitlines()
+            if "import " in ln and "from" in ln
+        ]
+        joined = "\n".join(import_lines)
+        for pat in forbidden:
+            assert not re.search(pat, joined, re.IGNORECASE), (
+                f"{c}: LLM/AI client import {pat!r}"
+            )
+
+
+def test_phase_11k_api_client_has_guardrails_methods():
+    src = (LIB_DIR / "optionsApi.ts").read_text(encoding="utf-8")
+    for tok in (
+        "guardrailsScore",
+        "guardrailsBucket",
+        "guardrailsRanking",
+        "guardrailsPageContext",
+    ):
+        assert tok in src, f"optionsApi.ts missing 11K method {tok!r}"

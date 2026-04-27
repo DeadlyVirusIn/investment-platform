@@ -9,6 +9,12 @@ import {
 import OptionsHumanReviewChecklist from './OptionsHumanReviewChecklist';
 import OptionsContextCaveatsPanel from './OptionsContextCaveatsPanel';
 import { OptionsFlagList } from './OptionsFlagChip';
+// Phase 11K guardrail panels — append-only integration; do NOT
+// modify any 11H / 11I / 11J wiring above.
+import ScoreInterpretationPanel from './ScoreInterpretationPanel';
+import BucketMeaningPanel from './BucketMeaningPanel';
+import RankingGuardrailBanner from './RankingGuardrailBanner';
+import WhatThisDoesNotMean from './WhatThisDoesNotMean';
 
 export default function OptionsNarrativeDetailDrawer({
   observationId, onClose,
@@ -87,6 +93,12 @@ export default function OptionsNarrativeDetailDrawer({
 
           <OptionsHumanReviewChecklist items={ctx.data.checklist} />
           <OptionsContextCaveatsPanel caveats={ctx.data.context_caveats} />
+
+          {/* Phase 11K guardrails — append-only */}
+          <ScoreInterpretationPanel observationId={observationId ?? undefined} />
+          <BucketMeaningPanel observationId={observationId ?? undefined} />
+          <RankingGuardrailBanner observationId={observationId ?? undefined} />
+          <WhatThisDoesNotMean />
 
           <section className="rounded-md border border-zinc-700/60 bg-zinc-800/40 p-3 text-[11px] text-zinc-200">
             {detail.data.narrative.non_action_footer}

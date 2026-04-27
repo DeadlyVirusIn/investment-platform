@@ -11,6 +11,10 @@ import OptionsDecisionFramingDisclaimer from '@/components/options/OptionsDecisi
 import OptionsReviewNarrativeCards from '@/components/options/OptionsReviewNarrativeCards';
 import OptionsNarrativeDetailDrawer from '@/components/options/OptionsNarrativeDetailDrawer';
 import OptionsScenarioComparisonPanel from '@/components/options/OptionsScenarioComparisonPanel';
+// Phase 11K guardrails — append-only integration
+import SelectionBiasNotice from '@/components/options/SelectionBiasNotice';
+import WhatThisDoesNotMean from '@/components/options/WhatThisDoesNotMean';
+import RankingGuardrailBanner from '@/components/options/RankingGuardrailBanner';
 import {
   useOptionsDecisionFramingNarratives,
   useOptionsDecisionFramingSummary,
@@ -53,6 +57,14 @@ export default function OptionsDecisionFramingPage() {
       <OptionsEvaluationDisclaimer />
       <OptionsDecisionSupportDisclaimer />
       <OptionsDecisionFramingDisclaimer />
+
+      {/* Phase 11K: selection-bias notice when filter view is narrow */}
+      <SelectionBiasNotice
+        state={{
+          bucketFilter: bucket,
+          sortMode: 'SCORE_DESC',
+        }}
+      />
 
       <header>
         <h1 className="text-xl font-semibold text-zinc-100">Decision Framing</h1>
@@ -163,8 +175,17 @@ export default function OptionsDecisionFramingPage() {
         </div>
         <div className="mt-3">
           <OptionsScenarioComparisonPanel idA={compareA} idB={compareB} />
+          {/* Phase 11K: ranking guardrail surfaces under comparison */}
+          {compareA ? (
+            <div className="mt-3">
+              <RankingGuardrailBanner observationId={compareA ?? undefined} />
+            </div>
+          ) : null}
         </div>
       </section>
+
+      {/* Phase 11K: universal "What this does NOT mean" page-level panel */}
+      <WhatThisDoesNotMean />
 
       <OptionsNarrativeDetailDrawer
         observationId={selectedId}
