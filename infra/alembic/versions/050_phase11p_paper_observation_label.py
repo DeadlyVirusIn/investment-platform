@@ -12,7 +12,7 @@ is_provisional=TRUE AND entry_date <= cutoff.
 NEVER references any strict-engine table. NEVER references
 v2_promotion_*, engine_b*, shadow_strategy*, paper_trade_log.
 
-Revision ID: 050_phase11p_paper_observation_label
+Revision ID: 050_paper_obs_label
 Revises: 049_phase11p_paper_label_columns
 """
 
@@ -23,8 +23,8 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 
-revision = "050_phase11p_paper_observation_label"
-down_revision = "049_phase11p_paper_label_columns"
+revision = "050_paper_obs_label"
+down_revision = "049_paper_label_cols"
 branch_labels = None
 depends_on = None
 

@@ -13,7 +13,7 @@ to a closed set.
 NEVER drops, renames, or alters existing columns. NEVER touches any
 strict-engine table.
 
-Revision ID: 049_phase11p_paper_label_columns
+Revision ID: 049_paper_label_cols
 Revises: 048_phase11d_features
 """
 
@@ -23,7 +23,7 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "049_phase11p_paper_label_columns"
+revision = "049_paper_label_cols"
 down_revision = "048_phase11d_features"
 branch_labels = None
 depends_on = None
