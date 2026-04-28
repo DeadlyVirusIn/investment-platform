@@ -1,0 +1,29 @@
+{
+  "snapshot_at_utc": "2026-04-27T14:10:00Z",
+  "rows": [
+    {"underlying":"IWM","expiry":"2026-06-11","strike":195,"option_type":"PUT",
+     "option_symbol":"IWM260611P00195000",
+     "bid":0.85,"ask":0.92,"mid":0.885,"last":0.85,
+     "volume":160,"open_interest":1800,
+     "delta":-0.18,"gamma":0.020,"theta":-0.040,"vega":0.10,
+     "iv":0.28,"quote_age_seconds":3},
+    {"underlying":"IWM","expiry":"2026-06-11","strike":200,"option_type":"PUT",
+     "option_symbol":"IWM260611P00200000",
+     "bid":1.55,"ask":1.62,"mid":1.585,"last":1.55,
+     "volume":210,"open_interest":1800,
+     "delta":-0.28,"gamma":0.026,"theta":-0.052,"vega":0.12,
+     "iv":0.27,"quote_age_seconds":2},
+    {"underlying":"IWM","expiry":"2026-06-11","strike":215,"option_type":"CALL",
+     "option_symbol":"IWM260611C00215000",
+     "bid":1.50,"ask":1.57,"mid":1.535,"last":1.50,
+     "volume":190,"open_interest":1800,
+     "delta":0.28,"gamma":0.026,"theta":-0.052,"vega":0.12,
+     "iv":0.27,"quote_age_seconds":2},
+    {"underlying":"IWM","expiry":"2026-06-11","strike":220,"option_type":"CALL",
+     "option_symbol":"IWM260611C00220000",
+     "bid":0.80,"ask":0.87,"mid":0.835,"last":0.80,
+     "volume":150,"open_interest":1800,
+     "delta":0.18,"gamma":0.020,"theta":-0.040,"vega":0.10,
+     "iv":0.28,"quote_age_seconds":3}
+  ]
+}

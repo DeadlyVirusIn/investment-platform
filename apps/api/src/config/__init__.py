@@ -247,5 +247,25 @@ class Settings(BaseSettings):
     THETADATA_MAX_RETRIES: int = 2
     THETADATA_RATE_LIMIT_QPS: float = 5.0
 
+    # ------------------------------------------------------------------
+    # FRED PROVIDER (Phase 11P.2 — manual macro backfill)
+    # Optional. Required only when running scripts/backfill_macro_features.py
+    # against the FRED feed. Pure read. Never affects live execution.
+    # ------------------------------------------------------------------
+    FRED_API_KEY: str | None = None
+    FRED_BASE_URL: str = "https://api.stlouisfed.org/fred"
+    FRED_TIMEOUT_SECONDS: int = 30
+    FRED_MAX_RETRIES: int = 3
+    FRED_RATE_LIMIT_QPS: float = 1.0
+
+    # ------------------------------------------------------------------
+    # EQUITY EXPLORATORY PAPER MODE (Phase 11P.3 — operator opt-in)
+    # When False, the exploratory runner refuses to commit even when
+    # invoked manually with --commit. When True, the runner is enabled
+    # but still respects --dry-run / --commit + confirm gates. Default
+    # FALSE; flipping is operator-explicit and reversible.
+    # ------------------------------------------------------------------
+    EQUITY_EXPLORATORY_ENABLED: bool = False
+
 
 settings = Settings()

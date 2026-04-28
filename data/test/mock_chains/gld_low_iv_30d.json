@@ -1,0 +1,23 @@
+{
+  "snapshot_at_utc": "2026-04-27T14:15:00Z",
+  "rows": [
+    {"underlying":"GLD","expiry":"2026-05-27","strike":210,"option_type":"PUT",
+     "option_symbol":"GLD260527P00210000",
+     "bid":0.20,"ask":0.25,"mid":0.225,"last":0.20,
+     "volume":40,"open_interest":900,
+     "delta":-0.10,"gamma":0.012,"theta":-0.020,"vega":0.05,
+     "iv":0.13,"quote_age_seconds":3},
+    {"underlying":"GLD","expiry":"2026-05-27","strike":215,"option_type":"PUT",
+     "option_symbol":"GLD260527P00215000",
+     "bid":0.40,"ask":0.45,"mid":0.425,"last":0.40,
+     "volume":60,"open_interest":900,
+     "delta":-0.20,"gamma":0.018,"theta":-0.028,"vega":0.07,
+     "iv":0.12,"quote_age_seconds":2},
+    {"underlying":"GLD","expiry":"2026-05-27","strike":218,"option_type":"PUT",
+     "option_symbol":"GLD260527P00218000",
+     "bid":0.70,"ask":0.75,"mid":0.725,"last":0.70,
+     "volume":80,"open_interest":900,
+     "delta":-0.30,"gamma":0.020,"theta":-0.034,"vega":0.08,
+     "iv":0.12,"quote_age_seconds":2}
+  ]
+}

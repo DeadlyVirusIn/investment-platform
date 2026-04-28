@@ -1,0 +1,29 @@
+{
+  "snapshot_at_utc": "2026-05-04T14:00:00Z",
+  "rows": [
+    {"underlying":"SPY","expiry":"2026-06-03","strike":410,"option_type":"PUT",
+     "option_symbol":"SPY260603P00410000",
+     "bid":0.95,"ask":1.00,"mid":0.975,"last":0.95,
+     "volume":120,"open_interest":2200,
+     "delta":-0.15,"gamma":0.014,"theta":-0.045,"vega":0.10,
+     "iv":0.36,"quote_age_seconds":4},
+    {"underlying":"SPY","expiry":"2026-06-03","strike":420,"option_type":"PUT",
+     "option_symbol":"SPY260603P00420000",
+     "bid":2.10,"ask":2.18,"mid":2.14,"last":2.10,
+     "volume":140,"open_interest":2200,
+     "delta":-0.30,"gamma":0.024,"theta":-0.060,"vega":0.13,
+     "iv":0.34,"quote_age_seconds":3},
+    {"underlying":"SPY","expiry":"2026-06-03","strike":470,"option_type":"CALL",
+     "option_symbol":"SPY260603C00470000",
+     "bid":2.05,"ask":2.13,"mid":2.09,"last":2.05,
+     "volume":130,"open_interest":2200,
+     "delta":0.30,"gamma":0.024,"theta":-0.060,"vega":0.13,
+     "iv":0.34,"quote_age_seconds":3},
+    {"underlying":"SPY","expiry":"2026-06-03","strike":480,"option_type":"CALL",
+     "option_symbol":"SPY260603C00480000",
+     "bid":0.90,"ask":0.95,"mid":0.925,"last":0.90,
+     "volume":110,"open_interest":2200,
+     "delta":0.15,"gamma":0.014,"theta":-0.045,"vega":0.10,
+     "iv":0.36,"quote_age_seconds":4}
+  ]
+}
