@@ -1,22 +1,42 @@
-"""ThetaData provider adapter (Phase 11C).
+"""ThetaData provider adapter (Phase 11C, wired in Phase 11O.1).
 
-Implements `BaseOptionsAdapter`. v1 ships with the contract + a stub
-HTTP layer; the actual ThetaData REST integration is wired here when
-the operator's API key + network access are available.
+Implements `BaseOptionsAdapter`. The HTTP layer is a thin httpx client
+backed by `THETADATA_*` settings keys. The adapter expects ThetaData
+(or the operator's proxy in front of it) to return normalized JSON of
+the shape:
 
-Hard-isolated from V2 / equity / strategy / execution. Stdlib only at
-import time; HTTP client (httpx / requests) imported lazily inside the
-fetch method to keep the module load light.
+    GET {base_url}/v2/snapshot/option/quote?root={symbol}
+        -> 200 {
+            "underlying_price": 442.50,
+            "interest_rate":    0.05,
+            "dividend_yield":   0.0,
+            "rows": [
+              {"expiry": "2026-06-18", "strike": 440,
+               "option_type": "PUT",
+               "bid": 1.20, "ask": 1.25, "mid": 1.225, "last": 1.20,
+               "volume": 100, "open_interest": 1000,
+               "delta": -0.30, "gamma": 0.02, "theta": -0.05,
+               "vega": 0.10, "iv": 0.20, "quote_age_seconds": 2,
+               "option_symbol": "SPY260618P00440000"},
+              ...
+            ],
+            "partial": false,
+            "partial_reason": null
+        }
+
+NEVER imports broker / live / execution / V2 / equity / strategy
+modules. NEVER triggers a worker job. Pure read.
 """
 
 from __future__ import annotations
 
 import datetime
-import os
+import time
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
+import httpx
 from loguru import logger
 
 from apps.api.src.options.data_provider.base_adapter import (
@@ -32,33 +52,107 @@ from apps.api.src.options.data_provider.base_adapter import (
 PROVIDER_NAME = "thetadata"
 PROVIDER_VERSION = "rest-v1"
 
-# Frozen module constants — change only with revision-history doc update
-DEFAULT_BASE_URL = "http://127.0.0.1:25510"      # ThetaData Terminal default
-DEFAULT_TIMEOUT_SECONDS = 10
-DEFAULT_QUOTE_AGE_TOLERANCE_SECONDS = 60   # quotes older than this rejected at ingest layer
+DEFAULT_BASE_URL = "http://127.0.0.1:25510"
+DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_MAX_RETRIES = 2
+DEFAULT_RATE_LIMIT_QPS = 5.0
+DEFAULT_QUOTE_AGE_TOLERANCE_SECONDS = 60
+
+HEALTH_PATH = "/v2/system/status"
+QUOTE_PATH = "/v2/snapshot/option/quote"
+
+AUTH_NONE = "none"
+AUTH_BEARER = "bearer"
+AUTH_BASIC = "basic"
 
 
 @dataclass(frozen=True)
 class ThetaDataConfig:
-    base_url: str = DEFAULT_BASE_URL
+    base_url: str
+    api_key: str | None = None
+    username: str | None = None
+    password: str | None = None
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS
+    max_retries: int = DEFAULT_MAX_RETRIES
+    rate_limit_qps: float = DEFAULT_RATE_LIMIT_QPS
     quote_age_tolerance_seconds: int = DEFAULT_QUOTE_AGE_TOLERANCE_SECONDS
+
+    def auth_mode(self) -> str:
+        if self.api_key:
+            return AUTH_BEARER
+        if self.username and self.password:
+            return AUTH_BASIC
+        return AUTH_NONE
+
+
+class _RateLimiter:
+    """Trivial single-threaded token-bucket: at most qps requests per
+    second. Sleeps inline when the bucket is empty."""
+
+    def __init__(self, qps: float, *, clock=None) -> None:
+        self.qps = max(0.001, float(qps))
+        self.min_interval = 1.0 / self.qps
+        self._clock = clock or time.monotonic
+        self._sleep = time.sleep
+        self._last_call: float | None = None
+
+    def wait(self) -> None:
+        now = self._clock()
+        if self._last_call is None:
+            self._last_call = now
+            return
+        delta = now - self._last_call
+        if delta < self.min_interval:
+            self._sleep(self.min_interval - delta)
+            now = self._clock()
+        self._last_call = now
 
 
 class ThetaDataAdapter(BaseOptionsAdapter):
     """ThetaData REST adapter.
 
-    v1 contract impl. The fetch path is structured but the actual HTTP
-    call is stubbed via `_raw_chain_pull` — substituted in tests with
-    a deterministic mock; will be wired to ThetaData's REST API once
-    the operator confirms credentials + network access.
+    Constructor validates `base_url` + auth selection. `http_client` is
+    injectable so tests can plug in `httpx.MockTransport`.
     """
 
     name = PROVIDER_NAME
 
-    def __init__(self, config: ThetaDataConfig | None = None) -> None:
-        self.config = config or ThetaDataConfig(
-            base_url=os.environ.get("THETADATA_BASE_URL", DEFAULT_BASE_URL),
+    def __init__(
+        self,
+        config: ThetaDataConfig | None = None,
+        *,
+        http_client: httpx.Client | None = None,
+        clock=None,
+        sleeper=None,
+    ) -> None:
+        cfg = config or _config_from_settings()
+        _validate_config(cfg)
+        self.config = cfg
+        self._owned_client = http_client is None
+        self._client = http_client or self._build_client(cfg)
+        self._rate_limiter = _RateLimiter(cfg.rate_limit_qps, clock=clock)
+        if sleeper is not None:
+            self._rate_limiter._sleep = sleeper  # type: ignore[assignment]
+
+    # ------------------------------------------------------------------
+    # Construction helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_client(cfg: ThetaDataConfig) -> httpx.Client:
+        headers: dict[str, str] = {"Accept": "application/json"}
+        auth: httpx.Auth | None = None
+        if cfg.auth_mode() == AUTH_BEARER:
+            headers["Authorization"] = f"Bearer {cfg.api_key}"
+        elif cfg.auth_mode() == AUTH_BASIC:
+            auth = httpx.BasicAuth(
+                cfg.username or "", cfg.password or "",
+            )
+        return httpx.Client(
+            base_url=cfg.base_url.rstrip("/"),
+            headers=headers,
+            auth=auth,
+            timeout=cfg.timeout_seconds,
         )
 
     # ------------------------------------------------------------------
@@ -74,15 +168,14 @@ class ThetaDataAdapter(BaseOptionsAdapter):
         try:
             raw = self._raw_chain_pull(symbol=symbol, timestamp=timestamp)
         except ProviderError:
-            # Already a typed provider error — propagate as-is
             raise
-        except ConnectionError as exc:
+        except (httpx.ConnectError, httpx.ConnectTimeout, ConnectionError) as exc:
             logger.warning(
                 "thetadata: provider unavailable for {} @ {}: {}",
                 symbol, timestamp, exc,
             )
             raise ProviderUnavailable(str(exc)) from exc
-        except TimeoutError as exc:
+        except (httpx.ReadTimeout, httpx.WriteTimeout, TimeoutError) as exc:
             logger.warning(
                 "thetadata: provider timeout for {} @ {}: {}",
                 symbol, timestamp, exc,
@@ -108,7 +201,7 @@ class ThetaDataAdapter(BaseOptionsAdapter):
             n_raw_quotes=len(raw.get("rows", [])),
             underlying_price=_to_dec(raw.get("underlying_price")),
             interest_rate=_to_dec(raw.get("interest_rate"))
-                or Decimal("0.05"),     # 5% default if provider omits
+                or Decimal("0.05"),
             dividend_yield=_to_dec(raw.get("dividend_yield"))
                 or Decimal("0.0"),
         )
@@ -123,15 +216,47 @@ class ThetaDataAdapter(BaseOptionsAdapter):
         return result
 
     def health_check(self) -> bool:
+        """Legacy contract (BaseOptionsAdapter). True when reachable."""
+        return self.health_check_detail()["ok"]
+
+    def health_check_detail(self) -> dict[str, Any]:
+        """Phase 11O.1 — rich health check used by `--check-provider`.
+        NEVER raises; surfaces all failures via the dict."""
+        host = httpx.URL(self.config.base_url).host or self.config.base_url
+        result: dict[str, Any] = {
+            "ok": False,
+            "status_code": None,
+            "auth_mode": self.config.auth_mode(),
+            "base_url_host": host,
+            "latency_ms": None,
+            "reason": None,
+        }
+        t0 = time.monotonic()
         try:
-            self._raw_health_check()
-            return True
-        except Exception as exc:
-            logger.warning("thetadata health check failed: {}", exc)
-            return False
+            resp = self._client.get(HEALTH_PATH, timeout=1.0)
+            result["latency_ms"] = int((time.monotonic() - t0) * 1000)
+            result["status_code"] = resp.status_code
+            if 200 <= resp.status_code < 300:
+                result["ok"] = True
+            else:
+                result["reason"] = (
+                    f"HTTP {resp.status_code}: {resp.text[:120]!r}"
+                )
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            result["reason"] = f"connection refused: {exc}"
+        except (httpx.ReadTimeout, httpx.WriteTimeout, TimeoutError):
+            result["reason"] = "timeout after 1000ms"
+        except Exception as exc:  # noqa: BLE001
+            result["reason"] = f"unexpected error: {exc}"
+        result["latency_ms"] = (
+            result["latency_ms"]
+            if result["latency_ms"] is not None
+            else int((time.monotonic() - t0) * 1000)
+        )
+        return result
 
     # ------------------------------------------------------------------
-    # Internal — stub HTTP layer; substituted in tests
+    # HTTP layer
     # ------------------------------------------------------------------
 
     def _raw_chain_pull(
@@ -140,34 +265,55 @@ class ThetaDataAdapter(BaseOptionsAdapter):
         symbol: str,
         timestamp: datetime.datetime,
     ) -> dict[str, Any]:
-        """Lazy-import the HTTP client; perform actual REST call.
+        params = {"root": symbol.upper()}
+        attempt = 0
+        last_exc: Exception | None = None
+        while True:
+            self._rate_limiter.wait()
+            try:
+                resp = self._client.get(QUOTE_PATH, params=params)
+            except (httpx.ConnectError, httpx.ConnectTimeout,
+                    httpx.ReadTimeout, httpx.WriteTimeout) as exc:
+                last_exc = exc
+                if attempt >= self.config.max_retries:
+                    raise
+                attempt += 1
+                continue
 
-        v1 returns a NotImplementedError sentinel that flags
-        operator-side wiring as the next step. Tests substitute this
-        method with a deterministic mock returning the expected dict
-        shape.
-
-        Returns dict with keys:
-          rows: list[dict]   per-row chain entries (provider-shape)
-          partial: bool
-          partial_reason: str | None
-          underlying_price: float | None
-          interest_rate: float | None
-          dividend_yield: float | None
-        """
-        raise NotImplementedError(
-            "ThetaData REST integration pending operator wiring "
-            "(THETADATA_BASE_URL + auth). Tests substitute this method."
-        )
-
-    def _raw_health_check(self) -> None:
-        """Lazy-import HTTP client + ping ThetaData /v2/system/health."""
-        raise NotImplementedError(
-            "ThetaData health check pending operator wiring."
-        )
+            sc = resp.status_code
+            if 200 <= sc < 300:
+                try:
+                    payload = resp.json()
+                except Exception as exc:
+                    raise ProviderError(
+                        f"thetadata returned non-JSON body for {symbol}: "
+                        f"{exc}"
+                    ) from exc
+                if not isinstance(payload, dict) or "rows" not in payload:
+                    raise ProviderError(
+                        f"thetadata returned unexpected payload for "
+                        f"{symbol}: missing 'rows' key"
+                    )
+                return payload
+            if 400 <= sc < 500:
+                raise ProviderError(
+                    f"thetadata returned {sc} for {symbol}: "
+                    f"{resp.text[:200]!r}"
+                )
+            if 500 <= sc < 600:
+                if attempt >= self.config.max_retries:
+                    raise ProviderUnavailable(
+                        f"thetadata server error {sc} for {symbol}: "
+                        f"{resp.text[:200]!r}"
+                    )
+                attempt += 1
+                continue
+            raise ProviderError(
+                f"thetadata returned unhandled status {sc} for {symbol}"
+            )
 
     # ------------------------------------------------------------------
-    # Internal — normalization
+    # Normalization
     # ------------------------------------------------------------------
 
     def _normalize(
@@ -202,8 +348,9 @@ class ThetaDataAdapter(BaseOptionsAdapter):
                     expiry=_to_date(r["expiry"]),
                     strike=Decimal(str(r["strike"])),
                     option_type=opt_type,
-                    option_symbol=str(r.get("option_symbol")
-                                       or _occ(symbol, r)),
+                    option_symbol=str(
+                        r.get("option_symbol") or _occ(symbol, r)
+                    ),
                     bid=bid,
                     ask=ask,
                     mid=mid,
@@ -229,6 +376,113 @@ class ThetaDataAdapter(BaseOptionsAdapter):
                 )
                 continue
         return out
+
+    def close(self) -> None:
+        if self._owned_client:
+            self._client.close()
+
+
+# ---------------------------------------------------------------------------
+# Settings bridge + validation
+# ---------------------------------------------------------------------------
+
+class ThetaDataConfigError(ProviderError):
+    """Raised at adapter construction for invalid config."""
+
+
+def _config_from_settings(settings_obj=None) -> ThetaDataConfig:
+    """Build ThetaDataConfig from a Settings-like object.
+
+    When `THETADATA_BASE_URL` is unset we fall back to
+    `DEFAULT_BASE_URL` (Theta Terminal's local default) so the adapter
+    constructor still succeeds with no explicit config — preserves
+    Phase 11C baseline behaviour. The `assert_settings_provided`
+    helper below performs a strict check for the CLI
+    `--check-provider` path.
+    """
+    from apps.api.src.config import settings as default_settings
+    s = settings_obj if settings_obj is not None else default_settings
+    base = getattr(s, "THETADATA_BASE_URL", None) or DEFAULT_BASE_URL
+    return ThetaDataConfig(
+        base_url=base,
+        api_key=getattr(s, "THETADATA_API_KEY", None) or None,
+        username=getattr(s, "THETADATA_USERNAME", None) or None,
+        password=getattr(s, "THETADATA_PASSWORD", None) or None,
+        timeout_seconds=int(
+            getattr(s, "THETADATA_TIMEOUT_SECONDS", DEFAULT_TIMEOUT_SECONDS)
+        ),
+        max_retries=int(
+            getattr(s, "THETADATA_MAX_RETRIES", DEFAULT_MAX_RETRIES)
+        ),
+        rate_limit_qps=float(
+            getattr(s, "THETADATA_RATE_LIMIT_QPS", DEFAULT_RATE_LIMIT_QPS)
+        ),
+    )
+
+
+def assert_settings_provided(settings_obj=None) -> None:
+    """Strict check used by the CLI `--check-provider` path. Refuses
+    to proceed when the operator has not explicitly set
+    `THETADATA_BASE_URL`. Distinct from `_validate_config` which is
+    forgiving (falls back to DEFAULT_BASE_URL) so legacy callers and
+    tests that call `ThetaDataAdapter()` with no args keep working.
+    """
+    from apps.api.src.config import settings as default_settings
+    s = settings_obj if settings_obj is not None else default_settings
+    if not getattr(s, "THETADATA_BASE_URL", None):
+        raise ThetaDataConfigError(
+            "[config] THETADATA_BASE_URL must be set when "
+            'OPTIONS_DATA_PROVIDER="thetadata"'
+        )
+    api_key = getattr(s, "THETADATA_API_KEY", None) or None
+    user = getattr(s, "THETADATA_USERNAME", None) or None
+    pwd = getattr(s, "THETADATA_PASSWORD", None) or None
+    if api_key and (user or pwd):
+        raise ThetaDataConfigError(
+            "[config] choose ONE auth mode: api_key OR username/password"
+        )
+    if (user and not pwd) or (pwd and not user):
+        raise ThetaDataConfigError(
+            "[config] THETADATA_USERNAME and THETADATA_PASSWORD must be "
+            "set together"
+        )
+
+
+def _validate_config(cfg: ThetaDataConfig) -> None:
+    if not cfg.base_url:
+        raise ThetaDataConfigError(
+            "[config] THETADATA_BASE_URL must be set when "
+            'OPTIONS_DATA_PROVIDER="thetadata"'
+        )
+    scheme = httpx.URL(cfg.base_url).scheme
+    if scheme not in ("http", "https"):
+        raise ThetaDataConfigError(
+            "[config] THETADATA_BASE_URL must use http:// or https:// "
+            f"(got: {scheme!r})"
+        )
+    if cfg.api_key and (cfg.username or cfg.password):
+        raise ThetaDataConfigError(
+            "[config] choose ONE auth mode: api_key OR username/password, "
+            "not both"
+        )
+    if (cfg.username and not cfg.password) or (
+            cfg.password and not cfg.username):
+        raise ThetaDataConfigError(
+            "[config] THETADATA_USERNAME and THETADATA_PASSWORD must be "
+            "set together"
+        )
+    if cfg.timeout_seconds <= 0:
+        raise ThetaDataConfigError(
+            "[config] THETADATA_TIMEOUT_SECONDS must be > 0"
+        )
+    if cfg.max_retries < 0:
+        raise ThetaDataConfigError(
+            "[config] THETADATA_MAX_RETRIES must be >= 0"
+        )
+    if cfg.rate_limit_qps <= 0:
+        raise ThetaDataConfigError(
+            "[config] THETADATA_RATE_LIMIT_QPS must be > 0"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -264,10 +518,11 @@ def _to_date(v: Any) -> datetime.date:
 
 
 def _occ(symbol: str, row: dict[str, Any]) -> str:
-    """Construct OCC symbol from row fields if provider doesn't supply.
-    Format: ROOT YYMMDD C/P STRIKE×1000 zero-padded to 8 digits."""
     expiry = _to_date(row["expiry"])
     strike = Decimal(str(row["strike"]))
     cp = "C" if str(row["option_type"]).upper() in ("C", "CALL") else "P"
     strike_milli = int(strike * 1000)
-    return f"{symbol.upper()}{expiry.strftime('%y%m%d')}{cp}{strike_milli:08d}"
+    return (
+        f"{symbol.upper()}{expiry.strftime('%y%m%d')}"
+        f"{cp}{strike_milli:08d}"
+    )
