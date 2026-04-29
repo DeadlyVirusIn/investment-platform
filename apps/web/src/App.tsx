@@ -35,6 +35,9 @@ import OptionsDecisionSupportPage     from '@/pages/options/OptionsDecisionSuppo
 // Phase 11J — Decision Framing (read-only, paper-only)
 import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFramingPage';
 
+// Phase 11Q — Pending T+1 Decisions diagnostic (read-only)
+import PendingT1Page                  from '@/pages/diagnostics/PendingT1';
+
 export default function App() {
   return (
     <Routes>
@@ -72,6 +75,13 @@ export default function App() {
         {/* Phase 11J — Decision Framing (read-only) */}
         <Route path="decision-framing" element={<OptionsDecisionFramingPage />} />
       </Route>
+
+      {/* Phase 11Q — Pending T+1 Decisions diagnostic (read-only) */}
+      <Route
+        path="/diagnostics/pending-t1"
+        element={<PendingT1Page />}
+      />
+
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -13,6 +13,9 @@ from loguru import logger
 
 from apps.api.src.api.alerts import router as alerts_router
 from apps.api.src.api.asset import router as asset_router
+from apps.api.src.api.diagnostics_pending import (
+    router as diagnostics_pending_router,
+)
 from apps.api.src.api.assets import router as assets_router
 from apps.api.src.api.briefing import router as briefing_router
 from apps.api.src.api.jobs import router as jobs_router
@@ -71,6 +74,7 @@ for _router in (
     jobs_router,
     performance_router,
     options_readonly_router,
+    diagnostics_pending_router,
 ):
     app.include_router(_router, prefix="/api")
 
