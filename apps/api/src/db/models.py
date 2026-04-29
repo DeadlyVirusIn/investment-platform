@@ -10,6 +10,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -1562,6 +1563,112 @@ class PaperObservationLabel(Base):
             "ix_paper_observation_label_provisional",
             "is_provisional",
             postgresql_where=text("is_provisional"),
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phase 11R — paper research fast-fill rows.
+# Hard-isolated from strict engine. Append-only. NEVER references
+# paper_trade / paper_position / decision_log / paper_portfolio.
+# CHECK constraints encode isolation invariants.
+# ---------------------------------------------------------------------------
+
+class PaperResearchFill(Base):
+    __tablename__ = "paper_research_fill"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    source: Mapped[str] = mapped_column(
+        Text, nullable=False,
+        server_default=text("'research_fast_fill'"),
+    )
+    fill_model: Mapped[str] = mapped_column(
+        Text, nullable=False,
+        server_default=text("'same_day_research_v1'"),
+    )
+    label_version: Mapped[str] = mapped_column(
+        Text, nullable=False,
+        server_default=text("'research-fast-fill-v1.0.0'"),
+    )
+    ml_label_eligible: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("TRUE"),
+    )
+    strict_fill_model_used: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("FALSE"),
+    )
+
+    decision_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    as_of_date: Mapped[datetime.date] = mapped_column(
+        Date, nullable=False,
+    )
+    underlying: Mapped[str] = mapped_column(Text, nullable=False)
+    asset_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rule_id: Mapped[str] = mapped_column(Text, nullable=False)
+    engine: Mapped[str | None] = mapped_column(Text, nullable=True)
+    side: Mapped[str] = mapped_column(Text, nullable=False)
+
+    fill_price: Mapped[Decimal] = mapped_column(
+        Numeric(20, 6), nullable=False,
+    )
+    fill_price_source: Mapped[str] = mapped_column(
+        Text, nullable=False,
+    )
+    fill_ts: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    qty: Mapped[Decimal] = mapped_column(
+        Numeric(28, 10), nullable=False,
+    )
+
+    gate_snapshot: Mapped[dict] = mapped_column(
+        JSON_COL, nullable=False,
+        server_default=text("'{}'::jsonb"),
+    )
+    failed_gates: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False,
+        server_default=text("'{}'::text[]"),
+    )
+    audit_jsonl_path: Mapped[str | None] = mapped_column(
+        Text, nullable=True,
+    )
+    computed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now,
+        server_default=text("now()"),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source", "as_of_date", "underlying", "rule_id",
+            "side", "fill_model", "label_version",
+            name="uq_paper_research_fill_natural_key",
+        ),
+        Index(
+            "ix_paper_research_fill_as_of_date", "as_of_date",
+        ),
+        Index(
+            "ix_paper_research_fill_underlying", "underlying",
+        ),
+        # Isolation invariants — encoded at DB level.
+        CheckConstraint(
+            "source = 'research_fast_fill'",
+            name="ck_paper_research_fill_source",
+        ),
+        CheckConstraint(
+            "strict_fill_model_used = FALSE",
+            name="ck_paper_research_fill_strict_off",
+        ),
+        CheckConstraint(
+            "fill_price_source IN ('open','vwap','close')",
+            name="ck_paper_research_fill_price_source",
+        ),
+        CheckConstraint(
+            "side IN ('BUY','SELL')",
+            name="ck_paper_research_fill_side",
         ),
     )
 

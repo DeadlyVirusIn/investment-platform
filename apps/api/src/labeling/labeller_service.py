@@ -353,6 +353,107 @@ def run_equity(
     return n_inserted, n_skipped
 
 
+def _research_pending_rows(
+    session: Session, *, max_entry_date: dt.date,
+) -> list[dict]:
+    """Phase 11R - paper_research_fill rows not yet labeled with the
+    current label_version."""
+    cutoff = max_entry_date - dt.timedelta(days=PRIMARY_HORIZON)
+    rows = session.execute(text(
+        """
+        SELECT
+            r.id::text             AS id,
+            r.as_of_date           AS entry_date,
+            r.underlying           AS symbol,
+            r.rule_id              AS rule_id,
+            r.engine               AS engine,
+            r.fill_price           AS entry_price,
+            r.fill_price_source    AS fill_price_source,
+            r.failed_gates         AS failed_gates,
+            r.gate_snapshot        AS gate_snapshot,
+            r.label_version        AS source_label_version
+        FROM paper_research_fill r
+        LEFT JOIN paper_observation_label l
+          ON l.domain = 'equity'
+         AND l.options_observation_id = r.id::text
+         AND l.label_version = :lv
+        WHERE r.as_of_date <= :cutoff
+          AND r.source = 'research_fast_fill'
+          AND l.id IS NULL
+        ORDER BY r.as_of_date
+        """
+    ), {"cutoff": cutoff, "lv": LABEL_VERSION}).all()
+    return [dict(r._mapping) for r in rows]
+
+
+def run_research(
+    session: Session,
+    *,
+    cfg: LabellerConfig,
+) -> tuple[int, int]:
+    """Phase 11R - label paper_research_fill rows. Reuses the same
+    forward_returns math as equity/options. Tags with
+    source='research_fast_fill'. NEVER mutates paper_research_fill;
+    only inserts into paper_observation_label."""
+    pending = _research_pending_rows(
+        session, max_entry_date=cfg.as_of_date,
+    )
+    n_inserted = 0
+    n_skipped = 0
+    for obs in pending:
+        entry_price = obs.get("entry_price")
+        # forward prices come from price_bar (same path as equity)
+        _, by_horizon, window = _equity_forward_prices(
+            session, symbol=obs["symbol"], entry_date=obs["entry_date"],
+        )
+        # Use the research fill price as the entry price (preserves
+        # the same-day fill). Forward window uses underlying close
+        # bars from price_bar.
+        if entry_price is None:
+            entry_price = None
+        else:
+            entry_price = Decimal(str(entry_price))
+        label = label_for_observation(
+            entry_price=entry_price,
+            prices_by_horizon=by_horizon,
+            prices_full_window=window,
+            threshold_pct=cfg.threshold_pct,
+            primary_horizon=PRIMARY_HORIZON,
+        )
+        is_provisional = (
+            label["return_20d"] is None
+            or entry_price is None
+        )
+        ctx = obs.get("gate_snapshot") or {}
+        if isinstance(ctx, str):
+            try:
+                ctx = json.loads(ctx)
+            except Exception:  # noqa: BLE001
+                ctx = {}
+        # Reuse the existing options_observation_id slot to point at
+        # the research fill row (UNIQUE on (domain, options_observation_id,
+        # label_version) gives idempotency without a new column).
+        params = _build_label_row(
+            domain="equity",
+            source="research_fast_fill",
+            obs=obs,
+            entry_price=entry_price,
+            label=label,
+            is_provisional=is_provisional,
+            options_observation_id=obs["id"],
+            rule_id=obs.get("rule_id"),
+            failed_gates=obs.get("failed_gates") or [],
+            gate_snapshot=ctx if isinstance(ctx, dict) else {},
+        )
+        if cfg.commit:
+            r = session.execute(_INSERT_LABEL_SQL, params)
+            if r.rowcount and r.rowcount > 0:
+                n_inserted += 1
+            else:
+                n_skipped += 1
+    return n_inserted, n_skipped
+
+
 def run_options(
     session: Session,
     *,
@@ -487,6 +588,12 @@ def run(
             n_equity = ni + ns
             n_inserted += ni
             n_skipped += ns
+            # Phase 11R - research fast-fill rows live alongside equity
+            # observations and reuse the same forward-price source.
+            ni_r, ns_r = run_research(session, cfg=cfg)
+            n_equity += ni_r + ns_r
+            n_inserted += ni_r
+            n_skipped += ns_r
         if cfg.domain in ("options", "both"):
             ni, ns = run_options(session, cfg=cfg)
             n_options = ni + ns
