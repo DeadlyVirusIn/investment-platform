@@ -49,6 +49,71 @@ def options_health() -> dict[str, Any]:
     }
 
 
+@router.get("/pipeline-status")
+def options_pipeline_status(
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Honest read-only diagnostic for the options daily pipeline.
+
+    Phase 11W (incident fix): the WebUI must NOT show options as
+    silently running. This endpoint exposes the truth — no daily
+    options evaluator is scheduled; tables are empty or seeded only.
+    Returns counts + max dates; UI consumers should render an
+    explicit "Not yet scheduled" state when `active=false`.
+    """
+    from sqlalchemy import text
+
+    row = session.execute(text(
+        """
+        SELECT
+          (SELECT count(*) FROM options_chain_snapshot)
+            AS chain_snapshots,
+          (SELECT max(snapshot_at_utc)::date FROM options_chain_snapshot)
+            AS chain_max_date,
+          (SELECT count(*) FROM options_feature_daily)
+            AS features,
+          (SELECT max(as_of_date) FROM options_feature_daily)
+            AS feature_max_date,
+          (SELECT count(*) FROM options_paper_trade)
+            AS paper_trades,
+          (SELECT max(coalesce(opened_at, created_at))::date
+             FROM options_paper_trade)
+            AS paper_trade_max_date
+        """
+    )).mappings().first()
+    return {
+        "active": False,
+        "last_run": None,
+        "reason": (
+            "options evaluator not scheduled / not implemented. "
+            "No daily options job exists in worker registry, scheduler, "
+            "or run_daily_loop.sh. Existing rows are manual seeds only."
+        ),
+        "options_chain_snapshot_count": int(row["chain_snapshots"]),
+        "options_chain_snapshot_max_date": (
+            row["chain_max_date"].isoformat()
+            if row["chain_max_date"] else None
+        ),
+        "options_feature_daily_count": int(row["features"]),
+        "options_feature_daily_max_date": (
+            row["feature_max_date"].isoformat()
+            if row["feature_max_date"] else None
+        ),
+        "options_paper_trade_count": int(row["paper_trades"]),
+        "options_paper_trade_max_date": (
+            row["paper_trade_max_date"].isoformat()
+            if row["paper_trade_max_date"] else None
+        ),
+        "next_phase_required": (
+            "Phase Options-Daily — separate scope; not in stock "
+            "incident fix. Requires: ThetaData ingest scheduling, "
+            "options feature pipeline scheduling, options paper "
+            "evaluator runner, options run-log writer."
+        ),
+        "notice": PAPER_ONLY_NOTICE,
+    }
+
+
 @router.get("/symbols")
 def get_symbols(session: Session = Depends(get_session)) -> dict[str, Any]:
     return {
