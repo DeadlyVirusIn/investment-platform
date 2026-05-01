@@ -661,9 +661,9 @@ This Phase A audit is complete. By signing below, the operator confirms:
 6. The final validation in Section 6 is accepted.
 7. Phase B (schema-only, GET-only API, feature-flagged UI shell) may proceed once the operator sign-off line below is filled in.
 
-**Operator name:** _________________________________
-**Date:** _________________________________
-**Signature / commit hash:** _________________________________
+**Operator name:** Kunal Khurana
+**Date:** 2026-04-30
+**Signature / commit hash:** dfefe99 (Phase B implementation commit)
 
 ---
 
