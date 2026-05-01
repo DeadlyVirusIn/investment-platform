@@ -301,5 +301,21 @@ class Settings(BaseSettings):
     # this → status='cost_exceeded' written without invoking provider.
     RESEARCH_PROVIDER_MAX_COST_USD: float = 0.05
 
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase D.3) — Second real provider (Anthropic, default OFF)
+    # ------------------------------------------------------------------
+    # Default OFF in production. Resolver rejects 'anthropic' before
+    # any network call unless ENABLED=true AND API_KEY non-empty.
+    # Pricing constants live in the adapter; cost cap is enforced
+    # pre-flight by the manual_run orchestrator (same mechanism as
+    # gemini). Lazy SDK import — no anthropic dep is required at
+    # module-load time.
+    RESEARCH_ANTHROPIC_ENABLED: bool = False
+    RESEARCH_ANTHROPIC_API_KEY: str | None = None
+    RESEARCH_ANTHROPIC_MODEL: str = "claude-haiku-4-5"
+    RESEARCH_ANTHROPIC_TIMEOUT_SECONDS: int = 20
+    RESEARCH_ANTHROPIC_MAX_OUTPUT_TOKENS: int = 500
+    RESEARCH_ANTHROPIC_MAX_COST_USD: float = 0.05
+
 
 settings = Settings()

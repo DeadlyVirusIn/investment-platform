@@ -55,6 +55,10 @@ from apps.api.src.research.provider_base import (
     ProviderResult,
     ResearchProvider,
 )
+from apps.api.src.research.providers.anthropic_provider import (
+    AnthropicResearchProvider,
+    estimate_cost_usd as anthropic_estimate_cost_usd,
+)
 from apps.api.src.research.providers.gemini_provider import (
     GeminiResearchProvider,
     estimate_cost_usd as gemini_estimate_cost_usd,
@@ -114,9 +118,31 @@ def _resolve_provider(provider_name: str) -> ResearchProvider:
             timeout_seconds=settings.RESEARCH_PROVIDER_TIMEOUT_SECONDS,
             max_output_tokens=settings.RESEARCH_PROVIDER_MAX_OUTPUT_TOKENS,
         )
+    if provider_name == "anthropic":
+        if not settings.RESEARCH_ANTHROPIC_ENABLED:
+            raise ValueError(
+                "RESEARCH_ANTHROPIC_ENABLED=False; anthropic "
+                "provider blocked at resolver. Default OFF in prod."
+            )
+        if not settings.RESEARCH_ANTHROPIC_API_KEY:
+            raise ValueError(
+                "RESEARCH_ANTHROPIC_API_KEY missing; anthropic "
+                "provider blocked at resolver. Fail-closed."
+            )
+        return AnthropicResearchProvider(
+            api_key=settings.RESEARCH_ANTHROPIC_API_KEY,
+            model_id=settings.RESEARCH_ANTHROPIC_MODEL,
+            timeout_seconds=(
+                settings.RESEARCH_ANTHROPIC_TIMEOUT_SECONDS
+            ),
+            max_output_tokens=(
+                settings.RESEARCH_ANTHROPIC_MAX_OUTPUT_TOKENS
+            ),
+        )
     raise ValueError(
         f"unknown provider_name={provider_name!r}. Supported: "
-        f"'mock' (always); 'gemini' (when enabled + key present)."
+        f"'mock' (always); 'gemini' / 'anthropic' (each gated by "
+        f"its own enabled flag + API key)."
     )
 
 
@@ -276,13 +302,14 @@ def run_single_asset_context_note(
 
     provider = _resolve_provider(provider_name)
 
-    # Phase D.2 — cost-cap pre-check. Only applies to providers that
-    # carry a non-trivial cost. The mock provider's flat $0.0 cost
-    # short-circuits this check trivially. For gemini (and any
-    # future real provider) we estimate worst-case cost from prompt
+    # Phase D.2 / D.3 — cost-cap pre-check. Only applies to providers
+    # that carry a non-trivial cost. The mock provider's flat $0.0
+    # cost short-circuits this check trivially. For real providers
+    # (gemini, anthropic) we estimate worst-case cost from prompt
     # length + max output tokens BEFORE invoking the provider; over
     # cap → status='cost_exceeded', no provider call, no output row.
     run_id = str(uuid.uuid4())
+    cap_check: tuple[float, float, str, str] | None = None
     if isinstance(provider, GeminiResearchProvider):
         worst_case_cost = gemini_estimate_cost_usd(
             rendered_prompt=rendered_prompt,
@@ -290,7 +317,28 @@ def run_single_asset_context_note(
                 settings.RESEARCH_PROVIDER_MAX_OUTPUT_TOKENS
             ),
         )
-        max_cost = settings.RESEARCH_PROVIDER_MAX_COST_USD
+        cap_check = (
+            worst_case_cost,
+            settings.RESEARCH_PROVIDER_MAX_COST_USD,
+            GeminiResearchProvider.MODEL_ID,
+            GeminiResearchProvider.MODEL_VERSION,
+        )
+    elif isinstance(provider, AnthropicResearchProvider):
+        worst_case_cost = anthropic_estimate_cost_usd(
+            rendered_prompt=rendered_prompt,
+            max_output_tokens=(
+                settings.RESEARCH_ANTHROPIC_MAX_OUTPUT_TOKENS
+            ),
+        )
+        cap_check = (
+            worst_case_cost,
+            settings.RESEARCH_ANTHROPIC_MAX_COST_USD,
+            provider.model_id,
+            AnthropicResearchProvider.MODEL_VERSION,
+        )
+
+    if cap_check is not None:
+        worst_case_cost, max_cost, model_id, model_version = cap_check
         if worst_case_cost > max_cost:
             _insert_run_row(
                 session,
@@ -301,8 +349,8 @@ def run_single_asset_context_note(
                 prompt_bundle_hash=prompt_bundle_hash,
                 input_snapshot_hash=input_snapshot_hash,
                 provider=provider_name,
-                model_id=GeminiResearchProvider.MODEL_ID,
-                model_version=GeminiResearchProvider.MODEL_VERSION,
+                model_id=model_id,
+                model_version=model_version,
                 prompt_hash=prompt_hash,
                 tokens_in=0,
                 tokens_out=0,

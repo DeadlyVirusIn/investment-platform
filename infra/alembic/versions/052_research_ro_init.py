@@ -338,8 +338,15 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Drop everything created by upgrade(). Reversible."""
-    # Roles first lose grants, then schema, then types, then roles.
+    """Drop everything created by upgrade(). Reversible.
+
+    Uses `DROP OWNED BY ... CASCADE` to comprehensively revoke
+    every grant, default privilege, and ownership held by the
+    research roles before dropping them. This is more robust than
+    enumerating individual REVOKE statements, especially when
+    repeated upgrade/downgrade cycles (e.g., test sessions) leave
+    stale default privileges behind.
+    """
     op.execute(
         """
         DO $$
@@ -347,33 +354,17 @@ def downgrade() -> None:
             IF EXISTS (
                 SELECT FROM pg_catalog.pg_roles WHERE rolname='research_writer'
             ) THEN
-                REVOKE ALL ON ALL TABLES IN SCHEMA research_ro
-                    FROM research_writer;
-                REVOKE ALL ON ALL SEQUENCES IN SCHEMA research_ro
-                    FROM research_writer;
-                REVOKE ALL ON SCHEMA research_ro FROM research_writer;
-                REVOKE ALL ON public.candidate_idea FROM research_writer;
-                REVOKE ALL ON public.context_daily FROM research_writer;
-                REVOKE ALL ON ALL TABLES IN SCHEMA public FROM research_writer;
+                EXECUTE 'DROP OWNED BY research_writer CASCADE';
             END IF;
             IF EXISTS (
                 SELECT FROM pg_catalog.pg_roles WHERE rolname='research_reader'
             ) THEN
-                REVOKE ALL ON ALL TABLES IN SCHEMA research_ro
-                    FROM research_reader;
-                REVOKE ALL ON SCHEMA research_ro FROM research_reader;
+                EXECUTE 'DROP OWNED BY research_reader CASCADE';
             END IF;
         END
         $$
         """
     )
-    op.execute("DROP TABLE IF EXISTS research_ro.research_checkpoint")
-    op.execute("DROP TABLE IF EXISTS research_ro.research_reflection")
-    op.execute("DROP TABLE IF EXISTS research_ro.research_debate_summary")
-    op.execute("DROP TABLE IF EXISTS research_ro.research_agent_output")
-    op.execute("DROP TABLE IF EXISTS research_ro.research_run")
-    op.execute("DROP TYPE IF EXISTS research_ro.research_agent_role")
-    op.execute("DROP TYPE IF EXISTS research_ro.research_run_status")
     op.execute("DROP SCHEMA IF EXISTS research_ro CASCADE")
     op.execute(
         """
