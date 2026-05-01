@@ -317,5 +317,20 @@ class Settings(BaseSettings):
     RESEARCH_ANTHROPIC_MAX_OUTPUT_TOKENS: int = 500
     RESEARCH_ANTHROPIC_MAX_COST_USD: float = 0.05
 
+    # ------------------------------------------------------------------
+    # PHASE 11X.2 — Controlled pilot paper execution (safe-gate evolution)
+    # ------------------------------------------------------------------
+    # Tightly-scoped paper-only path that opens at most ONE 0.25× sized
+    # paper trade per day, gated by the existing safe_gate_evolution_shadow
+    # diagnostic. NEVER live, NEVER broker, NEVER options. Default OFF.
+    # Rollback = set this flag to false and restart.
+    SAFE_GATE_EVOLUTION_PILOT_EXECUTION: bool = False
+    SAFE_GATE_EVOLUTION_PILOT_MAX_TRADES_PER_DAY: int = 1
+    SAFE_GATE_EVOLUTION_PILOT_SIZE_MULTIPLIER: float = 0.25
+    SAFE_GATE_EVOLUTION_PILOT_MIN_MACRO_FAVORABLE: int = 1
+    # Notional dollars per pilot trade BEFORE size multiplier.
+    # Final qty = (notional × multiplier) / fill_price.
+    SAFE_GATE_EVOLUTION_PILOT_NOTIONAL_USD: float = 1000.0
+
 
 settings = Settings()
