@@ -190,6 +190,23 @@ run_job "ml_hybrid_monitor_nightly" "required" \
 run_job "shadow_strategy_tsmom60_no_stress" "optional" \
     "${PYTHON_BIN}" -m scripts.run_shadow_strategy
 
+# 5b. Phase 11X — safe_gate_evolution_shadow diagnostic. Read-only.
+# NEVER writes to paper_trade / paper_run_log / candidate_idea.
+# Records one row per day in safe_gate_evolution_shadow indicating
+# whether a controlled partial-gate pilot WOULD have opened a
+# paper position. Optional / non-blocking.
+SHADOW_DATE=""
+if [[ -f /tmp/latest_bar_date ]]; then
+    SHADOW_DATE=$(cat /tmp/latest_bar_date 2>/dev/null | head -c 32)
+fi
+if [[ -n "${SHADOW_DATE}" ]]; then
+    run_job "safe_gate_evolution_shadow" "optional" \
+        "${PYTHON_BIN}" -m scripts.run_safe_gate_evolution_shadow \
+        --as-of "${SHADOW_DATE}"
+else
+    log "SKIP safe_gate_evolution_shadow (no /tmp/latest_bar_date)"
+fi
+
 # 5-6. Optional calibration refresh jobs were removed — audit 2026-04-24
 # flagged that no `alpha_calibration_nightly` / `context_calibration_nightly`
 # modules exist. Calibration is driven by alpha_nightly (which already ran
