@@ -277,5 +277,29 @@ class Settings(BaseSettings):
     # later-phase decision gated by its own audit + operator approval.
     RESEARCH_RO_ENABLED: bool = False
 
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase D.2) — Real provider adapter (default OFF)
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF in production. When False, the resolver
+    # rejects any provider_name other than 'mock' BEFORE any network
+    # call. Flipping requires operator-explicit env var + an API key.
+    # All knobs below are belt-and-suspenders: cost cap, timeout, and
+    # max output tokens are enforced before the provider is invoked.
+    RESEARCH_REAL_PROVIDER_ENABLED: bool = False
+    # Default provider for the manual run path. 'mock' is always
+    # available; 'gemini' requires the flag above + an API key.
+    RESEARCH_PROVIDER_NAME: str = "mock"
+    # Gemini API key. None / empty blocks the provider before any
+    # network call, even when RESEARCH_REAL_PROVIDER_ENABLED=true.
+    RESEARCH_GEMINI_API_KEY: str | None = None
+    # Hard timeout per provider call. Exceeded → provider_error.
+    RESEARCH_PROVIDER_TIMEOUT_SECONDS: int = 20
+    # Hard ceiling on output tokens we will request. Used in cost
+    # estimation BEFORE the provider call.
+    RESEARCH_PROVIDER_MAX_OUTPUT_TOKENS: int = 500
+    # Hard ceiling on worst-case estimated cost per single run. Over
+    # this → status='cost_exceeded' written without invoking provider.
+    RESEARCH_PROVIDER_MAX_COST_USD: float = 0.05
+
 
 settings = Settings()

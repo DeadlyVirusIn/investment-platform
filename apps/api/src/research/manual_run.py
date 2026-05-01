@@ -38,6 +38,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from apps.api.src.config import settings
 from apps.api.src.research.input_snapshot import build_input_snapshot
 from apps.api.src.research.prompts import (
     PROMPT_TEMPLATE_ID,
@@ -53,6 +54,10 @@ from apps.api.src.research.provider_base import (
     ProviderError,
     ProviderResult,
     ResearchProvider,
+)
+from apps.api.src.research.providers.gemini_provider import (
+    GeminiResearchProvider,
+    estimate_cost_usd as gemini_estimate_cost_usd,
 )
 from apps.api.src.research.providers.mock_provider import (
     MockResearchProvider,
@@ -70,7 +75,7 @@ PHASE_D1_PROMPT_BUNDLE_VERSION: Final[str] = "single-asset-v1.0.0"
 
 
 RunStatus = Literal[
-    "succeeded", "token_violation", "provider_error",
+    "succeeded", "token_violation", "provider_error", "cost_exceeded",
 ]
 
 
@@ -87,15 +92,31 @@ class ResearchRunResult:
 
 
 def _resolve_provider(provider_name: str) -> ResearchProvider:
-    """Phase D.1: only the deterministic mock is registered. Any
-    other name raises so we can't accidentally route to a real LLM
-    by typo."""
+    """Phase D.2: 'mock' is always available. 'gemini' requires
+    BOTH `RESEARCH_REAL_PROVIDER_ENABLED=True` AND a non-empty
+    `RESEARCH_GEMINI_API_KEY`. All other names raise so a typo
+    cannot route to a real LLM."""
     if provider_name == "mock":
         return MockResearchProvider()
+    if provider_name == "gemini":
+        if not settings.RESEARCH_REAL_PROVIDER_ENABLED:
+            raise ValueError(
+                "RESEARCH_REAL_PROVIDER_ENABLED=False; gemini "
+                "provider blocked at resolver. Default OFF in prod."
+            )
+        if not settings.RESEARCH_GEMINI_API_KEY:
+            raise ValueError(
+                "RESEARCH_GEMINI_API_KEY missing; gemini provider "
+                "blocked at resolver. Fail-closed."
+            )
+        return GeminiResearchProvider(
+            api_key=settings.RESEARCH_GEMINI_API_KEY,
+            timeout_seconds=settings.RESEARCH_PROVIDER_TIMEOUT_SECONDS,
+            max_output_tokens=settings.RESEARCH_PROVIDER_MAX_OUTPUT_TOKENS,
+        )
     raise ValueError(
-        f"Phase D.1 supports only provider_name='mock', got "
-        f"{provider_name!r}. Real-LLM providers require a separate "
-        f"approval gate."
+        f"unknown provider_name={provider_name!r}. Supported: "
+        f"'mock' (always); 'gemini' (when enabled + key present)."
     )
 
 
@@ -255,8 +276,56 @@ def run_single_asset_context_note(
 
     provider = _resolve_provider(provider_name)
 
-    # Resolve provider; on failure, persist provider_error.
+    # Phase D.2 — cost-cap pre-check. Only applies to providers that
+    # carry a non-trivial cost. The mock provider's flat $0.0 cost
+    # short-circuits this check trivially. For gemini (and any
+    # future real provider) we estimate worst-case cost from prompt
+    # length + max output tokens BEFORE invoking the provider; over
+    # cap → status='cost_exceeded', no provider call, no output row.
     run_id = str(uuid.uuid4())
+    if isinstance(provider, GeminiResearchProvider):
+        worst_case_cost = gemini_estimate_cost_usd(
+            rendered_prompt=rendered_prompt,
+            max_output_tokens=(
+                settings.RESEARCH_PROVIDER_MAX_OUTPUT_TOKENS
+            ),
+        )
+        max_cost = settings.RESEARCH_PROVIDER_MAX_COST_USD
+        if worst_case_cost > max_cost:
+            _insert_run_row(
+                session,
+                run_id=run_id,
+                symbol=symbol,
+                as_of=as_of,
+                candidate_idea_id=candidate_idea_id,
+                prompt_bundle_hash=prompt_bundle_hash,
+                input_snapshot_hash=input_snapshot_hash,
+                provider=provider_name,
+                model_id=GeminiResearchProvider.MODEL_ID,
+                model_version=GeminiResearchProvider.MODEL_VERSION,
+                prompt_hash=prompt_hash,
+                tokens_in=0,
+                tokens_out=0,
+                cost_usd=worst_case_cost,
+                status="cost_exceeded",
+                operator_id=operator_id,
+                error_code="cost_exceeded",
+                error_message=(
+                    f"estimated ${worst_case_cost:.6f} > cap "
+                    f"${max_cost:.6f}"
+                ),
+            )
+            session.commit()
+            return ResearchRunResult(
+                run_id=run_id,
+                status="cost_exceeded",
+                input_snapshot_hash=input_snapshot_hash,
+                prompt_hash=prompt_hash,
+                body_hash=None,
+                agent_output_id=None,
+            )
+
+    # Call provider; on failure, persist provider_error.
     try:
         result = provider.generate(
             rendered_prompt,
