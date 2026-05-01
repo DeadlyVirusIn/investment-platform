@@ -267,5 +267,15 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     EQUITY_EXPLORATORY_ENABLED: bool = False
 
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase B) — Research Intelligence + Audit Layer
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF in production. When False, the read-only
+    # /api/research/* router is NOT mounted (routes 404). Phase B ships
+    # only schema + GET-only stubs + feature-flagged UI shell. Flipping
+    # to True is permitted in dev/test only; production flip is a
+    # later-phase decision gated by its own audit + operator approval.
+    RESEARCH_RO_ENABLED: bool = False
+
 
 settings = Settings()
