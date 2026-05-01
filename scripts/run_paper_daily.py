@@ -154,17 +154,25 @@ def _read_gates_from_context_daily(
 ) -> dict[str, bool] | None:
     """Read the four production gate booleans from context_daily.
 
-    Lookup rule: the latest row at as_of_date <= target_date for each
-    name (handles weekends / data lag). Returns None when ANY of the
-    four names has no row at or before target_date — caller falls back
-    to build_gates() in that case.
+    Phase 11Z behavior:
+      * Only rows with `status='production'` are treated as "fit
+        for trading" booleans. Rows with status in
+        {`insufficient_data`,`missing_data`,`stale_data`} are
+        treated as `unknown` — they are NOT counted as favorable
+        and they are NOT counted as failed gates either.
+      * The four gates must each have ANY row at or before
+        target_date (production OR unknown). If any of the four
+        names has no row at all, returns None and the caller falls
+        back to build_gates().
+      * Returns a dict mapping each gate to True / False / None.
+        `None` means the latest row was an unknown-status diagnostic
+        record (from a Phase 11Z-aware backfill).
 
-    Read-only. Never queries future dates. Never writes.
-    """
+    Read-only. Never queries future dates. Never writes."""
     rows = session.execute(text(
         """
         SELECT DISTINCT ON (context_name)
-               context_name, value_bool
+               context_name, status, value_bool
         FROM context_daily
         WHERE context_name = ANY(:names)
           AND as_of_date <= :run_date
@@ -174,10 +182,43 @@ def _read_gates_from_context_daily(
         "names": list(PRODUCTION_GATE_NAMES),
         "run_date": target_date,
     }).all()
-    by_name = {r.context_name: bool(r.value_bool) for r in rows}
+    by_name: dict[str, bool | None] = {}
+    for r in rows:
+        if r.status == "production":
+            by_name[r.context_name] = (
+                bool(r.value_bool) if r.value_bool is not None else None
+            )
+        else:
+            # insufficient_data / missing_data / stale_data → unknown.
+            by_name[r.context_name] = None
     if not all(g in by_name for g in PRODUCTION_GATE_NAMES):
         return None
     return {g: by_name[g] for g in PRODUCTION_GATE_NAMES}
+
+
+def _read_gate_statuses_from_context_daily(
+    session: Session, target_date: dt.date,
+) -> dict[str, str]:
+    """Phase 11Z — surface per-gate status distinct from value.
+    Used by paper_run_log diagnostics to split `failed_gates` from
+    `unknown_gates`. Status `'production'` here means the gate has
+    a real True/False; anything else is unknown semantics.
+    Returns `{gate_name: status_str}` for every gate that has any
+    row at or before target_date."""
+    rows = session.execute(text(
+        """
+        SELECT DISTINCT ON (context_name)
+               context_name, status
+        FROM context_daily
+        WHERE context_name = ANY(:names)
+          AND as_of_date <= :run_date
+        ORDER BY context_name, as_of_date DESC
+        """
+    ), {
+        "names": list(PRODUCTION_GATE_NAMES),
+        "run_date": target_date,
+    }).all()
+    return {r.context_name: r.status for r in rows}
 
 
 def step_compute_features_and_context(
@@ -199,14 +240,16 @@ def step_compute_features_and_context(
     row_gate = gates.loc[target_date]
     p15_today = bool(p15.loc[target_date])
 
-    # Phase 11U.fix - prefer context_daily values for the four
+    # Phase 11U.fix / 11Z - prefer context_daily values for the four
     # production gates; fall back to build_gates() output when ANY
-    # gate row is missing for target_date or earlier. Macro backfill
-    # (Phase 11P) writes context_daily; this read keeps the engine
-    # aligned with the same data source. Gate definitions and
-    # thresholds are unchanged — only the source-of-truth is
-    # consolidated.
+    # gate row is missing for target_date or earlier. Phase 11Z:
+    # context_daily values may now be `None` when the underlying
+    # input data was missing/insufficient/stale. Treat None as
+    # not-favorable (False for the gates_favorable count) but
+    # surface the distinction in `bundle` so paper_run_log can
+    # split failed_gates vs unknown_gates.
     gates_source: str = "build_gates"
+    gate_statuses: dict[str, str] = {}
     db_gates = _read_gates_from_context_daily(session, target_date)
     if db_gates is not None:
         rc_today  = db_gates["rates_calm"]
@@ -214,6 +257,9 @@ def step_compute_features_and_context(
         cs_today  = db_gates["credit_stable"]
         le_today  = db_gates["liquidity_expanding"]
         gates_source = "context_daily"
+        gate_statuses = _read_gate_statuses_from_context_daily(
+            session, target_date,
+        )
     else:
         cs_today  = bool(row_gate["credit_stable"])
         rc_today  = bool(row_gate["rates_calm"])
@@ -224,7 +270,30 @@ def step_compute_features_and_context(
             "row missing", target_date,
         )
 
-    gf = int(rc_today) + int(vrp_today) + int(cs_today) + int(le_today)
+    # Phase 11Z — None gates do NOT count as favorable, and they are
+    # NOT counted as failed economically. Selector still treats them
+    # conservatively (favorable_count only counts True). Trading
+    # logic is unchanged (favorable_count drives stress/directional
+    # classification exactly as before).
+    def _truthy(v: bool | None) -> int:
+        return 1 if v is True else 0
+    gf = (
+        _truthy(rc_today) + _truthy(vrp_today)
+        + _truthy(cs_today) + _truthy(le_today)
+    )
+
+    failed_gates: list[str] = []
+    unknown_gates: list[str] = []
+    for nm, val in (
+        ("rates_calm", rc_today),
+        ("vrp_supportive", vrp_today),
+        ("credit_stable", cs_today),
+        ("liquidity_expanding", le_today),
+    ):
+        if val is False:
+            failed_gates.append(nm)
+        elif val is None:
+            unknown_gates.append(nm)
 
     # Production context (immutable)
     prod_ctx = classify_production_context(gates_favorable=gf)
@@ -250,6 +319,9 @@ def step_compute_features_and_context(
         "production_context": prod_ctx,
         "target_date": target_date,
         "gates_source": gates_source,
+        "failed_gates": failed_gates,    # Phase 11Z
+        "unknown_gates": unknown_gates,  # Phase 11Z
+        "gate_statuses": gate_statuses,  # Phase 11Z
         "entry_price_open": float(feat["open"].shift(-1).loc[target_date])
             if target_date != feat.index[-1] else None,
     }
@@ -1048,6 +1120,23 @@ def main() -> int:
                     "gates_total":  (enriched.gates_total
                                        if enriched else None),
                     "gates_failed": gates_failed,
+                    # Phase 11Z — split failed gates (computed FALSE)
+                    # from unknown gates (input was missing /
+                    # insufficient / stale). `gates_failed` above is
+                    # selector-level (rule-based fail), the next two
+                    # are macro-input-level diagnostics.
+                    "macro_failed_gates": (
+                        list(bundle.get("failed_gates") or [])
+                        if isinstance(bundle, dict) else []
+                    ),
+                    "macro_unknown_gates": (
+                        list(bundle.get("unknown_gates") or [])
+                        if isinstance(bundle, dict) else []
+                    ),
+                    "macro_gate_statuses": (
+                        dict(bundle.get("gate_statuses") or {})
+                        if isinstance(bundle, dict) else {}
+                    ),
                     "entry_price_source": r_e.counts.get(
                         "entry_price_source"
                     ),
