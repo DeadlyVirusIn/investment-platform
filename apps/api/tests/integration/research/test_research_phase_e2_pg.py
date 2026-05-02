@@ -72,6 +72,9 @@ def client(monkeypatch, pg_engine):
     monkeypatch.setattr(settings, "RESEARCH_RO_ENABLED", True)
     monkeypatch.setattr(settings, "RESEARCH_MANUAL_RUN_ENABLED", False)
     monkeypatch.setattr(settings, "RESEARCH_ADMIN_TOKEN", "")
+    # Phase F.1 — pre-date tier stripping; default to enterprise so
+    # existing payload-shape assertions pass.
+    monkeypatch.setattr(settings, "RESEARCH_PREMIUM_TIER", "enterprise")
     from sqlalchemy.orm import Session, sessionmaker
     test_session = sessionmaker(
         bind=pg_engine, class_=Session, expire_on_commit=False,

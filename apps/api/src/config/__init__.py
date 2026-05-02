@@ -444,5 +444,14 @@ class Settings(BaseSettings):
     # has returned to `clear`.
     RESEARCH_ALERT_AUTO_RESOLVE_HOURS: int = 24
 
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase F.1) — Premium UX tier (read-only)
+    # ------------------------------------------------------------------
+    # Server-side default tier. Resolves the caller's tier when no
+    # X-Research-Tier header is provided. Default `free`. NEVER
+    # auto-elevates a caller. NOT a billing system — temporary
+    # config-driven gate until a real entitlement system lands.
+    RESEARCH_PREMIUM_TIER: str = "free"
+
 
 settings = Settings()

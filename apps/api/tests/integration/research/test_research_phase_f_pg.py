@@ -78,6 +78,9 @@ def client(monkeypatch, pg_engine):
     monkeypatch.setattr(settings, "RESEARCH_RO_ENABLED", True)
     monkeypatch.setattr(settings, "RESEARCH_MANUAL_RUN_ENABLED", False)
     monkeypatch.setattr(settings, "RESEARCH_ADMIN_TOKEN", "")
+    # Phase F.1 — tests pre-date tier stripping; default to enterprise
+    # so existing payload-shape assertions pass.
+    monkeypatch.setattr(settings, "RESEARCH_PREMIUM_TIER", "enterprise")
     # Bind the app's SessionLocal to the test DB engine so the route
     # handlers see the seeded research_ro rows.
     from sqlalchemy.orm import Session, sessionmaker
@@ -160,7 +163,8 @@ def test_runs_endpoint_returns_empty_shape_when_no_data(session, client):
     r = client.get("/api/research/runs")
     assert r.status_code == 200
     j = r.json()
-    assert j == {"runs": [], "next_cursor": None}
+    assert j["runs"] == []
+    assert j["next_cursor"] is None
 
 
 def test_runs_endpoint_surfaces_real_data(session, client):
@@ -216,7 +220,8 @@ def test_ticker_latest_empty_state(client):
     r = client.get("/api/research/ticker/NOSUCH/latest")
     assert r.status_code == 200
     j = r.json()
-    assert j == {"symbol": "NOSUCH", "run": None}
+    assert j["symbol"] == "NOSUCH"
+    assert j["run"] is None
 
 
 def test_ticker_latest_returns_most_recent(session, client):

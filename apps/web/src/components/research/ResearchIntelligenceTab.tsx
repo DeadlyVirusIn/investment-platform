@@ -6,10 +6,12 @@
 
 import { useEffect, useState } from 'react';
 import { scanForbiddenTokens } from '../../lib/research/forbiddenTokens';
+import { getResearchTier, tierFetch } from '../../lib/research/tier';
 import ResearchBanner from './ResearchBanner';
 import ResearchByline from './ResearchByline';
 import ResearchSafetyFailure from './ResearchSafetyFailure';
 import FreshnessBadge from './FreshnessBadge';
+import ResearchLockedPreview from './ResearchLockedPreview';
 
 interface RunRow {
   id: string;
@@ -59,20 +61,14 @@ export default function ResearchIntelligenceTab(
       };
     }
     setLoading(true);
-    fetch(`/api/research/ticker/${encodeURIComponent(symbol)}/latest`, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    })
+    tierFetch(`/api/research/ticker/${encodeURIComponent(symbol)}/latest`)
       .then((r) => r.json())
       .then((j) => {
         if (cancelled) return;
         const run = j?.run ?? null;
         setLatestRun(run);
         if (run?.id) {
-          return fetch(`/api/research/runs/${encodeURIComponent(run.id)}`, {
-            method: 'GET',
-            headers: { Accept: 'application/json' },
-          })
+          return tierFetch(`/api/research/runs/${encodeURIComponent(run.id)}`)
             .then((rr) => rr.json())
             .then((dd) => {
               if (!cancelled) setDetail(dd);
@@ -94,8 +90,9 @@ export default function ResearchIntelligenceTab(
     };
   }, [symbol]);
 
+  const tier = getResearchTier();
   return (
-    <div className="research-intelligence-tab">
+    <div className="research-intelligence-tab" data-tier={tier}>
       <ResearchBanner context="tab" />
       {loading && <EmptyState text="Loading research artifacts…" />}
       {!loading && !latestRun && (
@@ -105,9 +102,40 @@ export default function ResearchIntelligenceTab(
             : 'No research runs yet for this asset.'
         } />
       )}
-      {!loading && latestRun && (
+      {!loading && latestRun && tier === 'free' && (
+        <>
+          <RunHeader run={latestRun} />
+          <ResearchLockedPreview variant="full_note" />
+        </>
+      )}
+      {!loading && latestRun && tier !== 'free' && (
         <RunSection run={latestRun} detail={detail} />
       )}
+    </div>
+  );
+}
+
+
+function RunHeader({ run }: { run: RunRow }) {
+  return (
+    <div style={{ padding: '12px 8px' }}>
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8,
+      }}>
+        <span style={{ fontSize: 13, color: '#424242' }}>
+          Latest research note generated
+        </span>
+        <FreshnessBadge isoTimestamp={run.started_at} />
+      </div>
+      <ResearchByline
+        provider={run.provider}
+        modelId={run.model_id}
+        modelVersion={run.model_version}
+        promptHash={run.prompt_hash}
+        asOf={run.as_of}
+        startedAt={run.started_at}
+        operatorId={run.operator_id}
+      />
     </div>
   );
 }

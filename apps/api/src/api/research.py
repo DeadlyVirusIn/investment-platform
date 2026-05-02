@@ -31,10 +31,19 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import text
 
 from apps.api.src.db import SessionLocal
+from apps.api.src.research.premium_tier import (
+    strip_audit_or_alert_for_tier,
+    strip_operators_payload,
+    strip_run_detail_payload,
+    strip_run_payload,
+    strip_ticker_latest_payload,
+    strip_usage_summary_payload,
+    tier_dep,
+)
 
 
 router = APIRouter(prefix="/research", tags=["research"])
@@ -122,10 +131,9 @@ def list_runs(
     cursor: str | None = None,
     limit: int = 20,
     symbol: str | None = None,
+    tier: str = Depends(tier_dep),
 ) -> dict[str, Any]:
-    """Read recent research_run rows. When the table is empty (Phase
-    B / no orchestration enabled), returns the documented empty
-    shape so existing UI consumers continue to work."""
+    """Read recent research_run rows. Phase F.1: tier-stripped."""
     if limit < 1 or limit > 200:
         raise HTTPException(400, "limit must be 1..200")
     with SessionLocal() as s:
@@ -146,14 +154,22 @@ def list_runs(
             LIMIT :lim
             """
         ), params).mappings().all()
+    runs = [
+        strip_run_payload(_row_to_run_payload(dict(r)), tier=tier)
+        for r in rows
+    ]
     return {
-        "runs": [_row_to_run_payload(dict(r)) for r in rows],
+        "runs": runs,
         "next_cursor": None,
+        "tier": tier,
     }
 
 
 @router.get("/runs/{run_id}")
-def get_run(run_id: str) -> dict[str, Any]:
+def get_run(
+    run_id: str,
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """Detail view: run + its agent outputs. Each output body is
     safety-filtered before return."""
     try:
@@ -187,14 +203,20 @@ def get_run(run_id: str) -> dict[str, Any]:
             ORDER BY sequence_no ASC
             """
         ), {"id": run_id}).mappings().all()
-    return {
+    raw_payload = {
         "run": _row_to_run_payload(dict(run_row)),
         "outputs": [_agent_output_to_payload(dict(o)) for o in outputs],
     }
+    stripped = strip_run_detail_payload(raw_payload, tier=tier)
+    stripped["tier"] = tier
+    return stripped
 
 
 @router.get("/ticker/{symbol}/latest")
-def latest_run_for_ticker(symbol: str) -> dict[str, Any]:
+def latest_run_for_ticker(
+    symbol: str,
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """Latest research_run for a ticker. Returns `{run: null}` when
     there is no row — UI uses this to show its empty state."""
     sym = (symbol or "").strip().upper()
@@ -214,12 +236,21 @@ def latest_run_for_ticker(symbol: str) -> dict[str, Any]:
             """
         ), {"sym": sym}).mappings().first()
     if row is None:
-        return {"symbol": sym, "run": None}
-    return {"symbol": sym, "run": _row_to_run_payload(dict(row))}
+        return {"symbol": sym, "run": None, "tier": tier}
+    raw_payload = {
+        "symbol": sym,
+        "run": _row_to_run_payload(dict(row)),
+    }
+    stripped = strip_ticker_latest_payload(raw_payload, tier=tier)
+    stripped["tier"] = tier
+    return stripped
 
 
 @router.get("/decision/{decision_id}")
-def runs_for_decision(decision_id: str) -> dict[str, Any]:
+def runs_for_decision(
+    decision_id: str,
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """All runs tagged with a given decision_id."""
     with SessionLocal() as s:
         rows = s.execute(text(
@@ -235,7 +266,11 @@ def runs_for_decision(decision_id: str) -> dict[str, Any]:
         ), {"did": decision_id}).mappings().all()
     return {
         "decision_id": decision_id,
-        "runs": [_row_to_run_payload(dict(r)) for r in rows],
+        "runs": [
+            strip_run_payload(_row_to_run_payload(dict(r)), tier=tier)
+            for r in rows
+        ],
+        "tier": tier,
     }
 
 
@@ -245,7 +280,10 @@ def runs_for_decision(decision_id: str) -> dict[str, Any]:
 
 
 @router.get("/usage")
-def get_usage(operator_id: str | None = None) -> dict[str, Any]:
+def get_usage(
+    operator_id: str | None = None,
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """Phase F: usage rollup, optionally scoped to a single operator.
     Reads `research_manual_run_audit` and `research_run`. Counts
     runs/rejections today; never returns raw bodies."""
@@ -281,6 +319,16 @@ def get_usage(operator_id: str | None = None) -> dict[str, Any]:
                     "in_flight": 0, "errored": 0, "cost_usd_today": 0.0,
                 },
             }
+    if tier != "enterprise":
+        return {
+            "operator_id": operator_id,
+            "audit_table": "tier_below_enterprise",
+            "summary": {
+                "accepted": 0, "duplicate": 0, "rejected": 0,
+                "in_flight": 0, "errored": 0, "cost_usd_today": 0.0,
+            },
+            "tier": tier,
+        }
     return {
         "operator_id": operator_id,
         "audit_table": "present",
@@ -292,6 +340,7 @@ def get_usage(operator_id: str | None = None) -> dict[str, Any]:
             "errored": int(rows["errored"] or 0),
             "cost_usd_today": float(rows["cost_usd_today"] or 0.0),
         },
+        "tier": tier,
     }
 
 
@@ -299,6 +348,7 @@ def get_usage(operator_id: str | None = None) -> dict[str, Any]:
 def list_alerts(
     limit: int = 50, severity: str | None = None,
     status: str | None = None, operator_id: str | None = None,
+    tier: str = Depends(tier_dep),
 ) -> dict[str, Any]:
     """Phase E.2: open alerts ledger. GET-only. Metadata is sanitized
     by the writer (`emit_alert` strips body/raw fields)."""
@@ -330,7 +380,15 @@ def list_alerts(
                 """
             ), params).mappings().all()
         except Exception:  # noqa: BLE001
-            return {"alerts_table": "absent", "alerts": []}
+            return {
+                "alerts_table": "absent", "alerts": [],
+                "tier": tier,
+            }
+    if tier != "enterprise":
+        return {
+            "alerts_table": "tier_below_enterprise",
+            "alerts": [], "tier": tier,
+        }
     return {
         "alerts_table": "present",
         "alerts": [
@@ -354,6 +412,7 @@ def list_alerts(
             }
             for r in rows
         ],
+        "tier": tier,
     }
 
 
@@ -409,8 +468,11 @@ _OPERATOR_COLUMNS_SQL = """
 
 
 @router.get("/operators")
-def list_operators() -> dict[str, Any]:
-    """Phase E.2 + E.3: per-operator enforcement state. GET-only."""
+def list_operators(
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
+    """Phase E.2 + E.3 + F.1: per-operator enforcement state.
+    Enterprise-only payload; lower tiers receive an empty list."""
     with SessionLocal() as s:
         try:
             rows = s.execute(text(
@@ -422,15 +484,24 @@ def list_operators() -> dict[str, Any]:
                   " updated_at DESC"
             )).mappings().all()
         except Exception:  # noqa: BLE001
-            return {"operators_table": "absent", "operators": []}
-    return {
+            return {
+                "operators_table": "absent", "operators": [],
+                "tier": tier,
+            }
+    payload = {
         "operators_table": "present",
         "operators": [_operator_payload(dict(r)) for r in rows],
     }
+    payload = strip_operators_payload(payload, tier=tier)
+    payload["tier"] = tier
+    return payload
 
 
 @router.get("/operators/{operator_id}")
-def get_operator(operator_id: str) -> dict[str, Any]:
+def get_operator(
+    operator_id: str,
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """Phase E.3: single operator detail with cooldown metadata."""
     with SessionLocal() as s:
         row = s.execute(text(
@@ -451,6 +522,9 @@ def get_operator(operator_id: str) -> dict[str, Any]:
             "SELECT count(*) FROM research_ro.research_alert "
             "WHERE operator_id = :op AND status = 'open'"
         ), {"op": operator_id}).scalar() or 0)
+    if tier != "enterprise":
+        # Free + Pro: refuse to expose operator detail.
+        raise HTTPException(404, "operator detail unavailable for this tier")
     payload = _operator_payload(dict(row))
     payload["open_alert_count"] = n_open
     payload["last_alert"] = (
@@ -467,11 +541,14 @@ def get_operator(operator_id: str) -> dict[str, Any]:
         }
         if last_alert else None
     )
+    payload["tier"] = tier
     return payload
 
 
 @router.get("/usage/summary")
-def get_usage_summary() -> dict[str, Any]:
+def get_usage_summary(
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """Phase E.2: subsystem-wide rollup for ops dashboards. GET-only.
     Aggregates audit + alerts + operator-control."""
     with SessionLocal() as s:
@@ -521,7 +598,7 @@ def get_usage_summary() -> dict[str, Any]:
         except Exception:  # noqa: BLE001
             ops = {}
     last_alert_at = alerts.get("last_alert_at")
-    return {
+    full = {
         "audit_today": {
             "accepted": int(audit.get("accepted") or 0),
             "duplicate": int(audit.get("duplicate") or 0),
@@ -545,10 +622,16 @@ def get_usage_summary() -> dict[str, Any]:
             "clear": int(ops.get("clear") or 0),
         },
     }
+    payload = strip_usage_summary_payload(full, tier=tier)
+    payload["tier"] = tier
+    return payload
 
 
 @router.get("/audit")
-def list_audit(limit: int = 50) -> dict[str, Any]:
+def list_audit(
+    limit: int = 50,
+    tier: str = Depends(tier_dep),
+) -> dict[str, Any]:
     """Phase F: recent audit rows for operator visibility. Returns
     metadata only — never the prompt or the body."""
     if limit < 1 or limit > 500:
@@ -568,7 +651,12 @@ def list_audit(limit: int = 50) -> dict[str, Any]:
                 """
             ), {"lim": limit}).mappings().all()
         except Exception:  # noqa: BLE001
-            return {"audit_table": "absent", "rows": []}
+            return {"audit_table": "absent", "rows": [], "tier": tier}
+    if tier != "enterprise":
+        return {
+            "audit_table": "tier_below_enterprise",
+            "rows": [], "tier": tier,
+        }
     return {
         "audit_table": "present",
         "rows": [
@@ -601,4 +689,17 @@ def list_audit(limit: int = 50) -> dict[str, Any]:
             }
             for r in rows
         ],
+        "tier": tier,
+    }
+
+
+# Phase F.1: enforce tier on /audit response.
+def _strip_audit_response(
+    payload: dict[str, Any], *, tier: str,
+) -> dict[str, Any]:
+    if tier == "enterprise":
+        return payload
+    return {
+        "audit_table": "tier_below_enterprise",
+        "rows": [], "tier": tier,
     }
