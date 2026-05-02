@@ -295,6 +295,199 @@ def get_usage(operator_id: str | None = None) -> dict[str, Any]:
     }
 
 
+@router.get("/alerts")
+def list_alerts(
+    limit: int = 50, severity: str | None = None,
+    status: str | None = None, operator_id: str | None = None,
+) -> dict[str, Any]:
+    """Phase E.2: open alerts ledger. GET-only. Metadata is sanitized
+    by the writer (`emit_alert` strips body/raw fields)."""
+    if limit < 1 or limit > 500:
+        raise HTTPException(400, "limit must be 1..500")
+    where: list[str] = []
+    params: dict[str, Any] = {"lim": limit}
+    if severity:
+        where.append("severity = :sev")
+        params["sev"] = severity
+    if status:
+        where.append("status = :st")
+        params["st"] = status
+    if operator_id:
+        where.append("operator_id = :op")
+        params["op"] = operator_id
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    with SessionLocal() as s:
+        try:
+            rows = s.execute(text(
+                f"""
+                SELECT id, created_at, severity, alert_type,
+                       operator_id, symbol, message, status, metadata,
+                       acknowledged_by, acknowledged_at
+                FROM research_ro.research_alert
+                {where_sql}
+                ORDER BY created_at DESC
+                LIMIT :lim
+                """
+            ), params).mappings().all()
+        except Exception:  # noqa: BLE001
+            return {"alerts_table": "absent", "alerts": []}
+    return {
+        "alerts_table": "present",
+        "alerts": [
+            {
+                "id": str(r["id"]),
+                "created_at": (
+                    r["created_at"].isoformat() if r["created_at"] else None
+                ),
+                "severity": r["severity"],
+                "alert_type": r["alert_type"],
+                "operator_id": r["operator_id"],
+                "symbol": r["symbol"],
+                "message": r["message"],
+                "status": r["status"],
+                "metadata": r["metadata"],
+                "acknowledged_by": r["acknowledged_by"],
+                "acknowledged_at": (
+                    r["acknowledged_at"].isoformat()
+                    if r["acknowledged_at"] else None
+                ),
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/operators")
+def list_operators() -> dict[str, Any]:
+    """Phase E.2: per-operator enforcement state. GET-only."""
+    with SessionLocal() as s:
+        try:
+            rows = s.execute(text(
+                """
+                SELECT operator_id, state, reason, blocked_until,
+                       updated_by, updated_at, last_seen_at,
+                       first_seen_at, notes
+                FROM research_ro.research_operator_control
+                ORDER BY
+                  CASE state
+                    WHEN 'blocked'    THEN 0
+                    WHEN 'restricted' THEN 1
+                    WHEN 'watch'      THEN 2
+                    ELSE 3
+                  END,
+                  updated_at DESC
+                """
+            )).mappings().all()
+        except Exception:  # noqa: BLE001
+            return {"operators_table": "absent", "operators": []}
+    return {
+        "operators_table": "present",
+        "operators": [
+            {
+                "operator_id": r["operator_id"],
+                "state": r["state"],
+                "reason": r["reason"],
+                "blocked_until": (
+                    r["blocked_until"].isoformat()
+                    if r["blocked_until"] else None
+                ),
+                "updated_by": r["updated_by"],
+                "updated_at": (
+                    r["updated_at"].isoformat()
+                    if r["updated_at"] else None
+                ),
+                "first_seen_at": (
+                    r["first_seen_at"].isoformat()
+                    if r["first_seen_at"] else None
+                ),
+                "last_seen_at": (
+                    r["last_seen_at"].isoformat()
+                    if r["last_seen_at"] else None
+                ),
+                "notes": r["notes"],
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/usage/summary")
+def get_usage_summary() -> dict[str, Any]:
+    """Phase E.2: subsystem-wide rollup for ops dashboards. GET-only.
+    Aggregates audit + alerts + operator-control."""
+    with SessionLocal() as s:
+        try:
+            audit = s.execute(text(
+                """
+                SELECT
+                  count(*) FILTER (WHERE status='accepted')   AS accepted,
+                  count(*) FILTER (WHERE status='duplicate')  AS duplicate,
+                  count(*) FILTER (WHERE status='rejected')   AS rejected,
+                  count(*) FILTER (WHERE status='in_flight')  AS in_flight,
+                  count(*) FILTER (WHERE status='error')      AS errored,
+                  COALESCE(SUM(actual_cost_usd), 0)::float8   AS cost_usd_today
+                FROM research_ro.research_manual_run_audit
+                WHERE (created_at AT TIME ZONE 'UTC')::date
+                    = (now() AT TIME ZONE 'UTC')::date
+                """
+            )).mappings().first() or {}
+        except Exception:  # noqa: BLE001
+            audit = {}
+        try:
+            alerts = s.execute(text(
+                """
+                SELECT
+                  count(*) FILTER (WHERE status='open')         AS open_alerts,
+                  count(*) FILTER (WHERE severity='critical'
+                                    AND status='open')          AS critical_open,
+                  count(*) FILTER (WHERE severity='high'
+                                    AND status='open')          AS high_open,
+                  max(created_at)                                AS last_alert_at
+                FROM research_ro.research_alert
+                """
+            )).mappings().first() or {}
+        except Exception:  # noqa: BLE001
+            alerts = {}
+        try:
+            ops = s.execute(text(
+                """
+                SELECT
+                  count(*) FILTER (WHERE state='blocked')    AS blocked,
+                  count(*) FILTER (WHERE state='restricted') AS restricted,
+                  count(*) FILTER (WHERE state='watch')      AS watch,
+                  count(*) FILTER (WHERE state='clear')      AS clear
+                FROM research_ro.research_operator_control
+                """
+            )).mappings().first() or {}
+        except Exception:  # noqa: BLE001
+            ops = {}
+    last_alert_at = alerts.get("last_alert_at")
+    return {
+        "audit_today": {
+            "accepted": int(audit.get("accepted") or 0),
+            "duplicate": int(audit.get("duplicate") or 0),
+            "rejected": int(audit.get("rejected") or 0),
+            "in_flight": int(audit.get("in_flight") or 0),
+            "errored": int(audit.get("errored") or 0),
+            "cost_usd_today": float(audit.get("cost_usd_today") or 0.0),
+        },
+        "alerts": {
+            "open": int(alerts.get("open_alerts") or 0),
+            "critical_open": int(alerts.get("critical_open") or 0),
+            "high_open": int(alerts.get("high_open") or 0),
+            "last_alert_at": (
+                last_alert_at.isoformat() if last_alert_at else None
+            ),
+        },
+        "operators": {
+            "blocked": int(ops.get("blocked") or 0),
+            "restricted": int(ops.get("restricted") or 0),
+            "watch": int(ops.get("watch") or 0),
+            "clear": int(ops.get("clear") or 0),
+        },
+    }
+
+
 @router.get("/audit")
 def list_audit(limit: int = 50) -> dict[str, Any]:
     """Phase F: recent audit rows for operator visibility. Returns

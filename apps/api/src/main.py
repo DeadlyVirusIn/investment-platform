@@ -47,6 +47,7 @@ from apps.api.src.api.engine_b_transition import router as engine_b_transition_r
 from apps.api.src.api.b2_v2_comparison import router as b2_v2_comparison_router
 from apps.api.src.api.v2_promotion import router as v2_promotion_router
 from apps.api.src.options.routes_readonly import router as options_readonly_router
+from apps.api.src.api.options_shadow import router as options_shadow_router
 from apps.api.src.api.research import router as research_router
 from apps.api.src.api.safe_gate_evolution import (
     router as safe_gate_evolution_router,
@@ -191,6 +192,7 @@ for _router in (
     b2_v2_comparison_router,
     v2_promotion_router,
     options_readonly_router,
+    options_shadow_router,
     safe_gate_evolution_router,
 ):
     app.include_router(_router, prefix="/api")
@@ -203,6 +205,24 @@ for _router in (
 # ---------------------------------------------------------------------------
 if settings.RESEARCH_RO_ENABLED:
     app.include_router(research_router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
+# Phase 11W (Phase E) — admin-only manual research run.
+# Mounted ONLY when RESEARCH_RO_ENABLED AND RESEARCH_MANUAL_RUN_ENABLED
+# AND RESEARCH_ADMIN_TOKEN is non-empty. When any precondition fails,
+# the POST /api/research/runs/manual route is not registered →
+# requests 404. NEVER scheduled. NEVER touches execution.
+# ---------------------------------------------------------------------------
+if (
+    settings.RESEARCH_RO_ENABLED
+    and settings.RESEARCH_MANUAL_RUN_ENABLED
+    and bool((settings.RESEARCH_ADMIN_TOKEN or "").strip())
+):
+    from apps.api.src.api.research_manual import (
+        router as research_manual_router,
+    )
+    app.include_router(research_manual_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------

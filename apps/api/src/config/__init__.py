@@ -332,5 +332,89 @@ class Settings(BaseSettings):
     # Final qty = (notional × multiplier) / fill_price.
     SAFE_GATE_EVOLUTION_PILOT_NOTIONAL_USD: float = 1000.0
 
+    # ------------------------------------------------------------------
+    # PHASE OPTIONS-1 — Options paper-trading shadow evaluator
+    # ------------------------------------------------------------------
+    # Read-only diagnostic that decides "would the options system
+    # have found a paper-tradable contract today?" Writes ONLY to
+    # `options_shadow_decision_log`. NEVER opens trades. Default OFF
+    # at the runner level; the evaluator can also be invoked
+    # directly with persist=False for pure dry-run.
+    OPTIONS_SHADOW_EVAL_ENABLED: bool = False
+    OPTIONS_SHADOW_MIN_OPEN_INTEREST: int = 500
+    OPTIONS_SHADOW_MAX_SPREAD: float = 0.10
+    OPTIONS_SHADOW_MIN_BID: float = 0.01
+    OPTIONS_SHADOW_MIN_DTE: int = 7
+    OPTIONS_SHADOW_MAX_DTE: int = 45
+    OPTIONS_SHADOW_TOP_N: int = 5
+
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase E) — Manual research-run activation (research-only)
+    # ------------------------------------------------------------------
+    # Adds a tightly-gated *manual* trigger for the research-artifact
+    # pipeline. Default OFF. Activation requires BOTH
+    # `RESEARCH_RO_ENABLED=true` AND `RESEARCH_MANUAL_RUN_ENABLED=true`
+    # at process boot. NEVER schedules itself. NEVER touches
+    # execution / scoring / candidate / paper / options paths.
+    # NEVER returns raw model body to the API caller (only metadata).
+    # The HTTP route, when mounted, is admin-gated by
+    # `RESEARCH_ADMIN_TOKEN` (X-Admin-Token header).
+    RESEARCH_MANUAL_RUN_ENABLED: bool = False
+    # Per-run worst-case dollar ceiling. Mirrors / overlays the
+    # existing per-provider RESEARCH_PROVIDER_MAX_COST_USD and
+    # RESEARCH_ANTHROPIC_MAX_COST_USD knobs. The smaller of {this,
+    # provider-specific cap} wins.
+    RESEARCH_MAX_RUN_COST_USD: float = 0.05
+    # Daily aggregate dollar ceiling across all manual runs. The
+    # orchestrator queries SUM(cost_usd) for runs started today and
+    # refuses new runs once this is reached.
+    RESEARCH_MAX_DAILY_COST_USD: float = 1.00
+    # Per-(symbol, day) run count cap. Prevents trivial spam of the
+    # same ticker by an operator.
+    RESEARCH_MAX_TICKER_DAILY_RUNS: int = 3
+    # CSV of provider names that the manual run is allowed to call.
+    # Defaults to mock so a fresh deployment cannot trigger a paid
+    # provider until an operator explicitly widens the allowlist.
+    RESEARCH_ALLOWED_PROVIDERS: str = "mock"
+    # CSV of symbols allowed for manual research. Empty = no
+    # allowlist (any symbol whose `asset` row exists is accepted).
+    RESEARCH_ALLOWED_SYMBOLS: str = ""
+    # Admin token required by the HTTP route. Empty disables HTTP
+    # mounting entirely even if RESEARCH_MANUAL_RUN_ENABLED is on.
+    RESEARCH_ADMIN_TOKEN: str = ""
+
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase E.1) — Enterprise-safe controls (research-only)
+    # ------------------------------------------------------------------
+    # CSV of operator IDs allowed to invoke manual run. Empty = no
+    # operator allowed (refuses every request) UNLESS the process is
+    # in `RESEARCH_LOCAL_TEST_MODE` for local dev. Production must
+    # explicitly enumerate operators.
+    RESEARCH_ALLOWED_OPERATORS: str = ""
+    # Local/dev opt-out from operator allowlist. NEVER set true in
+    # production. When true and `RESEARCH_ALLOWED_OPERATORS` is empty,
+    # any operator_id is accepted; the audit row records this as
+    # 'local_test_mode' for visibility.
+    RESEARCH_LOCAL_TEST_MODE: bool = False
+    # Per-operator daily run cap (counts ALL terminal statuses).
+    RESEARCH_MAX_RUNS_PER_OPERATOR_DAILY: int = 5
+    # Per-symbol daily run cap (overlaps existing
+    # RESEARCH_MAX_TICKER_DAILY_RUNS but is enforced through the
+    # audit log so rejected attempts also count when needed).
+    RESEARCH_MAX_RUNS_PER_SYMBOL_DAILY: int = 3
+    # Maximum simultaneous in-flight manual runs across the cluster.
+    # Counted via audit rows whose status='in_flight' and created_at
+    # is within the last 5 minutes.
+    RESEARCH_MAX_CONCURRENT_MANUAL_RUNS: int = 1
+    # Rolling-window thresholds for anomaly detection (deterministic,
+    # rule-based; no ML).
+    RESEARCH_ANOMALY_REJECTED_WINDOW_MIN: int = 30
+    RESEARCH_ANOMALY_REJECTED_THRESHOLD: int = 5
+    RESEARCH_ANOMALY_TOKEN_VIOLATION_THRESHOLD: int = 3
+    RESEARCH_ANOMALY_DUPLICATE_THRESHOLD: int = 5
+    # Cost-spike alert: a single attempt whose estimated_cost is
+    # this many times the per-run cap raises an anomaly flag.
+    RESEARCH_ANOMALY_COST_SPIKE_MULTIPLIER: float = 5.0
+
 
 settings = Settings()

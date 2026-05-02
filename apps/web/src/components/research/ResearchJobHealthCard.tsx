@@ -1,10 +1,14 @@
-// Phase 11W (Phase F) - Research Job Health card on the existing
-// JobsHealth page. Internal-ops surface. Reads `/api/research/usage`
-// (GET-only). Shows accept/reject/cost rollup for the day plus a
-// neutral status indicator. NEVER includes action language.
+// Phase 11W (Phase F + E.2) - Research Job Health card.
+//
+// Phase F: shows audit summary from /api/research/usage.
+// Phase E.2: extended to also show open alert count, operator
+// enforcement state counts, and last-alert timestamp via
+// /api/research/usage/summary. NEVER includes action language.
+// NEVER renders an action button.
 
 import { useEffect, useState } from 'react';
 import ResearchBanner from './ResearchBanner';
+import FreshnessBadge from './FreshnessBadge';
 
 interface UsageSummary {
   accepted: number;
@@ -15,18 +19,33 @@ interface UsageSummary {
   cost_usd_today: number;
 }
 
-interface UsageResp {
-  audit_table: 'present' | 'absent';
-  summary: UsageSummary;
+interface AlertSummary {
+  open: number;
+  critical_open: number;
+  high_open: number;
+  last_alert_at: string | null;
+}
+
+interface OperatorSummary {
+  blocked: number;
+  restricted: number;
+  watch: number;
+  clear: number;
+}
+
+interface SummaryResp {
+  audit_today: UsageSummary;
+  alerts: AlertSummary;
+  operators: OperatorSummary;
 }
 
 export default function ResearchJobHealthCard() {
-  const [data, setData] = useState<UsageResp | null>(null);
+  const [data, setData] = useState<SummaryResp | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/research/usage', {
+    fetch('/api/research/usage/summary', {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
@@ -55,37 +74,78 @@ export default function ResearchJobHealthCard() {
         <div style={{ color: '#9e9e9e', fontSize: 12 }}>
           Loading usage rollup…
         </div>
-      ) : !data || data.audit_table === 'absent' ? (
+      ) : !data ? (
         <div style={{ color: '#616161', fontSize: 13 }}>
-          Research subsystem: <strong>read-only mode</strong>.
-          <div style={{ fontSize: 12, marginTop: 4, color: '#9e9e9e' }}>
-            Audit table not yet provisioned.
-          </div>
+          Research subsystem: <strong>unavailable</strong>.
         </div>
       ) : (
-        <UsageGrid summary={data.summary} />
+        <SummaryView data={data} />
       )}
     </div>
   );
 }
 
 
-function UsageGrid({ summary }: { summary: UsageSummary }) {
-  const items: Array<[string, number | string]> = [
-    ['accepted',  summary.accepted],
-    ['duplicate', summary.duplicate],
-    ['rejected',  summary.rejected],
-    ['in_flight', summary.in_flight],
-    ['errored',   summary.errored],
-    ['cost_usd',  `$${summary.cost_usd_today.toFixed(4)}`],
-  ];
+function SummaryView({ data }: { data: SummaryResp }) {
+  return (
+    <div>
+      <Section title="Audit (today)">
+        <Grid items={[
+          ['accepted',  data.audit_today.accepted],
+          ['duplicate', data.audit_today.duplicate],
+          ['rejected',  data.audit_today.rejected],
+          ['in_flight', data.audit_today.in_flight],
+          ['errored',   data.audit_today.errored],
+          ['cost_usd',  `$${data.audit_today.cost_usd_today.toFixed(4)}`],
+        ]} />
+      </Section>
+      <Section title="Alerts">
+        <Grid items={[
+          ['open',          data.alerts.open],
+          ['critical_open', data.alerts.critical_open],
+          ['high_open',     data.alerts.high_open],
+        ]} />
+        {data.alerts.last_alert_at && (
+          <div style={{ fontSize: 11, color: '#616161', marginTop: 6 }}>
+            last alert: <FreshnessBadge isoTimestamp={data.alerts.last_alert_at} />
+          </div>
+        )}
+      </Section>
+      <Section title="Operators">
+        <Grid items={[
+          ['blocked',    data.operators.blocked],
+          ['restricted', data.operators.restricted],
+          ['watch',      data.operators.watch],
+          ['clear',      data.operators.clear],
+        ]} />
+      </Section>
+    </div>
+  );
+}
+
+
+function Section({ title, children }: {
+  title: string; children: React.ReactNode;
+}) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{
+        fontSize: 12, color: '#616161', textTransform: 'uppercase',
+        letterSpacing: 0.4, marginBottom: 6,
+      }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+
+function Grid({ items }: { items: Array<[string, number | string]> }) {
   return (
     <div
       style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
         gap: 8,
-        marginTop: 4,
       }}
     >
       {items.map(([k, v]) => (
