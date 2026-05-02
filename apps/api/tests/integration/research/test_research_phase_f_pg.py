@@ -81,6 +81,9 @@ def client(monkeypatch, pg_engine):
     # Phase F.1 — tests pre-date tier stripping; default to enterprise
     # so existing payload-shape assertions pass.
     monkeypatch.setattr(settings, "RESEARCH_PREMIUM_TIER", "enterprise")
+    # Phase G — local-dev path: env-tier wins; X-Research-Tier honored
+    # to narrow down. Tests pre-date real auth.
+    monkeypatch.setattr(settings, "AUTH_DISABLED_LOCAL", True)
     # Bind the app's SessionLocal to the test DB engine so the route
     # handlers see the seeded research_ro rows.
     from sqlalchemy.orm import Session, sessionmaker

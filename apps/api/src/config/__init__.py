@@ -453,5 +453,18 @@ class Settings(BaseSettings):
     # config-driven gate until a real entitlement system lands.
     RESEARCH_PREMIUM_TIER: str = "free"
 
+    # ------------------------------------------------------------------
+    # PHASE G — auth + subscription tier resolution
+    # ------------------------------------------------------------------
+    # When True, get_current_user() falls back to a synthetic dev user
+    # and tier resolution honors the legacy `RESEARCH_PREMIUM_TIER`
+    # env. NEVER set true in production.
+    AUTH_DISABLED_LOCAL: bool = False
+    # When True, expired/past_due/canceled subscriptions still grant
+    # the prior tier for `RESEARCH_GRACE_HOURS` hours after the
+    # period end. Disabled by default — strict downgrade.
+    RESEARCH_GRACE_ENABLED: bool = False
+    RESEARCH_GRACE_HOURS: int = 72
+
 
 settings = Settings()

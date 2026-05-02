@@ -26,8 +26,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import Header
+from fastapi import Depends, Header
 
+from apps.api.src.auth.resolver import (
+    AuthDecision, get_current_user,
+)
 from apps.api.src.config import settings
 
 
@@ -62,11 +65,24 @@ def resolve_tier(
     return requested
 
 
-# FastAPI dependency wrapper.
+# FastAPI dependency wrapper. Phase G — server-side auth resolution
+# is authoritative. Client `X-Research-Tier` header is IGNORED in
+# production; only honored when AUTH_DISABLED_LOCAL=true (for the
+# Phase F.1 test-fixture path that pre-dates auth).
 def tier_dep(
+    decision: AuthDecision = Depends(get_current_user),
     x_research_tier: str | None = Header(default=None, alias="X-Research-Tier"),
 ) -> str:
-    return resolve_tier(x_research_tier)
+    if bool(settings.AUTH_DISABLED_LOCAL):
+        # Local-dev fallback path. Header may further-narrow only.
+        cap = decision.effective_tier
+        if x_research_tier:
+            requested = normalize_tier(x_research_tier)
+            rank = {"free": 0, "pro": 1, "enterprise": 2}
+            if rank[requested] <= rank[normalize_tier(cap)]:
+                return requested
+        return cap
+    return decision.effective_tier
 
 
 # ---------------------------------------------------------------------------

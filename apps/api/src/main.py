@@ -48,6 +48,7 @@ from apps.api.src.api.b2_v2_comparison import router as b2_v2_comparison_router
 from apps.api.src.api.v2_promotion import router as v2_promotion_router
 from apps.api.src.options.routes_readonly import router as options_readonly_router
 from apps.api.src.api.options_shadow import router as options_shadow_router
+from apps.api.src.api.auth_me import router as auth_me_router
 from apps.api.src.api.research import router as research_router
 from apps.api.src.api.safe_gate_evolution import (
     router as safe_gate_evolution_router,
@@ -193,6 +194,7 @@ for _router in (
     v2_promotion_router,
     options_readonly_router,
     options_shadow_router,
+    auth_me_router,
     safe_gate_evolution_router,
 ):
     app.include_router(_router, prefix="/api")

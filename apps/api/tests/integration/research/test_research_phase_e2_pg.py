@@ -75,6 +75,7 @@ def client(monkeypatch, pg_engine):
     # Phase F.1 — pre-date tier stripping; default to enterprise so
     # existing payload-shape assertions pass.
     monkeypatch.setattr(settings, "RESEARCH_PREMIUM_TIER", "enterprise")
+    monkeypatch.setattr(settings, "AUTH_DISABLED_LOCAL", True)
     from sqlalchemy.orm import Session, sessionmaker
     test_session = sessionmaker(
         bind=pg_engine, class_=Session, expire_on_commit=False,

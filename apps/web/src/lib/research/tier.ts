@@ -8,12 +8,37 @@
 
 export type ResearchTier = 'free' | 'pro' | 'enterprise';
 
+// Phase G — env-based tier is local-dev fallback only. Production
+// reads the effective tier from `GET /api/auth/me`.
 export function getResearchTier(): ResearchTier {
   const raw = (
     (import.meta.env.VITE_RESEARCH_PREMIUM_TIER as string | undefined) || ''
   ).trim().toLowerCase();
   if (raw === 'pro' || raw === 'enterprise') return raw;
   return 'free';
+}
+
+export interface MeResponse {
+  user: null | {
+    id: string; email: string;
+    display_name: string | null; auth_provider: string;
+    disabled: boolean;
+  };
+  effective_tier: ResearchTier;
+  reason: string;
+}
+
+export async function fetchMe(): Promise<MeResponse | null> {
+  try {
+    const res = await fetch('/api/auth/me', {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as MeResponse;
+  } catch {
+    return null;
+  }
 }
 
 /**

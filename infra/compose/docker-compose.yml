@@ -36,6 +36,47 @@ services:
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Marker dir mounted from worker-cron volume (read-only).
+      SCHEDULER_MARKER_DIR: /var/scheduler_markers
+      ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
+      ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
+      ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
+      ML_HYBRID_REQUIRE_BASELINE_BEAT: ${ML_HYBRID_REQUIRE_BASELINE_BEAT:-true}
+      ML_HYBRID_ALLOW_BLOCK: ${ML_HYBRID_ALLOW_BLOCK:-false}
+      ML_HYBRID_MIN_CONFIDENCE: ${ML_HYBRID_MIN_CONFIDENCE:-0.65}
+      ML_HYBRID_MAX_STALE_DAYS: ${ML_HYBRID_MAX_STALE_DAYS:-7}
+      ML_HYBRID_MIN_DATA_CONFIDENCE: ${ML_HYBRID_MIN_DATA_CONFIDENCE:-0.70}
+      ML_HYBRID_MIN_MULTIPLIER: ${ML_HYBRID_MIN_MULTIPLIER:-0.50}
+      ML_PROMOTION_MIN_ADVICE: ${ML_PROMOTION_MIN_ADVICE:-20}
+      ML_PROMOTION_MIN_OUTCOMES: ${ML_PROMOTION_MIN_OUTCOMES:-20}
+      ML_PROMOTION_MAX_ECE: ${ML_PROMOTION_MAX_ECE:-0.10}
+      ML_PROMOTION_MIN_DELTA_SHARPE: ${ML_PROMOTION_MIN_DELTA_SHARPE:-0.00}
+      ML_PROMOTION_MAX_FALSE_AVOID_RATE: ${ML_PROMOTION_MAX_FALSE_AVOID_RATE:-0.35}
+      ML_PROMOTION_REQUIRED_HEALTHY_DAYS: ${ML_PROMOTION_REQUIRED_HEALTHY_DAYS:-7}
+      ML_PROMOTION_REQUIRE_OPERATOR_APPROVAL: ${ML_PROMOTION_REQUIRE_OPERATOR_APPROVAL:-true}
+      ML_PROMOTION_MAX_MISSED_WINNER_RATE: ${ML_PROMOTION_MAX_MISSED_WINNER_RATE:-0.50}
+      ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
+      ENGINE_B_MODE: ${ENGINE_B_MODE:-LEGACY}
+      ENGINE_B_MIN_SHADOW_DAYS: ${ENGINE_B_MIN_SHADOW_DAYS:-60}
+      ENGINE_B_KILL_SHARPE: ${ENGINE_B_KILL_SHARPE:--1.0}
+      ENGINE_B_KILL_DD_PCT: ${ENGINE_B_KILL_DD_PCT:--15.0}
+      ENGINE_B_OPERATOR_APPROVAL: ${ENGINE_B_OPERATOR_APPROVAL:-false}
+      # Phase B/E/F/F.1/G research-layer flags (default OFF; toggled
+      # via .env for local enablement).
+      RESEARCH_RO_ENABLED: ${RESEARCH_RO_ENABLED:-false}
+      RESEARCH_MANUAL_RUN_ENABLED: ${RESEARCH_MANUAL_RUN_ENABLED:-false}
+      RESEARCH_AUTO_ENFORCEMENT_ENABLED: ${RESEARCH_AUTO_ENFORCEMENT_ENABLED:-false}
+      RESEARCH_PREMIUM_TIER: ${RESEARCH_PREMIUM_TIER:-free}
+      RESEARCH_ALLOWED_OPERATORS: ${RESEARCH_ALLOWED_OPERATORS:-}
+      RESEARCH_ALLOWED_PROVIDERS: ${RESEARCH_ALLOWED_PROVIDERS:-mock}
+      RESEARCH_ADMIN_TOKEN: ${RESEARCH_ADMIN_TOKEN:-}
+      RESEARCH_LOCAL_TEST_MODE: ${RESEARCH_LOCAL_TEST_MODE:-false}
+      AUTH_DISABLED_LOCAL: ${AUTH_DISABLED_LOCAL:-false}
+      RESEARCH_GRACE_ENABLED: ${RESEARCH_GRACE_ENABLED:-false}
+      OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
+      SAFE_GATE_EVOLUTION_PILOT_EXECUTION: ${SAFE_GATE_EVOLUTION_PILOT_EXECUTION:-false}
+    volumes:
+      - worker_cron_tmp:/var/scheduler_markers:ro
     depends_on:
       db:
         condition: service_healthy
@@ -50,12 +91,18 @@ services:
     networks:
       - backend
 
-  worker:
+  # Intraday + nightly DB-backed scheduler. Drives job_schedule table —
+  # responsible for ingest_prices_daily, fetch_news, regime/factor
+  # snapshots etc. Runs Python tick-loop.
+  worker-tickloop:
     build:
       context: ../..
       dockerfile: infra/docker/worker.Dockerfile
     restart: unless-stopped
+    command: ["python", "-m", "apps.worker.src.main"]
     environment:
+      TZ: ${TZ:-America/New_York}
+      SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
       FERNET_KEY: ${FERNET_KEY}
@@ -67,8 +114,52 @@ services:
     networks:
       - backend
 
+  # Daily orchestrator — supercronic fires /app/scripts/run_daily_loop.sh
+  # 03:30 ET Tue-Sat. Independent of tickloop.
+  worker-cron:
+    build:
+      context: ../..
+      dockerfile: infra/docker/worker.Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-America/New_York}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      TIINGO_API_KEY: ${TIINGO_API_KEY}
+      FERNET_KEY: ${FERNET_KEY}
+      APP_VERSION: ${APP_VERSION:-0.0.1}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
+      ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
+      ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
+      ML_HYBRID_REQUIRE_BASELINE_BEAT: ${ML_HYBRID_REQUIRE_BASELINE_BEAT:-true}
+      ML_HYBRID_ALLOW_BLOCK: ${ML_HYBRID_ALLOW_BLOCK:-false}
+      ML_HYBRID_MIN_CONFIDENCE: ${ML_HYBRID_MIN_CONFIDENCE:-0.65}
+      ML_HYBRID_MAX_STALE_DAYS: ${ML_HYBRID_MAX_STALE_DAYS:-7}
+      ML_HYBRID_MIN_DATA_CONFIDENCE: ${ML_HYBRID_MIN_DATA_CONFIDENCE:-0.70}
+      ML_HYBRID_MIN_MULTIPLIER: ${ML_HYBRID_MIN_MULTIPLIER:-0.50}
+      ML_PROMOTION_MIN_ADVICE: ${ML_PROMOTION_MIN_ADVICE:-20}
+      ML_PROMOTION_MIN_OUTCOMES: ${ML_PROMOTION_MIN_OUTCOMES:-20}
+      ML_PROMOTION_MAX_ECE: ${ML_PROMOTION_MAX_ECE:-0.10}
+      ML_PROMOTION_MIN_DELTA_SHARPE: ${ML_PROMOTION_MIN_DELTA_SHARPE:-0.00}
+      ML_PROMOTION_MAX_FALSE_AVOID_RATE: ${ML_PROMOTION_MAX_FALSE_AVOID_RATE:-0.35}
+      ML_PROMOTION_REQUIRED_HEALTHY_DAYS: ${ML_PROMOTION_REQUIRED_HEALTHY_DAYS:-7}
+      ML_PROMOTION_REQUIRE_OPERATOR_APPROVAL: ${ML_PROMOTION_REQUIRE_OPERATOR_APPROVAL:-true}
+      ML_PROMOTION_MAX_MISSED_WINNER_RATE: ${ML_PROMOTION_MAX_MISSED_WINNER_RATE:-0.50}
+      SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
+      ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
+    volumes:
+      # Persist /tmp health markers so API + host can read them
+      - worker_cron_tmp:/tmp
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
 volumes:
   pgdata:
+    driver: local
+  worker_cron_tmp:
     driver: local
 
 networks:

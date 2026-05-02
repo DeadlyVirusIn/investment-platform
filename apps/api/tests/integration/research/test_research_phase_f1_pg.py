@@ -73,6 +73,9 @@ def client(monkeypatch, pg_engine):
     monkeypatch.setattr(settings, "RESEARCH_MANUAL_RUN_ENABLED", False)
     monkeypatch.setattr(settings, "RESEARCH_ADMIN_TOKEN", "")
     monkeypatch.setattr(settings, "RESEARCH_PREMIUM_TIER", "enterprise")
+    # Phase G — pre-G tests rely on env-tier + X-Research-Tier.
+    # Local-dev mode keeps that contract working.
+    monkeypatch.setattr(settings, "AUTH_DISABLED_LOCAL", True)
     from sqlalchemy.orm import Session, sessionmaker
     test_session = sessionmaker(
         bind=pg_engine, class_=Session, expire_on_commit=False,
