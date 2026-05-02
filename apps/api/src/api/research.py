@@ -357,58 +357,117 @@ def list_alerts(
     }
 
 
+def _operator_payload(r: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "operator_id": r["operator_id"],
+        "state": r["state"],
+        "reason": r["reason"],
+        "blocked_until": (
+            r["blocked_until"].isoformat()
+            if r.get("blocked_until") else None
+        ),
+        "restricted_until": (
+            r["restricted_until"].isoformat()
+            if r.get("restricted_until") else None
+        ),
+        "cooldown_reason": r.get("cooldown_reason"),
+        "cooldown_source": r.get("cooldown_source"),
+        "last_auto_evaluation_at": (
+            r["last_auto_evaluation_at"].isoformat()
+            if r.get("last_auto_evaluation_at") else None
+        ),
+        "previous_state": r.get("previous_state"),
+        "state_changed_at": (
+            r["state_changed_at"].isoformat()
+            if r.get("state_changed_at") else None
+        ),
+        "updated_by": r.get("updated_by"),
+        "updated_at": (
+            r["updated_at"].isoformat()
+            if r.get("updated_at") else None
+        ),
+        "first_seen_at": (
+            r["first_seen_at"].isoformat()
+            if r.get("first_seen_at") else None
+        ),
+        "last_seen_at": (
+            r["last_seen_at"].isoformat()
+            if r.get("last_seen_at") else None
+        ),
+        "notes": r.get("notes"),
+    }
+
+
+_OPERATOR_COLUMNS_SQL = """
+    SELECT operator_id, state, reason,
+           blocked_until, restricted_until,
+           cooldown_reason, cooldown_source, last_auto_evaluation_at,
+           previous_state, state_changed_at,
+           updated_by, updated_at, last_seen_at, first_seen_at, notes
+    FROM research_ro.research_operator_control
+"""
+
+
 @router.get("/operators")
 def list_operators() -> dict[str, Any]:
-    """Phase E.2: per-operator enforcement state. GET-only."""
+    """Phase E.2 + E.3: per-operator enforcement state. GET-only."""
     with SessionLocal() as s:
         try:
             rows = s.execute(text(
-                """
-                SELECT operator_id, state, reason, blocked_until,
-                       updated_by, updated_at, last_seen_at,
-                       first_seen_at, notes
-                FROM research_ro.research_operator_control
-                ORDER BY
-                  CASE state
-                    WHEN 'blocked'    THEN 0
-                    WHEN 'restricted' THEN 1
-                    WHEN 'watch'      THEN 2
-                    ELSE 3
-                  END,
-                  updated_at DESC
-                """
+                _OPERATOR_COLUMNS_SQL
+                + " ORDER BY CASE state "
+                  "  WHEN 'blocked' THEN 0 "
+                  "  WHEN 'restricted' THEN 1 "
+                  "  WHEN 'watch' THEN 2 ELSE 3 END, "
+                  " updated_at DESC"
             )).mappings().all()
         except Exception:  # noqa: BLE001
             return {"operators_table": "absent", "operators": []}
     return {
         "operators_table": "present",
-        "operators": [
-            {
-                "operator_id": r["operator_id"],
-                "state": r["state"],
-                "reason": r["reason"],
-                "blocked_until": (
-                    r["blocked_until"].isoformat()
-                    if r["blocked_until"] else None
-                ),
-                "updated_by": r["updated_by"],
-                "updated_at": (
-                    r["updated_at"].isoformat()
-                    if r["updated_at"] else None
-                ),
-                "first_seen_at": (
-                    r["first_seen_at"].isoformat()
-                    if r["first_seen_at"] else None
-                ),
-                "last_seen_at": (
-                    r["last_seen_at"].isoformat()
-                    if r["last_seen_at"] else None
-                ),
-                "notes": r["notes"],
-            }
-            for r in rows
-        ],
+        "operators": [_operator_payload(dict(r)) for r in rows],
     }
+
+
+@router.get("/operators/{operator_id}")
+def get_operator(operator_id: str) -> dict[str, Any]:
+    """Phase E.3: single operator detail with cooldown metadata."""
+    with SessionLocal() as s:
+        row = s.execute(text(
+            _OPERATOR_COLUMNS_SQL + " WHERE operator_id = :op"
+        ), {"op": operator_id}).mappings().first()
+        if row is None:
+            raise HTTPException(404, f"operator '{operator_id}' not found")
+        # Pull last alert for visibility.
+        last_alert = s.execute(text(
+            """
+            SELECT id, created_at, alert_type, severity, status, message
+            FROM research_ro.research_alert
+            WHERE operator_id = :op
+            ORDER BY created_at DESC LIMIT 1
+            """
+        ), {"op": operator_id}).mappings().first()
+        n_open = int(s.execute(text(
+            "SELECT count(*) FROM research_ro.research_alert "
+            "WHERE operator_id = :op AND status = 'open'"
+        ), {"op": operator_id}).scalar() or 0)
+    payload = _operator_payload(dict(row))
+    payload["open_alert_count"] = n_open
+    payload["last_alert"] = (
+        {
+            "id": str(last_alert["id"]),
+            "created_at": (
+                last_alert["created_at"].isoformat()
+                if last_alert["created_at"] else None
+            ),
+            "alert_type": last_alert["alert_type"],
+            "severity": last_alert["severity"],
+            "status": last_alert["status"],
+            "message": last_alert["message"],
+        }
+        if last_alert else None
+    )
+    return payload
 
 
 @router.get("/usage/summary")

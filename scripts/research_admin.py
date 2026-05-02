@@ -175,6 +175,8 @@ def cmd_list_operators(_args) -> int:
     with SessionLocal() as s:
         rows = s.execute(text(
             "SELECT operator_id, state, reason, blocked_until, "
+            "       restricted_until, cooldown_reason, cooldown_source, "
+            "       last_auto_evaluation_at, "
             "       updated_by, updated_at "
             "FROM research_ro.research_operator_control "
             "ORDER BY state, updated_at DESC"
@@ -185,6 +187,203 @@ def cmd_list_operators(_args) -> int:
         for r in rows
     ]
     sys.stdout.write(json.dumps(out, default=str, indent=2) + "\n")
+    return 0
+
+
+def cmd_show_operator(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    with SessionLocal() as s:
+        row = s.execute(text(
+            "SELECT operator_id, state, reason, blocked_until, "
+            "       restricted_until, cooldown_reason, cooldown_source, "
+            "       last_auto_evaluation_at, previous_state, "
+            "       state_changed_at, updated_by, updated_at, "
+            "       last_seen_at, first_seen_at, notes "
+            "FROM research_ro.research_operator_control "
+            "WHERE operator_id = :op"
+        ), {"op": args.operator_id}).mappings().first()
+    if not row:
+        sys.stderr.write(
+            f"[research_admin] no operator row for {args.operator_id}\n"
+        )
+        return 2
+    out = {
+        k: (v.isoformat() if hasattr(v, "isoformat") else v)
+        for k, v in dict(row).items()
+    }
+    sys.stdout.write(json.dumps(out, default=str, indent=2) + "\n")
+    return 0
+
+
+def cmd_evaluate_operator(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    from apps.api.src.research.manual_run_auto_enforcement import (
+        evaluate_operator_state, apply_operator_state_transition,
+    )
+    apply = bool(args.apply) and not bool(args.dry_run)
+    with SessionLocal() as s:
+        ev = evaluate_operator_state(
+            s, operator_id=args.operator_id, dry_run=not apply,
+        )
+        if apply and ev.would_change:
+            res = apply_operator_state_transition(
+                s, evaluation=ev, source="auto",
+            )
+            _audit_admin_action(
+                command="evaluate_apply", target_op=args.operator_id,
+                admin_id=args.admin_id,
+                detail={
+                    "previous_state": res.previous_state,
+                    "new_state": res.new_state,
+                    "reason": ev.reason,
+                },
+            )
+    out = {
+        "operator_id": ev.operator_id,
+        "current_state": ev.current_state,
+        "desired_state": ev.desired_state,
+        "would_change": ev.would_change,
+        "reason": ev.reason,
+        "severity": ev.severity,
+        "cooldown_until": (
+            ev.cooldown_until.isoformat() if ev.cooldown_until else None
+        ),
+        "applied": apply and ev.would_change,
+    }
+    sys.stdout.write(json.dumps(out, default=str, indent=2) + "\n")
+    return 0
+
+
+def cmd_evaluate_all(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    from apps.api.src.research.manual_run_auto_enforcement import (
+        evaluate_all_operators,
+    )
+    apply = bool(args.apply) and not bool(args.dry_run)
+    with SessionLocal() as s:
+        evals = evaluate_all_operators(s, dry_run=not apply)
+    out = [
+        {
+            "operator_id": e.operator_id,
+            "current_state": e.current_state,
+            "desired_state": e.desired_state,
+            "would_change": e.would_change,
+            "reason": e.reason,
+            "cooldown_until": (
+                e.cooldown_until.isoformat() if e.cooldown_until else None
+            ),
+        }
+        for e in evals
+    ]
+    sys.stdout.write(json.dumps(out, default=str, indent=2) + "\n")
+    return 0
+
+
+def cmd_restrict(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    blocked_until = (
+        dt.datetime.now(dt.timezone.utc) + dt.timedelta(hours=int(args.hours))
+        if args.hours else None
+    )
+    with SessionLocal() as s:
+        out = set_operator_state(
+            s, operator_id=args.operator_id, state="restricted",
+            reason=args.reason, updated_by=args.admin_id,
+            notes=f"restricted via CLI by {args.admin_id}",
+            blocked_until=None,
+        )
+        # Record cooldown_until in restricted_until column.
+        s.execute(text(
+            "UPDATE research_ro.research_operator_control "
+            "SET restricted_until = :ru "
+            "WHERE operator_id = :op"
+        ), {"ru": blocked_until, "op": args.operator_id})
+        s.commit()
+    _audit_admin_action(
+        command="restrict", target_op=args.operator_id,
+        admin_id=args.admin_id,
+        detail={
+            "hours": args.hours, "reason": args.reason,
+            "restricted_until": (
+                blocked_until.isoformat() if blocked_until else None
+            ),
+        },
+    )
+    sys.stdout.write(json.dumps({
+        "operator_id": out.operator_id, "state": out.state,
+        "reason": out.reason,
+        "restricted_until": (
+            blocked_until.isoformat() if blocked_until else None
+        ),
+    }) + "\n")
+    return 0
+
+
+def cmd_watch(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    with SessionLocal() as s:
+        out = set_operator_state(
+            s, operator_id=args.operator_id, state="watch",
+            reason=args.reason, updated_by=args.admin_id,
+            notes=f"watch via CLI by {args.admin_id}",
+        )
+    _audit_admin_action(
+        command="watch", target_op=args.operator_id,
+        admin_id=args.admin_id,
+        detail={"hours": args.hours, "reason": args.reason},
+    )
+    sys.stdout.write(json.dumps({
+        "operator_id": out.operator_id, "state": out.state,
+    }) + "\n")
+    return 0
+
+
+def cmd_clear(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    with SessionLocal() as s:
+        out = set_operator_state(
+            s, operator_id=args.operator_id, state="clear",
+            reason=args.reason or "manual_clear",
+            updated_by=args.admin_id,
+        )
+    _audit_admin_action(
+        command="clear", target_op=args.operator_id,
+        admin_id=args.admin_id, detail={"reason": args.reason},
+    )
+    sys.stdout.write(json.dumps({
+        "operator_id": out.operator_id, "state": out.state,
+    }) + "\n")
+    return 0
+
+
+def cmd_resolve_alert(args) -> int:
+    if (rc := _require_enabled()):
+        return rc
+    with SessionLocal() as s:
+        rowc = s.execute(text(
+            """
+            UPDATE research_ro.research_alert
+            SET status = 'resolved',
+                acknowledged_by = :admin,
+                acknowledged_at = now()
+            WHERE id = CAST(:aid AS uuid) AND status != 'resolved'
+            """
+        ), {"aid": args.alert_id, "admin": args.admin_id}).rowcount
+        s.commit()
+    _audit_admin_action(
+        command="resolve_alert", target_op="-",
+        admin_id=args.admin_id,
+        detail={"alert_id": args.alert_id, "reason": args.reason},
+    )
+    sys.stdout.write(json.dumps({
+        "alert_id": args.alert_id, "rows": int(rowc or 0),
+    }) + "\n")
     return 0
 
 
@@ -224,6 +423,45 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     lo = sub.add_parser("list-operators")
     lo.set_defaults(func=cmd_list_operators)
+
+    so = sub.add_parser("show-operator")
+    so.add_argument("--operator-id", required=True)
+    so.set_defaults(func=cmd_show_operator)
+
+    eo = sub.add_parser("evaluate-operator")
+    eo.add_argument("--operator-id", required=True)
+    grp = eo.add_mutually_exclusive_group()
+    grp.add_argument("--dry-run", action="store_true")
+    grp.add_argument("--apply", action="store_true")
+    eo.set_defaults(func=cmd_evaluate_operator)
+
+    ea = sub.add_parser("evaluate-all")
+    grp2 = ea.add_mutually_exclusive_group()
+    grp2.add_argument("--dry-run", action="store_true")
+    grp2.add_argument("--apply", action="store_true")
+    ea.set_defaults(func=cmd_evaluate_all)
+
+    rs = sub.add_parser("restrict")
+    rs.add_argument("--operator-id", required=True)
+    rs.add_argument("--hours", type=int, default=24)
+    rs.add_argument("--reason", required=True)
+    rs.set_defaults(func=cmd_restrict)
+
+    wt = sub.add_parser("watch")
+    wt.add_argument("--operator-id", required=True)
+    wt.add_argument("--hours", type=int, default=24)
+    wt.add_argument("--reason", required=True)
+    wt.set_defaults(func=cmd_watch)
+
+    cl = sub.add_parser("clear")
+    cl.add_argument("--operator-id", required=True)
+    cl.add_argument("--reason", default=None)
+    cl.set_defaults(func=cmd_clear)
+
+    ra = sub.add_parser("resolve-alert")
+    ra.add_argument("--alert-id", required=True)
+    ra.add_argument("--reason", default=None)
+    ra.set_defaults(func=cmd_resolve_alert)
 
     args = p.parse_args(argv)
     try:

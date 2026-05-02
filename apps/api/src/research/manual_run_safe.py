@@ -365,6 +365,27 @@ def run_manual_safely(
         apply_anomaly_transitions,
     )
     touch_operator_last_seen(session, operator_id)
+
+    # --- Phase E.3 auto enforcement (BEFORE the cached state check).
+    if bool(settings.RESEARCH_AUTO_ENFORCEMENT_ENABLED):
+        try:
+            from apps.api.src.research.manual_run_auto_enforcement import (
+                evaluate_operator_state,
+                apply_operator_state_transition,
+                auto_resolve_stale_alerts,
+            )
+            ev = evaluate_operator_state(
+                session, operator_id=operator_id, dry_run=False,
+            )
+            if ev.would_change:
+                apply_operator_state_transition(
+                    session, evaluation=ev, source="auto",
+                )
+            # Best-effort auto-resolve stale alerts on clear-state.
+            auto_resolve_stale_alerts(session, operator_id=operator_id)
+        except Exception:  # noqa: BLE001
+            session.rollback()
+
     enf = evaluate_enforcement(
         session, operator_id=operator_id,
         admin_override=admin_override,

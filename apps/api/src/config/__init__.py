@@ -416,5 +416,33 @@ class Settings(BaseSettings):
     # this many times the per-run cap raises an anomaly flag.
     RESEARCH_ANOMALY_COST_SPIKE_MULTIPLIER: float = 5.0
 
+    # ------------------------------------------------------------------
+    # PHASE 11W (Phase E.3) — Auto enforcement + cooldown
+    # ------------------------------------------------------------------
+    # Default OFF. When False, the evaluator only runs in dry-run
+    # mode (analysis only; no state change, no alert). When True,
+    # `run_manual_safely` evaluates the operator's signal summary
+    # before each provider call and auto-applies the resulting state
+    # transition if the desired state differs from the current.
+    RESEARCH_AUTO_ENFORCEMENT_ENABLED: bool = False
+    # Lookback window for "recent violations" used by demotion
+    # rules.
+    RESEARCH_ENFORCEMENT_LOOKBACK_HOURS: int = 24
+    # Cooldown durations per transition target.
+    RESEARCH_WATCH_COOLDOWN_HOURS: int = 24
+    RESEARCH_RESTRICTED_COOLDOWN_HOURS: int = 24
+    RESEARCH_TOKEN_RESTRICTED_COOLDOWN_HOURS: int = 72
+    RESEARCH_BLOCKED_COOLDOWN_HOURS: int = 24
+    # Admin-override usage thresholds in the lookback window.
+    RESEARCH_ADMIN_OVERRIDE_WATCH_THRESHOLD: int = 2
+    RESEARCH_ADMIN_OVERRIDE_RESTRICT_THRESHOLD: int = 5
+    # Alert deduplication window (minutes). Identical
+    # (operator_id, alert_type, severity) inside this window
+    # collapse into the existing open alert.
+    RESEARCH_ALERT_DEDUP_WINDOW_MIN: int = 30
+    # Auto-resolve open alerts older than this when the operator
+    # has returned to `clear`.
+    RESEARCH_ALERT_AUTO_RESOLVE_HOURS: int = 24
+
 
 settings = Settings()
