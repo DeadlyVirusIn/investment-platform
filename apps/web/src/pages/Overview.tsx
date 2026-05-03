@@ -7,7 +7,7 @@ import { useMemo } from "react";
 import {
   usePaperSummary, useCurrentState, useAnomalySummary,
   usePaperTrades, usePerformance, useSystemHealth, useAnomalies,
-  usePaperEquity,
+  usePaperEquity, useExecutedSummary,
 } from "@/lib/operator/hooks";
 import EquityDrawdownChart from "@/components/operator/EquityDrawdownChart";
 import WhatChanged from "@/components/overview/WhatChanged";
@@ -39,9 +39,20 @@ export default function Overview() {
   const { data: perf } = usePerformance();
   const { data: health } = useSystemHealth();
   const { data: equity } = usePaperEquity();
+  // Phase 11Z — executed-trade headline numbers come from the
+  // account/recommendation path, not paper_trade_log. Without this,
+  // the Overview reports "Trades 0" while paper_trade has 18
+  // replay-tagged rows behind the toggle.
+  const { data: execSummary } = useExecutedSummary(false);
 
   const recentTrades = (trades ?? []).slice(0, 8);
-  const totalTrades = trades?.length ?? 0;
+  // Headline trade count = LIVE executed trades only. Replay rows
+  // get their own badge below; never silently rolled into "Trades".
+  const liveTradeCount = execSummary?.live_trades_count ?? 0;
+  const replayTradeCount = execSummary?.replay_trades_count ?? 0;
+  const replayPositionCount = execSummary?.replay_open_positions_count ?? 0;
+  const hasReplayRecovered = !!execSummary?.has_replay_recovered_rows;
+  const totalTrades = trades?.length ?? 0;  // strategy-log count (selector path)
   const winRate = useMemo(() => computeWinRate(trades ?? []), [trades]);
   const intel = useMemo(() => deriveIntelligence({
     state, perf, anomalies: anomalies ?? [], winRate,
@@ -140,12 +151,36 @@ export default function Overview() {
             sub="peak-to-trough"
             size="sec" />
           <StatCell label="Trades"
-            value={String(totalTrades)}
-            sub={winRate !== null
-              ? `${(winRate * 100).toFixed(0)}% win rate`
-              : "none closed"}
+            value={String(liveTradeCount)}
+            sub={
+              hasReplayRecovered
+                ? `${replayTradeCount} recovered replay available`
+                : winRate !== null
+                  ? `${(winRate * 100).toFixed(0)}% win rate`
+                  : "none closed"
+            }
             size="sec" />
         </div>
+        {hasReplayRecovered && liveTradeCount === 0 && (
+          <div
+            data-test="overview-replay-availability"
+            className="mt-3 u-card-tight flex items-center justify-between"
+            style={{ background: "var(--sunken)", padding: "8px 12px" }}
+          >
+            <div className="u-caption">
+              <span className="u-chip u-chip-warning mr-2">
+                Recovered replay
+              </span>
+              <strong>{replayTradeCount}</strong> recovered replay trades
+              {replayPositionCount > 0 && (
+                <> · <strong>{replayPositionCount}</strong> recovered open positions</>
+              )}
+              {" "}available — NOT live trading activity. Open the
+              {" "}<a href="/portfolio" className="underline">Paper Trading Terminal</a>
+              {" "}and toggle "Show recovered replay data" to inspect.
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ================= 3. CORE GRID — 70/30 terminal ============== */}
@@ -234,12 +269,16 @@ export default function Overview() {
               <Label>Recent Activity</Label>
               <div className="u-caption-2 mt-0.5">
                 {totalTrades === 0
-                  ? `No trades yet — regime has not triggered entry.`
+                  ? hasReplayRecovered
+                    ? `No live strategy-log activity. ${replayTradeCount} recovered replay rows available in the Paper Terminal — not live.`
+                    : `No trades yet — regime has not triggered entry.`
                   : `${totalTrades} total · showing ${recentTrades.length}`}
               </div>
             </div>
             {totalTrades === 0 && (
-              <span className="u-chip u-chip-neutral">Awaiting signal</span>
+              <span className="u-chip u-chip-neutral">
+                {hasReplayRecovered ? "Live: 0" : "Awaiting signal"}
+              </span>
             )}
           </div>
 
