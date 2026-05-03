@@ -72,6 +72,7 @@ from apps.api.src.api.jobs import router as jobs_router
 from apps.api.src.api.news import router as news_router
 from apps.api.src.api.pnl import router as pnl_router
 from apps.api.src.api.paper import router as paper_router
+from apps.api.src.api.paper_executed import router as paper_executed_router
 from apps.api.src.api.operator import router as operator_router
 from apps.api.src.api.performance import router as performance_router
 from apps.api.src.api.portfolio import router as portfolio_router
@@ -152,6 +153,7 @@ for _router in (
     jobs_router,
     performance_router,
     paper_router,
+    paper_executed_router,
     backtest_router,
     universe_router,
     regime_router,

@@ -81,6 +81,11 @@ from apps.api.src.db import SessionLocal
 CONFIRM_ENV = "PAPER_EXEC_REPLAY_CONFIRM"
 CONFIRM_VALUE = "I_UNDERSTAND_THIS_REGENERATES_EXECUTION_HISTORY"
 
+# Phase 11Z provenance — every entity created on commit gets a row
+# in replay_recovery_manifest (migration 061) so live-only queries
+# can exclude it. Run id is unique per script invocation.
+RUN_ID_PREFIX = "exec_chain_replay"
+
 # Tables this script is allowed to MUTATE. All writes happen through
 # existing engine functions — we never INSERT into these directly,
 # we only DELETE from them when --replace-date is set.
@@ -503,12 +508,94 @@ def _candidate_idea_coverage(session, days: list[dt.date]) -> dict[str, int]:
 # ---------------------------------------------------------------------------
 # Top-level
 # ---------------------------------------------------------------------------
+def _tag_manifest(
+    *, replay_run_id: str, entity_type: str, entity_id: str,
+    source: str = "replay", notes: str | None = None,
+) -> None:
+    """Idempotent INSERT into replay_recovery_manifest.
+
+    Uses ON CONFLICT DO NOTHING so re-tagging is safe. Caller owns
+    transaction commit. Skipped silently if migration 061 has not
+    yet been applied (table does not exist yet)."""
+    try:
+        with SessionLocal() as s:
+            s.execute(text("""
+                INSERT INTO replay_recovery_manifest
+                  (replay_run_id, entity_type, entity_id, source, notes)
+                VALUES (:rid, :et, :eid, :src, :notes)
+                ON CONFLICT (entity_type, entity_id) DO NOTHING
+            """), {
+                "rid": replay_run_id, "et": entity_type, "eid": entity_id,
+                "src": source, "notes": notes,
+            })
+            s.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "manifest tag skipped (table missing or write failed): {}", exc,
+        )
+
+
+def _tag_window_entities(
+    *, replay_run_id: str, account_id: str | None,
+    portfolio_id: str | None, window_start: dt.date, window_end: dt.date,
+) -> dict[str, int]:
+    """After commit, sweep entities created during this run inside
+    the replay window and tag them. Idempotent."""
+    counts: dict[str, int] = {}
+    if account_id:
+        _tag_manifest(
+            replay_run_id=replay_run_id, entity_type="account",
+            entity_id=account_id,
+            notes=f"window {window_start}..{window_end}",
+        )
+        counts["account"] = 1
+    if portfolio_id:
+        _tag_manifest(
+            replay_run_id=replay_run_id, entity_type="paper_portfolio",
+            entity_id=portfolio_id,
+            notes=f"window {window_start}..{window_end}",
+        )
+        counts["paper_portfolio"] = 1
+    if not portfolio_id:
+        return counts
+    try:
+        with SessionLocal() as s:
+            for entity_type, sql in (
+                ("paper_trade",
+                 "SELECT id FROM paper_trade WHERE portfolio_id=:p AND fill_ts::date BETWEEN :a AND :b"),
+                ("paper_position",
+                 "SELECT id FROM paper_position WHERE portfolio_id=:p AND opened_at::date BETWEEN :a AND :b"),
+                ("paper_equity_snapshot",
+                 "SELECT id FROM paper_equity_snapshot WHERE portfolio_id=:p AND snapshot_date::date BETWEEN :a AND :b"),
+            ):
+                ids = [
+                    r[0] for r in s.execute(
+                        text(sql),
+                        {"p": portfolio_id, "a": window_start, "b": window_end},
+                    ).all()
+                ]
+                for eid in ids:
+                    _tag_manifest(
+                        replay_run_id=replay_run_id,
+                        entity_type=entity_type,
+                        entity_id=str(eid),
+                    )
+                counts[entity_type] = len(ids)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("window sweep tag failed: {}", exc)
+    return counts
+
+
 def replay_chain(args: ReplayArgs) -> dict:
     _enforce_commit_confirmation(args)
     days = _trading_days(args.start_date, args.end_date)
     if not days:
         logger.error("no trading days in [{}, {}]", args.start_date, args.end_date)
         return {"ok": False, "days": []}
+    replay_run_id = (
+        f"{RUN_ID_PREFIX}_{args.start_date}_to_{args.end_date}_"
+        f"{dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    )
 
     with SessionLocal() as session:
         before_global = _count_global(session)
@@ -553,6 +640,18 @@ def replay_chain(args: ReplayArgs) -> dict:
     with SessionLocal() as session:
         after_global = _count_global(session)
 
+    # Tag every entity created inside the window so live-only
+    # queries can exclude them. Skipped in dry-run.
+    manifest_counts: dict[str, int] = {}
+    if args.commit:
+        manifest_counts = _tag_window_entities(
+            replay_run_id=replay_run_id,
+            account_id=acct_id, portfolio_id=port_id,
+            window_start=args.start_date, window_end=args.end_date,
+        )
+        logger.info("manifest tagged: {} (run_id={})",
+                     manifest_counts, replay_run_id)
+
     return {
         "ok": overall_ok,
         "start_date": args.start_date.isoformat(),
@@ -560,6 +659,8 @@ def replay_chain(args: ReplayArgs) -> dict:
         "account_name": args.account_name,
         "account_id": acct_id,
         "portfolio_id": port_id,
+        "replay_run_id": replay_run_id,
+        "manifest_counts": manifest_counts,
         "dry_run": args.dry_run,
         "commit": args.commit,
         "replace_date": args.replace_date,
