@@ -5,6 +5,8 @@ import { NavLink, Outlet } from 'react-router-dom';
 import OptionsPaperOnlyBanner from '@/components/options/OptionsPaperOnlyBanner';
 // Phase 11L — UI-only guardrails toggle button
 import GuardrailsToggleButton from '@/components/options/GuardrailsToggleButton';
+// Phase 11Z — surfaces "no options data ingested" once at the top
+import OptionsDataAvailabilityBanner from '@/components/options/OptionsDataAvailabilityBanner';
 
 const TABS = [
   { to: '/options/chain',         label: 'Chain' },
@@ -24,6 +26,7 @@ export default function OptionsLayout() {
   return (
     <div className="space-y-3 p-4 text-zinc-100">
       <OptionsPaperOnlyBanner />
+      <OptionsDataAvailabilityBanner />
       <header className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Options (observation)</h1>
         <span className="text-xs text-zinc-500">

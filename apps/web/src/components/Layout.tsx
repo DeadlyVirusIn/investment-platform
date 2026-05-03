@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { cn } from '@/lib/cn';
+import KeyboardHelpOverlay from './KeyboardHelpOverlay';
 
 interface NavItem {
   to: string;
@@ -8,14 +9,15 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard', label: 'Dashboard', icon: '◈' },
+  { to: '/control', label: 'Control Center', icon: '◈' },
   { to: '/portfolio', label: 'Portfolio', icon: '◎' },
-  { to: '/portfolio/setup', label: 'Setup Portfolio', icon: '⊕' },
-  { to: '/watchlist', label: 'Watchlist', icon: '◉' },
-  { to: '/recommendations', label: 'Recommendations', icon: '◆' },
+  { to: '/paper-operator', label: 'Operator', icon: '⊞' },
+  { to: '/research', label: 'Research', icon: '◆' },
   { to: '/briefing', label: 'Briefing', icon: '◫' },
-  { to: '/alerts', label: 'Alerts', icon: '◬' },
   { to: '/performance', label: 'Performance', icon: '◑' },
+  { to: '/intelligence', label: 'Intelligence', icon: '◐' },
+  { to: '/watchlist', label: 'Watchlist', icon: '◉' },
+  { to: '/alerts', label: 'Alerts', icon: '◬' },
   { to: '/jobs-health', label: 'Jobs Health', icon: '◧' },
   { to: '/settings', label: 'Settings', icon: '◩' },
 ];
@@ -67,6 +69,9 @@ export default function Layout() {
       <main className="flex-1 overflow-y-auto p-6">
         <Outlet />
       </main>
+
+      {/* Global keyboard help (triggered by `?`) */}
+      <KeyboardHelpOverlay />
     </div>
   );
 }
