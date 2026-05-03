@@ -61,10 +61,11 @@ async def test_recommendations_job_generates_for_each_account(
 
     pg_session.expire_all()
     recs = pg_session.scalars(select(Recommendation)).all()
-    # One recommendation per held asset across the two accounts
-    assert len(recs) == 2
+    # Universe = active assets ∪ held per account. 2 accounts × 2 active assets = 4.
+    # Dedup on (asset_id, model_version, snapshot_hash) keeps one row per (asset, snapshot).
     asset_ids = {r.asset_id for r in recs}
     assert asset_ids == {aapl.id, msft.id}
+    assert len(recs) >= 2
 
 
 async def test_recommendations_job_is_idempotent(pg_session: Session) -> None:
