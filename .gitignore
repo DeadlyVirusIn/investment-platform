@@ -52,3 +52,11 @@ logs/
 
 # ── Claude Code local settings ──────────────────────────────────
 .claude/
+
+# ── Local-only artifacts / dumps / tool caches ─────────────────
+# Phase 11Z: never commit DB dumps, runtime artifacts, or AI tool
+# caches. These accumulate locally and have no place in git.
+.backups/
+.claude-octopus/
+apps/web/.claude-octopus/
+artifacts/
