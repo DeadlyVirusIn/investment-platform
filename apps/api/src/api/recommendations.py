@@ -9,8 +9,18 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from decimal import Decimal
+
 from apps.api.src.db import get_session
 from apps.api.src.db.models import Asset, Recommendation, RecommendationEvidence
+from apps.api.src.domain.recommendations.diagnostics import (
+    DEFAULT_BUY_THRESHOLD,
+    BatchSummary,
+    Diagnostic,
+    analyze_recommendation,
+    order_by_closest_to_buy,
+    summarize_batch,
+)
 from apps.api.src.domain.recommendations.recommendation_engine import (
     list_latest_per_asset,
 )
@@ -50,21 +60,31 @@ def _rec_payload(
     evidences: list[RecommendationEvidence],
 ) -> dict[str, Any]:
     rationale = _parse_json(rec.rationale)
+    policy = rationale.get("policy") or {}
     return {
         "id": rec.id,
         "asset_id": rec.asset_id,
         "symbol": symbol,
         "action": rec.action,
         "confidence": str(rec.conviction) if rec.conviction is not None else None,
+        "confidence_label": rationale.get("confidence_label"),
         "enough_data": rationale.get("enough_data", True),
+        "stale_data": rationale.get("stale_data", False),
         "engine_version": rec.model_version,
-        "snapshot_hash": rationale.get("snapshot_hash"),
+        "snapshot_hash": rec.snapshot_hash or rationale.get("snapshot_hash"),
         "thesis": rationale.get("thesis"),
         "tags": rationale.get("tags", []),
         "composite_score": rationale.get("composite_score"),
         "family_scores": rationale.get("family_scores", {}),
         "generated_at": rec.generated_at.isoformat() if rec.generated_at else None,
         "evidence": [_evidence_payload(e) for e in evidences],
+        # Policy layer — original fields above remain the engine output;
+        # these surface any after-policy adjustments.
+        "policy": policy or None,
+        "adjusted_action": policy.get("adjusted_action"),
+        "adjusted_confidence": policy.get("adjusted_confidence"),
+        "adjusted_composite_score": policy.get("adjusted_composite_score"),
+        "policy_adjustments": policy.get("adjustments", []),
     }
 
 
@@ -128,6 +148,126 @@ def list_recommendations(
         for r in recs
     ]
     return {"recommendations": payload, "count": len(payload)}
+
+
+def _d_to_str(v: Decimal | None) -> str | None:
+    return str(v) if v is not None else None
+
+
+def _contributor_dict(c: Any) -> dict[str, Any]:
+    return {
+        "factor_key": c.factor_key,
+        "family": c.family,
+        "score": _d_to_str(c.score),
+        "weight": _d_to_str(c.weight),
+        "direction": c.direction,
+        "narrative": c.narrative,
+    }
+
+
+def _damper_dict(f: Any) -> dict[str, Any]:
+    return {
+        "rule": f.rule,
+        "factor": f.factor,
+        "score_before": _d_to_str(f.score_before),
+        "score_after": _d_to_str(f.score_after),
+        "reason": f.reason,
+    }
+
+
+def _diagnostic_dict(d: Diagnostic) -> dict[str, Any]:
+    return {
+        "recommendation_id": d.recommendation_id,
+        "asset_id": d.asset_id,
+        "symbol": d.symbol,
+        "action": d.action,
+        "composite_score": _d_to_str(d.composite_score),
+        "original_composite_score": _d_to_str(d.original_composite_score),
+        "confidence": _d_to_str(d.confidence),
+        "confidence_label": d.confidence_label,
+        "distance_to_buy": _d_to_str(d.distance_to_buy),
+        "top_positive": [_contributor_dict(c) for c in d.top_positive],
+        "top_negative": [_contributor_dict(c) for c in d.top_negative],
+        "dampers": [_damper_dict(f) for f in d.dampers],
+        "stale_data": d.stale_data,
+        "enough_data": d.enough_data,
+        "family_scores": {k: _d_to_str(v) for k, v in d.family_scores.items()},
+        "generated_at": d.generated_at_iso,
+    }
+
+
+def _summary_dict(s: BatchSummary) -> dict[str, Any]:
+    return {
+        "total": s.total,
+        "buy_threshold": _d_to_str(s.buy_threshold),
+        "buys": s.buys,
+        "action_distribution": s.action_distribution,
+        "score_distribution": [
+            {"bucket": b.label, "count": b.count} for b in s.score_distribution
+        ],
+        "confidence_distribution": [
+            {"bucket": b.label, "count": b.count} for b in s.confidence_distribution
+        ],
+        "near_buy_tight_pct": 0.05,
+        "near_buy_tight_count": s.near_buy_tight,
+        "near_buy_loose_pct": 0.10,
+        "near_buy_loose_count": s.near_buy_loose,
+        "dampers_applied": s.dampers_applied,
+        "stale_count": s.stale_count,
+        "insufficient_data_count": s.insufficient_data_count,
+        "max_composite": _d_to_str(s.max_composite),
+        "min_composite": _d_to_str(s.min_composite),
+        "median_composite": _d_to_str(s.median_composite),
+    }
+
+
+@router.get("/diagnostics")
+def get_recommendation_diagnostics(
+    buy_threshold: float = Query(float(DEFAULT_BUY_THRESHOLD), ge=-1.0, le=1.0),
+    limit: int = Query(100, ge=1, le=1000),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Explain *why* Buy signals aren't appearing across the latest batch.
+
+    Ranks assets by closest-to-Buy; surfaces contributors + damper flags;
+    returns batch-level score/confidence histograms. Derived from existing
+    Recommendation + RecommendationEvidence rows — no engine re-run.
+    """
+    recs = list_latest_per_asset(session, limit=limit)
+    asset_ids = [r.asset_id for r in recs]
+    symbol_map: dict[str, str] = {}
+    if asset_ids:
+        for aid, sym in session.execute(
+            select(Asset.id, Asset.symbol).where(Asset.id.in_(asset_ids))
+        ).all():
+            symbol_map[aid] = sym
+
+    ev_map = _attach_evidence(session, recs)
+
+    threshold = Decimal(str(buy_threshold))
+    diagnostics: list[Diagnostic] = []
+    for rec in recs:
+        diagnostics.append(analyze_recommendation(
+            recommendation_id=rec.id,
+            asset_id=rec.asset_id,
+            symbol=symbol_map.get(rec.asset_id),
+            action=rec.action,
+            rationale_json=rec.rationale,
+            conviction=rec.conviction if isinstance(rec.conviction, Decimal) or rec.conviction is None
+                      else Decimal(str(rec.conviction)),
+            generated_at_iso=rec.generated_at.isoformat() if rec.generated_at else None,
+            evidences=ev_map.get(rec.id, []),
+            buy_threshold=threshold,
+        ))
+
+    ordered = order_by_closest_to_buy(diagnostics)
+    summary = summarize_batch(diagnostics, buy_threshold=threshold)
+
+    return {
+        "summary": _summary_dict(summary),
+        "diagnostics": [_diagnostic_dict(d) for d in ordered],
+        "count": len(ordered),
+    }
 
 
 @router.get("/{rec_id}/evidence")

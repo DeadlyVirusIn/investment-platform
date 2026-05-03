@@ -12,7 +12,15 @@ from loguru import logger
 from sqlalchemy import select
 
 from apps.api.src.db import SessionLocal
-from apps.api.src.db.models import JobRun, JobSchedule
+from apps.api.src.db.models import (
+    Asset,
+    JobRun,
+    JobSchedule,
+    PaperPortfolio,
+    PaperTrade,
+    PriceBar,
+    Recommendation,
+)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -47,6 +55,76 @@ async def jobs_health() -> dict[str, Any]:
         "jobs": jobs,
         "scheduler_alive": True,
         "checked_at": now.isoformat(),
+    }
+
+
+@router.get("/status")
+async def ops_status() -> dict[str, Any]:
+    """One-shot operational status: latest run per job + entity counts.
+
+    Designed for a small dashboard widget; deterministic, read-only.
+    """
+    from sqlalchemy import func
+
+    now = dt.datetime.now(dt.timezone.utc)
+    jobs: list[dict[str, Any]] = []
+    with SessionLocal() as session:
+        schedules = list(session.scalars(select(JobSchedule)).all())
+        for sched in schedules:
+            last_run = session.scalars(
+                select(JobRun)
+                .where(JobRun.job_schedule_id == sched.id)
+                .order_by(JobRun.started_at.desc())
+                .limit(1)
+            ).first()
+            jobs.append({
+                "name": sched.name,
+                "cron": sched.cron_expr,
+                "enabled": sched.enabled,
+                "last_run_at": sched.last_run_at.isoformat() if sched.last_run_at else None,
+                "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+                "last_status": last_run.status if last_run else None,
+                "last_duration_seconds": (
+                    str(last_run.duration_seconds)
+                    if last_run and last_run.duration_seconds is not None else None
+                ),
+                "last_error": last_run.error_message if last_run else None,
+            })
+
+        asset_count = session.scalar(select(func.count()).select_from(Asset)) or 0
+        price_bar_count = session.scalar(select(func.count()).select_from(PriceBar)) or 0
+        rec_count = session.scalar(select(func.count()).select_from(Recommendation)) or 0
+        portfolio_count = session.scalar(
+            select(func.count()).select_from(PaperPortfolio)
+            .where(PaperPortfolio.is_active.is_(True))
+        ) or 0
+        trade_count = session.scalar(select(func.count()).select_from(PaperTrade)) or 0
+        latest_rec = session.scalar(
+            select(Recommendation.generated_at).order_by(Recommendation.generated_at.desc()).limit(1)
+        )
+        latest_trade = session.scalar(
+            select(PaperTrade.fill_ts).order_by(PaperTrade.fill_ts.desc().nulls_last()).limit(1)
+        )
+        latest_bar = session.scalar(
+            select(PriceBar.ts).order_by(PriceBar.ts.desc()).limit(1)
+        )
+
+    return {
+        "scheduler_alive": True,
+        "checked_at": now.isoformat(),
+        "jobs": jobs,
+        "counts": {
+            "assets": asset_count,
+            "price_bars": price_bar_count,
+            "recommendations": rec_count,
+            "active_paper_portfolios": portfolio_count,
+            "paper_trades": trade_count,
+        },
+        "latest": {
+            "price_bar_ts": latest_bar.isoformat() if latest_bar else None,
+            "recommendation_at": latest_rec.isoformat() if latest_rec else None,
+            "trade_at": latest_trade.isoformat() if latest_trade else None,
+        },
     }
 
 

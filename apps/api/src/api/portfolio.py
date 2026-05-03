@@ -1,4 +1,9 @@
-"""Portfolio API – real ledger-backed endpoints."""
+"""Portfolio API – real ledger-backed endpoints.
+
+``account_id`` is optional for personal-use single-account mode: when omitted,
+the endpoint falls back to the oldest existing Account. Multi-account callers
+can still pass an explicit ``account_id`` — forward compat preserved.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
-from apps.api.src.db.models import Asset, Transaction
+from apps.api.src.db.models import Account, Asset, Transaction
 from apps.api.src.domain.ledger.account_service import (
     AccountCreate,
     as_jsonable,
@@ -39,6 +44,32 @@ def _jsonable(v: Any) -> Any:
     return v
 
 
+DEFAULT_ACCOUNT_NAME = "Primary"
+
+
+def _resolve_account_id(session: Session, account_id: str | None) -> str:
+    """Return an explicit ``account_id`` or the oldest existing Account's id.
+
+    Personal-use bootstrap: auto-create ``Primary`` when no accounts exist.
+    """
+    if account_id:
+        return account_id
+    stmt = select(Account.id).order_by(Account.created_at.asc(), Account.id.asc()).limit(1)
+    found = session.execute(stmt).scalars().first()
+    if found:
+        return found
+    new_account = Account(
+        name=DEFAULT_ACCOUNT_NAME,
+        account_type="broker",
+        currency="USD",
+        is_active=True,
+    )
+    session.add(new_account)
+    session.flush()
+    session.commit()
+    return new_account.id
+
+
 def _txn_to_dict(txn: Transaction, symbol: str | None) -> dict[str, Any]:
     return {
         "id": txn.id,
@@ -57,39 +88,42 @@ def _txn_to_dict(txn: Transaction, symbol: str | None) -> dict[str, Any]:
 
 @router.get("/summary")
 def get_portfolio_summary(
-    account_id: str = Query(..., description="account uuid"),
+    account_id: str | None = Query(default=None, description="optional account uuid"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return _jsonable(compute_pnl_summary(session, account_id))
+    resolved = _resolve_account_id(session, account_id)
+    return _jsonable(compute_pnl_summary(session, resolved))
 
 
 @router.get("/positions")
 def get_positions(
-    account_id: str = Query(..., description="account uuid"),
+    account_id: str | None = Query(default=None, description="optional account uuid"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    positions = compute_positions(session, account_id)
+    resolved = _resolve_account_id(session, account_id)
+    positions = compute_positions(session, resolved)
     return _jsonable(
-        {"account_id": account_id, "positions": positions, "count": len(positions)}
+        {"account_id": resolved, "positions": positions, "count": len(positions)}
     )
 
 
 @router.get("/transactions")
 def list_transactions(
-    account_id: str = Query(..., description="account uuid"),
+    account_id: str | None = Query(default=None, description="optional account uuid"),
     limit: int = Query(100, ge=1, le=1000),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    resolved = _resolve_account_id(session, account_id)
     stmt = (
         select(Transaction, Asset.symbol)
         .join(Asset, Transaction.asset_id == Asset.id)
-        .where(Transaction.account_id == account_id)
+        .where(Transaction.account_id == resolved)
         .order_by(Transaction.ts.desc())
         .limit(limit)
     )
     rows = session.execute(stmt).all()
     return {
-        "account_id": account_id,
+        "account_id": resolved,
         "transactions": [_txn_to_dict(t, s) for t, s in rows],
         "count": len(rows),
     }
@@ -111,10 +145,11 @@ def post_transaction(
 
 @router.get("/pnl")
 def get_pnl(
-    account_id: str = Query(..., description="account uuid"),
+    account_id: str | None = Query(default=None, description="optional account uuid"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    return _jsonable(compute_pnl_summary(session, account_id))
+    resolved = _resolve_account_id(session, account_id)
+    return _jsonable(compute_pnl_summary(session, resolved))
 
 
 # ---------------------------------------------------------------------------

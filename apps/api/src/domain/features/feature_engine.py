@@ -166,8 +166,24 @@ def compute_trend_momentum(series: Series, cfg: dict[str, Any]) -> FamilyOut:
     current = close[-1]
     sig_cfg = cfg.get("signals", {})
 
-    # price vs SMA(200 or shorter fallback) — substitutes for MACD direction signal
+    # Core trend measurements reused by multiple signals
     long_sma = _sma(close, 200) or _sma(close, min(len(close), 100))
+    sma20 = _sma(close, 20)
+    sma50 = _sma(close, 50) if len(close) >= 50 else None
+
+    # Detect strong uptrend / downtrend (used to override RSI)
+    strong_uptrend = bool(
+        sma20 and sma50 and long_sma
+        and sma20 > sma50
+        and current > long_sma
+    )
+    strong_downtrend = bool(
+        sma20 and sma50 and long_sma
+        and sma20 < sma50
+        and current < long_sma
+    )
+
+    # --- price_vs_sma_long ------------------------------------------------
     if long_sma and long_sma > 0:
         pct = (current - long_sma) / long_sma
         score = _clamp(pct * Decimal("5"), Decimal("-1"), Decimal("1"))
@@ -190,9 +206,7 @@ def compute_trend_momentum(series: Series, cfg: dict[str, Any]) -> FamilyOut:
             ),
         ))
 
-    # SMA(20) vs SMA(50) — ema_crossover proxy
-    sma20 = _sma(close, 20)
-    sma50 = _sma(close, 50) if len(close) >= 50 else None
+    # --- sma_20_vs_50 -----------------------------------------------------
     if sma20 and sma50 and sma50 > 0:
         pct = (sma20 - sma50) / sma50
         score = _clamp(pct * Decimal("10"), Decimal("-1"), Decimal("1"))
@@ -215,18 +229,57 @@ def compute_trend_momentum(series: Series, cfg: dict[str, Any]) -> FamilyOut:
             ),
         ))
 
-    # RSI(14)
+    # --- trend_strength ---------------------------------------------------
+    # New signal: flags confirmed bullish / bearish regime.
+    if strong_uptrend:
+        ts_score = Decimal("1")
+        ts_dir = "bullish"
+        ts_note = "Strong uptrend (SMA20 > SMA50 and price > long SMA)."
+    elif strong_downtrend:
+        ts_score = Decimal("-1")
+        ts_dir = "bearish"
+        ts_note = "Strong downtrend (SMA20 < SMA50 and price < long SMA)."
+    else:
+        ts_score = Decimal("0")
+        ts_dir = "neutral"
+        ts_note = "No clear trend regime."
+    signals.append(SignalOut(
+        factor_key="trend_strength",
+        family="trend_momentum",
+        score=ts_score,
+        weight=Decimal("0.25"),
+        raw_value=None,
+        threshold=None,
+        direction=ts_dir,
+        narrative=ts_note,
+    ))
+
+    # --- rsi_14 (with strong-trend override) ------------------------------
     rsi_cfg = sig_cfg.get("rsi", {})
     rsi = _rsi(close, int(rsi_cfg.get("period", 14)))
     if rsi is not None:
         oversold = _d(rsi_cfg.get("oversold", 35))
         overbought = _d(rsi_cfg.get("overbought", 68))
-        if rsi <= oversold:
+        rsi_override_applied = False
+
+        if rsi <= oversold and not strong_downtrend:
             score = Decimal("0.8")
             direction = "bullish"
+            note = f"RSI(14)={rsi:.2f} oversold -> bullish"
         elif rsi >= overbought:
-            score = Decimal("-0.8")
-            direction = "bearish"
+            if strong_uptrend:
+                # Override: do not penalize overbought within a confirmed uptrend.
+                score = Decimal("0")
+                direction = "neutral"
+                note = (
+                    f"RSI(14)={rsi:.2f} overbought but override active "
+                    f"(strong uptrend): score neutralized"
+                )
+                rsi_override_applied = True
+            else:
+                score = Decimal("-0.8")
+                direction = "bearish"
+                note = f"RSI(14)={rsi:.2f} overbought -> bearish"
         else:
             mid = (oversold + overbought) / Decimal("2")
             span = (overbought - oversold) / Decimal("2")
@@ -237,6 +290,11 @@ def compute_trend_momentum(series: Series, cfg: dict[str, Any]) -> FamilyOut:
                     (rsi - mid) / span, Decimal("-1"), Decimal("1")
                 ) * Decimal("0.5")
             direction = "neutral"
+            note = f"RSI(14)={rsi:.2f} in neutral band"
+
+        narrative = note
+        if rsi_override_applied:
+            narrative += " (strong-trend override)"
         signals.append(SignalOut(
             factor_key="rsi_14",
             family="trend_momentum",
@@ -245,7 +303,7 @@ def compute_trend_momentum(series: Series, cfg: dict[str, Any]) -> FamilyOut:
             raw_value=rsi,
             threshold=oversold,
             direction=direction,
-            narrative=f"RSI(14)={rsi:.2f} [oversold={oversold}, overbought={overbought}]",
+            narrative=narrative,
         ))
 
     total_w = sum((s.weight for s in signals), Decimal("0"))
