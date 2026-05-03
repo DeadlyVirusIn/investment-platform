@@ -76,6 +76,11 @@ export interface ExecutedSummary {
   first_fill_date: string | null;
   last_fill_date: string | null;
   has_replay_recovered_rows: boolean;
+  // Always-on split counts independent of include_replay.
+  live_trades_count: number;
+  replay_trades_count: number;
+  live_open_positions_count: number;
+  replay_open_positions_count: number;
 }
 
 export interface ExecutedTrade {
@@ -117,10 +122,15 @@ export function useExecutedSummary(includeReplay = false) {
   });
 }
 
-export function useExecutedTrades(includeReplay = false) {
-  const qs = includeReplay ? "?include_replay=true" : "";
+export function useExecutedTrades(
+  includeReplay = false, portfolioId?: string | null,
+) {
+  const params = new URLSearchParams();
+  if (includeReplay) params.set("include_replay", "true");
+  if (portfolioId) params.set("portfolio_id", portfolioId);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return useQuery<{ count: number; trades: ExecutedTrade[]; include_replay: boolean }>({
-    queryKey: ["paper", "executed", "trades", includeReplay],
+    queryKey: ["paper", "executed", "trades", includeReplay, portfolioId ?? null],
     queryFn: () => apiGet(`/paper/executed/trades${qs}`),
     staleTime: 30_000,
   });
@@ -128,13 +138,15 @@ export function useExecutedTrades(includeReplay = false) {
 
 export function useExecutedPositions(
   includeReplay = false, isOpen?: boolean,
+  portfolioId?: string | null,
 ) {
   const params = new URLSearchParams();
   if (includeReplay) params.set("include_replay", "true");
   if (isOpen !== undefined) params.set("is_open", String(isOpen));
+  if (portfolioId) params.set("portfolio_id", portfolioId);
   const qs = params.toString() ? `?${params.toString()}` : "";
   return useQuery<{ count: number; positions: ExecutedPosition[]; include_replay: boolean }>({
-    queryKey: ["paper", "executed", "positions", includeReplay, isOpen],
+    queryKey: ["paper", "executed", "positions", includeReplay, isOpen, portfolioId ?? null],
     queryFn: () => apiGet(`/paper/executed/positions${qs}`),
     staleTime: 30_000,
   });

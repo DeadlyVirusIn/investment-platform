@@ -1,3 +1,15 @@
+// Phase 11Z — legacy /legacy/paper-portfolio page.
+//
+// Reads executed trades + open positions from the account-path
+// `/paper/executed/*` endpoints (paper_trade + paper_position) — NOT
+// from `/paper/portfolios/:id/trades` which mixes replay rows in
+// silently and from `paper_trade_log` (= 0). Includes:
+//   * always-on live + replay split counts in the header strip
+//   * "Show recovered replay data" toggle (default OFF)
+//   * banner spelling out recovered counts when replay rows exist
+//   * per-row "Recovered replay" warning chip on replay-tagged trades
+
+import { useState } from 'react';
 import Badge from '@/components/Badge';
 import Card from '@/components/Card';
 import EquityChart from '@/components/EquityChart';
@@ -12,8 +24,12 @@ import {
   usePaperEquity,
   usePaperPortfolio,
   usePaperPortfolios,
-  usePaperTrades,
 } from '@/lib/hooks';
+import {
+  useExecutedSummary,
+  useExecutedTrades,
+  type ExecutedTrade,
+} from '@/lib/operator/hooks';
 import {
   formatCurrency,
   formatDateTime,
@@ -25,7 +41,7 @@ import {
   pnlToneClass,
 } from '@/lib/format';
 import { useSelectedPortfolio } from '@/lib/useSelectedPortfolio';
-import type { Position, Trade } from '@/types';
+import type { Position } from '@/types';
 
 const BENCHMARK_SYMBOL = 'SPY';
 
@@ -57,7 +73,11 @@ function PaperPortfolioInner() {
   const { activeId, setId } = useSelectedPortfolio(portfolios);
 
   const detailQ = usePaperPortfolio(activeId);
-  const tradesQ = usePaperTrades(activeId, 200);
+  // Phase 11Z — toggle defaults OFF so live-only stays the headline.
+  // Banner reveals when has_replay_recovered_rows=true.
+  const [includeReplay, setIncludeReplay] = useState(false);
+  const execSummaryQ = useExecutedSummary(includeReplay);
+  const execTradesQ = useExecutedTrades(includeReplay, activeId);
   const equityQ = usePaperEquity(activeId);
 
   // Derive benchmark date range from current equity curve so we only fetch
@@ -93,7 +113,13 @@ function PaperPortfolioInner() {
   const openPositions = Array.isArray(detail?.open_positions)
     ? detail!.open_positions
     : [];
-  const trades = Array.isArray(tradesQ.data?.trades) ? tradesQ.data!.trades : [];
+  const trades: ExecutedTrade[] = execTradesQ.data?.trades ?? [];
+  const execSummary = execSummaryQ.data;
+  const liveTradesCount = execSummary?.live_trades_count ?? 0;
+  const replayTradesCount = execSummary?.replay_trades_count ?? 0;
+  const liveOpenPositions = execSummary?.live_open_positions_count ?? 0;
+  const replayOpenPositions = execSummary?.replay_open_positions_count ?? 0;
+  const hasReplayRecovered = !!execSummary?.has_replay_recovered_rows;
 
   // Defensive: enumerate missing expected fields so incomplete payloads get a
   // visible fallback card rather than causing a blank page.
@@ -131,6 +157,75 @@ function PaperPortfolioInner() {
       {detailQ.error && <ErrorState message={String(detailQ.error)} />}
 
       <MissingFieldCard fields={missingFields} />
+
+      {/* Phase 11Z — executed-trade strip (account path), always shown
+          regardless of include_replay toggle. Live counts on the left,
+          replay availability on the right. */}
+      <div
+        data-test="paper-portfolio-executed-strip"
+        className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4"
+      >
+        <StatCard
+          label="Live executed trades"
+          value={String(liveTradesCount)}
+          secondary={`paper_trade · live only`}
+          tone="muted"
+        />
+        <StatCard
+          label="Live open positions"
+          value={String(liveOpenPositions)}
+          secondary={`paper_position · live only`}
+          tone="muted"
+        />
+        <StatCard
+          label="Recovered replay trades"
+          value={String(replayTradesCount)}
+          secondary={
+            hasReplayRecovered
+              ? "available — not live"
+              : "none recovered"
+          }
+          tone={replayTradesCount > 0 ? "negative" : "muted"}
+        />
+        <StatCard
+          label="Recovered replay positions"
+          value={String(replayOpenPositions)}
+          secondary={
+            hasReplayRecovered
+              ? "available — not live"
+              : "none recovered"
+          }
+          tone={replayOpenPositions > 0 ? "negative" : "muted"}
+        />
+      </div>
+
+      {hasReplayRecovered && (
+        <div
+          data-test="paper-portfolio-replay-banner"
+          className="mb-4 rounded-md border border-amber-700 bg-amber-900/20 px-3 py-2 text-sm text-zinc-200 flex items-center justify-between"
+        >
+          <div>
+            <div className="font-semibold">
+              Recovered replay rows present — NOT live trading activity
+            </div>
+            <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
+              <strong>{replayTradesCount}</strong> recovered replay trades and{' '}
+              <strong>{replayOpenPositions}</strong> recovered open positions
+              were rebuilt from the 2026-05-02 DB wipe via the
+              execution-chain replay. Tagged in
+              {' '}<code>replay_recovery_manifest</code>; excluded by default.
+            </div>
+          </div>
+          <label className="text-xs flex items-center gap-2 ml-4 shrink-0">
+            <input
+              type="checkbox"
+              checked={includeReplay}
+              onChange={e => setIncludeReplay(e.target.checked)}
+            />
+            <span>Show recovered replay data</span>
+          </label>
+        </div>
+      )}
 
       {detail && (
         <>
@@ -238,20 +333,28 @@ function PaperPortfolioInner() {
           </Card>
 
           <Card
-            title="Trade log"
-            actions={<UpdatedLabel at={tradesQ.dataUpdatedAt} />}
+            title={includeReplay
+              ? "Trade log (live + recovered replay)"
+              : "Trade log (live only)"}
+            actions={<UpdatedLabel at={execTradesQ.dataUpdatedAt} />}
             contentClassName="p-0"
           >
-            {tradesQ.isLoading ? (
+            {execTradesQ.isLoading ? (
               <LoadingState />
-            ) : tradesQ.error ? (
-              <ErrorState message={String(tradesQ.error)} />
+            ) : execTradesQ.error ? (
+              <ErrorState message={String(execTradesQ.error)} />
             ) : (
-              <Table<Trade>
+              <Table<ExecutedTrade>
                 rows={trades}
-                rowKey={r => r.trade_id ?? `${r.symbol}-${r.fill_ts}`}
-                emptyLabel="No trades yet"
-                columns={TRADE_COLUMNS}
+                rowKey={r => r.trade_id ?? `${r.symbol}-${r.fill_ts ?? ''}`}
+                emptyLabel={
+                  includeReplay
+                    ? "No trades (live or recovered replay)"
+                    : hasReplayRecovered
+                      ? "No live trades — toggle 'Show recovered replay data' above to see " + replayTradesCount + " recovered rows."
+                      : "No trades yet"
+                }
+                columns={EXECUTED_TRADE_COLUMNS}
               />
             )}
           </Card>
@@ -280,7 +383,7 @@ const HOLDINGS_COLUMNS: Column<Position>[] = [
   { key: 'o', label: 'Opened', render: r => formatDateTime(r.opened_at) },
 ];
 
-const TRADE_COLUMNS: Column<Trade>[] = [
+const EXECUTED_TRADE_COLUMNS: Column<ExecutedTrade>[] = [
   { key: 'ts', label: 'Fill time', render: r => formatDateTime(r.fill_ts) },
   { key: 's', label: 'Symbol', render: r => r.symbol },
   {
@@ -298,8 +401,17 @@ const TRADE_COLUMNS: Column<Trade>[] = [
     align: 'right',
     render: r => (
       <span className={pnlToneClass(r.realized_pnl)}>
-        {r.realized_pnl ? formatSignedCurrency(r.realized_pnl) : '—'}
+        {r.realized_pnl != null ? formatSignedCurrency(r.realized_pnl) : '—'}
       </span>
+    ),
+  },
+  {
+    key: 'src',
+    label: 'Source',
+    render: r => (
+      r.source === 'replay' || r.source === 'test'
+        ? <Badge tone="negative">Recovered replay — not live trading activity</Badge>
+        : <span className="text-text-muted text-xs">{r.source ?? 'live'}</span>
     ),
   },
   {
