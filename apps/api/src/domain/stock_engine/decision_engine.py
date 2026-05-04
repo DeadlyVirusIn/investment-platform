@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Iterable
 
+from loguru import logger
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -52,6 +53,15 @@ TOP_N = 10                   # default Buy cap in low/normal vol regimes
 HIGH_VOL_TOP_N = 3           # soft cap under vol_regime='high'
 ATR_P90_QUANTILE = 0.90
 ATR_MEDIAN_QUANTILE = 0.50
+
+# Phase 1 — bounded regime fallback. When `regime_snapshot` has no row
+# for the requested as_of, walk backwards to the most recent prior row.
+# Reject (regime_off=True) only when no prior row exists OR the prior
+# row is more than this many trading days behind the requested date.
+# Conservative default — three trading days covers a normal weekend +
+# one missed weekday; longer gaps still hit `regime_off` so stale data
+# never silently licenses live trades.
+REGIME_FALLBACK_MAX_TRADING_DAYS = 3
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +102,65 @@ def _regime_payload(regime: RegimeSnapshot | None) -> dict:
         "realized_vol_20d": str(regime.realized_vol_20d),
         "atr_pctile_1y": str(regime.atr_pctile_1y),
     }
+
+
+def _trading_days_between(start: dt.date, end: dt.date) -> int:
+    """Count weekday-only days strictly between `start` (exclusive) and
+    `end` (inclusive). No holiday calendar — same simplification as
+    `apps/api/src/domain/ops/daily_runner._is_trading_day`."""
+    if end <= start:
+        return 0
+    n = 0
+    cur = start + dt.timedelta(days=1)
+    while cur <= end:
+        if cur.weekday() < 5:
+            n += 1
+        cur += dt.timedelta(days=1)
+    return n
+
+
+def _resolve_regime_with_fallback(
+    session: Session, as_of: dt.date,
+) -> "RegimeSnapshot | None":
+    """Return the regime row for `as_of`, falling back to the most
+    recent prior row when missing. Returns `None` (preserving the
+    existing `regime_off` behavior) when no prior row is within
+    `REGIME_FALLBACK_MAX_TRADING_DAYS` trading days behind `as_of`.
+
+    Logged on every fallback so operators can see exactly which date
+    was substituted, the trend it carries, and the trading-day age."""
+    exact = session.get(RegimeSnapshot, as_of)
+    if exact is not None:
+        return exact
+    prior = session.execute(
+        select(RegimeSnapshot)
+        .where(RegimeSnapshot.as_of_date < as_of)
+        .order_by(RegimeSnapshot.as_of_date.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+    if prior is None:
+        logger.warning(
+            "[regime] no row for as_of={} and no prior row found — "
+            "regime_off will fire",
+            as_of,
+        )
+        return None
+    age = _trading_days_between(prior.as_of_date, as_of)
+    if age > REGIME_FALLBACK_MAX_TRADING_DAYS:
+        logger.warning(
+            "[regime] no row for as_of={}; latest prior {} is "
+            "{}td old (>max {}td) — fallback REJECTED, regime_off "
+            "will fire",
+            as_of, prior.as_of_date, age,
+            REGIME_FALLBACK_MAX_TRADING_DAYS,
+        )
+        return None
+    logger.info(
+        "[regime] fallback used: requested_as_of_date={} "
+        "fallback_as_of_date={} market_trend={} fallback_age_td={}",
+        as_of, prior.as_of_date, prior.market_trend, age,
+    )
+    return prior
 
 
 def _percentile(values: list[float], q: float) -> float | None:
@@ -174,7 +243,7 @@ def generate_candidates(
     ``as_of`` (the latter will be flagged ``not_in_universe`` and logged
     rather than silently dropped).
     """
-    regime = session.get(RegimeSnapshot, as_of)
+    regime = _resolve_regime_with_fallback(session, as_of)
     universe_ids = _universe_asset_ids(session, universe_name, as_of)
 
     # Evaluation set: universe ∪ any asset with a factor row today
