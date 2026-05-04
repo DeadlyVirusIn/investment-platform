@@ -39,7 +39,7 @@ def test_banner_endpoints_are_known_read_only():
     # read-only behavior.
     expected = (
         "/options/shadow/summary",
-        "/options/paper-trades",
+        "/options/pipeline-status",
     )
     for e in expected:
         assert e in src, f"expected read-only endpoint missing: {e}"
@@ -47,8 +47,10 @@ def test_banner_endpoints_are_known_read_only():
 
 def test_banner_has_clear_no_data_messaging():
     src = BANNER.read_text(encoding="utf-8")
-    # Avoid wording that implies broken trading or active fault.
-    assert "No options data ingested" in src
+    # Three-state messaging — exact strings pinned so the UI keeps
+    # consistent operator-facing wording.
+    assert "No options chain data ingested" in src
+    assert "shadow evaluator has not run yet" in src
     forbidden = ("ERROR", "FAILED", "broken", "outage")
     for f in forbidden:
         assert f.lower() not in src.lower(), (
@@ -56,12 +58,22 @@ def test_banner_has_clear_no_data_messaging():
         )
 
 
-def test_banner_mentions_operator_command_with_env_gate():
+def test_banner_mentions_operator_commands_with_env_gates():
     src = BANNER.read_text(encoding="utf-8")
-    # The recommended command must include the env gate so users
-    # don't think they can flip a hidden switch.
+    # Both ingest and shadow eval commands must include their env
+    # gates so users don't think they can flip a hidden switch.
+    assert "OPTIONS_CHAIN_INGEST_CONFIRM" in src
+    assert "scripts.ingest_options_chain" in src
     assert "OPTIONS_SHADOW_EVAL_ENABLED" in src
     assert "scripts.run_options_shadow_eval" in src
+
+
+def test_banner_three_state_data_test_attributes():
+    src = BANNER.read_text(encoding="utf-8")
+    # Pin data-test hooks so QA/automation can identify which state
+    # is rendered without scraping fragile copy.
+    assert 'data-test="options-banner-no-chain"' in src
+    assert 'data-test="options-banner-chain-no-evals"' in src
 
 
 def test_banner_mounted_in_options_layout():

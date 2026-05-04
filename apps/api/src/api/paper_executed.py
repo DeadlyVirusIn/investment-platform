@@ -89,6 +89,48 @@ def executed_summary(
         WHERE entity_type = 'paper_trade' AND source IN ('replay','test')
     """)).scalar() or False
 
+    # Always-on split counts so the UI can show
+    # "live + recovered replay" simultaneously regardless of the
+    # include_replay toggle. NOT filtered by `excl`.
+    live_trades_count = db.execute(text("""
+        SELECT count(*) FROM paper_trade pt
+        WHERE NOT EXISTS (
+          SELECT 1 FROM replay_recovery_manifest m
+          WHERE m.entity_type = 'paper_trade'
+            AND m.entity_id = pt.id::text
+            AND m.source IN ('replay','test')
+        )
+    """)).scalar() or 0
+    replay_trades_count = db.execute(text("""
+        SELECT count(*) FROM paper_trade pt
+        WHERE EXISTS (
+          SELECT 1 FROM replay_recovery_manifest m
+          WHERE m.entity_type = 'paper_trade'
+            AND m.entity_id = pt.id::text
+            AND m.source IN ('replay','test')
+        )
+    """)).scalar() or 0
+    live_open_positions_count = db.execute(text("""
+        SELECT count(*) FROM paper_position pp
+        WHERE pp.is_open = true
+          AND NOT EXISTS (
+            SELECT 1 FROM replay_recovery_manifest m
+            WHERE m.entity_type = 'paper_position'
+              AND m.entity_id = pp.id::text
+              AND m.source IN ('replay','test')
+          )
+    """)).scalar() or 0
+    replay_open_positions_count = db.execute(text("""
+        SELECT count(*) FROM paper_position pp
+        WHERE pp.is_open = true
+          AND EXISTS (
+            SELECT 1 FROM replay_recovery_manifest m
+            WHERE m.entity_type = 'paper_position'
+              AND m.entity_id = pp.id::text
+              AND m.source IN ('replay','test')
+          )
+    """)).scalar() or 0
+
     return {
         "include_replay": include_replay,
         "trades_total": int(trades_total),
@@ -100,6 +142,11 @@ def executed_summary(
         "first_fill_date": first_fill.isoformat() if first_fill else None,
         "last_fill_date": last_fill.isoformat() if last_fill else None,
         "has_replay_recovered_rows": bool(has_replay_rows),
+        # Always-on split counts (independent of include_replay).
+        "live_trades_count": int(live_trades_count),
+        "replay_trades_count": int(replay_trades_count),
+        "live_open_positions_count": int(live_open_positions_count),
+        "replay_open_positions_count": int(replay_open_positions_count),
     }
 
 

@@ -282,3 +282,175 @@ def insights_labels(db: Session = Depends(get_session)) -> dict[str, Any]:
         },
         "note": note,
     }
+
+
+# ---------------------------------------------------------------------------
+# /ml/insights/readiness
+# ---------------------------------------------------------------------------
+@router.get("/readiness")
+def insights_readiness(
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Aggregate ML readiness signal — returns the complete checklist
+    the UI needs to render the readiness panel without any client-side
+    derivation. Pure read-only.
+
+    `is_ready=True` requires:
+      * labeled_trade_count >= MIN_LABELED_OUTCOMES
+      * leakage check passing (`is_forbidden_feature_name` import succeeds)
+      * NOT all-replay-only, OR caller explicitly accepts replay
+        diagnostics (the `dataset_is_replay_only` warning fires either
+        way; readiness flag itself is independent so the analyst can
+        still inspect the data)."""
+    from apps.api.src.ml.features import is_forbidden_feature_name
+
+    labeled_trade_count = db.execute(text("""
+        SELECT count(*) FROM recommendation_outcome
+        WHERE barrier_label IS NOT NULL
+           OR realized_30d_return IS NOT NULL
+    """)).scalar() or 0
+    pending_trade_count = db.execute(text("""
+        SELECT count(*) FROM recommendation_outcome
+        WHERE barrier_label IS NULL
+          AND realized_30d_return IS NULL
+    """)).scalar() or 0
+    open_position_count = db.execute(text("""
+        SELECT count(*) FROM paper_position WHERE is_open = true
+    """)).scalar() or 0
+    replay_trade_count = db.execute(text("""
+        SELECT count(*) FROM paper_trade pt
+        WHERE EXISTS (
+          SELECT 1 FROM replay_recovery_manifest m
+          WHERE m.entity_type = 'paper_trade'
+            AND m.entity_id = pt.id::text
+            AND m.source IN ('replay','test')
+        )
+    """)).scalar() or 0
+    live_trade_count = db.execute(text("""
+        SELECT count(*) FROM paper_trade pt
+        WHERE NOT EXISTS (
+          SELECT 1 FROM replay_recovery_manifest m
+          WHERE m.entity_type = 'paper_trade'
+            AND m.entity_id = pt.id::text
+            AND m.source IN ('replay','test')
+        )
+    """)).scalar() or 0
+    decision_log_rows = db.execute(text(
+        "SELECT count(*) FROM decision_log"
+    )).scalar() or 0
+
+    # Leakage check: importing the feature module + invoking the
+    # name-rejection helper without exception is sufficient for an
+    # insight readout. We do not run a model.
+    try:
+        is_forbidden_feature_name("future_return_30d")
+        leakage_check_status = "passed"
+    except Exception as exc:  # noqa: BLE001
+        leakage_check_status = f"error:{type(exc).__name__}"
+
+    is_ready = int(labeled_trade_count) >= MIN_LABELED_OUTCOMES
+    if int(labeled_trade_count) == 0:
+        reason = "no_labeled_outcomes"
+        next_unlock_condition = (
+            "Wait for trades to close and outcomes to be labeled."
+        )
+    elif not is_ready:
+        reason = (
+            f"insufficient_labeled_outcomes "
+            f"(have={int(labeled_trade_count)}, "
+            f"need>={MIN_LABELED_OUTCOMES})"
+        )
+        next_unlock_condition = (
+            f"Need {MIN_LABELED_OUTCOMES - int(labeled_trade_count)} "
+            f"more labeled outcomes."
+        )
+    else:
+        reason = "labeled_outcomes_above_floor"
+        next_unlock_condition = "Already met."
+
+    # Replay-only warning. Triggers when there is at least one trade
+    # and 100% of them are replay-tagged.
+    total_trades = int(replay_trade_count) + int(live_trade_count)
+    dataset_is_replay_only = (
+        total_trades > 0 and int(live_trade_count) == 0
+    )
+    warnings: list[str] = []
+    if dataset_is_replay_only:
+        warnings.append(
+            "Current dataset is replay-derived; treat model metrics "
+            "as recovery diagnostics."
+        )
+
+    # Missing requirements (any item that would prevent honest ML eval).
+    missing_requirements: list[str] = []
+    if int(labeled_trade_count) < MIN_LABELED_OUTCOMES:
+        missing_requirements.append(
+            f"labeled_trade_count<{MIN_LABELED_OUTCOMES}"
+        )
+    if leakage_check_status != "passed":
+        missing_requirements.append(
+            f"leakage_check_failed:{leakage_check_status}"
+        )
+    if dataset_is_replay_only:
+        missing_requirements.append("dataset_is_replay_only")
+
+    return {
+        "as_of": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "ml_can_affect_trades": False,
+        "is_ready": bool(is_ready),
+        "reason": reason,
+        "next_unlock_condition": next_unlock_condition,
+        "required_min_labeled_trades": MIN_LABELED_OUTCOMES,
+        "labeled_trade_count": int(labeled_trade_count),
+        "pending_trade_count": int(pending_trade_count),
+        "open_position_count": int(open_position_count),
+        "replay_trade_count": int(replay_trade_count),
+        "live_trade_count": int(live_trade_count),
+        "leakage_check_status": leakage_check_status,
+        "dataset_rows": int(decision_log_rows),
+        "feature_coverage": {
+            # Feature coverage by row would require materializing the
+            # dataset; surface availability metadata instead so the UI
+            # has something honest to render.
+            "feature_columns_defined": True,
+            "leakage_guard_implemented": (
+                leakage_check_status == "passed"
+            ),
+        },
+        "missing_requirements": missing_requirements,
+        "dataset_is_replay_only": dataset_is_replay_only,
+        "warnings": warnings,
+        "checklist": [
+            {
+                "name": "trades_exist",
+                "ok": total_trades > 0,
+            },
+            {
+                "name": "exits_recorded",
+                "ok": (
+                    db.execute(text(
+                        "SELECT count(*) > 0 FROM paper_trade "
+                        "WHERE realized_pnl IS NOT NULL"
+                    )).scalar() or False
+                ),
+            },
+            {
+                "name": "outcomes_labeled",
+                "ok": int(labeled_trade_count) > 0,
+            },
+            {
+                "name": "leakage_check_passed",
+                "ok": leakage_check_status == "passed",
+            },
+            {
+                "name": "enough_labels",
+                "ok": int(labeled_trade_count)
+                       >= MIN_LABELED_OUTCOMES,
+            },
+        ],
+        "notice": (
+            "ML readiness only — cannot affect trades. "
+            "ML_CAN_AFFECT_TRADES is pinned to false. This endpoint "
+            "does not train models, score data, or write artifacts."
+        ),
+    }

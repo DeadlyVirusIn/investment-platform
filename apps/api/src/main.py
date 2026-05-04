@@ -74,6 +74,7 @@ from apps.api.src.api.pnl import router as pnl_router
 from apps.api.src.api.paper import router as paper_router
 from apps.api.src.api.paper_executed import router as paper_executed_router
 from apps.api.src.api.performance_paper import router as performance_paper_router
+from apps.api.src.api.performance_paper import options_router as performance_options_router
 from apps.api.src.api.ml_insights import router as ml_insights_router
 from apps.api.src.api.operator import router as operator_router
 from apps.api.src.api.performance import router as performance_router
@@ -163,6 +164,7 @@ for _router in (
     paper_router,
     paper_executed_router,
     performance_paper_router,
+    performance_options_router,
     ml_insights_router,
     backtest_router,
     universe_router,

@@ -100,6 +100,10 @@ def test_response_schema_pinned_in_source():
     for key in (
         '"trades_total"', '"open_positions"', '"distinct_symbols"',
         '"has_replay_recovered_rows"', '"include_replay"',
+        # Always-on split counts so UI can show live + replay
+        # counts simultaneously without flipping the toggle.
+        '"live_trades_count"', '"replay_trades_count"',
+        '"live_open_positions_count"', '"replay_open_positions_count"',
     ):
         assert key in src, f"summary response missing key: {key}"
     # Trade row keys.

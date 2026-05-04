@@ -106,3 +106,49 @@ def test_main_py_mounts_paper_executed_router():
     src = Path("apps/api/src/main.py").read_text(encoding="utf-8")
     assert "paper_executed_router" in src
     assert "from apps.api.src.api.paper_executed import router" in src
+
+
+def test_header_shows_live_split_counts_not_filtered_total():
+    """Header must surface live counts always — operators need to see
+    `live=0, replay=18` simultaneously, not just whichever side the
+    include_replay toggle picked."""
+    src = PAGE.read_text(encoding="utf-8")
+    assert "live_trades_count" in src, (
+        "header must read live_trades_count from execSummary"
+    )
+    assert "live_open_positions_count" in src, (
+        "header must read live_open_positions_count from execSummary"
+    )
+    # Old behaviour rendered execSummary.trades_total in the headline,
+    # which silently flipped between live-only and live+replay when the
+    # toggle changed. That ambiguity is why we made counts always-on.
+    assert ("execSummary?.trades_total ?? 0} executed trades"
+            not in src), (
+        "header must not use trades_total in the headline (ambiguous)"
+    )
+
+
+def test_banner_shows_explicit_replay_counts():
+    src = PAGE.read_text(encoding="utf-8")
+    # Banner has to spell out the recovered counts so the operator
+    # can see "18 recovered replay trades · 18 recovered open positions"
+    # without flipping include_replay.
+    assert "replay_trades_count" in src
+    assert "replay_open_positions_count" in src
+    assert "recovered replay trades" in src
+    assert "NOT live trading activity" in src, (
+        "banner must explicitly state these are not live trades"
+    )
+
+
+def test_toggle_label_is_show_recovered_replay_data():
+    src = PAGE.read_text(encoding="utf-8")
+    # Brief required wording: "Show recovered replay data"
+    assert "Show recovered replay data" in src
+
+
+def test_hooks_type_pins_split_counts():
+    src = HOOKS.read_text(encoding="utf-8")
+    for key in ("live_trades_count", "replay_trades_count",
+                "live_open_positions_count", "replay_open_positions_count"):
+        assert key in src, f"ExecutedSummary type missing {key}"
