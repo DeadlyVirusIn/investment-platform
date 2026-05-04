@@ -1,9 +1,23 @@
-// Phase 11Z — top-level banner showing whether the platform has any
-// options chain / shadow data ingested. Renders silently when data
-// exists; renders a clear "no data ingested" message otherwise.
+// Phase 11Z — top-level banner showing the options data-availability
+// state. Three explicit states:
 //
-// Read-only. Does NOT trigger any data fetch beyond the existing
-// /options/health, /options/symbols, /options/shadow/summary calls.
+//   STATE 1 — no chain data
+//     options_chain_snapshot_count == 0
+//     → "No options chain data ingested"
+//     → instruct operator to run scripts/ingest_options_chain.py
+//
+//   STATE 2 — chain available but no shadow evaluations yet
+//     chain count > 0, shadow.total_runs == 0
+//     → "Chain ingested. Shadow evaluator has not run yet"
+//     → instruct operator to run scripts/run_options_shadow_eval
+//
+//   STATE 3 — shadow evaluations available
+//     shadow.total_runs > 0
+//     → render silently; sub-pages show their own data
+//
+// Read-only. Reads /options/pipeline-status (chain count + max date)
+// and /options/shadow/summary (run count). Does NOT trigger writes,
+// scheduling, or any POSTs.
 
 import { useQuery } from '@tanstack/react-query';
 import { apiGet } from '@/lib/api';
@@ -15,8 +29,11 @@ interface ShadowSummary {
   freshness_warnings: string[];
 }
 
-interface PaperTradesEnvelope {
-  count: number;
+interface PipelineStatus {
+  active: boolean;
+  options_chain_snapshot_count: number;
+  options_chain_snapshot_max_date: string | null;
+  options_paper_trade_count: number;
 }
 
 export default function OptionsDataAvailabilityBanner() {
@@ -25,38 +42,67 @@ export default function OptionsDataAvailabilityBanner() {
     queryFn: () => apiGet<ShadowSummary>('/options/shadow/summary'),
     staleTime: 60_000,
   });
-  const trades = useQuery<PaperTradesEnvelope>({
-    queryKey: ['options', 'paper-trades', 'count'],
-    queryFn: () => apiGet<PaperTradesEnvelope>('/options/paper-trades?limit=1'),
+  const pipeline = useQuery<PipelineStatus>({
+    queryKey: ['options', 'pipeline-status'],
+    queryFn: () => apiGet<PipelineStatus>('/options/pipeline-status'),
     staleTime: 60_000,
   });
 
-  const noShadow = shadow.data && shadow.data.total_runs === 0;
-  const noTrades = trades.data && trades.data.count === 0;
+  const chainCount = pipeline.data?.options_chain_snapshot_count ?? null;
+  const chainMaxDate = pipeline.data?.options_chain_snapshot_max_date ?? null;
+  const shadowRuns = shadow.data?.total_runs ?? null;
 
-  // Only surface the banner when BOTH are empty — that's the
-  // "platform has no options data" state. If either has data, the
-  // sub-pages will show it themselves.
-  if (!noShadow || !noTrades) return null;
-
-  return (
-    <div
-      role="status"
-      className="mb-3 rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200"
-    >
-      <div className="font-semibold">No options data ingested yet</div>
-      <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
-        The platform is paper-only and has no live options chain feed.
-        To populate diagnostics, run the operator shadow evaluator
-        once chain snapshots exist:{' '}
-        <code className="text-zinc-300">
-          OPTIONS_SHADOW_EVAL_ENABLED=true python -m
-          scripts.run_options_shadow_eval --date YYYY-MM-DD --commit
-        </code>
-        . No trades will be executed; only{' '}
-        <code className="text-zinc-300">options_shadow_decision_log</code>{' '}
-        receives writes.
+  // STATE 1 — no chain data ingested yet.
+  if (chainCount === 0) {
+    return (
+      <div
+        role="status"
+        data-test="options-banner-no-chain"
+        className="mb-3 rounded-md border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-sm text-zinc-200"
+      >
+        <div className="font-semibold">No options chain data ingested</div>
+        <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
+          options_chain_snapshot is empty. The platform has no options
+          quotes to evaluate. Operator must ingest a chain snapshot first
+          (CSV or provider). NO live feed is connected; this is a
+          paper-only environment.{' '}
+          <code className="text-zinc-300">
+            OPTIONS_CHAIN_INGEST_CONFIRM=I_UNDERSTAND_THIS_WRITES_OPTIONS_CHAIN_DATA
+            python -m scripts.ingest_options_chain --symbol SPY
+            --as-of YYYY-MM-DD --source csv --csv path/to/chain.csv --commit
+          </code>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  // STATE 2 — chain data exists, shadow evaluator not run yet.
+  if (chainCount !== null && chainCount > 0 && shadowRuns === 0) {
+    return (
+      <div
+        role="status"
+        data-test="options-banner-chain-no-evals"
+        className="mb-3 rounded-md border border-amber-700 bg-amber-900/20 px-3 py-2 text-sm text-zinc-200"
+      >
+        <div className="font-semibold">
+          Options chain ingested · shadow evaluator has not run yet
+        </div>
+        <div className="text-xs text-zinc-400 mt-1 leading-relaxed">
+          {chainCount} chain rows present
+          {chainMaxDate ? ` (latest snapshot ${chainMaxDate})` : ''} but
+          options_shadow_decision_log is empty. Evaluator runs only when
+          an operator triggers it manually:{' '}
+          <code className="text-zinc-300">
+            OPTIONS_SHADOW_EVAL_ENABLED=true python -m
+            scripts.run_options_shadow_eval --date YYYY-MM-DD --commit
+          </code>
+          . Only options_shadow_decision_log receives writes — no
+          trades are opened.
+        </div>
+      </div>
+    );
+  }
+
+  // STATE 3 — evaluations available; sub-pages render their own data.
+  return null;
 }

@@ -9,6 +9,7 @@ import { usePaperTrades, usePerformance } from "@/lib/operator/hooks";
 import { Label } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
 import MLInsightsCard from "@/components/personal/MLInsightsCard";
+import MLReadinessPanel from "@/components/personal/MLReadinessPanel";
 
 
 export default function MLLab() {
@@ -38,6 +39,7 @@ export default function MLLab() {
 
       {/* Personal-Analytics read-only card — pinned at top */}
       <MLInsightsCard />
+      <MLReadinessPanel />
 
       {/* Status bar */}
       <StatusBar s={status} />

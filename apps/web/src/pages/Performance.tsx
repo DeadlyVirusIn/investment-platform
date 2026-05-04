@@ -14,6 +14,10 @@ import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import UpdatedLabel from '@/components/UpdatedLabel';
 import DecisionQualityRibbon from '@/components/DecisionQualityRibbon';
 import PerformanceVisibilityCard from '@/components/personal/PerformanceVisibilityCard';
+import OpenPositionsPnLCard from '@/components/personal/OpenPositionsPnLCard';
+import OpenPositionsTable from '@/components/personal/OpenPositionsTable';
+import ExitTrackingPanel from '@/components/personal/ExitTrackingPanel';
+import TradeLifecycleCard from '@/components/personal/TradeLifecycleCard';
 import {
   useIntelligenceSummary,
   usePaperEquityCurve,
@@ -72,6 +76,10 @@ export default function Performance() {
       <DecisionQualityRibbon intelligence={intelQ.data} className="mb-4" />
 
       <PerformanceVisibilityCard />
+      <OpenPositionsPnLCard />
+      <OpenPositionsTable />
+      <ExitTrackingPanel />
+      <TradeLifecycleCard />
 
       {smallSample && (
         <Card className="mb-6" contentClassName="px-5 py-4">

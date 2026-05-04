@@ -69,8 +69,8 @@ export default function PortfolioTerminal() {
         <h1 className="u-title-lg">Paper Trading Terminal</h1>
         <p className="u-body mt-2">
           Live paper portfolio ·
-          {" "}{execSummary?.trades_total ?? 0} executed trades ·
-          {" "}{execSummary?.open_positions ?? 0} open positions ·
+          {" "}{execSummary?.live_trades_count ?? 0} live executed trades ·
+          {" "}{execSummary?.live_open_positions_count ?? 0} live open positions ·
           {" "}{state?.as_of_date ?? "idle"}
         </p>
         {execSummary?.has_replay_recovered_rows && (
@@ -82,10 +82,13 @@ export default function PortfolioTerminal() {
               <span className="u-chip u-chip-warning mr-2">
                 Recovered replay
               </span>
-              Some rows in this account were rebuilt from the
-              2026-05-02 DB wipe via the execution-chain replay.
-              They are tagged in <code>replay_recovery_manifest</code>
-              and excluded by default.
+              <strong>{execSummary?.replay_trades_count ?? 0}</strong>{" "}
+              recovered replay trades ·{" "}
+              <strong>{execSummary?.replay_open_positions_count ?? 0}</strong>{" "}
+              recovered open positions. Rebuilt from the 2026-05-02 DB
+              wipe via the execution-chain replay; tagged in{" "}
+              <code>replay_recovery_manifest</code> and excluded by
+              default. NOT live trading activity.
             </div>
             <label className="u-caption flex items-center gap-2">
               <input
@@ -93,7 +96,7 @@ export default function PortfolioTerminal() {
                 checked={includeReplay}
                 onChange={e => setIncludeReplay(e.target.checked)}
               />
-              <span>Include recovered rows</span>
+              <span>Show recovered replay data</span>
             </label>
           </div>
         )}
