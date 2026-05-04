@@ -13,6 +13,7 @@ import Table, { type Column } from '@/components/Table';
 import { EmptyState, ErrorState, LoadingState } from '@/components/States';
 import UpdatedLabel from '@/components/UpdatedLabel';
 import DecisionQualityRibbon from '@/components/DecisionQualityRibbon';
+import PerformanceVisibilityCard from '@/components/personal/PerformanceVisibilityCard';
 import {
   useIntelligenceSummary,
   usePaperEquityCurve,
@@ -69,6 +70,8 @@ export default function Performance() {
       />
 
       <DecisionQualityRibbon intelligence={intelQ.data} className="mb-4" />
+
+      <PerformanceVisibilityCard />
 
       {smallSample && (
         <Card className="mb-6" contentClassName="px-5 py-4">

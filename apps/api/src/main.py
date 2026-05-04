@@ -73,6 +73,8 @@ from apps.api.src.api.news import router as news_router
 from apps.api.src.api.pnl import router as pnl_router
 from apps.api.src.api.paper import router as paper_router
 from apps.api.src.api.paper_executed import router as paper_executed_router
+from apps.api.src.api.performance_paper import router as performance_paper_router
+from apps.api.src.api.ml_insights import router as ml_insights_router
 from apps.api.src.api.operator import router as operator_router
 from apps.api.src.api.performance import router as performance_router
 from apps.api.src.api.portfolio import router as portfolio_router
@@ -95,7 +97,13 @@ from apps.api.src.config import settings
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     logger.remove()
-    logger.add(sys.stderr, level=settings.LOG_LEVEL, colorize=True)
+    # loguru levels are case-sensitive; compose defaults to lowercase
+    # `info`, so normalize before passing.
+    logger.add(
+        sys.stderr,
+        level=(settings.LOG_LEVEL or "INFO").upper(),
+        colorize=True,
+    )
     logger.info("Starting investment-platform API v{}", settings.APP_VERSION)
     # Log effective ML hybrid + promotion config at startup so operators
     # can confirm env passthrough is working.
@@ -154,6 +162,8 @@ for _router in (
     performance_router,
     paper_router,
     paper_executed_router,
+    performance_paper_router,
+    ml_insights_router,
     backtest_router,
     universe_router,
     regime_router,

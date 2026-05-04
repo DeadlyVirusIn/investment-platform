@@ -7,6 +7,8 @@ import OptionsPaperOnlyBanner from '@/components/options/OptionsPaperOnlyBanner'
 import GuardrailsToggleButton from '@/components/options/GuardrailsToggleButton';
 // Phase 11Z — surfaces "no options data ingested" once at the top
 import OptionsDataAvailabilityBanner from '@/components/options/OptionsDataAvailabilityBanner';
+// Personal-Analytics — read-only shadow diagnostics card
+import OptionsShadowVisibilityCard from '@/components/personal/OptionsShadowVisibilityCard';
 
 const TABS = [
   { to: '/options/chain',         label: 'Chain' },
@@ -27,6 +29,7 @@ export default function OptionsLayout() {
     <div className="space-y-3 p-4 text-zinc-100">
       <OptionsPaperOnlyBanner />
       <OptionsDataAvailabilityBanner />
+      <OptionsShadowVisibilityCard />
       <header className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Options (observation)</h1>
         <span className="text-xs text-zinc-500">

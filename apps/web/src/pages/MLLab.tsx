@@ -8,6 +8,7 @@ import {
 import { usePaperTrades, usePerformance } from "@/lib/operator/hooks";
 import { Label } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
+import MLInsightsCard from "@/components/personal/MLInsightsCard";
 
 
 export default function MLLab() {
@@ -34,6 +35,9 @@ export default function MLLab() {
           Advisory-only. No execution. Promotion is gated, never automatic.
         </p>
       </header>
+
+      {/* Personal-Analytics read-only card — pinned at top */}
+      <MLInsightsCard />
 
       {/* Status bar */}
       <StatusBar s={status} />
