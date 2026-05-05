@@ -558,3 +558,81 @@ class OptionsAssignmentEvent(Base):
             text("event_at_utc DESC"),
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# 8. options_strategy_outcome  (Phase Options-Quality / migration 063)
+# ---------------------------------------------------------------------------
+# Append-only forward-return scoring of options strategy suggestions /
+# paper trades. Read-only with respect to source tables. Mirrors
+# 063_options_strategy_outcome.py; declared here so test harness
+# (Base.metadata.create_all) builds the table.
+OUTCOME_HORIZONS = ("1D", "3D", "5D", "10D", "20D")
+OUTCOME_LABELS = ("good", "neutral", "bad", "pending", "data_blocked")
+OUTCOME_SOURCES = ("suggestion", "paper_trade")
+OUTCOME_MODES = ("strict", "exploratory", "options_exploratory")
+
+
+class OptionsStrategyOutcome(Base):
+    __tablename__ = "options_strategy_outcome"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+    underlying: Mapped[str] = mapped_column(Text, nullable=False)
+    strategy_name: Mapped[str] = mapped_column(Text, nullable=False)
+    legs_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    as_of_date: Mapped[datetime.date] = mapped_column(
+        Date, nullable=False,
+    )
+    submitted_at_utc: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+    horizon: Mapped[str] = mapped_column(Text, nullable=False)
+    entry_reference: Mapped[float | None] = mapped_column(
+        Numeric(14, 6),
+    )
+    exit_reference: Mapped[float | None] = mapped_column(
+        Numeric(14, 6),
+    )
+    forward_return_pct: Mapped[float | None] = mapped_column(
+        Numeric(14, 6),
+    )
+    mfe_pct: Mapped[float | None] = mapped_column(Numeric(14, 6))
+    mae_pct: Mapped[float | None] = mapped_column(Numeric(14, 6))
+    outcome_label: Mapped[str] = mapped_column(Text, nullable=False)
+    source: Mapped[str] = mapped_column(Text, nullable=False)
+    mode: Mapped[str] = mapped_column(Text, nullable=False)
+    computed_at_utc: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        server_default=text("now()"),
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "underlying", "strategy_name", "submitted_at_utc",
+            "horizon", "source",
+            name="ux_options_strategy_outcome_natural_key",
+        ),
+        CheckConstraint(
+            _in("horizon", OUTCOME_HORIZONS),
+            name="ck_options_strategy_outcome_horizon",
+        ),
+        CheckConstraint(
+            _in("outcome_label", OUTCOME_LABELS),
+            name="ck_options_strategy_outcome_label",
+        ),
+        CheckConstraint(
+            _in("source", OUTCOME_SOURCES),
+            name="ck_options_strategy_outcome_source",
+        ),
+        CheckConstraint(
+            _in("mode", OUTCOME_MODES),
+            name="ck_options_strategy_outcome_mode",
+        ),
+        Index(
+            "ix_options_strategy_outcome_lookup",
+            "as_of_date", "horizon", "mode",
+        ),
+        Index(
+            "ix_options_strategy_outcome_underlying", "underlying",
+        ),
+    )

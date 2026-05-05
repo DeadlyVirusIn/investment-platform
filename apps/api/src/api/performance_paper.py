@@ -2564,6 +2564,230 @@ def options_strategy_suggestions(
 
 
 # ---------------------------------------------------------------------------
+# /performance/options/strategy-quality (+ details)
+# ---------------------------------------------------------------------------
+# Read-only forward-return scoring of options strategy suggestions /
+# paper trades. Reads the `options_strategy_outcome` table populated
+# by `scripts.compute_options_strategy_outcomes`. NO writes here. NO
+# fabrication. Same-bar entry forbidden by writer (entry uses first
+# chain snapshot strictly after submitted_at::date).
+
+_OPT_QUALITY_HORIZONS = ("1D", "3D", "5D", "10D", "20D")
+_OPT_QUALITY_LABELS = (
+    "good", "neutral", "bad", "pending", "data_blocked",
+)
+_OPT_QUALITY_MODES = ("strict", "exploratory", "options_exploratory")
+
+
+def _opt_quality_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    s = {l: 0 for l in _OPT_QUALITY_LABELS}
+    s["total"] = len(rows)
+    finalized = [
+        r for r in rows if r.get("forward_return_pct") is not None
+    ]
+    for r in rows:
+        s[r["outcome_label"]] = s.get(r["outcome_label"], 0) + 1
+    n_fin = len(finalized)
+    s["n_finalized"] = n_fin
+    if n_fin:
+        s["avg_forward_return_pct"] = (
+            sum(r["forward_return_pct"] for r in finalized) / n_fin
+        )
+        mfe_vals = [
+            r["mfe_pct"] for r in finalized if r.get("mfe_pct") is not None
+        ]
+        mae_vals = [
+            r["mae_pct"] for r in finalized if r.get("mae_pct") is not None
+        ]
+        s["avg_mfe_pct"] = sum(mfe_vals) / len(mfe_vals) if mfe_vals else None
+        s["avg_mae_pct"] = sum(mae_vals) / len(mae_vals) if mae_vals else None
+        good = sum(1 for r in finalized if r["outcome_label"] == "good")
+        s["hit_rate"] = good / n_fin
+    else:
+        s["avg_forward_return_pct"] = None
+        s["avg_mfe_pct"] = None
+        s["avg_mae_pct"] = None
+        s["hit_rate"] = None
+    return s
+
+
+@options_router.get("/strategy-quality")
+def options_strategy_quality(
+    db: Session = Depends(get_session),
+    as_of: str | None = Query(
+        None, description="ISO date; defaults to latest as_of in table.",
+    ),
+    horizon: str = Query(
+        "5D",
+        description=f"One of {_OPT_QUALITY_HORIZONS}.",
+    ),
+    mode: str = Query(
+        "strict",
+        description=f"One of {_OPT_QUALITY_MODES}.",
+    ),
+) -> dict[str, Any]:
+    """Aggregate strategy-quality summary at the requested horizon."""
+    if horizon not in _OPT_QUALITY_HORIZONS:
+        return {"error": f"horizon must be one of {_OPT_QUALITY_HORIZONS}"}
+    if mode not in _OPT_QUALITY_MODES:
+        return {"error": f"mode must be one of {_OPT_QUALITY_MODES}"}
+
+    if as_of is None:
+        latest = db.execute(text(
+            "SELECT max(as_of_date) FROM options_strategy_outcome"
+        )).scalar()
+        if latest is None:
+            return {
+                "as_of_date": None, "horizon": horizon, "mode": mode,
+                "summary": _empty_quality_summary(),
+                "by_strategy": {},
+                "notice": "No options_strategy_outcome rows yet.",
+            }
+        target = latest
+    else:
+        try:
+            target = dt.date.fromisoformat(as_of)
+        except ValueError:
+            return {"error": "as_of must be ISO date YYYY-MM-DD"}
+
+    rows = db.execute(text("""
+        SELECT
+          underlying, strategy_name, source, mode, horizon,
+          entry_reference, exit_reference, forward_return_pct,
+          mfe_pct, mae_pct, outcome_label
+        FROM options_strategy_outcome
+        WHERE as_of_date = :d AND horizon = :h AND mode = :m
+    """), {"d": target, "h": horizon, "m": mode}).mappings().all()
+
+    items: list[dict[str, Any]] = []
+    for r in rows:
+        items.append({
+            "underlying": r["underlying"],
+            "strategy_name": r["strategy_name"],
+            "source": r["source"], "mode": r["mode"], "horizon": r["horizon"],
+            "entry_reference": (
+                float(r["entry_reference"])
+                if r["entry_reference"] is not None else None
+            ),
+            "exit_reference": (
+                float(r["exit_reference"])
+                if r["exit_reference"] is not None else None
+            ),
+            "forward_return_pct": (
+                float(r["forward_return_pct"])
+                if r["forward_return_pct"] is not None else None
+            ),
+            "mfe_pct": (
+                float(r["mfe_pct"]) if r["mfe_pct"] is not None else None
+            ),
+            "mae_pct": (
+                float(r["mae_pct"]) if r["mae_pct"] is not None else None
+            ),
+            "outcome_label": r["outcome_label"],
+        })
+
+    by_strategy: dict[str, dict[str, Any]] = {}
+    for it in items:
+        bucket = by_strategy.setdefault(
+            it["strategy_name"], {"items": []},
+        )
+        bucket["items"].append(it)
+    for sname, b in by_strategy.items():
+        b.update(_opt_quality_summary(b["items"]))
+        del b["items"]
+
+    return {
+        "as_of_date": target.isoformat(),
+        "horizon": horizon,
+        "mode": mode,
+        "horizons_supported": list(_OPT_QUALITY_HORIZONS),
+        "thresholds": {
+            "good_pct": 0.01, "bad_pct": -0.01,
+        },
+        "summary": _opt_quality_summary(items),
+        "by_strategy": by_strategy,
+        "notice": (
+            "Read-only forward scoring. Entry uses first chain "
+            "snapshot strictly after submitted_at::date — no same-bar "
+            "labeling. Exit uses snapshot at or after target date. "
+            "All quotes are real chain rows; nothing fabricated."
+        ),
+    }
+
+
+@options_router.get("/strategy-quality/details")
+def options_strategy_quality_details(
+    db: Session = Depends(get_session),
+    as_of: str | None = Query(None),
+    horizon: str = Query("5D"),
+    mode: str = Query("strict"),
+    limit: int = Query(25, ge=1, le=200),
+) -> dict[str, Any]:
+    """Per-row detail listing — top items by absolute forward_return."""
+    if horizon not in _OPT_QUALITY_HORIZONS:
+        return {"error": f"horizon must be one of {_OPT_QUALITY_HORIZONS}"}
+    if mode not in _OPT_QUALITY_MODES:
+        return {"error": f"mode must be one of {_OPT_QUALITY_MODES}"}
+    if as_of is None:
+        latest = db.execute(text(
+            "SELECT max(as_of_date) FROM options_strategy_outcome"
+        )).scalar()
+        if latest is None:
+            return {"as_of_date": None, "count": 0, "items": []}
+        target = latest
+    else:
+        try:
+            target = dt.date.fromisoformat(as_of)
+        except ValueError:
+            return {"error": "as_of must be ISO date YYYY-MM-DD"}
+
+    rows = db.execute(text("""
+        SELECT
+          underlying, strategy_name, legs_json,
+          submitted_at_utc, horizon, source, mode,
+          entry_reference, exit_reference, forward_return_pct,
+          mfe_pct, mae_pct, outcome_label
+        FROM options_strategy_outcome
+        WHERE as_of_date = :d AND horizon = :h AND mode = :m
+        ORDER BY abs(coalesce(forward_return_pct, 0)) DESC,
+                 underlying ASC
+        LIMIT :limit
+    """), {"d": target, "h": horizon, "m": mode, "limit": limit}).all()
+
+    items = []
+    for r in rows:
+        items.append({
+            "underlying": r[0],
+            "strategy_name": r[1],
+            "legs": r[2],
+            "submitted_at_utc": (
+                r[3].isoformat() if r[3] else None
+            ),
+            "horizon": r[4],
+            "source": r[5],
+            "mode": r[6],
+            "entry_reference": (
+                float(r[7]) if r[7] is not None else None
+            ),
+            "exit_reference": (
+                float(r[8]) if r[8] is not None else None
+            ),
+            "forward_return_pct": (
+                float(r[9]) if r[9] is not None else None
+            ),
+            "mfe_pct": float(r[10]) if r[10] is not None else None,
+            "mae_pct": float(r[11]) if r[11] is not None else None,
+            "outcome_label": r[12],
+        })
+    return {
+        "as_of_date": target.isoformat(),
+        "horizon": horizon, "mode": mode,
+        "count": len(items),
+        "items": items,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Discord formatter (pure helper — no I/O)
 # ---------------------------------------------------------------------------
 def format_pending_fill_discord(item: dict[str, Any]) -> str:
