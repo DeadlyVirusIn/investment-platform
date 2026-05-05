@@ -160,6 +160,17 @@ export default function ExecutionStatusCard() {
           submitted_at::date. Same-bar fills are forbidden.
         </div>
       )}
+      {pendingCount > 0 && (
+        <div className="mt-1 u-caption-2 text-fg-3"
+             data-test="exec-post-ingest-hint">
+          Post-ingest one-shot:{" "}
+          <code className="u-mono-sm">
+            python -m scripts.run_post_ingest_paper_cycle --commit
+          </code>{" "}
+          (default safe; exploratory/options require explicit env
+          opt-ins).
+        </div>
+      )}
     </div>
   );
 }
