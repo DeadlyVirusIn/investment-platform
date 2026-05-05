@@ -129,15 +129,10 @@ def _readiness(session, as_of: dt.date) -> dict[str, Any]:
 
 _PENDING_REASON = "execution_failure"
 _PENDING_MARKER = "no price bar available after submitted_at"
+REPLAYED_SUFFIX = ".replayed.jsonl"
 
 
-def _pending_count(session, as_of: dt.date) -> int:
-    """Count pending-next-bar entries in `run_paper_trading` skip
-    JSONL. Matches the filter used by `/performance/paper/
-    pending-fills`: reason='execution_failure' AND
-    detail.exec_reason contains the next-bar marker."""
-    skips_dir = Path("artifacts/paper_trading_skips")
-    path = skips_dir / f"{as_of.isoformat()}.jsonl"
+def _pending_count_for_file(path: Path) -> int:
     if not path.exists():
         return 0
     n = 0
@@ -157,11 +152,65 @@ def _pending_count(session, as_of: dt.date) -> int:
     return n
 
 
+def _pending_count(session, as_of: dt.date) -> int:
+    """Today-only pending count (kept for compatibility)."""
+    return _pending_count_for_file(
+        Path("artifacts/paper_trading_skips") / f"{as_of.isoformat()}.jsonl"
+    )
+
+
+def _pending_count_all(as_of: dt.date) -> dict[str, int]:
+    """Sum pending entries across every skip JSONL strictly before
+    `as_of` whose `.replayed.jsonl` marker is missing — i.e. dates
+    that are still eligible for replay. Plus the today-only count."""
+    skips_dir = Path("artifacts/paper_trading_skips")
+    if not skips_dir.exists():
+        return {"prior_unreplayed": 0, "today": 0, "total": 0}
+    prior = 0
+    for p in skips_dir.iterdir():
+        if p.suffix != ".jsonl" or p.name.endswith(REPLAYED_SUFFIX):
+            continue
+        try:
+            d = dt.date.fromisoformat(p.stem)
+        except ValueError:
+            continue
+        if d >= as_of:
+            continue
+        marker = skips_dir / f"{d.isoformat()}{REPLAYED_SUFFIX}"
+        if marker.exists():
+            continue
+        prior += _pending_count_for_file(p)
+    today = _pending_count_for_file(
+        skips_dir / f"{as_of.isoformat()}.jsonl"
+    )
+    return {
+        "prior_unreplayed": prior, "today": today,
+        "total": prior + today,
+    }
+
+
 def _run_safe_stock(as_of: dt.date) -> dict[str, Any]:
     """Invoke run_paper_daily_safe.main() with --as-of."""
     from scripts.run_paper_daily_safe import main as safe_main
     rc = safe_main(["--as-of", as_of.isoformat()])
     return {"runner": "run_paper_daily_safe", "exit_code": rc}
+
+
+def _run_pending_replay(as_of: dt.date) -> dict[str, Any]:
+    """Replay pending_next_bar buys for every prior date with
+    matching skip JSONL entries that haven't already been replayed.
+    Today's price_bar (now ingested) satisfies the next-bar guard
+    for those original submitted_at timestamps. Same-bar fills
+    remain forbidden — `find_next_open` still requires
+    `bar.ts > submitted_at`."""
+    from apps.api.src.db import SessionLocal
+    from apps.api.src.domain.paper_trading.pending_replay import (
+        replay_all_pending,
+    )
+    summary = replay_all_pending(
+        before=as_of, SessionFactory=SessionLocal,
+    )
+    return {"runner": "pending_replay", **summary}
 
 
 def _run_exploratory(as_of: dt.date) -> dict[str, Any]:
@@ -240,17 +289,22 @@ def main(argv: list[str] | None = None) -> int:
         before_counts = _row_counts(session)
         readiness = _readiness(session, as_of)
         pending_before = _pending_count(session, as_of)
+    pending_breakdown_before = _pending_count_all(as_of)
 
     logger.info("[cycle.readiness] {}", readiness)
     logger.info(
-        "[cycle.pending_before] count={} (paper_trade={}, "
-        "options_paper_trade={})",
-        pending_before, before_counts["paper_trade"],
+        "[cycle.pending_before] today={} prior_unreplayed={} "
+        "total={} (paper_trade={}, options_paper_trade={})",
+        pending_breakdown_before["today"],
+        pending_breakdown_before["prior_unreplayed"],
+        pending_breakdown_before["total"],
+        before_counts["paper_trade"],
         before_counts["options_paper_trade"],
     )
 
     plan: list[dict[str, Any]] = []
     if stock_on:
+        plan.append({"step": "pending_replay", "gated_by": STOCK_ENV})
         plan.append({"step": "safe_stock_paper", "gated_by": STOCK_ENV})
     if expl_on:
         plan.append({"step": "exploratory_paper", "gated_by": EXPL_ENV})
@@ -280,6 +334,14 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("[cycle] dry-run — no runners invoked")
     else:
         if stock_on:
+            try:
+                results.append(_run_pending_replay(as_of))
+            except Exception as exc:  # noqa: BLE001
+                logger.error("[cycle] pending replay crashed: {}", exc)
+                results.append({
+                    "runner": "pending_replay",
+                    "error": str(exc),
+                })
             try:
                 results.append(_run_safe_stock(as_of))
             except Exception as exc:  # noqa: BLE001
@@ -334,6 +396,7 @@ def main(argv: list[str] | None = None) -> int:
     with SessionLocal() as session:
         after_counts = _row_counts(session)
         pending_after = _pending_count(session, as_of)
+    pending_breakdown_after = _pending_count_all(as_of)
     deltas = {
         k: after_counts[k] - before_counts[k]
         for k in before_counts
@@ -341,10 +404,16 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info(
         "[cycle.summary] stock_inserted={} options_inserted={} "
-        "outcomes_inserted={} pending_before={} pending_after={}",
+        "outcomes_inserted={} pending_before(total={}, prior={}, "
+        "today={}) pending_after(total={}, prior={}, today={})",
         deltas["paper_trade"], deltas["options_paper_trade"],
         deltas["options_strategy_outcome"],
-        pending_before, pending_after,
+        pending_breakdown_before["total"],
+        pending_breakdown_before["prior_unreplayed"],
+        pending_breakdown_before["today"],
+        pending_breakdown_after["total"],
+        pending_breakdown_after["prior_unreplayed"],
+        pending_breakdown_after["today"],
     )
 
     artifact = {
@@ -361,6 +430,8 @@ def main(argv: list[str] | None = None) -> int:
         "deltas": deltas,
         "pending_before": pending_before,
         "pending_after": pending_after,
+        "pending_breakdown_before": pending_breakdown_before,
+        "pending_breakdown_after": pending_breakdown_after,
         "plan": plan,
         "results": results,
         "safety": {
