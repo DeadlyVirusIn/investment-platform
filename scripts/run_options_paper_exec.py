@@ -51,10 +51,21 @@ from sqlalchemy import text
 CONFIRM_ENV = "OPTIONS_PAPER_EXEC_CONFIRM"
 CONFIRM_VALUE = "I_UNDERSTAND_THIS_SUBMITS_OPTIONS_PAPER_TRADES"
 
+# Phase Promotion-1 — env-gated promotion / dynamic-sizing hooks.
+# Default OFF. Even when set, these only influence: ranking, sizing
+# (qty multiplier), daily new-trades cap. NEVER bypass: liquidity,
+# next-bar, paper-only, allow-list, per-strategy hard cap.
+PROMOTION_ENV = "OPTIONS_STRATEGY_PROMOTION_ENABLED"
+SIZING_ENV = "OPTIONS_DYNAMIC_SIZING_ENABLED"
+
 # Hard caps — operator cannot override. paper-only invariant
 # enforced at the DB CHECK level.
 MAX_TRADES_PER_RUN = 2
 DEFAULT_QTY_CONTRACTS = 1
+# Promotion may raise per-run cap up to PROMO_MAX_TRADES_PER_RUN
+# when there is at least one tier>=2 candidate AND the env flag is on.
+PROMO_MAX_TRADES_PER_RUN = 3
+PROMO_MAX_QTY_MULTIPLIER = 4   # qty=1 → up to 4 contracts; still <=10 hard
 ALLOWED_STRATEGIES = ("long_call", "bull_call_spread")
 # Map shadow strategy names → DB CHECK enum names (added in
 # alembic migration 062_opt_paper_strategy_ext).
@@ -232,7 +243,65 @@ def main(argv: list[str] | None = None) -> int:
         if c.get("strategy") in ALLOWED_STRATEGIES
     ]
     candidates.sort(key=lambda c: -c.get("confidence", 0))
-    candidates = candidates[: args.limit]
+
+    # ----------------------------------------------------------------
+    # Phase Promotion-1 — env-gated rank boost + sizing.
+    # Both flags must be true. Hard caps still apply. Liquidity /
+    # next-bar / allow-list / paper-only NEVER bypassed.
+    # ----------------------------------------------------------------
+    promotion_on = (
+        os.environ.get(PROMOTION_ENV, "").strip().lower() == "true"
+    )
+    sizing_on = (
+        os.environ.get(SIZING_ENV, "").strip().lower() == "true"
+    )
+    promo_qty_mult: dict[tuple[str, str], int] = {}
+    promo_run_cap = MAX_TRADES_PER_RUN
+    if promotion_on:
+        from apps.api.src.db import SessionLocal as _SL
+        from apps.api.src.domain.options_quality.promotion import (
+            evaluate_promotions, PromotionThresholds, SizingConfig,
+            STRATEGY_DIRECTION,
+        )
+        with _SL() as _s:
+            cands = evaluate_promotions(
+                _s, horizon="5D", unit="underlying_strategy",
+                thresholds=PromotionThresholds(),
+                sizing=SizingConfig(),
+            )
+        eligible = [c for c in cands if c.eligible and c.tier >= 2]
+        if eligible:
+            promo_run_cap = min(
+                PROMO_MAX_TRADES_PER_RUN, max(MAX_TRADES_PER_RUN, 3),
+            )
+        # Build (underlying, db_strategy_upper) -> qty multiplier.
+        for c in eligible:
+            db_name = c.strategy_name.upper()
+            # qty multiplier from proposed_size_pct / base_pct,
+            # bounded.
+            ratio = c.proposed_size_pct / 0.005
+            mult = max(1, min(PROMO_MAX_QTY_MULTIPLIER, int(round(ratio))))
+            promo_qty_mult[(c.underlying, db_name)] = mult
+            logger.info(
+                "[options-exec.promo] {}/{}: tier={} hit_rate={:.3f} "
+                "size_pct={:.4f} qty_mult={} (sizing_enabled={})",
+                c.underlying, db_name, c.tier, c.hit_rate,
+                c.proposed_size_pct, mult, sizing_on,
+            )
+    # Apply rank boost: promoted strategies float to top, ties broken
+    # by confidence.
+    if promotion_on and promo_qty_mult:
+        def _rank_key(c: dict[str, Any]) -> tuple[int, float]:
+            key = (c.get("underlying"), c.get("strategy", "").upper())
+            promoted = key in promo_qty_mult
+            return (0 if promoted else 1, -c.get("confidence", 0))
+        candidates.sort(key=_rank_key)
+
+    # Effective limit = min(arg, hard cap, promo cap).
+    effective_limit = min(
+        args.limit, MAX_TRADES_PER_RUN if not promotion_on else promo_run_cap,
+    )
+    candidates = candidates[: effective_limit]
 
     if not candidates:
         logger.warning(
@@ -252,8 +321,23 @@ def main(argv: list[str] | None = None) -> int:
             strategy = cand["strategy"]
             underlying = cand["underlying"]
             legs = cand["legs"]
+            db_name_for_promo = strategy.upper()
+            qty_mult = (
+                promo_qty_mult.get(
+                    (underlying, db_name_for_promo), 1,
+                )
+                if (promotion_on and sizing_on) else 1
+            )
+            effective_qty = max(1, min(10, args.qty * qty_mult))
+            if qty_mult > 1:
+                logger.info(
+                    "[options-exec.promo.size] {} {} qty={} → "
+                    "effective_qty={} (mult={}, sizing_enabled={})",
+                    underlying, strategy, args.qty, effective_qty,
+                    qty_mult, sizing_on,
+                )
             try:
-                payoff = _compute_payoff(strategy, legs, args.qty)
+                payoff = _compute_payoff(strategy, legs, effective_qty)
             except ValueError as exc:
                 logger.warning(
                     "[options-exec.rejected] {} {}: {}",
@@ -329,7 +413,9 @@ def main(argv: list[str] | None = None) -> int:
             )
             session.add(trade)
             session.flush()
-            legs_payload = _build_legs_payload(strategy, legs, args.qty)
+            legs_payload = _build_legs_payload(
+                strategy, legs, effective_qty,
+            )
             for lp in legs_payload:
                 lp["underlying"] = underlying
                 session.add(OptionsPaperTradeLeg(

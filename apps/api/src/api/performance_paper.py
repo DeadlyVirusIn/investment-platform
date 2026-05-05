@@ -2788,6 +2788,77 @@ def options_strategy_quality_details(
 
 
 # ---------------------------------------------------------------------------
+# /performance/options/promotion-candidates  (read-only)
+# ---------------------------------------------------------------------------
+# Surfaces auto-promotion eligibility + tier + proposed size for
+# paper-trading options strategies. Pure read of
+# `options_strategy_outcome`. NO writes. NO env reads — env-gated
+# enforcement happens in the operator script + paper exec runner.
+
+@options_router.get("/promotion-candidates")
+def options_promotion_candidates(
+    db: Session = Depends(get_session),
+    horizon: str = Query("5D", description="Outcome horizon."),
+    unit: str = Query(
+        "strategy_name",
+        description=(
+            "Promotion grouping unit. One of: strategy_name, "
+            "underlying_strategy, iv_bucket_strategy, "
+            "direction_strategy."
+        ),
+    ),
+) -> dict[str, Any]:
+    from apps.api.src.domain.options_quality.promotion import (
+        VALID_HORIZONS as _VH, VALID_UNITS as _VU,
+        evaluate_promotions, candidate_to_dict,
+        PromotionThresholds, SizingConfig,
+    )
+    if horizon not in _VH:
+        return {"error": f"horizon must be one of {_VH}"}
+    if unit not in _VU:
+        return {"error": f"unit must be one of {_VU}"}
+
+    cands = evaluate_promotions(
+        db, horizon=horizon, unit=unit,
+        thresholds=PromotionThresholds(), sizing=SizingConfig(),
+    )
+    items = [candidate_to_dict(c) for c in cands]
+    eligible_count = sum(1 for c in cands if c.eligible)
+    return {
+        "horizon": horizon,
+        "unit": unit,
+        "count": len(items),
+        "eligible_count": eligible_count,
+        "items": items,
+        "thresholds": {
+            "min_samples": 20,
+            "min_window_trading_days": 10,
+            "min_hit_rate": 0.55,
+            "min_avg_forward_return_pct": 0.0,
+            "max_avg_mae_pct": -0.10,
+            "min_liquidity_pass_rate": 0.90,
+            "max_data_blocked_rate": 0.30,
+            "min_positive_horizons": 2,
+        },
+        "sizing": {
+            "base_pct": 0.005, "min_pct": 0.0025, "max_pct": 0.02,
+            "hard_max_per_strategy_pct": 0.02,
+            "hard_max_total_options_exposure_pct": 0.05,
+            "hard_max_per_underlying_pct": 0.02,
+            "hard_max_daily_new_pct": 0.03,
+        },
+        "notice": (
+            "Read-only promotion view. Promotion is GATED behind "
+            "OPTIONS_STRATEGY_PROMOTION_ENABLED + "
+            "OPTIONS_DYNAMIC_SIZING_ENABLED env flags (default false). "
+            "Promotion can ONLY influence rank, sizing, and daily "
+            "execution cap — never bypasses liquidity, next-bar, or "
+            "quote-freshness gates."
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Discord formatter (pure helper — no I/O)
 # ---------------------------------------------------------------------------
 def format_pending_fill_discord(item: dict[str, Any]) -> str:
