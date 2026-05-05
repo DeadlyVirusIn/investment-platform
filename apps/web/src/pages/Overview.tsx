@@ -17,6 +17,7 @@ import TopCatalysts from "@/components/overview/TopCatalysts";
 import GuidancePanel from "@/components/guidance/GuidancePanel";
 import ExploratoryBanner from "@/components/guidance/ExploratoryBanner";
 import DailyActivityCard from "@/components/paper/DailyActivityCard";
+import ExecutionStatusCard from "@/components/paper/ExecutionStatusCard";
 import ReadinessStrip from "@/components/overview/ReadinessStrip";
 import AlphaCoreStatus from "@/components/overview/AlphaCoreStatus";
 import RecentEventsFeed from "@/components/overview/RecentEventsFeed";
@@ -69,6 +70,11 @@ export default function Overview() {
                style={{ padding: "10px 14px" }}>
         <ReadinessStrip />
       </section>
+
+      {/* === 1b. EXECUTION STATUS — clear next-bar pending narrative.   */}
+      {/*        Resolves "system ignored 05/04 data" misread; shows     */}
+      {/*        signals ready, pending count, next-bar target, reason.  */}
+      <ExecutionStatusCard />
 
       {/* === 2. COMPACT STATUS BANNER (CF-4) — replaces dominant hero === */}
       {/*       Regime · Gates · Engine · Pipeline · Last decision           */}
@@ -493,7 +499,8 @@ function deriveHero({
   return {
     headline: `${regimeName} — standing by`,
     body: blockers.length === 0
-      ? "All gates favourable. Waiting for the next qualifying bar."
+      ? "All gates favourable. New signals will fill on the next "
+        + "trading bar (same-bar fills forbidden)."
       : `${engine} waiting on ${joinEn(blockers.slice(0, 2))} to align.`,
     word: "text-success", glow: "u-glow-success",
     chip: "success", ring: "is-success",
@@ -1010,7 +1017,9 @@ function buildHumanStateReason(s: CurrentState): string {
   }
   const blockers = extractBlockers(s.reason);
   if (blockers.length === 0) {
-    return `${reg}. All gates favourable. Waiting for the next qualifying bar.`;
+    return `${reg}. All gates favourable. New signals fill on the `
+      + `next trading bar — same-bar fills are forbidden by the `
+      + `next-bar guard.`;
   }
   return `${reg}. Entry blocked until ${joinEn(blockers.slice(0, 3))} align.`;
 }
