@@ -80,6 +80,14 @@ def _argparse() -> argparse.ArgumentParser:
     p.add_argument("--commit", action="store_true",
                    help="Invoke the gated runners. Each runner still "
                         "enforces its own safety gates.")
+    p.add_argument("--replay-pending-from", default=None,
+                   help="ISO date lower bound for pending replay. "
+                        "When set, every unmarked pending date in "
+                        "[from, as_of) is replayed oldest-first.")
+    p.add_argument("--force-replay", action="store_true",
+                   help="Ignore existing .replayed.jsonl markers. "
+                        "Operator-only; combine with explicit "
+                        "--replay-pending-from.")
     return p
 
 
@@ -196,7 +204,11 @@ def _run_safe_stock(as_of: dt.date) -> dict[str, Any]:
     return {"runner": "run_paper_daily_safe", "exit_code": rc}
 
 
-def _run_pending_replay(as_of: dt.date) -> dict[str, Any]:
+def _run_pending_replay(
+    as_of: dt.date, *,
+    from_date: dt.date | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
     """Replay pending_next_bar buys for every prior date with
     matching skip JSONL entries that haven't already been replayed.
     Today's price_bar (now ingested) satisfies the next-bar guard
@@ -209,6 +221,7 @@ def _run_pending_replay(as_of: dt.date) -> dict[str, Any]:
     )
     summary = replay_all_pending(
         before=as_of, SessionFactory=SessionLocal,
+        from_date=from_date, force=force,
     )
     return {"runner": "pending_replay", **summary}
 
@@ -273,6 +286,29 @@ def main(argv: list[str] | None = None) -> int:
     else:
         as_of = dt.datetime.now(dt.timezone.utc).date()
 
+    replay_from: dt.date | None = None
+    if args.replay_pending_from:
+        try:
+            replay_from = dt.date.fromisoformat(args.replay_pending_from)
+        except ValueError:
+            sys.stderr.write(
+                f"REFUSED: --replay-pending-from must be ISO date, "
+                f"got {args.replay_pending_from!r}\n",
+            )
+            return 2
+        if replay_from >= as_of:
+            sys.stderr.write(
+                f"REFUSED: --replay-pending-from ({replay_from}) "
+                f"must be < --as-of ({as_of})\n",
+            )
+            return 2
+    if args.force_replay and replay_from is None:
+        sys.stderr.write(
+            "REFUSED: --force-replay requires explicit "
+            "--replay-pending-from to bound the operation.\n",
+        )
+        return 2
+
     stock_on = _env_true(STOCK_ENV, default=True)
     expl_on = _env_true(EXPL_ENV, default=False)
     opt_on = _env_true(OPT_ENV, default=False)
@@ -335,7 +371,10 @@ def main(argv: list[str] | None = None) -> int:
     else:
         if stock_on:
             try:
-                results.append(_run_pending_replay(as_of))
+                results.append(_run_pending_replay(
+                    as_of, from_date=replay_from,
+                    force=args.force_replay,
+                ))
             except Exception as exc:  # noqa: BLE001
                 logger.error("[cycle] pending replay crashed: {}", exc)
                 results.append({

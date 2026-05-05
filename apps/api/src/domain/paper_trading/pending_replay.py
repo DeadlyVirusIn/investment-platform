@@ -72,9 +72,12 @@ def _is_pending_row(row: dict[str, Any]) -> bool:
 def collect_pending_dates(
     *, before: dt.date,
     skips_dir: Path = SKIPS_DIR,
+    from_date: dt.date | None = None,
+    force: bool = False,
 ) -> list[dt.date]:
     """Return sorted dates D with >=1 pending_next_bar skip entry,
-    where D < `before` AND D has no `.replayed.jsonl` marker."""
+    where (from_date <= D < before) AND (force OR no `.replayed`
+    marker present). `from_date=None` defaults to no lower bound."""
     if not skips_dir.exists():
         return []
     out: list[dt.date] = []
@@ -90,9 +93,12 @@ def collect_pending_dates(
             continue
         if d >= before:
             continue
-        marker = skips_dir / f"{d.isoformat()}{REPLAYED_SUFFIX}"
-        if marker.exists():
+        if from_date is not None and d < from_date:
             continue
+        if not force:
+            marker = skips_dir / f"{d.isoformat()}{REPLAYED_SUFFIX}"
+            if marker.exists():
+                continue
         # Cheap content scan — first matching row is enough.
         try:
             for line in p.read_text(encoding="utf-8").splitlines():
@@ -222,15 +228,24 @@ def replay_all_pending(
     SessionFactory,
     skips_dir: Path = SKIPS_DIR,
     max_dates: int = 30,
+    from_date: dt.date | None = None,
+    force: bool = False,
 ) -> dict[str, Any]:
     """Replay every prior date with pending fills. Bounded by
-    `max_dates` to avoid runaway loops on a stale skips_dir."""
+    `max_dates` to avoid runaway loops on a stale skips_dir.
+
+    `from_date` enforces a lower bound (default: no lower bound).
+    `force=True` ignores existing `.replayed.jsonl` markers — used
+    for explicit operator backfill."""
     dates = collect_pending_dates(
         before=before, skips_dir=skips_dir,
+        from_date=from_date, force=force,
     )[:max_dates]
     logger.info(
-        "[pending-replay] candidate dates < {} : {}",
-        before, [d.isoformat() for d in dates],
+        "[pending-replay] candidate dates from={} before={} "
+        "force={} : {}",
+        from_date, before, force,
+        [d.isoformat() for d in dates],
     )
     per_date: list[dict[str, Any]] = []
     total_executed = 0
@@ -248,4 +263,7 @@ def replay_all_pending(
         "executed_total": total_executed,
         "still_pending_total": total_still_pending,
         "per_date": per_date,
+        "from_date": from_date.isoformat() if from_date else None,
+        "before": before.isoformat(),
+        "force": force,
     }
