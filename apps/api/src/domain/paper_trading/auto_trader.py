@@ -282,10 +282,28 @@ def generate_decisions(
     )[: config.max_buy_candidates_per_run]
 
     equity = _compute_current_equity(session, portfolio)
-    usd_per_trade = (sizing_pct * equity).quantize(Decimal("0.01"))
+    usd_target = (sizing_pct * equity).quantize(Decimal("0.01"))
 
-    if usd_per_trade <= 0:
+    if usd_target <= 0:
         return decisions
+
+    # Cash-aware shrink — never removes the cash guard. If shrunk
+    # below the min-notional floor, the decision is skipped below.
+    from apps.api.src.domain.paper_trading.paper_execution import (
+        shrink_to_cash as _shrink,
+    )
+    available_cash = _d(portfolio.cash)
+    usd_per_trade, shrink_info = _shrink(
+        target_usd=usd_target, available_cash=available_cash,
+    )
+    if shrink_info["shrink_applied"] and not shrink_info["below_min"]:
+        logger.info(
+            "[auto_trader.shrink] target={} cash={} buffer={} "
+            "cap={} final={} shrink_applied=True",
+            shrink_info["target_usd"], shrink_info["available_cash"],
+            shrink_info["cash_buffer_pct"], shrink_info["cap_usd"],
+            shrink_info["final_usd"],
+        )
 
     # recommendation_id must be None when signal source is candidate_idea
     # (FK to `recommendation.id`; candidate_idea.id is a different table).
@@ -310,8 +328,18 @@ def generate_decisions(
             _record_skip(rec.asset_id, "pending_sell_same_asset")
             continue
         if usd_per_trade <= 0:
-            _record_skip(rec.asset_id, "sizing_below_threshold",
-                         {"usd_per_trade": str(usd_per_trade)})
+            # Either equity-based target was zero/negative (extreme
+            # config), or cash-aware shrink fell below
+            # PAPER_MIN_NOTIONAL_USD. Surface the explicit reason.
+            code = (
+                "position_too_small"
+                if shrink_info.get("below_min")
+                else "sizing_below_threshold"
+            )
+            _record_skip(rec.asset_id, code, {
+                "usd_per_trade": str(usd_per_trade),
+                **shrink_info,
+            })
             continue
         decisions.append(AutoTradeDecision(
             kind="open_buy",

@@ -23,6 +23,85 @@ from apps.api.src.db.models import (
 DEFAULT_MAX_OPEN_POSITIONS = 10
 DEFAULT_SIZING_PCT = Decimal("0.10")   # 10% of equity per position
 
+# Paper-only cash-aware sizing. When the equity-based target exceeds
+# available cash by a small margin, shrink to fit. Never removes the
+# cash guard — if shrunk size falls below `PAPER_MIN_NOTIONAL_USD`,
+# the decision is skipped with `position_too_small` instead.
+import os as _os  # local import — no top-level side effects.
+
+DEFAULT_CASH_BUFFER_PCT = Decimal("0.05")     # 5%
+DEFAULT_MIN_NOTIONAL_USD = Decimal("50")
+
+
+def _cash_buffer_pct() -> Decimal:
+    raw = _os.environ.get("PAPER_CASH_BUFFER_PCT", "").strip()
+    if not raw:
+        return DEFAULT_CASH_BUFFER_PCT
+    try:
+        v = Decimal(raw)
+    except Exception:  # noqa: BLE001
+        return DEFAULT_CASH_BUFFER_PCT
+    if v < 0 or v > Decimal("0.50"):
+        return DEFAULT_CASH_BUFFER_PCT
+    return v
+
+
+def _min_notional_usd() -> Decimal:
+    raw = _os.environ.get("PAPER_MIN_NOTIONAL_USD", "").strip()
+    if not raw:
+        return DEFAULT_MIN_NOTIONAL_USD
+    try:
+        v = Decimal(raw)
+    except Exception:  # noqa: BLE001
+        return DEFAULT_MIN_NOTIONAL_USD
+    if v < 0:
+        return DEFAULT_MIN_NOTIONAL_USD
+    return v
+
+
+def shrink_to_cash(
+    *, target_usd: Decimal, available_cash: Decimal,
+    cash_buffer_pct: Decimal | None = None,
+    min_notional_usd: Decimal | None = None,
+) -> tuple[Decimal, dict[str, Any]]:
+    """Shrink an equity-based sizing target to a cash-aware amount.
+
+    Returns (final_usd, info) where info captures shrink_applied,
+    cash_buffer_pct, min_notional_usd, target_usd, available_cash,
+    cap_usd, and below_min flag. final_usd <= 0 means the decision
+    must be rejected upstream with `position_too_small`."""
+    buffer = (
+        cash_buffer_pct
+        if cash_buffer_pct is not None
+        else _cash_buffer_pct()
+    )
+    min_n = (
+        min_notional_usd
+        if min_notional_usd is not None
+        else _min_notional_usd()
+    )
+    target = _d(target_usd)
+    cash = _d(available_cash)
+    cap = (cash * (Decimal("1") - buffer)).quantize(Decimal("0.01"))
+    if cap < 0:
+        cap = Decimal("0")
+    final = min(target, cap)
+    shrink_applied = final < target
+    below_min = final < min_n
+    info = {
+        "target_usd": str(target),
+        "available_cash": str(cash),
+        "cash_buffer_pct": str(buffer),
+        "cap_usd": str(cap),
+        "min_notional_usd": str(min_n),
+        "final_usd": str(final),
+        "shrink_applied": shrink_applied,
+        "below_min": below_min,
+    }
+    if below_min:
+        return Decimal("0"), info
+    return final, info
+
 
 # ---------------------------------------------------------------------------
 # Errors
