@@ -310,9 +310,35 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
     );
   }
 
-  const engineLabel = trade.engine === "A"
-    ? "Engine A · mean reversion"
-    : trade.engine === "B" ? "Engine B · credit + rates" : "No entry";
+  // Decision-audit messaging:
+  //   * Engine A / B fills came from the legacy selector path and
+  //     advertise their engine + regime in the header.
+  //   * Account-path fills (paper_trade) carry engine="paper" — these
+  //     ARE real executed trades. They predate the decision_log
+  //     retention window OR were entered by auto_trader without a
+  //     captured decision row, so the header must show that the
+  //     trade actually executed and only the *context* is missing.
+  //   * Anything else (engine=null, "none") with no decision row is
+  //     treated as backfilled.
+  const isAccountPath = trade.engine === "paper";
+  const isLegacyEngine = trade.engine === "A" || trade.engine === "B";
+  const engineLabel = isLegacyEngine
+    ? (trade.engine === "A"
+        ? "Engine A · mean reversion"
+        : "Engine B · credit + rates")
+    : isAccountPath
+      ? "Paper trade · account path"
+      : "Backfilled trade — decision context unavailable";
+  const subLabel = isLegacyEngine
+    ? `Fired long · ${trade.regime_at_entry ?? "unknown"} regime · `
+      + `version ${trade.decision_version ?? "—"}`
+    : isAccountPath
+      ? (trade.status === "closed"
+          ? `Executed ${trade.entry_date} · closed ${trade.exit_date ?? "—"}`
+            + ` · ${trade.reason ?? "no reason recorded"}`
+          : `Executed ${trade.entry_date} · `
+            + `${trade.reason ?? "no reason recorded"}`)
+      : "Backfilled — decision_log row not retained for this date.";
 
   return (
     <Card size="md" className="space-y-6">
@@ -323,13 +349,19 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
           <span className="u-mono-sm">{trade.entry_date}</span>
           {trade.status === "open" &&
             <span className="u-chip u-chip-neutral">open</span>}
+          {trade.status === "closed" &&
+            <span className="u-chip u-chip-success">closed</span>}
+          {!isLegacyEngine && (
+            <span className="u-chip u-chip-warning">
+              decision context missing
+            </span>
+          )}
         </div>
         <h2 className="u-title-lg" style={{ fontSize: 24 }}>
           {engineLabel}
         </h2>
         <div className="u-caption text-fg-2 mt-2">
-          Fired long · {trade.regime_at_entry} regime ·
-          {" "}version {trade.decision_version}
+          {subLabel}
         </div>
       </header>
 
@@ -497,9 +529,17 @@ function BlockingPanel({
   decision, trade,
 }: { decision: DecisionRow | null; trade: TradeRow }) {
   if (!decision) {
+    // Trade exists in paper_trade but decision_log row was not
+    // retained for this date (common for backfilled / account-path
+    // fills). Be explicit that the trade DID execute.
+    const isAccountPath = trade.engine === "paper";
     return (
       <div className="u-caption-2 italic">
-        Decision log not found for {trade.entry_date}.
+        {isAccountPath
+          ? "Trade executed via account path; decision_log row not "
+            + "captured. Blocking gates are unavailable."
+          : `Backfilled trade — decision context unavailable for `
+            + `${trade.entry_date}.`}
       </div>
     );
   }
@@ -537,9 +577,32 @@ function BlockingPanel({
 }
 
 function humanReasoning(trade: TradeRow, decision: DecisionRow | null): string {
-  const engine = trade.engine === "A" ? "Engine A (mean reversion)"
-    : trade.engine === "B" ? "Engine B (credit + rates alignment)"
-    : "No engine";
+  const isAccountPath = trade.engine === "paper";
+  const isLegacyEngine = trade.engine === "A" || trade.engine === "B";
+  const outcome = trade.net_ret_pct === null
+    ? "Position still open."
+    : trade.net_ret_pct > 0
+      ? `Closed at ${fmtPct(trade.net_ret_pct)} net — thesis confirmed.`
+      : `Closed at ${fmtPct(trade.net_ret_pct)} net — thesis rejected.`;
+
+  // Account-path / unknown-engine trades have a real fill but no
+  // captured decision_log row. Avoid the misleading "no engine
+  // fired long" phrasing — a buy DID execute at trade.entry_price.
+  if (!isLegacyEngine) {
+    const stem = isAccountPath
+      ? `Paper trade (${trade.engine}) executed on ${trade.entry_date} at ` +
+        `$${trade.entry_price.toFixed(2)}.`
+      : `Backfilled trade — decision context unavailable for ` +
+        `${trade.entry_date}.`;
+    const reasonText = trade.reason
+      ? ` Reason: ${trade.reason}.`
+      : "";
+    return `${stem}${reasonText} ${outcome}`;
+  }
+
+  const engine = trade.engine === "A"
+    ? "Engine A (mean reversion)"
+    : "Engine B (credit + rates alignment)";
   const regime = trade.regime_at_entry === "stress" ? "stress regime"
     : trade.regime_at_entry === "directional" ? "directional regime"
     : "neutral regime";
@@ -548,11 +611,6 @@ function humanReasoning(trade: TradeRow, decision: DecisionRow | null): string {
   const gatesText = ctxTrue.length > 0
     ? ` Supporting contexts: ${ctxTrue.join(", ")}.`
     : "";
-  const outcome = trade.net_ret_pct === null
-    ? "Position still open."
-    : trade.net_ret_pct > 0
-      ? `Closed at ${fmtPct(trade.net_ret_pct)} net — thesis confirmed.`
-      : `Closed at ${fmtPct(trade.net_ret_pct)} net — thesis rejected.`;
   return `${engine} fired long into ${regime} on ${trade.entry_date}.` +
     gatesText + ` ${outcome}`;
 }

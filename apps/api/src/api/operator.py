@@ -317,6 +317,26 @@ def paper_trades(
     except Exception:  # noqa: BLE001
         db.rollback()
 
+    # Dedup rule (post-Phase-1C UI fix):
+    #   Each row is one TRADE EVENT, not one position state. A
+    #   buy followed by a sell is two events. Previously the
+    #   query joined every paper_trade row to its latest
+    #   paper_position and copied is_open onto both sides — so a
+    #   closed position emitted both the buy AND the sell as
+    #   status='closed', double-counting the Realized History
+    #   panel (2 sells → 4 'closed' rows).
+    #
+    # New emission rule:
+    #   * sell rows are always emitted as status='closed' (each
+    #     sell is a realized-PnL event).
+    #   * buy rows are emitted only when the joined position is
+    #     currently open (status='open'). Buys whose position
+    #     has since been fully closed are represented by their
+    #     companion sell row and must NOT appear a second time.
+    #
+    # This preserves all rows in paper_trade — nothing is
+    # deleted. It only stops mislabeling closed buys as
+    # 'closed' alongside their sells.
     rows = db.execute(text("""
         SELECT
           t.id,
@@ -329,6 +349,7 @@ def paper_trades(
           (t.quantity * t.fill_price)::numeric AS notional_usd,
           t.realized_pnl,
           coalesce(pp.is_open, FALSE) AS is_open,
+          t.side,
           t.reason,
           t.portfolio_id
         FROM paper_trade t
@@ -336,14 +357,20 @@ def paper_trades(
         LEFT JOIN paper_position pp
                ON pp.portfolio_id = t.portfolio_id
               AND pp.asset_id = t.asset_id
+        WHERE
+              t.side = 'sell'
+           OR (t.side = 'buy' AND coalesce(pp.is_open, FALSE) = TRUE)
         ORDER BY t.fill_ts DESC
         LIMIT 500
     """)).mappings().all()
 
     out = []
     for r in rows:
-        is_open = bool(r["is_open"])
-        s = "open" if is_open else "closed"
+        side = r["side"]
+        # Each emitted row is now an unambiguous event: buys are
+        # always 'open' (the WHERE clause filters out post-close
+        # buys), sells are always 'closed' (realized event).
+        s = "closed" if side == "sell" else "open"
         if status and status != s:
             continue
         days_held = None
@@ -371,6 +398,7 @@ def paper_trades(
             ),
             "regime_at_entry": None,
             "status": s,
+            "side": side,
             "days_held": days_held,
             "decision_version": None,
             "reason": r["reason"],

@@ -53,6 +53,13 @@ def client(pg_engine):
 
 
 def _seed(session: Session, *, symbol="NVDA", is_open=True) -> dict:
+    """Seed one buy + (when closed) one matching sell + paper_position.
+
+    Mirrors the real lifecycle: a closed position has BOTH a buy
+    paper_trade row and a sell paper_trade row. Earlier the
+    fixture only seeded a buy, which masked the dedup bug fixed
+    in this phase (buys + sells both got status='closed').
+    """
     a = Asset(symbol=symbol, asset_class="equity", currency="USD")
     session.add(a)
     p = PaperPortfolio(
@@ -62,7 +69,7 @@ def _seed(session: Session, *, symbol="NVDA", is_open=True) -> dict:
     session.add(p)
     session.flush()
     fill_ts = dt.datetime(2026, 4, 30, 0, tzinfo=dt.timezone.utc)
-    t = PaperTrade(
+    buy = PaperTrade(
         portfolio_id=p.id, asset_id=a.id, side="buy",
         quantity=Decimal("0.5"), fill_price=Decimal("210"),
         fill_ts=fill_ts,
@@ -71,7 +78,21 @@ def _seed(session: Session, *, symbol="NVDA", is_open=True) -> dict:
         ),
         reason="auto_trader: Buy rec",
     )
-    session.add(t)
+    session.add(buy)
+    sell_id: str | None = None
+    if not is_open:
+        sell_ts = fill_ts + dt.timedelta(days=2)
+        sell = PaperTrade(
+            portfolio_id=p.id, asset_id=a.id, side="sell",
+            quantity=Decimal("0.5"), fill_price=Decimal("200"),
+            fill_ts=sell_ts,
+            submitted_at=sell_ts - dt.timedelta(hours=9),
+            reason="exit_cycle: stop_loss",
+            realized_pnl=Decimal("-5.00"),
+        )
+        session.add(sell)
+        session.flush()
+        sell_id = sell.id
     session.flush()
     pos = PaperPosition(
         portfolio_id=p.id, asset_id=a.id,
@@ -84,7 +105,10 @@ def _seed(session: Session, *, symbol="NVDA", is_open=True) -> dict:
     )
     session.add(pos)
     session.commit()
-    return {"trade_id": t.id, "asset_id": a.id, "portfolio_id": p.id}
+    return {
+        "trade_id": buy.id, "sell_trade_id": sell_id,
+        "asset_id": a.id, "portfolio_id": p.id,
+    }
 
 
 def test_returns_real_paper_trade_rows(pg_session, client):
@@ -108,6 +132,36 @@ def test_status_open_filter(pg_session, client):
     closed_rows = client.get("/api/paper/trades?status=closed").json()
     assert {r["instrument"] for r in open_rows} == {"NVDA"}
     assert {r["instrument"] for r in closed_rows} == {"AMZN"}
+    # Side semantics:
+    #   open rows are BUYs of currently-open positions;
+    #   closed rows are SELLs (realized events).
+    assert all(r.get("side") == "buy" for r in open_rows)
+    assert all(r.get("side") == "sell" for r in closed_rows)
+
+
+def test_no_duplicate_closed_rows_for_buy_plus_sell(pg_session, client):
+    """Regression: a closed position must emit exactly ONE
+    'closed' row (the sell), not also surface its companion buy
+    as a duplicate 'closed' row. Reproduces the
+    Realized-History-shows-4-instead-of-2 bug."""
+    _seed(pg_session, symbol="NVDA", is_open=False)
+    closed_rows = client.get("/api/paper/trades?status=closed").json()
+    assert len(closed_rows) == 1, closed_rows
+    assert closed_rows[0]["side"] == "sell"
+    assert closed_rows[0]["instrument"] == "NVDA"
+    assert closed_rows[0]["reason"].startswith("exit_cycle")
+    # Realized pnl is preserved on the sell row.
+    assert closed_rows[0]["pnl_dollar"] == -5.00
+    # The full feed contains both trade events (buy + sell) since
+    # nothing is deleted from paper_trade — the buy just shows as
+    # status='open' is filtered out (is_open=FALSE), so the buy
+    # row should NOT appear at all in the unfiltered list.
+    full_rows = client.get("/api/paper/trades").json()
+    sides = sorted(r["side"] for r in full_rows)
+    assert sides == ["sell"], (
+        "closed-position buy must not be re-emitted alongside its "
+        f"sell row; got sides={sides}"
+    )
 
 
 def test_empty_db_returns_empty_list(client):

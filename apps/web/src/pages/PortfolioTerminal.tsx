@@ -57,12 +57,28 @@ export default function PortfolioTerminal() {
   // strategy-log card; NOT used for headline counts.
   const open = (trades ?? []).filter(t => t.status === "open");
   const closed = (trades ?? []).filter(t => t.status === "closed");
-  const exposure = open.reduce(
-    (s, t) => s
-      + (summary?.equity ?? 0) * ((t.position_size_pct ?? 0) / 100),
-    0,
-  );
-  const exposurePct = summary ? exposure / summary.equity : 0;
+
+  // Exposure — mark-to-market value of open paper positions, sourced
+  // from /paper/summary.positions_value (computed server-side off
+  // paper_equity_snapshot which marks paper_position to the latest
+  // price_bar). Falls back to summing open trade notional_usd
+  // (cost basis) if positions_value is unavailable; never derives
+  // from selector-path position_size_pct, which is null for the
+  // recommendation/account path.
+  const markUnavailable =
+    summary != null && (summary.positions_value == null
+                        || Number.isNaN(summary.positions_value));
+  const exposureFromSummary = summary?.positions_value ?? null;
+  const exposureFromNotional = (trades ?? [])
+    .filter(t => t.status === "open" && t.notional_usd != null)
+    .reduce((s, t) => s + Math.abs(t.notional_usd ?? 0), 0);
+  const exposure = exposureFromSummary != null
+    ? exposureFromSummary
+    : exposureFromNotional;
+  const exposurePct = (summary && summary.equity > 0)
+    ? exposure / summary.equity : 0;
+  const openPositionsCount = summary?.open_positions_count
+    ?? openExecPositions.length;
 
   return (
     <div className="max-w-[1440px] mx-auto px-8 py-8 space-y-6">
@@ -135,8 +151,10 @@ export default function PortfolioTerminal() {
             value={summary ? fmtUSD(summary.cash) : "—"}
             sub={summary ? `${((summary.cash / summary.equity) * 100).toFixed(0)}% of NAV` : "—"} />
           <Strip label="Exposure"
-            value={fmtUSD(exposure)}
-            sub={`${(exposurePct * 100).toFixed(1)}% · ${open.length} open`} />
+            value={markUnavailable ? "mark unavailable" : fmtUSD(exposure)}
+            sub={markUnavailable
+              ? `${openPositionsCount} open · server mark missing`
+              : `${(exposurePct * 100).toFixed(1)}% · ${openPositionsCount} open`} />
         </div>
       </div>
 

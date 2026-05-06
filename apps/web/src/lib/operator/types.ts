@@ -3,7 +3,11 @@
 // decision_log, context_daily, features_daily.
 
 export type Regime = "stress" | "directional" | "none";
-export type Engine = "A" | "B" | "none";
+// "paper" — account/recommendation path fills (paper_trade table).
+//   These are real executed trades that predate or skip the
+//   selector engines (A/B). They have no captured decision_log
+//   row, so consumers must not imply "no entry happened".
+export type Engine = "A" | "B" | "none" | "paper";
 export type Status = "production" | "candidate" | "diagnostic";
 export type TradeStatus = "open" | "closed" | "cancelled";
 
@@ -11,6 +15,8 @@ export interface PaperSummary {
   as_of_date: string;           // YYYY-MM-DD
   equity: number;
   cash: number;
+  positions_value: number;      // mark-to-market sum of open positions
+  unrealized_pnl?: number;
   total_return_pct: number;     // cum_pct
   max_drawdown_pct: number;
   daily_pnl: number;
@@ -66,6 +72,7 @@ export interface TradeRow {
   notional_usd?: number | null;
   is_replay?: boolean;
   portfolio_id?: string;
+  side?: "buy" | "sell";
 }
 
 export interface DecisionRow {
