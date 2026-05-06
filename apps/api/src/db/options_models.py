@@ -58,6 +58,12 @@ STRATEGY_NAMES = (
     "SHORT_PUT_CREDIT_SPREAD",
     "SHORT_CALL_CREDIT_SPREAD",
     "IRON_CONDOR",
+    # Phase Options-Paper-Exec / migration 062 widened the
+    # production CHECK to include the controlled-execution
+    # strategies. Mirror that here so testcontainer's
+    # Base.metadata.create_all builds the same constraint.
+    "LONG_CALL",
+    "BULL_CALL_SPREAD",
 )
 LIFECYCLE_EVENT_TYPES = (
     "PROPOSED",

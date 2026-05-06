@@ -210,6 +210,17 @@ def get_latest_features(
 # Paper trades
 # ---------------------------------------------------------------------------
 
+_STATUS_TAB_MAP: dict[str, tuple[str, ...]] = {
+    # UI tab → DB enum set (mirrors options_models.TRADE_STATUSES).
+    # Every state strictly before close belongs under "open" so a
+    # freshly-submitted trade with status='PROPOSED' shows up there.
+    "open": ("PROPOSED", "OPEN", "EXPIRING"),
+    "closed": ("CLOSED",),
+    "expired": ("EXPIRED",),
+    "assigned": ("ASSIGNED",),
+}
+
+
 def list_paper_trades(
     session: Session,
     *,
@@ -221,8 +232,23 @@ def list_paper_trades(
     where = []
     params: dict[str, Any] = {"limit": int(limit)}
     if status is not None:
-        where.append("status = :status")
-        params["status"] = status.upper()
+        # Lower-case strings are UI tabs and map to a SET of DB
+        # statuses so that a freshly-submitted PROPOSED trade is
+        # visible under "open". Upper-case strings (PROPOSED,
+        # OPEN, …) match the DB enum exactly — backward
+        # compatibility for existing API consumers.
+        is_tab = (status.islower() and status in _STATUS_TAB_MAP)
+        if is_tab:
+            db_statuses = _STATUS_TAB_MAP[status]
+            ph = ", ".join(
+                f":status_{i}" for i in range(len(db_statuses))
+            )
+            where.append(f"status IN ({ph})")
+            for i, v in enumerate(db_statuses):
+                params[f"status_{i}"] = v
+        else:
+            where.append("status = :status")
+            params["status"] = status.upper()
     if underlying is not None:
         where.append("underlying = :underlying")
         params["underlying"] = underlying
@@ -452,7 +478,7 @@ def get_risk_summary(
         """
         SELECT id, underlying, max_loss_dollars
         FROM options_paper_trade
-        WHERE status = 'OPEN' AND paper_only = TRUE
+        WHERE status IN ('PROPOSED','OPEN','EXPIRING') AND paper_only = TRUE
         """
     )).all()
 
@@ -462,7 +488,7 @@ def get_risk_summary(
                SUM(t.max_loss_dollars) AS max_loss_at_expiry
         FROM options_paper_trade t
         JOIN options_paper_trade_leg l ON l.trade_id = t.id
-        WHERE t.status = 'OPEN' AND t.paper_only = TRUE
+        WHERE t.status IN ('PROPOSED','OPEN','EXPIRING') AND t.paper_only = TRUE
         GROUP BY l.expiry
         ORDER BY l.expiry
         """
@@ -481,7 +507,7 @@ def get_risk_summary(
                      WHEN l.side='SELL' THEN -l.entry_vega  * l.qty END) AS net_vega
         FROM options_paper_trade t
         JOIN options_paper_trade_leg l ON l.trade_id = t.id
-        WHERE t.status = 'OPEN' AND t.paper_only = TRUE
+        WHERE t.status IN ('PROPOSED','OPEN','EXPIRING') AND t.paper_only = TRUE
         """
     )).first()
 
