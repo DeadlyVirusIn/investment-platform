@@ -1,676 +1,628 @@
-// Alpha Lab — research console for validating, comparing, debugging
-// strategies. UI + visualization only. No backend changes, no trading
-// logic, no scheduler/ML/risk side effects.
+// Alpha Lab Pro — open + closed trade intelligence dashboard.
+//
+// Five tabs:
+//   1. Overview          summary cards + best/worst open
+//   2. Open Winners      paper_position joined to latest price_bar
+//   3. Open Losers       same, sorted worst-first
+//   4. Closed Outcomes   closed paper_trade rows
+//   5. Patterns          age-bucket / portfolio / concentration cuts
+//
+// Read-only. Wires to /api/performance/paper/alpha-lab.
 
 import { useMemo, useState } from "react";
-import {
-  usePaperTrades, usePaperEquity, usePerformance,
-} from "@/lib/operator/hooks";
 import { Label } from "@/components/ui/primitives";
-import Sparkline from "@/components/ui/Sparkline";
 import { cn } from "@/lib/cn";
+import {
+  useAlphaLab,
+  type AlphaLabPosition,
+  type AlphaLabClosedTrade,
+} from "@/lib/alphaLab/hooks";
 
 
-type StrategyKey = "engine_a" | "engine_b" | "baseline" | "combined";
-type RangeKey = "30D" | "90D" | "YTD" | "ALL";
-type RegimeKey = "all" | "stress" | "directional" | "neutral";
-
-
-// Static baselines — measurement_audit output
-const BASELINES = [
-  { key: "tsmom_60",  label: "TSMOM 60d",
-     sharpe: 1.02, hit: 0.40, dd: -19.94, n: 1588, total: 104.46 },
-  { key: "ma_50_200", label: "MA 50/200",
-     sharpe: 0.81, hit: 0.38, dd: -18.64, n: 1588, total: 81.01 },
-  { key: "tsmom_20",  label: "TSMOM 20d",
-     sharpe: 0.94, hit: 0.36, dd: -12.82, n: 1588, total: 93.41 },
-  { key: "bh_es",     label: "Buy & hold",
-     sharpe: 0.72, hit: 0.54, dd: -34.45, n: 1588, total: 120.77 },
+const TABS = [
+  "overview",
+  "open_winners",
+  "open_losers",
+  "closed",
+  "patterns",
 ] as const;
+type Tab = typeof TABS[number];
 
 
 export default function AlphaLab() {
-  const [strategy, setStrategy] = useState<StrategyKey>("combined");
-  const [range, setRange] = useState<RangeKey>("ALL");
-  const [regime, setRegime] = useState<RegimeKey>("all");
-  const [whatif, setWhatif] = useState<"none" | "remove_b" | "gate_b">("none");
+  const [tab, setTab] = useState<Tab>("overview");
+  const q = useAlphaLab(25);
 
-  const { data: trades } = usePaperTrades();
-  const { data: equity } = usePaperEquity();
-  const { data: perf } = usePerformance();
-
-  const filtered = useMemo(() =>
-    _filter(trades ?? [], strategy, range, regime, whatif),
-  [trades, strategy, range, regime, whatif]);
-
-  const score = useMemo(() => _score(filtered), [filtered]);
-  const dist  = useMemo(() => _histogram(filtered), [filtered]);
-  const decisionStats = useMemo(() =>
-    _decisionStats(filtered), [filtered]);
-  const byRegime = useMemo(() => _byRegime(trades ?? []), [trades]);
-
-  const equitySeries = (equity ?? []).map(p => p.equity);
+  if (q.isLoading) {
+    return <Wrap title="Alpha Lab"><Loading /></Wrap>;
+  }
+  if (q.error || !q.data) {
+    return <Wrap title="Alpha Lab"><ErrorBanner /></Wrap>;
+  }
+  const d = q.data;
 
   return (
-    <div className="max-w-[1520px] mx-auto px-6 py-6 space-y-4">
-      {/* === HEADER + CONTROLS === */}
-      <header className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <Label>Research</Label>
-          <h1 className="u-title mt-1">Alpha Lab</h1>
-          <p className="u-caption mt-0.5">
-            Validate · compare · debug strategies. Read-only.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <ControlGroup label="Strategy">
-            <Pill active={strategy === "engine_a"}
-                  onClick={() => setStrategy("engine_a")}>Engine A</Pill>
-            <Pill active={strategy === "engine_b"}
-                  onClick={() => setStrategy("engine_b")}>Engine B</Pill>
-            <Pill active={strategy === "baseline"}
-                  onClick={() => setStrategy("baseline")}>Baseline</Pill>
-            <Pill active={strategy === "combined"}
-                  onClick={() => setStrategy("combined")}>Combined</Pill>
-          </ControlGroup>
-          <ControlGroup label="Range">
-            {(["30D","90D","YTD","ALL"] as RangeKey[]).map(r => (
-              <Pill key={r} active={range === r}
-                    onClick={() => setRange(r)}>{r}</Pill>
-            ))}
-          </ControlGroup>
-          <ControlGroup label="Regime">
-            {(["all","stress","directional","neutral"] as RegimeKey[]).map(r => (
-              <Pill key={r} active={regime === r}
-                    onClick={() => setRegime(r)}>{r}</Pill>
-            ))}
-          </ControlGroup>
-        </div>
-      </header>
-
-      {/* === EDGE SCOREBOARD + DISTRIBUTION (split row) === */}
-      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-4">
-        <ScoreBoard score={score} strategy={strategy}
-                       baselineMaxSharpe={Math.max(...BASELINES.map(b => b.sharpe))} />
-        <DistributionPanel dist={dist} />
-      </section>
-
-      {/* === TRADE TIMELINE (full width) === */}
-      <section className="u-card-tight">
-        <div className="flex items-center justify-between mb-2">
-          <Label>Trade Timeline</Label>
-          <span className="u-caption-2 text-fg-3">
-            {filtered.length} trades · equity sparkline
-          </span>
-        </div>
-        <Sparkline values={equitySeries} width={1400} height={56}
-                    ariaLabel="Equity timeline" />
-        <TradeMarkers trades={filtered} />
-      </section>
-
-      {/* === DECISION BREAKDOWN + REGIME ANALYSIS (split row) === */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DecisionBreakdown stats={decisionStats} />
-        <RegimeAnalysis perf={perf} byRegime={byRegime} />
-      </section>
-
-      {/* === BASELINE COMPARISON TABLE === */}
-      <section className="u-card-tight">
-        <div className="flex items-center justify-between mb-2">
-          <Label>Baseline Comparison</Label>
-          <span className="u-caption-2 text-fg-3">
-            best highlighted
-          </span>
-        </div>
-        <BaselineTable perf={perf} />
-      </section>
-
-      {/* === WHAT-IF SIMULATOR === */}
-      <section className="u-card-tight">
-        <div className="flex items-center justify-between mb-2">
-          <Label>What-if Simulator</Label>
-          <div className="flex gap-2">
-            <Pill active={whatif === "none"}
-                  onClick={() => setWhatif("none")}>none</Pill>
-            <Pill active={whatif === "remove_b"}
-                  onClick={() => setWhatif("remove_b")}>remove Engine B</Pill>
-            <Pill active={whatif === "gate_b"}
-                  onClick={() => setWhatif("gate_b")}>gate Engine B</Pill>
-          </div>
-        </div>
-        <WhatIfImpact baseScore={_score(_filter(
-          trades ?? [], strategy, range, regime, "none"))}
-                       altScore={score} mode={whatif} />
-      </section>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Header controls
-// ---------------------------------------------------------------------------
-
-function ControlGroup({
-  label, children,
-}: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="u-caption-2 text-fg-3 uppercase tracking-wider">
-        {label}
-      </span>
-      <div className="flex gap-1">{children}</div>
-    </div>
-  );
-}
-
-
-function Pill({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void;
-     children: React.ReactNode }) {
-  return (
-    <button type="button"
-      role="radio"
-      aria-checked={active}
-      onClick={onClick}
-      className={cn("u-chip cursor-pointer u-btn-toggle",
-        active ? "u-chip-accent" : "u-chip-neutral")}>
-      {children}
-    </button>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Edge scoreboard
-// ---------------------------------------------------------------------------
-
-function ScoreBoard({
-  score, strategy, baselineMaxSharpe,
-}: {
-  score: ReturnType<typeof _score>;
-  strategy: StrategyKey;
-  baselineMaxSharpe: number;
-}) {
-  const verdict = _verdict(score.sharpe);
-  const dvb = score.sharpe - baselineMaxSharpe;
-  return (
-    <div className="u-card-tight">
-      <div className="flex items-center justify-between mb-3">
-        <Label>Edge Scoreboard ({_strategyName(strategy)})</Label>
-        <span className={cn("u-chip", _verdictChip(verdict))}>
-          {verdict}
-        </span>
-      </div>
-      <div className="grid grid-cols-3 gap-3">
-        <Cell k="Sharpe" v={score.sharpe.toFixed(2)}
-              tone={_sharpeTone(score.sharpe)} />
-        <Cell k="Hit %" v={`${(score.hit * 100).toFixed(0)}%`}
-              tone={score.hit >= 0.55 ? "pos" : score.hit < 0.4 ? "neg" : ""} />
-        <Cell k="Avg ret" v={`${(score.avg * 100).toFixed(2)}%`}
-              tone={score.avg > 0 ? "pos" : "neg"} />
-        <Cell k="Max DD" v={`${score.dd.toFixed(2)}%`} tone="neg" />
-        <Cell k="Trades" v={String(score.n)} />
-        <Cell k="vs baseline"
-              v={`${dvb >= 0 ? "+" : ""}${dvb.toFixed(2)}`}
-              tone={dvb > 0 ? "pos" : dvb < 0 ? "neg" : ""} />
-      </div>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Distribution panel
-// ---------------------------------------------------------------------------
-
-function DistributionPanel({
-  dist,
-}: { dist: ReturnType<typeof _histogram> }) {
-  const max = Math.max(1, ...dist.bins.map(b => b.count));
-  return (
-    <div className="u-card-tight">
-      <div className="flex items-center justify-between mb-2">
-        <Label>Return Distribution</Label>
-        <span className="u-caption-2 text-fg-3">
-          skew {dist.skew.toFixed(2)} · tail-3σ {dist.tail3.toFixed(2)}%
-        </span>
-      </div>
-      <div className="flex items-end gap-[2px] h-[80px]">
-        {dist.bins.map((b, i) => (
-          <div key={i}
-               title={`${b.lo.toFixed(2)}% to ${b.hi.toFixed(2)}% · ${b.count}`}
-               className="flex-1 rounded-t-sm"
-               style={{
-                 height: `${(b.count / max) * 100}%`,
-                 minHeight: b.count > 0 ? "2px" : "0",
-                 background: b.lo < 0
-                   ? "var(--chart-negative)"
-                   : "var(--chart-positive)",
-                 opacity: 0.85,
-               }} />
-        ))}
-      </div>
-      <div className="flex justify-between u-caption-2 text-fg-3 mt-1">
-        <span>{dist.bins[0]?.lo.toFixed(1)}%</span>
-        <span>0</span>
-        <span>{dist.bins[dist.bins.length - 1]?.hi.toFixed(1)}%</span>
-      </div>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Trade markers strip — chronological dots
-// ---------------------------------------------------------------------------
-
-function TradeMarkers({ trades }: { trades: ReturnType<typeof _filter> }) {
-  if (!trades.length) return (
-    <div className="u-caption-2 italic text-fg-3 mt-2">No trades.</div>
-  );
-  return (
-    <div className="mt-2 flex flex-wrap gap-[3px]">
-      {trades.map((t, i) => {
-        const ret = Number(t.net_ret_pct ?? 0);
-        const tone = ret > 0 ? "pos" : ret < 0 ? "neg" : "neu";
-        return (
-          <span key={i}
-                title={`${t.entry_date} ${t.engine} ${ret.toFixed(2)}%`}
-                style={{
-                  display: "inline-block",
-                  width: 10, height: 14, borderRadius: 2,
-                  background: tone === "pos" ? "var(--chart-positive)"
-                    : tone === "neg" ? "var(--chart-negative)"
-                    : "var(--chart-muted)",
-                  opacity: 0.85,
-                }} />
-        );
-      })}
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Decision breakdown
-// ---------------------------------------------------------------------------
-
-function DecisionBreakdown({
-  stats,
-}: { stats: ReturnType<typeof _decisionStats> }) {
-  return (
-    <div className="u-card-tight">
-      <Label>Decision Breakdown</Label>
-      <div className="grid grid-cols-2 gap-3 mt-3">
-        <Cell k="Wins" v={String(stats.wins)} tone="pos" />
-        <Cell k="Losses" v={String(stats.losses)} tone="neg" />
-        <Cell k="Avg win"  v={`${(stats.avg_win * 100).toFixed(2)}%`}
-              tone="pos" />
-        <Cell k="Avg loss" v={`${(stats.avg_loss * 100).toFixed(2)}%`}
-              tone="neg" />
-        <Cell k="Best"  v={`${(stats.best * 100).toFixed(2)}%`} tone="pos" />
-        <Cell k="Worst" v={`${(stats.worst * 100).toFixed(2)}%`} tone="neg" />
-      </div>
-      <div className="u-caption-2 text-fg-3 mt-3 italic">
-        False positives = trades with positive size that lost money.
-        Missed winners surfaceable once ML predictions accumulate.
-      </div>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Regime analysis
-// ---------------------------------------------------------------------------
-
-function RegimeAnalysis({
-  perf, byRegime,
-}: {
-  perf: ReturnType<typeof usePerformance>["data"];
-  byRegime: Record<string, { n: number; sharpe: number; hit: number }>;
-}) {
-  const rows = Object.entries(byRegime);
-  return (
-    <div className="u-card-tight">
-      <Label>Regime Analysis</Label>
-      <table className="w-full u-caption-2 mt-3">
-        <thead className="text-fg-3">
-          <tr>
-            <th className="text-left py-1">regime</th>
-            <th className="text-right py-1">N</th>
-            <th className="text-right py-1">Sharpe</th>
-            <th className="text-right py-1">Hit %</th>
-          </tr>
-        </thead>
-        <tbody className="u-mono-sm">
-          {rows.length === 0 ? (
-            <tr><td colSpan={4} className="italic text-fg-3 py-2">
-              No regime data.
-            </td></tr>
-          ) : rows.map(([r, s]) => (
-            <tr key={r}>
-              <td className="py-1 text-fg">{r}</td>
-              <td className="text-right">{s.n}</td>
-              <td className={cn("text-right", _sharpeTone(s.sharpe))}>
-                {s.sharpe.toFixed(2)}
-              </td>
-              <td className="text-right">
-                {(s.hit * 100).toFixed(0)}%
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {perf && (
-        <div className="u-caption-2 text-fg-3 mt-2">
-          Engine A: stress · Engine B: directional. Live perf maps to
-          engine attribution.
-        </div>
+    <Wrap title="Alpha Lab">
+      <TabBar tab={tab} setTab={setTab} d={d} />
+      {tab === "overview" && <Overview d={d} />}
+      {tab === "open_winners" && (
+        <OpenTable rows={d.open_winners} kind="winners" />
       )}
+      {tab === "open_losers" && (
+        <OpenTable rows={d.open_losers} kind="losers" />
+      )}
+      {tab === "closed" && <ClosedSection d={d} />}
+      {tab === "patterns" && <PatternsSection d={d} />}
+    </Wrap>
+  );
+}
+
+
+// ---------------------------------------------------------------
+// Layout primitives
+// ---------------------------------------------------------------
+
+function Wrap({ title, children }: {
+  title: string; children: React.ReactNode;
+}) {
+  return (
+    <div className="max-w-[1520px] mx-auto px-6 py-6 space-y-5">
+      <header>
+        <Label>{title}</Label>
+        <h1 className="u-title-lg mt-1">
+          Open + Closed Trade Intelligence
+        </h1>
+        <p className="u-body mt-2 max-w-3xl">
+          Real paper-trading state from{" "}
+          <code>paper_position</code>, <code>paper_trade</code>,
+          and <code>paper_equity_snapshot</code>. Unrealized P&L
+          marked from the latest <code>price_bar</code>.
+          Closed-trade analytics activate after the exit-cycle
+          runner closes eligible positions.
+        </p>
+      </header>
+      {children}
     </div>
   );
 }
 
 
-// ---------------------------------------------------------------------------
-// Baseline comparison table
-// ---------------------------------------------------------------------------
+type DType = NonNullable<ReturnType<typeof useAlphaLab>["data"]>;
 
-function BaselineTable({
-  perf,
-}: { perf: ReturnType<typeof usePerformance>["data"] }) {
-  const rows: Array<{label: string; sharpe: number; hit: number;
-                       dd: number; n: number; tag?: string }> = [];
-  if (perf?.engine_a) {
-    rows.push({
-      label: "Engine A",
-      sharpe: Number(perf.engine_a.sharpe_proxy ?? 0),
-      hit: Number(perf.engine_a.win_rate ?? 0),
-      dd: 0, // engine-level drawdown not exposed by current API
-      n: Number(perf.engine_a.n_trades ?? 0),
-      tag: "primary",
-    });
-  }
-  if (perf?.engine_b) {
-    rows.push({
-      label: "Engine B",
-      sharpe: Number(perf.engine_b.sharpe_proxy ?? 0),
-      hit: Number(perf.engine_b.win_rate ?? 0),
-      dd: 0,
-      n: Number(perf.engine_b.n_trades ?? 0),
-      tag: "review",
-    });
-  }
-  for (const b of BASELINES) {
-    rows.push({
-      label: b.label, sharpe: b.sharpe, hit: b.hit,
-      dd: b.dd, n: b.n, tag: "baseline",
-    });
-  }
-  const bestSharpe = Math.max(...rows.map(r => r.sharpe));
+
+function TabBar({ tab, setTab, d }: {
+  tab: Tab; setTab: (t: Tab) => void; d: DType;
+}) {
+  const counts: Record<Tab, number> = {
+    overview: 1,
+    open_winners: d.open_winners.length,
+    open_losers: d.open_losers.length,
+    closed: d.closed_winners.length + d.closed_losers.length,
+    patterns: d.patterns.by_age_bucket.length,
+  };
+  const labels: Record<Tab, string> = {
+    overview: "Overview",
+    open_winners: "Open Winners",
+    open_losers: "Open Losers",
+    closed: "Closed Outcomes",
+    patterns: "Patterns",
+  };
   return (
-    <table className="w-full u-caption-2">
-      <thead className="text-fg-3">
+    <div className="flex gap-1 border-b border-zinc-800 text-sm">
+      {TABS.map((t) => (
+        <button
+          key={t}
+          data-test={`alpha-tab-${t}`}
+          onClick={() => setTab(t)}
+          className={cn(
+            "px-4 py-2 transition-colors",
+            tab === t
+              ? "border-b-2 border-amber-400 text-zinc-100"
+              : "text-zinc-400 hover:text-zinc-200",
+          )}
+        >
+          <span>{labels[t]}</span>
+          {t !== "overview" && (
+            <span className="ml-2 text-xs text-zinc-500">
+              {counts[t]}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------
+// Overview tab
+// ---------------------------------------------------------------
+
+function Overview({ d }: { d: DType }) {
+  const s = d.summary;
+  const bestOpen = d.open_winners[0];
+  const worstOpen = d.open_losers[0];
+  return (
+    <section className="space-y-4" data-test="alpha-overview">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <SummaryCard
+          label="Open positions" value={String(s.open_positions)}
+        />
+        <SummaryCard
+          label="Closed positions"
+          value={String(s.closed_positions)}
+        />
+        <SummaryCard
+          label="Open unrealized P&L"
+          value={fmtUSD(s.open_unrealized_pnl)}
+          tone={toneFromN(s.open_unrealized_pnl)}
+        />
+        <SummaryCard
+          label="Closed realized P&L"
+          value={fmtUSD(s.closed_realized_pnl)}
+          tone={toneFromN(s.closed_realized_pnl)}
+        />
+        <SummaryCard
+          label="Pending fills" value={String(s.pending_fills)}
+        />
+        <SummaryCard
+          label="Live trades" value={String(s.live_trades)}
+        />
+        <SummaryCard
+          label="Replay trades" value={String(s.replay_trades)}
+        />
+        <SummaryCard label="As of" value={s.as_of_date} />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="u-card-tight">
+          <Label>Best open winner</Label>
+          {bestOpen ? <PositionLine row={bestOpen} /> : <Empty />}
+        </div>
+        <div className="u-card-tight">
+          <Label>Worst open loser</Label>
+          {worstOpen ? <PositionLine row={worstOpen} /> : <Empty />}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+
+function SummaryCard({ label, value, tone = "neutral" }: {
+  label: string; value: string; tone?: "neutral" | "pos" | "neg";
+}) {
+  return (
+    <div className="u-card-tight">
+      <div className="u-caption-2 text-fg-3">{label}</div>
+      <div className={cn(
+        "u-mono-md font-semibold",
+        tone === "pos" ? "text-success"
+        : tone === "neg" ? "text-danger"
+        : "text-fg",
+      )}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+
+function PositionLine({ row }: { row: AlphaLabPosition }) {
+  const pct = row.unrealized_pnl_pct;
+  const tone = toneFromN(pct ?? 0);
+  return (
+    <div className="flex items-baseline justify-between mt-1">
+      <div className="u-mono">{row.symbol}</div>
+      <div className="u-caption-2 text-fg-3">
+        {row.portfolio_name} · {row.held_days ?? "?"}d
+      </div>
+      <div className={cn(
+        "u-mono-sm font-semibold",
+        tone === "pos" ? "text-success"
+        : tone === "neg" ? "text-danger" : "text-fg",
+      )}>
+        {pct != null ? fmtPct(pct) : "—"}
+      </div>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------
+// Open tables
+// ---------------------------------------------------------------
+
+function OpenTable({ rows, kind }: {
+  rows: AlphaLabPosition[]; kind: "winners" | "losers";
+}) {
+  if (!rows.length) {
+    return (
+      <div
+        className="u-card-tight"
+        data-test={`alpha-open-${kind}-empty`}
+      >
+        <p className="u-caption">
+          No open {kind} right now. Positions appear here as
+          soon as their unrealized P&L turns
+          {kind === "winners" ? " positive." : " negative."}
+        </p>
+      </div>
+    );
+  }
+  return (
+    <table
+      className="u-table"
+      data-test={`alpha-open-${kind}`}
+    >
+      <thead>
         <tr>
-          <th className="text-left py-1">strategy</th>
-          <th className="text-left py-1">tag</th>
-          <th className="text-right py-1">Sharpe</th>
-          <th className="text-right py-1">Hit %</th>
-          <th className="text-right py-1">MaxDD %</th>
-          <th className="text-right py-1">N</th>
+          <th>Symbol</th>
+          <th>Portfolio</th>
+          <th className="text-right">Entry</th>
+          <th className="text-right">Last</th>
+          <th className="text-right">Unrealized $</th>
+          <th className="text-right">Unrealized %</th>
+          <th className="text-right">Held</th>
         </tr>
       </thead>
-      <tbody className="u-mono-sm">
-        {rows.map(r => {
-          const isBest = r.sharpe === bestSharpe;
-          return (
-            <tr key={r.label}
-                className={cn(isBest && "bg-accent-subtle")}>
-              <td className="py-1 text-fg font-medium">
-                {r.label} {isBest ? "★" : ""}
-              </td>
-              <td className="text-fg-3">{r.tag ?? ""}</td>
-              <td className={cn("text-right",
-                _sharpeTone(r.sharpe))}>
-                {r.sharpe.toFixed(2)}
-              </td>
-              <td className="text-right">{(r.hit * 100).toFixed(0)}%</td>
-              <td className="text-right text-danger">
-                {r.dd.toFixed(2)}
-              </td>
-              <td className="text-right">{r.n}</td>
-            </tr>
-          );
-        })}
+      <tbody>
+        {rows.map(r => (
+          <tr key={r.position_id}>
+            <td className="u-mono">{r.symbol}</td>
+            <td className="u-caption-2 text-fg-3">
+              {r.portfolio_name}
+            </td>
+            <td className="text-right u-mono">
+              {fmtUSD(r.entry_price)}
+            </td>
+            <td className="text-right u-mono">
+              {r.last_price != null ? fmtUSD(r.last_price) : "—"}
+            </td>
+            <td className={cn(
+              "text-right u-mono",
+              toneFromN(r.unrealized_pnl ?? 0) === "pos"
+                ? "text-success"
+                : toneFromN(r.unrealized_pnl ?? 0) === "neg"
+                ? "text-danger" : "text-fg",
+            )}>
+              {r.unrealized_pnl != null
+                ? fmtUSD(r.unrealized_pnl) : "—"}
+            </td>
+            <td className={cn(
+              "text-right u-mono font-semibold",
+              toneFromN(r.unrealized_pnl_pct ?? 0) === "pos"
+                ? "text-success"
+                : toneFromN(r.unrealized_pnl_pct ?? 0) === "neg"
+                ? "text-danger" : "text-fg",
+            )}>
+              {r.unrealized_pnl_pct != null
+                ? fmtPct(r.unrealized_pnl_pct) : "—"}
+            </td>
+            <td className="text-right u-caption-2 text-fg-3">
+              {r.held_days != null ? `${r.held_days}d` : "—"}
+            </td>
+          </tr>
+        ))}
       </tbody>
     </table>
   );
 }
 
 
-// ---------------------------------------------------------------------------
-// What-if simulator
-// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------
+// Closed tab
+// ---------------------------------------------------------------
 
-function WhatIfImpact({
-  baseScore, altScore, mode,
-}: {
-  baseScore: ReturnType<typeof _score>;
-  altScore: ReturnType<typeof _score>;
-  mode: "none" | "remove_b" | "gate_b";
-}) {
-  const dSharpe = altScore.sharpe - baseScore.sharpe;
-  const dHit    = altScore.hit - baseScore.hit;
-  const dN      = altScore.n - baseScore.n;
-  return (
-    <div>
-      <div className="grid grid-cols-3 gap-3">
-        <Cell k="ΔSharpe"
-              v={`${dSharpe >= 0 ? "+" : ""}${dSharpe.toFixed(2)}`}
-              tone={dSharpe > 0 ? "pos" : dSharpe < 0 ? "neg" : ""} />
-        <Cell k="ΔHit"
-              v={`${dHit >= 0 ? "+" : ""}${(dHit * 100).toFixed(1)}%`}
-              tone={dHit > 0 ? "pos" : dHit < 0 ? "neg" : ""} />
-        <Cell k="Trades"
-              v={`${dN >= 0 ? "+" : ""}${dN}`}
-              tone="" />
+function ClosedSection({ d }: { d: DType }) {
+  const total = d.closed_winners.length + d.closed_losers.length;
+  if (!total) {
+    return (
+      <div
+        className="u-card-tight"
+        data-test="alpha-closed-empty"
+      >
+        <p className="u-caption">
+          Closed outcomes will appear after exit rules close
+          positions. Open trade performance is available in the
+          Open Winners / Open Losers tabs.
+        </p>
+        <p className="u-caption-2 text-fg-3 mt-1">
+          Operator can trigger exits via{" "}
+          <code>scripts.run_paper_exit_cycle</code>.
+        </p>
       </div>
-      <div className="u-caption-2 text-fg-3 mt-2 italic">
-        {mode === "none" && "Apply a what-if scenario above."}
-        {mode === "remove_b"
-          && "Engine B removed. ΔSharpe shows aggregate change."}
-        {mode === "gate_b"
-          && "Engine B gated to 0.5× size. Conservative impact."}
-      </div>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Generic cells
-// ---------------------------------------------------------------------------
-
-function Cell({ k, v, tone = "" }: {
-  k: string; v: string; tone?: string;
-}) {
-  const cls = tone === "pos" ? "text-success"
-    : tone === "neg" ? "text-danger" : "text-fg";
-  return (
-    <div>
-      <div className="u-caption-2 text-fg-3">{k}</div>
-      <div className={cn("u-mono-sm font-semibold", cls)}>{v}</div>
-    </div>
-  );
-}
-
-
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
-
-function _filter(
-  trades: any[],
-  strategy: StrategyKey,
-  range: RangeKey,
-  regime: RegimeKey,
-  whatif: "none" | "remove_b" | "gate_b",
-): any[] {
-  let out = trades.filter(
-    t => t.status === "closed" && t.net_ret_pct != null,
-  );
-  // Strategy filter
-  if (strategy === "engine_a") out = out.filter(t => t.engine === "A");
-  else if (strategy === "engine_b") out = out.filter(t => t.engine === "B");
-  else if (strategy === "baseline") out = [];   // baseline data static
-
-  // Regime filter
-  if (regime !== "all") {
-    out = out.filter(t =>
-      (t.regime_at_entry ?? "").toLowerCase() === regime,
     );
   }
-  // Range filter
-  if (range !== "ALL" && out.length) {
-    const cutoff = (() => {
-      const today = new Date();
-      switch (range) {
-        case "30D": today.setDate(today.getDate() - 30); return today;
-        case "90D": today.setDate(today.getDate() - 90); return today;
-        case "YTD": return new Date(today.getFullYear(), 0, 1);
-      }
-    })()!;
-    out = out.filter(t => new Date(t.entry_date) >= cutoff);
-  }
-
-  // What-if
-  if (whatif === "remove_b") {
-    out = out.filter(t => t.engine !== "B");
-  }
-  if (whatif === "gate_b") {
-    // Halve B contribution by halving net_ret_pct (approximation)
-    out = out.map(t => t.engine === "B"
-      ? { ...t, net_ret_pct: Number(t.net_ret_pct) * 0.5 }
-      : t);
-  }
-  return out;
+  return (
+    <div className="space-y-4" data-test="alpha-closed">
+      <ClosedTable rows={d.closed_winners} kind="winners" />
+      <ClosedTable rows={d.closed_losers} kind="losers" />
+      <ExitReasonBreakdown
+        rows={[...d.closed_winners, ...d.closed_losers]}
+      />
+    </div>
+  );
 }
 
 
-function _score(trades: any[]) {
-  const rets = trades.map(t => Number(t.net_ret_pct) / 100)
-                       .filter(r => Number.isFinite(r));
-  const n = rets.length;
-  if (n === 0) return {
-    n: 0, sharpe: 0, hit: 0, avg: 0, dd: 0, total: 0,
-  };
-  const mean = rets.reduce((s, r) => s + r, 0) / n;
-  const variance = n > 1
-    ? rets.reduce((s, r) => s + (r - mean) ** 2, 0) / (n - 1) : 0;
-  const sd = Math.sqrt(variance);
-  const sharpe = sd > 0 ? mean / sd * Math.sqrt(252) : 0;
-  const hit = rets.filter(r => r > 0).length / n;
-  // Equity-style max DD
-  let peak = 1.0, maxDD = 0;
-  let eq = 1.0;
-  for (const r of rets) {
-    eq *= (1 + r);
-    peak = Math.max(peak, eq);
-    maxDD = Math.min(maxDD, (eq - peak) / peak * 100);
+function ClosedTable({ rows, kind }: {
+  rows: AlphaLabClosedTrade[]; kind: "winners" | "losers";
+}) {
+  if (!rows.length) return null;
+  return (
+    <div>
+      <Label>Top closed {kind}</Label>
+      <table
+        className="u-table mt-2"
+        data-test={`alpha-closed-${kind}`}
+      >
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Portfolio</th>
+            <th className="text-right">Qty</th>
+            <th className="text-right">Exit</th>
+            <th className="text-right">Realized $</th>
+            <th>Reason</th>
+            <th>Tag</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(r => (
+            <tr key={r.trade_id}>
+              <td className="u-mono">{r.symbol}</td>
+              <td className="u-caption-2 text-fg-3">
+                {r.portfolio_name}
+              </td>
+              <td className="text-right u-mono">{r.quantity}</td>
+              <td className="text-right u-mono">
+                {fmtUSD(r.exit_price)}
+              </td>
+              <td className={cn(
+                "text-right u-mono font-semibold",
+                r.realized_pnl > 0
+                  ? "text-success"
+                  : r.realized_pnl < 0
+                  ? "text-danger" : "text-fg",
+              )}>
+                {fmtUSD(r.realized_pnl)}
+              </td>
+              <td className="u-caption-2 text-fg-3">
+                {r.reason ?? "—"}
+              </td>
+              <td>
+                <span className={cn(
+                  "u-chip",
+                  r.is_replay
+                    ? "u-chip-warning"
+                    : "u-chip-success",
+                )}>
+                  {r.is_replay ? "REPLAY" : "LIVE"}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+
+function ExitReasonBreakdown({ rows }: {
+  rows: AlphaLabClosedTrade[];
+}) {
+  const counts = useMemo(() => {
+    const m: Record<string, { n: number; pnl: number }> = {};
+    for (const r of rows) {
+      const reason = (r.reason ?? "—")
+        .split(":")[0].trim()
+        .replace("exit_cycle", "exit")
+        .replace("auto_trader", "auto");
+      m[reason] = m[reason] ?? { n: 0, pnl: 0 };
+      m[reason].n += 1;
+      m[reason].pnl += r.realized_pnl;
+    }
+    return Object.entries(m)
+      .map(([reason, v]) => ({ reason, n: v.n, pnl: v.pnl }))
+      .sort((a, b) => b.n - a.n);
+  }, [rows]);
+  if (!counts.length) return null;
+  return (
+    <div>
+      <Label>Exit reason breakdown</Label>
+      <table
+        className="u-table mt-2"
+        data-test="alpha-exit-reason"
+      >
+        <thead>
+          <tr><th>Reason</th>
+              <th className="text-right">Count</th>
+              <th className="text-right">Net P&L</th></tr>
+        </thead>
+        <tbody>
+          {counts.map(c => (
+            <tr key={c.reason}>
+              <td>{c.reason}</td>
+              <td className="text-right u-mono">{c.n}</td>
+              <td className={cn(
+                "text-right u-mono",
+                c.pnl > 0 ? "text-success"
+                : c.pnl < 0 ? "text-danger" : "text-fg",
+              )}>
+                {fmtUSD(c.pnl)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+
+// ---------------------------------------------------------------
+// Patterns
+// ---------------------------------------------------------------
+
+function PatternsSection({ d }: { d: DType }) {
+  if (!d.patterns.by_age_bucket.length
+      && !d.patterns.by_portfolio.length) {
+    return (
+      <div
+        className="u-card-tight"
+        data-test="alpha-patterns-empty"
+      >
+        <p>No open positions yet — patterns will appear here.</p>
+      </div>
+    );
   }
-  const total = (eq - 1) * 100;
-  return { n, sharpe, hit, avg: mean, dd: maxDD, total };
+  const closedTotal = (
+    d.closed_winners.length + d.closed_losers.length
+  );
+  return (
+    <div className="space-y-4" data-test="alpha-patterns">
+      {!closedTotal && (
+        <div className="u-caption-2 text-fg-3 italic">
+          Closed-trade patterns pending; showing open-position
+          patterns instead.
+        </div>
+      )}
+
+      <div>
+        <Label>Open P&L by holding-age bucket</Label>
+        <table className="u-table mt-2">
+          <thead>
+            <tr><th>Bucket</th>
+                <th className="text-right">N open</th>
+                <th className="text-right">Avg unrealized %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.patterns.by_age_bucket
+              .slice()
+              .sort((a, b) => a.bucket.localeCompare(b.bucket))
+              .map(b => (
+                <tr key={b.bucket}>
+                  <td>{b.bucket}</td>
+                  <td className="text-right u-mono">{b.n}</td>
+                  <td className={cn(
+                    "text-right u-mono",
+                    toneFromN(b.avg_upnl_pct) === "pos"
+                      ? "text-success"
+                      : toneFromN(b.avg_upnl_pct) === "neg"
+                      ? "text-danger" : "text-fg",
+                  )}>{fmtPct(b.avg_upnl_pct)}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <Label>Open P&L by portfolio</Label>
+        <table className="u-table mt-2">
+          <thead>
+            <tr><th>Portfolio</th>
+                <th className="text-right">N open</th>
+                <th className="text-right">Sum unrealized $</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.patterns.by_portfolio.map(p => (
+              <tr key={p.portfolio}>
+                <td>{p.portfolio}</td>
+                <td className="text-right u-mono">{p.n_open}</td>
+                <td className={cn(
+                  "text-right u-mono",
+                  toneFromN(p.sum_unrealized) === "pos"
+                    ? "text-success"
+                    : toneFromN(p.sum_unrealized) === "neg"
+                    ? "text-danger" : "text-fg",
+                )}>{fmtUSD(p.sum_unrealized)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <Label>Concentration (top symbols by notional)</Label>
+        <table className="u-table mt-2">
+          <thead>
+            <tr><th>Symbol</th>
+                <th className="text-right">N positions</th>
+                <th className="text-right">Total notional $</th>
+            </tr>
+          </thead>
+          <tbody>
+            {d.patterns.concentration.map(c => (
+              <tr key={c.symbol}>
+                <td className="u-mono">{c.symbol}</td>
+                <td className="text-right u-mono">{c.n_open}</td>
+                <td className="text-right u-mono">
+                  {fmtUSD(c.total_notional)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 
-function _histogram(trades: any[], bins = 24) {
-  const rets = trades.map(t => Number(t.net_ret_pct))
-                       .filter(r => Number.isFinite(r));
-  if (rets.length === 0) {
-    return { bins: [], skew: 0, tail3: 0 };
-  }
-  const min = Math.min(...rets), max = Math.max(...rets);
-  const range = (max - min) || 1;
-  const step = range / bins;
-  const counts = Array(bins).fill(0).map((_, i) => ({
-    lo: min + step * i, hi: min + step * (i + 1), count: 0,
-  }));
-  for (const r of rets) {
-    let idx = Math.floor((r - min) / step);
-    if (idx >= bins) idx = bins - 1;
-    counts[idx].count++;
-  }
-  const mean = rets.reduce((s, r) => s + r, 0) / rets.length;
-  const variance = rets.reduce((s, r) => s + (r - mean) ** 2, 0)
-    / Math.max(1, rets.length - 1);
-  const sd = Math.sqrt(variance);
-  const skew = sd > 0
-    ? rets.reduce((s, r) => s + ((r - mean) / sd) ** 3, 0) / rets.length
-    : 0;
-  const tail3 = mean - 3 * sd;
-  return { bins: counts, skew, tail3 };
+// ---------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------
+
+function Loading() {
+  return (
+    <div className="u-card-tight" data-test="alpha-loading">
+      <p className="u-caption">Loading…</p>
+    </div>
+  );
 }
 
 
-function _decisionStats(trades: any[]) {
-  const rets = trades.map(t => Number(t.net_ret_pct) / 100);
-  const wins = rets.filter(r => r > 0);
-  const losses = rets.filter(r => r < 0);
-  return {
-    wins: wins.length,
-    losses: losses.length,
-    avg_win: wins.length ? wins.reduce((s, r) => s + r, 0) / wins.length : 0,
-    avg_loss: losses.length
-      ? losses.reduce((s, r) => s + r, 0) / losses.length : 0,
-    best: rets.length ? Math.max(...rets) : 0,
-    worst: rets.length ? Math.min(...rets) : 0,
-  };
+function ErrorBanner() {
+  return (
+    <div className="u-card-tight" data-test="alpha-error">
+      <p className="u-caption text-danger">
+        Alpha Lab data unavailable.
+      </p>
+    </div>
+  );
 }
 
 
-function _byRegime(trades: any[]) {
-  const out: Record<string, { n: number; sharpe: number; hit: number }> = {};
-  const groups: Record<string, number[]> = {};
-  for (const t of trades) {
-    if (t.status !== "closed" || t.net_ret_pct == null) continue;
-    const r = (t.regime_at_entry ?? "unknown").toLowerCase();
-    (groups[r] ??= []).push(Number(t.net_ret_pct) / 100);
-  }
-  for (const [k, arr] of Object.entries(groups)) {
-    const score = _score(arr.map(r => ({ net_ret_pct: r * 100,
-                                           status: "closed" })));
-    out[k] = { n: score.n, sharpe: score.sharpe, hit: score.hit };
-  }
-  return out;
+function Empty() {
+  return (
+    <p className="u-caption-2 text-fg-3 italic mt-1">
+      No data.
+    </p>
+  );
 }
 
 
-function _strategyName(s: StrategyKey): string {
-  return s === "engine_a" ? "Engine A"
-    : s === "engine_b" ? "Engine B"
-    : s === "baseline" ? "Baseline"
-    : "Combined";
+function fmtUSD(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  const abs = Math.abs(n);
+  const s = n < 0 ? "-" : "";
+  return `${s}$${abs.toFixed(abs >= 1000 ? 0 : 2)}`;
 }
 
 
-function _verdict(sharpe: number): "STRONG" | "WEAK" | "NEGATIVE" {
-  if (sharpe >= 1.0) return "STRONG";
-  if (sharpe < 0) return "NEGATIVE";
-  return "WEAK";
+function fmtPct(n: number | null | undefined): string {
+  if (n == null || Number.isNaN(n)) return "—";
+  return `${(n * 100).toFixed(2)}%`;
 }
 
-function _verdictChip(v: string): string {
-  if (v === "STRONG") return "u-chip-success";
-  if (v === "NEGATIVE") return "u-chip-danger";
-  return "u-chip-warning";
-}
 
-function _sharpeTone(s: number): string {
-  if (s >= 1.0) return "text-success";
-  if (s < -0.3) return "text-danger";
-  if (s < 0.5) return "text-warning";
-  return "text-fg";
+function toneFromN(n: number): "pos" | "neg" | "neutral" {
+  if (n > 0) return "pos";
+  if (n < 0) return "neg";
+  return "neutral";
 }
