@@ -955,7 +955,8 @@ function LatestDecisionPreview({
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="u-mono-sm mb-1 text-fg-3">
-                {src.dateLabel} · {src.regime.toUpperCase()}
+                {src.dateLabel}
+                {src.regime ? ` · ${src.regime.toUpperCase()}` : ""}
               </div>
               <div className="u-body-fg font-semibold leading-snug">
                 {src.title}
