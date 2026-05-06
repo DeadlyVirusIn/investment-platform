@@ -58,7 +58,9 @@ export default function PortfolioTerminal() {
   const open = (trades ?? []).filter(t => t.status === "open");
   const closed = (trades ?? []).filter(t => t.status === "closed");
   const exposure = open.reduce(
-    (s, t) => s + (summary?.equity ?? 0) * (t.position_size_pct / 100), 0,
+    (s, t) => s
+      + (summary?.equity ?? 0) * ((t.position_size_pct ?? 0) / 100),
+    0,
   );
   const exposurePct = summary ? exposure / summary.equity : 0;
 

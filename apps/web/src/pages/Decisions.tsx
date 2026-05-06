@@ -9,6 +9,7 @@ import { useMemo, useState } from "react";
 import {
   usePaperTrades, useDecision, useAnomalies, useCurrentState,
 } from "@/lib/operator/hooks";
+import { usePendingFills } from "@/lib/paper/execution-status";
 import {
   Card, Pill, Divider, fmtPct, toneForNumber, Skeleton, Label,
 } from "@/components/ui/primitives";
@@ -18,22 +19,38 @@ import type {
 } from "@/lib/operator/types";
 import { cn } from "@/lib/cn";
 
-type Filter = "all" | "A" | "B" | "open" | "anom";
+// Filter set — paper-trading aware. Engine A/B retained for the
+// rare legacy row that still carries those engine values; the
+// active paper-trading data has engine="paper" and is shown via
+// "All" / "Open" / "Live" / "Replay".
+type Filter = "all" | "live" | "replay" | "open" | "anom";
 
 const FILTERS: { id: Filter; label: string }[] = [
-  { id: "all",  label: "All" },
-  { id: "A",    label: "Engine A" },
-  { id: "B",    label: "Engine B" },
-  { id: "open", label: "Open" },
-  { id: "anom", label: "Anomaly" },
+  { id: "all",    label: "All" },
+  { id: "live",   label: "Live" },
+  { id: "replay", label: "Replay" },
+  { id: "open",   label: "Open" },
+  { id: "anom",   label: "Anomaly" },
 ];
 
 export default function Decisions() {
   const { data: trades } = usePaperTrades();
   const { data: state } = useCurrentState();
   const { data: anomalies } = useAnomalies("open");
+  const { data: pending } = usePendingFills();
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<TradeRow | null>(null);
+
+  const totals = useMemo(() => {
+    const all = trades ?? [];
+    return {
+      total: all.length,
+      live: all.filter(t => !t.is_replay).length,
+      replay: all.filter(t => !!t.is_replay).length,
+      open: all.filter(t => t.status === "open").length,
+      pending: pending?.count ?? 0,
+    };
+  }, [trades, pending]);
 
   const anomByDate = useMemo(() => {
     const m = new Map<string, AnomalyEvent[]>();
@@ -48,11 +65,11 @@ export default function Decisions() {
   const filtered = useMemo(() => {
     const all = trades ?? [];
     switch (filter) {
-      case "A":    return all.filter(t => t.engine === "A");
-      case "B":    return all.filter(t => t.engine === "B");
-      case "open": return all.filter(t => t.status === "open");
-      case "anom": return all.filter(t => anomByDate.has(t.entry_date));
-      default:     return all;
+      case "live":   return all.filter(t => !t.is_replay);
+      case "replay": return all.filter(t => !!t.is_replay);
+      case "open":   return all.filter(t => t.status === "open");
+      case "anom":   return all.filter(t => anomByDate.has(t.entry_date));
+      default:       return all;
     }
   }, [trades, filter, anomByDate]);
 
@@ -64,9 +81,44 @@ export default function Decisions() {
         <Label>Decisions</Label>
         <h1 className="u-title-lg mt-1">Decision Audit Workstation</h1>
         <p className="u-body mt-2 max-w-3xl">
-          Every system decision — entries, skips, blocked signals — with full
-          reasoning, production inputs, outcome, and historical pattern context.
+          Real paper-trading decisions sourced from{" "}
+          <code>paper_trade</code> joined to{" "}
+          <code>paper_position</code>. Live and replay-recovered
+          rows are tagged separately. Pending next-bar fills are
+          shown in the badge below — they are valid decisions
+          held by the next-bar guard, not failures.
         </p>
+        <div
+          className="mt-3 flex flex-wrap items-center gap-2 u-caption-2"
+          data-test="decisions-truth-banner"
+        >
+          <span className="u-chip u-chip-neutral">
+            <span className="u-dot u-dot-neutral" />
+            <span className="ml-1">
+              Total {totals.total}
+            </span>
+          </span>
+          <span className="u-chip u-chip-success">
+            <span className="u-dot u-dot-success" />
+            <span className="ml-1">Live {totals.live}</span>
+          </span>
+          <span className="u-chip u-chip-warning">
+            <span className="u-dot u-dot-warning" />
+            <span className="ml-1">Replay {totals.replay}</span>
+          </span>
+          <span className="u-chip u-chip-accent">
+            <span className="u-dot u-dot-accent" />
+            <span className="ml-1">Open {totals.open}</span>
+          </span>
+          {totals.pending > 0 && (
+            <span className="u-chip u-chip-warning">
+              <span className="u-dot u-dot-warning" />
+              <span className="ml-1">
+                Pending next-bar {totals.pending}
+              </span>
+            </span>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)_420px]
@@ -165,31 +217,38 @@ function TimelineEntry({
                     selected && "is-selected")}>
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="u-chip u-chip-accent">Engine {t.engine}</span>
+          <span className="u-mono font-semibold truncate">
+            {t.instrument}
+          </span>
           <span className="u-mono-sm text-fg-3">{t.entry_date}</span>
         </div>
         <span className={cn("u-num-md font-bold shrink-0", retCls)}>
-          {fmtPct(t.net_ret_pct)}
+          {t.net_ret_pct != null ? fmtPct(t.net_ret_pct) : "—"}
         </span>
       </div>
       <div className="flex items-center justify-between u-caption-2">
         <span className="uppercase tracking-wider font-semibold">
-          {t.regime_at_entry}
+          {t.engine === "A" || t.engine === "B"
+            ? `Engine ${t.engine}`
+            : t.regime_at_entry || "paper"}
         </span>
         <span className="u-mono-sm">
           {t.days_held !== null ? `${t.days_held}d` : "holding"}
         </span>
       </div>
-      {(t.status === "open" || hasAnomaly) && (
-        <div className="flex gap-1.5 flex-wrap mt-2">
-          {t.status === "open" &&
-            <span className="u-chip u-chip-neutral">open</span>}
-          {hasAnomaly &&
-            <span className="u-chip u-chip-danger">
-              <span className="u-dot u-dot-danger u-dot-pulse" />anomaly
-            </span>}
-        </div>
-      )}
+      <div className="flex gap-1.5 flex-wrap mt-2">
+        {t.status === "open" &&
+          <span className="u-chip u-chip-neutral">open</span>}
+        {t.status === "closed" &&
+          <span className="u-chip u-chip-success">closed</span>}
+        {t.is_replay
+          ? <span className="u-chip u-chip-warning">replay</span>
+          : <span className="u-chip u-chip-success">live</span>}
+        {hasAnomaly &&
+          <span className="u-chip u-chip-danger">
+            <span className="u-dot u-dot-danger u-dot-pulse" />anomaly
+          </span>}
+      </div>
     </button>
   );
 }

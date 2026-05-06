@@ -52,15 +52,20 @@ export interface TradeRow {
   exit_date: string | null;
   entry_price: number;
   exit_price: number | null;
-  position_size_pct: number;
+  position_size_pct: number | null;
   gross_ret_pct: number | null;
   net_ret_pct: number | null;
   pnl_dollar: number | null;
-  regime_at_entry: Regime;
+  regime_at_entry: Regime | null;
   status: TradeStatus;
   days_held: number | null;
-  decision_version: string;
+  decision_version: string | null;
   reason: string | null;
+  // Paper-trading additions (Phase: /paper/trades real-table swap).
+  quantity?: number;
+  notional_usd?: number | null;
+  is_replay?: boolean;
+  portfolio_id?: string;
 }
 
 export interface DecisionRow {

@@ -24,7 +24,7 @@ export default function RegimeHeatmap() {
   const cells = useMemo<Cell[]>(() => {
     const tradesByDate = new Map<string, Regime>();
     for (const t of trades ?? []) {
-      if (!tradesByDate.has(t.entry_date)) {
+      if (!tradesByDate.has(t.entry_date) && t.regime_at_entry) {
         tradesByDate.set(t.entry_date, t.regime_at_entry);
       }
     }

@@ -345,8 +345,10 @@ function PatternsTab() {
   const closed = (trades ?? []).filter(t =>
     t.status === "closed" && t.net_ret_pct !== null);
 
-  const byRegime = useMemo(() => groupBy(closed, t => t.regime_at_entry),
-    [closed]);
+  const byRegime = useMemo(
+    () => groupBy(closed, t => t.regime_at_entry ?? "unknown"),
+    [closed],
+  );
   const byEngine = useMemo(() => groupBy(closed, t => t.engine), [closed]);
 
   const bestRegime = pickTopByAvg(byRegime);
