@@ -290,50 +290,97 @@ def paper_trades(
     db: Session = Depends(get_session),
     status: Literal["open", "closed", "cancelled"] | None = None,
 ) -> list[dict]:
-    q = """
-        SELECT id, engine, instrument, entry_date, exit_date,
-               entry_price, exit_price, position_size_pct,
-               gross_ret_pct, net_ret_pct, regime_at_entry,
-               status, decision_version, reason
-        FROM paper_trade_log
-        WHERE portfolio_id = :p
-        {status_clause}
-        ORDER BY entry_date DESC
-        LIMIT 500
+    """Real paper trades from `paper_trade` joined to
+    `paper_position` for open/closed status and unrealized P&L.
+
+    Replaces the legacy `paper_trade_log WHERE portfolio_id='default'`
+    read which returned [] on the live system because no row in
+    that table is keyed by 'default' and no writer keeps it
+    populated. Real auto_trader fills land in `paper_trade`
+    (UUID portfolios) and the open/closed flag lives on
+    `paper_position.is_open`.
+
+    Replay-flagged trades are surfaced via `is_replay` so the
+    consumer can either filter or label them; the row count is
+    NOT silently reduced.
     """
-    params = {"p": PORTFOLIO_ID}
-    clause = ""
-    if status:
-        clause = "AND status = :st"
-        params["st"] = status
-    rows = db.execute(text(q.format(status_clause=clause)), params).fetchall()
+    # Build replay-id set (best-effort — manifest table created by
+    # raw-SQL alembic migration; falls back to empty when absent).
+    replay_ids: set[str] = set()
+    try:
+        replay_ids = {
+            r[0] for r in db.execute(text("""
+                SELECT entity_id FROM replay_recovery_manifest
+                WHERE entity_type = 'paper_trade'
+            """)).all()
+        }
+    except Exception:  # noqa: BLE001
+        db.rollback()
+
+    rows = db.execute(text("""
+        SELECT
+          t.id,
+          a.symbol AS instrument,
+          t.fill_ts::date AS entry_date,
+          CASE WHEN pp.is_open IS FALSE THEN pp.closed_at::date END
+            AS exit_date,
+          t.fill_price AS entry_price,
+          t.quantity,
+          (t.quantity * t.fill_price)::numeric AS notional_usd,
+          t.realized_pnl,
+          coalesce(pp.is_open, FALSE) AS is_open,
+          t.reason,
+          t.portfolio_id
+        FROM paper_trade t
+        JOIN asset a ON a.id = t.asset_id
+        LEFT JOIN paper_position pp
+               ON pp.portfolio_id = t.portfolio_id
+              AND pp.asset_id = t.asset_id
+        ORDER BY t.fill_ts DESC
+        LIMIT 500
+    """)).mappings().all()
 
     out = []
     for r in rows:
+        is_open = bool(r["is_open"])
+        s = "open" if is_open else "closed"
+        if status and status != s:
+            continue
         days_held = None
-        if r.exit_date and r.entry_date:
-            days_held = (r.exit_date - r.entry_date).days
-        pnl_dollar = None
-        if r.net_ret_pct is not None:
-            # approximate from position size notional (100k × pos% × net_ret)
-            pnl_dollar = 100_000 * (float(r.position_size_pct) / 100) * (float(r.net_ret_pct) / 100)
+        if r["exit_date"] and r["entry_date"]:
+            days_held = (r["exit_date"] - r["entry_date"]).days
         out.append({
-            "trade_id": str(r.id),
-            "engine": r.engine,
-            "instrument": r.instrument,
-            "entry_date": str(r.entry_date),
-            "exit_date": str(r.exit_date) if r.exit_date else None,
-            "entry_price": float(r.entry_price),
-            "exit_price": float(r.exit_price) if r.exit_price else None,
-            "position_size_pct": float(r.position_size_pct),
-            "gross_ret_pct": float(r.gross_ret_pct) if r.gross_ret_pct is not None else None,
-            "net_ret_pct": float(r.net_ret_pct) if r.net_ret_pct is not None else None,
-            "pnl_dollar": pnl_dollar,
-            "regime_at_entry": r.regime_at_entry,
-            "status": r.status,
+            "trade_id": str(r["id"]),
+            "engine": "paper",
+            "instrument": r["instrument"],
+            "entry_date": str(r["entry_date"]),
+            "exit_date": (
+                str(r["exit_date"]) if r["exit_date"] else None
+            ),
+            "entry_price": float(r["entry_price"]),
+            "exit_price": None,
+            "position_size_pct": None,
+            "gross_ret_pct": None,
+            "net_ret_pct": (
+                float(r["realized_pnl"])
+                if r["realized_pnl"] is not None else None
+            ),
+            "pnl_dollar": (
+                float(r["realized_pnl"])
+                if r["realized_pnl"] is not None else None
+            ),
+            "regime_at_entry": None,
+            "status": s,
             "days_held": days_held,
-            "decision_version": r.decision_version,
-            "reason": r.reason,
+            "decision_version": None,
+            "reason": r["reason"],
+            "quantity": float(r["quantity"]),
+            "notional_usd": (
+                float(r["notional_usd"])
+                if r["notional_usd"] is not None else None
+            ),
+            "is_replay": str(r["id"]) in replay_ids,
+            "portfolio_id": str(r["portfolio_id"]),
         })
     return out
 
