@@ -335,7 +335,9 @@ export default function PortfolioTerminal() {
                     <td className="u-mono">{t.instrument}</td>
                     <td className="u-mono-sm">{t.entry_date}</td>
                     <td className="text-right u-mono">
-                      {t.position_size_pct.toFixed(1)}
+                      {t.position_size_pct != null
+                        ? t.position_size_pct.toFixed(1)
+                        : "—"}
                     </td>
                     <td className={cn("text-right u-mono",
                       toneForNumber(t.net_ret_pct ?? 0) === "pos" ? "text-success"
