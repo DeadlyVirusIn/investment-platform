@@ -17,6 +17,7 @@ import {
   type AlphaLabPosition,
   type AlphaLabClosedTrade,
 } from "@/lib/alphaLab/hooks";
+import TradeQualityCard from "@/components/alpha-lab/TradeQualityCard";
 
 
 const TABS = [
@@ -184,6 +185,11 @@ function Overview({ d }: { d: DType }) {
           {worstOpen ? <PositionLine row={worstOpen} /> : <Empty />}
         </div>
       </div>
+
+      {/* Phase B — pre-ML diagnostic. Read-only. NOT a trading
+          signal. Each row's "why" expands to per-component
+          reasons sourced from real DB rows. */}
+      <TradeQualityCard />
     </section>
   );
 }

@@ -88,3 +88,73 @@ export function useAlphaLab(limit: number = 20) {
     refetchOnWindowFocus: false,
   });
 }
+
+
+// ---------------------------------------------------------------
+// Trade Quality (Phase B — pre-ML diagnostic). Read-only.
+// ---------------------------------------------------------------
+
+export type TradeQualityGrade = "A" | "B" | "C" | "D" | "F";
+
+export type TradeQualityThesis =
+  | "open_positive" | "open_negative"
+  | "stopped_out" | "take_profit" | "max_hold" | "closed_other"
+  | "pending_next_bar" | "insufficient_data";
+
+export type TradeQualityCompleteness = "full" | "partial" | "low";
+
+export interface TradeQualityItem {
+  trade_id: string;
+  symbol: string;
+  portfolio_id: string;
+  portfolio_name: string;
+  side: "buy" | "sell";
+  is_open: boolean;
+  fill_ts: string | null;
+  entry_price: number;
+  qty: number;
+  held_days: number | null;
+  current_price: number | null;
+  realized_pnl: number | null;
+  exit_reason: string | null;
+  score: number;
+  grade: TradeQualityGrade;
+  thesis: TradeQualityThesis;
+  completeness: TradeQualityCompleteness;
+  components: {
+    entry: number;
+    return: number;
+    hold: number;
+    exit_or_status: number;
+    completeness: number;
+  };
+  reasons: string[];
+}
+
+export interface TradeQualityResponse {
+  notice: string;
+  as_of_date: string;
+  include_replay: boolean;
+  n_items: number;
+  n_open: number;
+  n_closed: number;
+  average_score: number | null;
+  grade_distribution: Partial<Record<TradeQualityGrade, number>>;
+  thesis_distribution: Partial<Record<TradeQualityThesis, number>>;
+  completeness_distribution: Partial<
+    Record<TradeQualityCompleteness, number>
+  >;
+  items: TradeQualityItem[];
+}
+
+export function useTradeQuality(limit: number = 50) {
+  return useQuery<TradeQualityResponse>({
+    queryKey: ["trade-quality", limit],
+    queryFn: () => apiGet<TradeQualityResponse>(
+      `/performance/paper/trade-quality?limit=${limit}`,
+    ),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}

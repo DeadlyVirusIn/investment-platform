@@ -2859,6 +2859,56 @@ def options_promotion_candidates(
 
 
 # ---------------------------------------------------------------------------
+# /performance/paper/trade-quality  (Phase B — pre-ML diagnostic)
+# ---------------------------------------------------------------------------
+# Read-only quality scoring layer over existing paper_trade /
+# paper_position / paper_equity_snapshot / price_bar rows.
+# Deterministic, transparent, never participates in execution.
+
+@router.get("/trade-quality")
+def paper_trade_quality(
+    db: Session = Depends(get_session),
+    include_replay: bool = Query(
+        False,
+        description=(
+            "Include replay-recovered rows. Default false to keep "
+            "live-only headline."
+        ),
+    ),
+    limit: int = Query(200, ge=1, le=500),
+    max_hold_days: int = Query(
+        10, ge=1, le=120,
+        description=(
+            "Hold-discipline budget (days). Mirrors "
+            "PAPER_MAX_HOLD_DAYS env default."
+        ),
+    ),
+) -> dict[str, Any]:
+    """Pre-ML diagnostic. Returns a 0-100 score, A/B/C/D/F grade,
+    thesis status enum, reason bullets, and a data completeness
+    flag for each eligible paper-trade row.
+
+    Eligibility mirrors `/paper/trades` dedup: SELL rows always
+    appear, BUY rows only when the position is currently open.
+    NEVER fabricates inputs — missing data drops completeness and
+    the affected component to 0 points.
+
+    The frontend MUST label any rendering of this output as a
+    pre-ML diagnostic. It is not a recommendation, signal, or
+    expected return. The score is internal review context only.
+    """
+    from apps.api.src.domain.paper_quality.service import (
+        assemble_quality_report,
+    )
+    return assemble_quality_report(
+        db,
+        include_replay=include_replay,
+        limit=limit,
+        max_hold_days=max_hold_days,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Discord formatter (pure helper — no I/O)
 # ---------------------------------------------------------------------------
 def format_pending_fill_discord(item: dict[str, Any]) -> str:
