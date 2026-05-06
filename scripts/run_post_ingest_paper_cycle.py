@@ -88,6 +88,11 @@ def _argparse() -> argparse.ArgumentParser:
                    help="Ignore existing .replayed.jsonl markers. "
                         "Operator-only; combine with explicit "
                         "--replay-pending-from.")
+    p.add_argument("--replay-options-from", default=None,
+                   help="ISO date lower bound for options pending "
+                        "replay. Mirrors --replay-pending-from but "
+                        "operates on artifacts/options_paper_skips/ "
+                        "and writes options_paper_trade rows.")
     return p
 
 
@@ -241,6 +246,26 @@ def _run_exploratory(as_of: dt.date) -> dict[str, Any]:
     return {"runner": "run_exploratory_paper_exec", "exit_code": rc}
 
 
+def _run_options_pending_replay(
+    as_of: dt.date, *,
+    from_date: dt.date | None = None,
+    force: bool = False,
+) -> dict[str, Any]:
+    """Replay options pending entries from prior dates. Each entry
+    is fed back through the same options paper-exec fill path; the
+    next-bar guard is preserved (find_next_open requires
+    `snapshot_at_utc::date > submitted_at::date`)."""
+    from apps.api.src.db import SessionLocal
+    from apps.api.src.options.pending_replay import (
+        replay_all_options_pending,
+    )
+    summary = replay_all_options_pending(
+        before=as_of, SessionFactory=SessionLocal,
+        from_date=from_date, force=force,
+    )
+    return {"runner": "options_pending_replay", **summary}
+
+
 def _run_options(as_of: dt.date) -> dict[str, Any]:
     if os.environ.get(OPT_CONFIRM, "") != OPT_CONFIRM_VALUE:
         return {
@@ -308,6 +333,26 @@ def main(argv: list[str] | None = None) -> int:
             "--replay-pending-from to bound the operation.\n",
         )
         return 2
+
+    options_replay_from: dt.date | None = None
+    if args.replay_options_from:
+        try:
+            options_replay_from = dt.date.fromisoformat(
+                args.replay_options_from,
+            )
+        except ValueError:
+            sys.stderr.write(
+                f"REFUSED: --replay-options-from must be ISO date, "
+                f"got {args.replay_options_from!r}\n",
+            )
+            return 2
+        if options_replay_from >= as_of:
+            sys.stderr.write(
+                f"REFUSED: --replay-options-from "
+                f"({options_replay_from}) must be < --as-of "
+                f"({as_of})\n",
+            )
+            return 2
 
     stock_on = _env_true(STOCK_ENV, default=True)
     expl_on = _env_true(EXPL_ENV, default=False)
@@ -399,6 +444,25 @@ def main(argv: list[str] | None = None) -> int:
                     "error": str(exc),
                 })
         if opt_on:
+            # Options pending replay runs unconditionally when
+            # opt_on=True and chain data is present today, so prior
+            # dates' stuck strategies can fill against the new
+            # chain snapshots. Same-bar guard preserved.
+            if readiness["options_chain_snapshot_count_today"] > 0:
+                try:
+                    results.append(_run_options_pending_replay(
+                        as_of, from_date=options_replay_from,
+                        force=args.force_replay,
+                    ))
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "[cycle] options pending replay crashed: {}",
+                        exc,
+                    )
+                    results.append({
+                        "runner": "options_pending_replay",
+                        "error": str(exc),
+                    })
             if readiness["options_chain_snapshot_count_today"] == 0:
                 results.append({
                     "runner": "run_options_paper_exec",

@@ -155,6 +155,24 @@ def test_bad_replay_from_refused(monkeypatch):
     assert rc == 2
 
 
+def test_bad_replay_options_from_refused(monkeypatch):
+    from scripts.run_post_ingest_paper_cycle import main
+    rc = main([
+        "--as-of", "2026-05-05",
+        "--replay-options-from", "not-a-date",
+    ])
+    assert rc == 2
+
+
+def test_replay_options_from_after_as_of_refused(monkeypatch):
+    from scripts.run_post_ingest_paper_cycle import main
+    rc = main([
+        "--as-of", "2026-05-01",
+        "--replay-options-from", "2026-05-04",
+    ])
+    assert rc == 2
+
+
 def test_exploratory_skipped_without_confirm_env(
     pg_session, tmp_path, monkeypatch, patch_session_local,
 ):

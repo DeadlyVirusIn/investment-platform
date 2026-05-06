@@ -360,6 +360,33 @@ def main(argv: list[str] | None = None) -> int:
                     underlying, strategy, cand["confidence"],
                     underlying, now.date(),
                 )
+                # Persist as pending so a later run can replay this
+                # decision once a future chain snapshot lands.
+                # Honors the same-bar guard: original `now` (the
+                # submitted_at anchor) is preserved verbatim.
+                try:
+                    from apps.api.src.options.pending_storage import (
+                        append_pending,
+                    )
+                    append_pending(
+                        as_of=now.date(), underlying=underlying,
+                        strategy=strategy, legs=legs,
+                        submitted_at=now,
+                        confidence=cand.get("confidence"),
+                        extra={
+                            "exec_reason":
+                                "no chain snapshot with "
+                                "snapshot_at_utc::date > "
+                                "submitted_at::date",
+                            "limit": args.limit,
+                            "qty": args.qty,
+                        },
+                    )
+                except Exception as _exc:  # noqa: BLE001
+                    logger.warning(
+                        "[options-exec.pending] persist failed: {}",
+                        _exc,
+                    )
                 pending += 1
                 plan.append({
                     "underlying": underlying,
