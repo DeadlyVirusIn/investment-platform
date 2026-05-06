@@ -114,7 +114,20 @@ def _replay_one_date(
             )
             session.add(trade)
             session.flush()
-            for lp in _build_legs_payload(strategy, legs, qty=1):
+            try:
+                legs_payload = _build_legs_payload(
+                    strategy, legs, qty=1,
+                    entry_quote_at_utc=submitted_at,
+                )
+            except ValueError as exc:
+                session.rollback()
+                logger.warning(
+                    "[opt-pending-replay.rejected] {} {} legs build "
+                    "failed: {}", underlying, strategy, exc,
+                )
+                rejected += 1
+                continue
+            for lp in legs_payload:
                 lp["underlying"] = underlying
                 session.add(OptionsPaperTradeLeg(
                     trade_id=trade.id, **lp,

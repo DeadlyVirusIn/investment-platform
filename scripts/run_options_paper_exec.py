@@ -108,24 +108,99 @@ def _next_bar_chain_exists(session, underlying: str,
     return row is not None
 
 
-def _build_legs_payload(strategy: str, legs: list[dict[str, Any]],
-                        qty: int) -> list[dict[str, Any]]:
-    """Translate strategy-suggestion legs into options_paper_trade_leg
-    rows. side stored as upper-case ('BUY' / 'SELL')."""
+def _dec_or_none(v: Any) -> Decimal | None:
+    """Coerce numeric/str → Decimal; None / empty → None.
+
+    Used for nullable per-leg fields (entry_bid/ask/mid/iv); never
+    fabricates a value when the chain quote is missing.
+    """
+    if v is None or v == "":
+        return None
+    return Decimal(str(v))
+
+
+_LEG_REQUIRED_KEYS = ("option_symbol", "expiry", "strike", "type", "action")
+
+
+def _build_legs_payload(
+    strategy: str,
+    legs: list[dict[str, Any]],
+    qty: int,
+    *,
+    entry_quote_at_utc: dt.datetime,
+) -> list[dict[str, Any]]:
+    """Translate strategy-suggestion legs into kwarg dicts that map
+    1:1 to `OptionsPaperTradeLeg` columns.
+
+    Hard guarantees:
+      * Column names match `OptionsPaperTradeLeg` exactly — passing
+        the dict via `OptionsPaperTradeLeg(trade_id=…, **lp)` is a
+        kwarg-clean operation. Earlier the function emitted
+        `fill_price_dollars`, which is not a column, raising
+        TypeError and blocking every options paper insert.
+      * `entry_quote_at_utc` (NOT NULL on the table) is populated
+        from the caller's submission anchor.
+      * `entry_fill_price` (NOT NULL) is set from `ask` for BUY
+        legs and `bid` for SELL legs — same convention used by the
+        payoff calculator. No fabrication.
+      * `entry_bid/ask/mid/iv` are propagated when present so the
+        "frozen at decision time" quote snapshot is preserved.
+        Greeks (delta/gamma/theta/vega) are not surfaced by the
+        suggestion endpoint — they remain NULL (column is
+        nullable).
+      * Missing required fields or missing bid/ask for the actual
+        fill side raise `ValueError`. The caller catches `ValueError`
+        and counts the candidate as `rejected:` in the plan,
+        keeping the run going. Nothing is fabricated, nothing is
+        skipped silently.
+    """
     out: list[dict[str, Any]] = []
     for i, leg in enumerate(legs):
+        missing = [
+            k for k in _LEG_REQUIRED_KEYS
+            if leg.get(k) in (None, "")
+        ]
+        if missing:
+            raise ValueError(
+                f"leg[{i}] missing required fields: {missing}"
+            )
+        action = str(leg["action"]).lower()
+        if action not in ("buy", "sell"):
+            raise ValueError(
+                f"leg[{i}] action must be buy/sell, got {leg['action']!r}"
+            )
+        opt_type = str(leg["type"]).upper()
+        if opt_type not in ("CALL", "PUT"):
+            raise ValueError(
+                f"leg[{i}] type must be CALL/PUT, got {leg['type']!r}"
+            )
+        bid = leg.get("bid")
+        ask = leg.get("ask")
+        if action == "buy" and ask is None:
+            raise ValueError(
+                f"leg[{i}] BUY requires ask price; chain ask is NULL"
+            )
+        if action == "sell" and bid is None:
+            raise ValueError(
+                f"leg[{i}] SELL requires bid price; chain bid is NULL"
+            )
         out.append({
             "leg_index": i,
             "option_symbol": leg["option_symbol"],
-            "underlying": leg.get("underlying", ""),  # filled below
+            "underlying": leg.get("underlying", ""),  # filled by caller
             "expiry": dt.date.fromisoformat(leg["expiry"]),
             "strike": Decimal(str(leg["strike"])),
-            "option_type": leg["type"].upper(),
-            "side": leg["action"].upper(),
+            "option_type": opt_type,
+            "side": action.upper(),
             "qty": qty,
-            "fill_price_dollars": Decimal(str(
-                leg["ask"] if leg["action"] == "buy" else leg["bid"]
+            "entry_quote_at_utc": entry_quote_at_utc,
+            "entry_fill_price": Decimal(str(
+                ask if action == "buy" else bid
             )),
+            "entry_bid": _dec_or_none(bid),
+            "entry_ask": _dec_or_none(ask),
+            "entry_mid": _dec_or_none(leg.get("mid")),
+            "entry_iv": _dec_or_none(leg.get("iv")),
         })
     return out
 
@@ -440,9 +515,26 @@ def main(argv: list[str] | None = None) -> int:
             )
             session.add(trade)
             session.flush()
-            legs_payload = _build_legs_payload(
-                strategy, legs, effective_qty,
-            )
+            try:
+                legs_payload = _build_legs_payload(
+                    strategy, legs, effective_qty,
+                    entry_quote_at_utc=now,
+                )
+            except ValueError as exc:
+                # Roll back the trade row we just flushed; record the
+                # rejection in the plan. No partial trade leaks to DB.
+                session.rollback()
+                logger.warning(
+                    "[options-exec.rejected] {} {}: legs payload "
+                    "build failed: {}",
+                    underlying, strategy, exc,
+                )
+                rejected += 1
+                plan.append({
+                    **cand, "result": f"rejected:legs:{exc}",
+                    "mode": "options_exploratory",
+                })
+                continue
             for lp in legs_payload:
                 lp["underlying"] = underlying
                 session.add(OptionsPaperTradeLeg(
