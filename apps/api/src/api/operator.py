@@ -32,45 +32,154 @@ PORTFOLIO_ID = "default"
 # ---------------------------------------------------------------------------
 # /paper/summary
 # ---------------------------------------------------------------------------
+# Reads real paper-trading state from paper_equity_snapshot keyed
+# by paper_portfolio.id (UUID). Aggregates across all active
+# portfolios. The legacy paper_portfolio_snapshot / paper_trade_log
+# tables (synthetic portfolio_id='default') are no longer consulted
+# — they were a separate selector-path mirror that did not see real
+# auto_trader fills, which caused NAV/cash/positions to look stuck
+# at the starting state.
+#
+# Replay-recovery rows in paper_trade are kept SEPARATE from the
+# headline equity. The equity series itself is computed by
+# `snapshot_equity_now` from cash + open-position market value, so
+# replay-flagged trades affect equity only through the positions
+# they opened (which is the correct behavior — they really are
+# in the portfolio). The optional `replay_*` counts here are
+# informational only and do not subtract from headline equity.
+
+def _latest_active_snapshots(db: Session) -> list[Any]:
+    """Latest paper_equity_snapshot row per active portfolio."""
+    return db.execute(text("""
+        SELECT DISTINCT ON (s.portfolio_id)
+               s.portfolio_id, s.snapshot_date, s.total_equity,
+               s.cash, s.positions_value, s.unrealized_pnl,
+               s.realized_pnl_cumulative, s.created_at
+        FROM paper_equity_snapshot s
+        JOIN paper_portfolio p ON p.id = s.portfolio_id
+        WHERE p.is_active = TRUE
+        ORDER BY s.portfolio_id, s.snapshot_date DESC
+    """)).fetchall()
+
+
+def _prev_day_snapshots(
+    db: Session, latest_date: dt.date,
+) -> dict[str, float]:
+    """Per-portfolio total_equity on the day strictly before
+    `latest_date`. Used to compute daily P&L."""
+    rows = db.execute(text("""
+        SELECT DISTINCT ON (s.portfolio_id)
+               s.portfolio_id, s.total_equity
+        FROM paper_equity_snapshot s
+        JOIN paper_portfolio p ON p.id = s.portfolio_id
+        WHERE p.is_active = TRUE
+          AND s.snapshot_date < :d
+        ORDER BY s.portfolio_id, s.snapshot_date DESC
+    """), {"d": latest_date}).fetchall()
+    return {r.portfolio_id: float(r.total_equity) for r in rows}
+
+
 @router.get("/paper/summary")
 def paper_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
-    latest = db.execute(text("""
-        SELECT as_of_date, equity, cash, daily_pnl, cum_pct, max_dd_pct,
-               regime, engine_active, run_version, created_at
-        FROM paper_portfolio_snapshot
-        WHERE portfolio_id = :p
-        ORDER BY as_of_date DESC LIMIT 1
-    """), {"p": PORTFOLIO_ID}).fetchone()
-
-    if latest is None:
+    latest_rows = _latest_active_snapshots(db)
+    if not latest_rows:
         return {
             "as_of_date": dt.date.today().isoformat(),
-            "equity": 100_000.0, "cash": 100_000.0,
+            "equity": 0.0, "cash": 0.0,
+            "positions_value": 0.0, "unrealized_pnl": 0.0,
             "total_return_pct": 0.0, "max_drawdown_pct": 0.0,
             "daily_pnl": 0.0,
             "regime": "none", "engine_active": "none",
             "open_positions_count": 0,
-            "last_decision_ts": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "last_decision_ts":
+                dt.datetime.now(dt.timezone.utc).isoformat(),
             "pipeline_status": "idle",
+            "portfolio_count": 0,
         }
+
+    starting_total = float(db.execute(text("""
+        SELECT coalesce(sum(starting_cash), 0)
+        FROM paper_portfolio WHERE is_active = TRUE
+    """)).scalar() or 0)
+
+    # Pick latest snapshot_date across all portfolios as the
+    # report date — every active portfolio is snapshotted on the
+    # same daily anchor, so the max is the relevant one.
+    as_of = max(r.snapshot_date for r in latest_rows)
+    if isinstance(as_of, dt.datetime):
+        as_of_d = as_of.date()
+    else:
+        as_of_d = as_of
+
+    total_equity = sum(float(r.total_equity) for r in latest_rows)
+    total_cash = sum(float(r.cash) for r in latest_rows)
+    total_pos = sum(float(r.positions_value) for r in latest_rows)
+    total_upnl = sum(
+        float(r.unrealized_pnl or 0) for r in latest_rows
+    )
+
+    # Daily P&L = today's total - prior-day total (per portfolio,
+    # then summed). Skips portfolios without a prior snapshot.
+    prev_map = _prev_day_snapshots(db, as_of_d)
+    daily_pnl = 0.0
+    for r in latest_rows:
+        prev = prev_map.get(r.portfolio_id)
+        if prev is not None:
+            daily_pnl += float(r.total_equity) - prev
+
+    # Total return % over starting cash
+    total_return_pct = (
+        ((total_equity - starting_total) / starting_total) * 100.0
+        if starting_total > 0 else 0.0
+    )
+
+    # Open positions: paper_position is the real source of truth.
     open_n = db.execute(text("""
-        SELECT COUNT(*) FROM paper_trade_log
-        WHERE portfolio_id = :p AND status = 'open'
-    """), {"p": PORTFOLIO_ID}).scalar() or 0
+        SELECT count(*) FROM paper_position pp
+        JOIN paper_portfolio p ON p.id = pp.portfolio_id
+        WHERE pp.is_open = TRUE AND p.is_active = TRUE
+    """)).scalar() or 0
+
+    last_decision_ts = max(
+        (r.created_at for r in latest_rows if r.created_at),
+        default=None,
+    )
+
+    # Replay-flagged informational counts — kept separate. The
+    # manifest table is created by a raw-SQL alembic migration; the
+    # ORM-only test harness does not build it. Graceful degrade
+    # to 0 when the table is absent so the endpoint never 500s.
+    try:
+        replay_trades = db.execute(text("""
+            SELECT count(*) FROM paper_trade t
+            WHERE EXISTS (
+              SELECT 1 FROM replay_recovery_manifest m
+              WHERE m.entity_type='paper_trade'
+                AND m.entity_id = t.id::text
+            )
+        """)).scalar() or 0
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        replay_trades = 0
 
     return {
-        "as_of_date": str(latest.as_of_date),
-        "equity": float(latest.equity),
-        "cash": float(latest.cash),
-        "total_return_pct": float(latest.cum_pct or 0),
-        "max_drawdown_pct": float(latest.max_dd_pct or 0),
-        "daily_pnl": float(latest.daily_pnl or 0),
-        "regime": latest.regime or "none",
-        "engine_active": latest.engine_active or "none",
+        "as_of_date": as_of_d.isoformat(),
+        "equity": total_equity,
+        "cash": total_cash,
+        "positions_value": total_pos,
+        "unrealized_pnl": total_upnl,
+        "total_return_pct": total_return_pct,
+        "max_drawdown_pct": 0.0,  # computed in /paper/equity series
+        "daily_pnl": daily_pnl,
+        "regime": "none",
+        "engine_active": "none",
         "open_positions_count": int(open_n),
-        "last_decision_ts": latest.created_at.isoformat()
-            if latest.created_at else None,
+        "last_decision_ts": (
+            last_decision_ts.isoformat() if last_decision_ts else None
+        ),
         "pipeline_status": "success",
+        "portfolio_count": len(latest_rows),
+        "replay_trades_count": int(replay_trades),
     }
 
 
@@ -126,22 +235,51 @@ def paper_equity(
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
 ) -> list[dict]:
+    """Daily equity curve aggregated across active portfolios from
+    paper_equity_snapshot. Replaces the synthetic
+    paper_portfolio_snapshot stream which never reflected real
+    auto_trader fills."""
     start = dt.date.fromisoformat(from_) if from_ else dt.date(2020, 1, 1)
     end = dt.date.fromisoformat(to) if to else dt.date.today()
     rows = db.execute(text("""
-        SELECT as_of_date, equity, cum_pct, max_dd_pct, daily_pnl
-        FROM paper_portfolio_snapshot
-        WHERE portfolio_id = :p
-          AND as_of_date BETWEEN :s AND :e
-        ORDER BY as_of_date
-    """), {"p": PORTFOLIO_ID, "s": start, "e": end}).fetchall()
-    return [{
-        "date": str(r.as_of_date),
-        "equity": float(r.equity),
-        "cum_pct": float(r.cum_pct or 0),
-        "dd_pct": float(r.max_dd_pct or 0),
-        "daily_pnl": float(r.daily_pnl or 0),
-    } for r in rows]
+        SELECT s.snapshot_date::date AS d,
+               sum(s.total_equity) AS equity,
+               sum(s.unrealized_pnl) AS upnl
+        FROM paper_equity_snapshot s
+        JOIN paper_portfolio p ON p.id = s.portfolio_id
+        WHERE p.is_active = TRUE
+          AND s.snapshot_date::date BETWEEN :s AND :e
+        GROUP BY d
+        ORDER BY d
+    """), {"s": start, "e": end}).fetchall()
+    if not rows:
+        return []
+    starting_total = float(db.execute(text("""
+        SELECT coalesce(sum(starting_cash), 0)
+        FROM paper_portfolio WHERE is_active = TRUE
+    """)).scalar() or 0)
+    base_eq = float(rows[0].equity)
+    peak = base_eq
+    out: list[dict] = []
+    prev_eq = None
+    for r in rows:
+        eq = float(r.equity)
+        peak = max(peak, eq)
+        dd_pct = ((eq - peak) / peak) * 100.0 if peak > 0 else 0.0
+        cum_pct = (
+            ((eq - starting_total) / starting_total) * 100.0
+            if starting_total > 0 else 0.0
+        )
+        daily_pnl = (eq - prev_eq) if prev_eq is not None else 0.0
+        prev_eq = eq
+        out.append({
+            "date": str(r.d),
+            "equity": eq,
+            "cum_pct": cum_pct,
+            "dd_pct": dd_pct,
+            "daily_pnl": daily_pnl,
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
