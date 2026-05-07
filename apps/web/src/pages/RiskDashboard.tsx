@@ -17,7 +17,8 @@ import {
 import InsightDrawer from "@/components/insights/InsightDrawer";
 import { useInsight } from "@/lib/insights/hooks";
 // Commit 4 (Novice UX) — page-level intro card.
-import { PageGuide } from "@/components/novice";
+// UX-1 Commit G — focus guidance + collapsible advanced sections.
+import { PageGuide, AdvancedDetails } from "@/components/novice";
 
 
 export default function RiskDashboard() {
@@ -59,11 +60,53 @@ export default function RiskDashboard() {
           </>
         }
       />
-      <p className="u-caption-2 text-fg-3 -mt-2 max-w-3xl">
-        Source: <code>paper_equity_snapshot.positions_value</code>.
-        We never recompute the mark off nullable selector-path fields,
-        and we never substitute zero when a current price is missing.
-      </p>
+
+      {/* UX-1 Commit G — Start-here focus card. Tells the operator   */}
+      {/* what matters first and what they can defer.                 */}
+      <section
+        className="u-card-tight"
+        data-test="risk-start-here"
+        style={{ padding: "12px 16px" }}
+      >
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Focus today
+        </div>
+        <ol className="u-body text-fg space-y-1 list-decimal pl-5">
+          <li>
+            <strong>Account value</strong> and{" "}
+            <strong>Percent invested</strong> — how much is at work
+            in the market.
+          </li>
+          <li>
+            <strong>Biggest drop from peak</strong> — temporary
+            declines are normal; only a large drop warrants a deeper
+            look.
+          </li>
+          <li>
+            <strong>Largest holdings</strong> — whether one or two
+            names are doing most of the work.
+          </li>
+        </ol>
+        <p className="u-caption-2 text-fg-3 mt-2">
+          Safe to ignore for now: the all-symbols breakdown,
+          portfolio snapshot table, and engineering source lines
+          below. They contain detail for advanced users — none
+          require action.
+        </p>
+      </section>
+
+      {/* UX-1 Commit G — engineering source + controls row demoted.  */}
+      {/* Source paragraph is now collapsible (default closed); the   */}
+      {/* replay toggle and Generate-explanation button stay visible  */}
+      {/* but read as quieter secondary controls.                     */}
+      <AdvancedDetails label="Where this data comes from">
+        <p className="u-caption-2 text-fg-3 max-w-3xl">
+          Source: <code>paper_equity_snapshot.positions_value</code>.
+          We never recompute the mark off nullable selector-path
+          fields, and we never substitute zero when a current price
+          is missing.
+        </p>
+      </AdvancedDetails>
       <div className="flex flex-wrap items-center justify-end gap-3">
         <label className="flex items-center gap-2 u-caption-2 cursor-pointer">
           <input
@@ -118,11 +161,130 @@ export default function RiskDashboard() {
 }
 
 
+// UX-1 Commit G — derive a single calm interpretation sentence
+// from the existing risk-dashboard payload. NO new hook, NO
+// auto-fetch. Order: mark unavailable > drawdown >5% > exposure
+// fully invested > exposure mostly cash > otherwise. Keeps every
+// number truthful — interpretation only adds context, never
+// substitutes a value.
+function deriveRiskCalmState(
+  data: NonNullable<ReturnType<typeof useRiskDashboard>["data"]>,
+): {
+  tone: "healthy" | "neutral" | "caution";
+  headline: string;
+  body: string;
+} {
+  const exposurePct = data.exposure_pct ?? null;
+  const drawdownPct = data.max_drawdown_pct ?? null;
+  if (data.mark_unavailable) {
+    return {
+      tone: "caution",
+      headline: "A current price is missing.",
+      body:
+        "One or more open positions don't have a fresh price right "
+        + "now. We never substitute a fake zero — exposure is shown "
+        + "as 'Current price not available' until the next update. "
+        + "Nothing requires action.",
+    };
+  }
+  if (drawdownPct != null && drawdownPct < -0.10) {
+    return {
+      tone: "caution",
+      headline: "Drawdown is larger than usual.",
+      body:
+        "The account has fallen more than 10% from a previous high. "
+        + "Temporary declines are normal, but a deeper drop is worth "
+        + "a closer look at the largest holdings below.",
+    };
+  }
+  if (drawdownPct != null && drawdownPct < -0.05) {
+    return {
+      tone: "neutral",
+      headline: "Account has drawn down from its high.",
+      body:
+        "This is expected to fluctuate over time. No action is "
+        + "needed — the system continues to adjust exposure as "
+        + "paper trades open and close.",
+    };
+  }
+  if (exposurePct != null && exposurePct >= 0.95) {
+    return {
+      tone: "neutral",
+      headline: "Most of the paper account is currently invested.",
+      body:
+        "This is normal during active trading periods. The system "
+        + "will reduce exposure naturally as positions close. "
+        + "Nothing requires action.",
+    };
+  }
+  if (exposurePct != null && exposurePct < 0.30) {
+    return {
+      tone: "neutral",
+      headline: "Most of the paper account is in cash right now.",
+      body:
+        "The system is being selective about new entries. This is "
+        + "normal during quieter periods. No action is needed.",
+    };
+  }
+  return {
+    tone: "healthy",
+    headline: "Account risk looks normal.",
+    body:
+      "Exposure and drawdown are both within their usual range. "
+      + "The system continues to adjust positions as paper trades "
+      + "open and close. No action is needed.",
+  };
+}
+
+
 function Body({
   data,
 }: { data: NonNullable<ReturnType<typeof useRiskDashboard>["data"]> }) {
+  const calm = deriveRiskCalmState(data);
+  const calmChipCls = calm.tone === "caution"
+    ? "u-chip u-chip-warning"
+    : calm.tone === "healthy"
+      ? "u-chip u-chip-success"
+      : "u-chip u-chip-neutral";
+  const calmDotCls = calm.tone === "caution"
+    ? "u-dot u-dot-warning"
+    : calm.tone === "healthy"
+      ? "u-dot u-dot-success"
+      : "u-dot u-dot-neutral";
   return (
     <>
+      {/* UX-1 Commit G — single calm interpretation sentence at    */}
+      {/* the top of the body. Answers "should I worry?" /          */}
+      {/* "what happens next?" before any number is shown.          */}
+      <section
+        className="u-card-tight"
+        data-test="risk-calm-state"
+        style={{ padding: "14px 18px" }}
+      >
+        <div className="flex items-center gap-3 mb-1">
+          <span className={calmChipCls}>
+            <span className={calmDotCls} />
+            {calm.tone === "caution"
+              ? "Worth a closer look"
+              : calm.tone === "healthy"
+                ? "Normal"
+                : "Within normal range"}
+          </span>
+          <span
+            className="u-body font-semibold text-fg"
+            data-test="risk-calm-headline"
+          >
+            {calm.headline}
+          </span>
+        </div>
+        <p
+          className="u-caption text-fg-2 max-w-3xl"
+          data-test="risk-calm-body"
+        >
+          {calm.body}
+        </p>
+      </section>
+
       {/* Top strip: account value / cash / money invested / drop */}
       {/* Commit 4 (Novice UX) — labels/sub-text in plain English. */}
       <section
@@ -221,17 +383,26 @@ function Body({
         </Card>
       </section>
 
-      {data.concentration_by_symbol.length > 5 && (
-        <Card title="All symbols (full breakdown)"
-              source="concentration_by_symbol">
-          <SymbolTable rows={data.concentration_by_symbol} />
-        </Card>
+      {/* UX-1 Commit G — advanced tables collapsed under one      */}
+      {/* progressive-disclosure block so the page presents a      */}
+      {/* simple primary surface above the fold and only reveals   */}
+      {/* deeper detail when the operator asks for it.             */}
+      {(data.concentration_by_symbol.length > 5
+        || (data.portfolios && data.portfolios.length > 0)) && (
+        <AdvancedDetails label="Advanced detail (full breakdowns)">
+          <div className="space-y-5 mt-1">
+            {data.concentration_by_symbol.length > 5 && (
+              <Card title="All symbols (full breakdown)"
+                    source="concentration_by_symbol">
+                <SymbolTable rows={data.concentration_by_symbol} />
+              </Card>
+            )}
+            <Card title="Portfolios" source="paper_equity_snapshot">
+              <PortfolioSnapshotTable rows={data.portfolios} />
+            </Card>
+          </div>
+        </AdvancedDetails>
       )}
-
-      {/* Per-portfolio account value / money invested */}
-      <Card title="Portfolios" source="paper_equity_snapshot">
-        <PortfolioSnapshotTable rows={data.portfolios} />
-      </Card>
 
       <p className="u-caption-2 mt-1">
         {data.notice}
