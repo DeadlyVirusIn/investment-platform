@@ -12,6 +12,7 @@ import ResearchLab from '@/pages/ResearchLab';
 import AlphaLab from '@/pages/AlphaLab';
 import MLLab from '@/pages/MLLab';
 import Ops from '@/pages/Ops';
+import RiskDashboard from '@/pages/RiskDashboard';
 
 // Legacy pages (kept reachable for continuity)
 import Dashboard from '@/pages/Dashboard';
@@ -67,6 +68,7 @@ export default function App() {
         <Route path="/alpha-lab"  element={<AlphaLab />} />
         <Route path="/ml-lab"     element={<MLLab />} />
         <Route path="/ops"        element={<Ops />} />
+        <Route path="/risk"       element={<RiskDashboard />} />
 
         {/* --- Options (Phase 11F) — read-only, paper-trading only --- */}
         <Route path="/options" element={<OptionsLayout />}>

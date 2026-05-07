@@ -2859,6 +2859,285 @@ def options_promotion_candidates(
 
 
 # ---------------------------------------------------------------------------
+# /performance/paper/risk-dashboard  (Phase C — read-only risk rollup)
+# ---------------------------------------------------------------------------
+# Aggregate paper-trading risk view sourced exclusively from
+# already-correct truth tables. Never recomputes exposure off
+# nullable selector-path fields (that was the $0-exposure bug
+# the post-exit phase fixed). Uses paper_equity_snapshot for
+# NAV / cash / positions_value / unrealized P&L; latest price_bar
+# for per-symbol mark; surfaces "mark unavailable" explicitly when
+# the snapshot lacks positions_value.
+
+@router.get("/risk-dashboard")
+def paper_risk_dashboard(
+    db: Session = Depends(get_session),
+    include_replay: bool = Query(
+        False,
+        description=(
+            "Include replay-recovered rows. Default false to keep "
+            "live-only headline."
+        ),
+    ),
+    top_n: int = Query(
+        5, ge=1, le=50,
+        description="Top-N rows for concentration tables.",
+    ),
+) -> dict[str, Any]:
+    """Operator risk dashboard. NEVER reintroduces the $0-exposure
+    bug — exposure value is read from
+    `paper_equity_snapshot.positions_value` (mark-to-market sum
+    of open positions). When that field is NULL on any active
+    portfolio's latest snapshot the response surfaces
+    `mark_unavailable=true` and `exposure_value=null` instead of
+    fabricating a zero.
+
+    Read-only. No execution surface."""
+    excl_pos = _excl(include_replay, "paper_position", "pp")
+    excl_pt = _excl(include_replay, "paper_trade", "pt")
+
+    # 1. Latest snapshot per active portfolio -------------------------
+    snap_rows = db.execute(text("""
+        SELECT DISTINCT ON (s.portfolio_id)
+               s.portfolio_id, p.name AS portfolio_name,
+               s.snapshot_date, s.total_equity, s.cash,
+               s.positions_value, s.unrealized_pnl,
+               s.realized_pnl_cumulative
+        FROM paper_equity_snapshot s
+        JOIN paper_portfolio p ON p.id = s.portfolio_id
+        WHERE p.is_active = TRUE
+        ORDER BY s.portfolio_id, s.snapshot_date DESC
+    """)).mappings().all()
+
+    has_snapshots = bool(snap_rows)
+    mark_unavailable = (
+        not has_snapshots
+        or any(r["positions_value"] is None for r in snap_rows)
+    )
+    nav = (
+        sum(float(r["total_equity"]) for r in snap_rows)
+        if has_snapshots else None
+    )
+    cash = (
+        sum(float(r["cash"]) for r in snap_rows)
+        if has_snapshots else None
+    )
+    positions_value = (
+        sum(float(r["positions_value"]) for r in snap_rows)
+        if has_snapshots and not mark_unavailable else None
+    )
+    unrealized_pnl = (
+        sum(float(r["unrealized_pnl"] or 0) for r in snap_rows)
+        if has_snapshots else None
+    )
+    if positions_value is not None and nav and nav > 0:
+        exposure_pct = positions_value / nav
+    else:
+        exposure_pct = None
+    snapshot_date = (
+        max(r["snapshot_date"] for r in snap_rows).isoformat()
+        if has_snapshots else None
+    )
+
+    # 2. Open positions count --------------------------------------
+    open_positions_count = db.execute(text(
+        f"SELECT count(*) FROM paper_position pp "
+        f"WHERE pp.is_open = TRUE {excl_pos}"
+    )).scalar() or 0
+
+    # 3. Realized P&L (sum across all sells) -----------------------
+    realized_pnl_total = db.execute(text(
+        f"SELECT coalesce(sum(pt.realized_pnl), 0) FROM paper_trade pt "
+        f"WHERE pt.realized_pnl IS NOT NULL {excl_pt}"
+    )).scalar() or 0
+
+    # 4. Concentration by symbol (top_n by notional) ---------------
+    sym_rows = db.execute(text(f"""
+        WITH last_px AS (
+            SELECT DISTINCT ON (asset_id) asset_id, close
+            FROM price_bar WHERE timeframe = '1d'
+            ORDER BY asset_id, ts DESC
+        )
+        SELECT
+          a.symbol,
+          count(*)::int AS n_open,
+          sum(pp.quantity)::numeric AS total_qty,
+          sum(pp.quantity * coalesce(last_px.close, pp.avg_cost))
+            ::numeric AS notional_usd,
+          sum((coalesce(last_px.close, pp.avg_cost) - pp.avg_cost)
+               * pp.quantity)::numeric AS unrealized,
+          (count(*) FILTER (WHERE last_px.close IS NULL) > 0)::bool
+            AS any_mark_missing
+        FROM paper_position pp
+        JOIN asset a ON a.id = pp.asset_id
+        LEFT JOIN last_px ON last_px.asset_id = pp.asset_id
+        WHERE pp.is_open = TRUE {excl_pos}
+        GROUP BY a.symbol
+        ORDER BY notional_usd DESC NULLS LAST
+        LIMIT :n
+    """), {"n": top_n}).mappings().all()
+    concentration_by_symbol = [
+        {
+            "symbol": r["symbol"],
+            "n_open": int(r["n_open"]),
+            "total_qty": _f(r["total_qty"]),
+            "notional_usd": _f(r["notional_usd"]),
+            "unrealized_pnl": _f(r["unrealized"]),
+            "mark_unavailable": bool(r["any_mark_missing"]),
+        }
+        for r in sym_rows
+    ]
+    top_5_notional = concentration_by_symbol[:5]
+
+    # 5. Concentration by portfolio (every active portfolio) -------
+    pf_rows = db.execute(text(f"""
+        WITH last_px AS (
+            SELECT DISTINCT ON (asset_id) asset_id, close
+            FROM price_bar WHERE timeframe = '1d'
+            ORDER BY asset_id, ts DESC
+        )
+        SELECT
+          p.id AS portfolio_id, p.name AS portfolio_name,
+          count(*) FILTER (WHERE pp.is_open = TRUE)::int AS n_open,
+          sum(
+            CASE WHEN pp.is_open
+              THEN pp.quantity * coalesce(last_px.close, pp.avg_cost)
+              ELSE 0 END
+          )::numeric AS notional_usd
+        FROM paper_portfolio p
+        LEFT JOIN paper_position pp
+          ON pp.portfolio_id = p.id
+        LEFT JOIN last_px ON last_px.asset_id = pp.asset_id
+        WHERE p.is_active = TRUE
+        GROUP BY p.id, p.name
+        ORDER BY notional_usd DESC NULLS LAST
+    """)).mappings().all()
+    concentration_by_portfolio = [
+        {
+            "portfolio_id": str(r["portfolio_id"]),
+            "portfolio_name": r["portfolio_name"],
+            "n_open": int(r["n_open"]),
+            "notional_usd": _f(r["notional_usd"]),
+        }
+        for r in pf_rows
+    ]
+
+    # 6. Max drawdown from total daily equity -----------------------
+    dd_row = db.execute(text("""
+        WITH series AS (
+            SELECT s.snapshot_date::date AS d,
+                   sum(s.total_equity) AS equity
+            FROM paper_equity_snapshot s
+            JOIN paper_portfolio p ON p.id = s.portfolio_id
+            WHERE p.is_active = TRUE
+            GROUP BY s.snapshot_date::date
+            ORDER BY 1
+        ),
+        runmax AS (
+            SELECT d, equity,
+                   max(equity) OVER (
+                     ORDER BY d ROWS UNBOUNDED PRECEDING
+                   ) AS peak
+            FROM series
+        )
+        SELECT min((equity - peak) / peak)::numeric AS max_dd
+        FROM runmax WHERE peak > 0
+    """)).first()
+    max_drawdown_pct = (
+        _f(dd_row[0]) if dd_row and dd_row[0] is not None else None
+    )
+
+    # 7. Pending next-bar count (skip JSONL for stocks) -------------
+    pending_next_bar_count = 0
+    pending_note: str | None = None
+    try:
+        from pathlib import Path
+        import json as _json
+        skips_dir = Path(_SKIPS_DIR)
+        latest = max(
+            (p for p in skips_dir.glob("*.jsonl")),
+            default=None,
+            key=lambda p: p.name,
+        )
+        if latest:
+            for line in latest.read_text().splitlines():
+                try:
+                    item = _json.loads(line)
+                except _json.JSONDecodeError:
+                    continue
+                if item.get("status") == "pending_next_bar":
+                    pending_next_bar_count += 1
+        else:
+            pending_note = "no skip-jsonl on disk"
+    except Exception as exc:  # noqa: BLE001
+        pending_note = f"pending-fills probe error: {exc}"
+
+    # 8. Replay vs live trade split (always-on) ---------------------
+    live_trades = db.execute(text("""
+        SELECT count(*) FROM paper_trade pt
+        WHERE NOT EXISTS (
+          SELECT 1 FROM replay_recovery_manifest m
+          WHERE m.entity_type = 'paper_trade'
+            AND m.entity_id = pt.id::text
+            AND m.source IN ('replay','test')
+        )
+    """)).scalar() or 0
+    replay_trades = db.execute(text("""
+        SELECT count(*) FROM paper_trade pt
+        WHERE EXISTS (
+          SELECT 1 FROM replay_recovery_manifest m
+          WHERE m.entity_type = 'paper_trade'
+            AND m.entity_id = pt.id::text
+            AND m.source IN ('replay','test')
+        )
+    """)).scalar() or 0
+
+    # Per-portfolio NAV / cash / positions_value / unrealized
+    portfolios = [
+        {
+            "portfolio_id": str(r["portfolio_id"]),
+            "portfolio_name": r["portfolio_name"],
+            "snapshot_date": r["snapshot_date"].isoformat(),
+            "nav": _f(r["total_equity"]),
+            "cash": _f(r["cash"]),
+            "positions_value": _f(r["positions_value"]),
+            "unrealized_pnl": _f(r["unrealized_pnl"]),
+            "realized_pnl_cumulative": _f(
+                r["realized_pnl_cumulative"]
+            ),
+        }
+        for r in snap_rows
+    ]
+
+    return {
+        "notice": (
+            "Read-only risk rollup. No execution controls; no "
+            "order surface. Mark-to-market sourced from "
+            "paper_equity_snapshot.positions_value."
+        ),
+        "include_replay": include_replay,
+        "snapshot_date": snapshot_date,
+        "mark_unavailable": mark_unavailable,
+        "nav": nav,
+        "cash": cash,
+        "exposure_value": positions_value,
+        "exposure_pct": exposure_pct,
+        "open_positions_count": int(open_positions_count),
+        "unrealized_pnl": unrealized_pnl,
+        "realized_pnl_total": _f(realized_pnl_total),
+        "max_drawdown_pct": max_drawdown_pct,
+        "pending_next_bar_count": int(pending_next_bar_count),
+        "pending_next_bar_note": pending_note,
+        "live_trades_count": int(live_trades),
+        "replay_trades_count": int(replay_trades),
+        "concentration_by_symbol": concentration_by_symbol,
+        "concentration_by_portfolio": concentration_by_portfolio,
+        "top_5_notional": top_5_notional,
+        "portfolios": portfolios,
+    }
+
+
+# ---------------------------------------------------------------------------
 # /performance/paper/trade-quality  (Phase B — pre-ML diagnostic)
 # ---------------------------------------------------------------------------
 # Read-only quality scoring layer over existing paper_trade /

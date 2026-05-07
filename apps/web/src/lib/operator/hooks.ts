@@ -200,6 +200,73 @@ export function useAnomalySummary() {
   });
 }
 
+// ---------------------------------------------------------------
+// Phase C — Risk Dashboard (read-only).
+// ---------------------------------------------------------------
+
+export interface ConcentrationSymbolRow {
+  symbol: string;
+  n_open: number;
+  total_qty: number | null;
+  notional_usd: number | null;
+  unrealized_pnl: number | null;
+  mark_unavailable: boolean;
+}
+
+export interface ConcentrationPortfolioRow {
+  portfolio_id: string;
+  portfolio_name: string;
+  n_open: number;
+  notional_usd: number | null;
+}
+
+export interface RiskPortfolio {
+  portfolio_id: string;
+  portfolio_name: string;
+  snapshot_date: string;
+  nav: number | null;
+  cash: number | null;
+  positions_value: number | null;
+  unrealized_pnl: number | null;
+  realized_pnl_cumulative: number | null;
+}
+
+export interface RiskDashboardResponse {
+  notice: string;
+  include_replay: boolean;
+  snapshot_date: string | null;
+  mark_unavailable: boolean;
+  nav: number | null;
+  cash: number | null;
+  exposure_value: number | null;
+  exposure_pct: number | null;
+  open_positions_count: number;
+  unrealized_pnl: number | null;
+  realized_pnl_total: number | null;
+  max_drawdown_pct: number | null;
+  pending_next_bar_count: number;
+  pending_next_bar_note: string | null;
+  live_trades_count: number;
+  replay_trades_count: number;
+  concentration_by_symbol: ConcentrationSymbolRow[];
+  concentration_by_portfolio: ConcentrationPortfolioRow[];
+  top_5_notional: ConcentrationSymbolRow[];
+  portfolios: RiskPortfolio[];
+}
+
+export function useRiskDashboard(includeReplay = false) {
+  const qs = includeReplay ? "?include_replay=true" : "";
+  return useQuery<RiskDashboardResponse>({
+    queryKey: ["risk-dashboard", includeReplay],
+    queryFn: () => apiGet<RiskDashboardResponse>(
+      `/performance/paper/risk-dashboard${qs}`,
+    ),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+}
+
+
 export function useSystemHealth() {
   return useQuery<SystemHealth>({
     queryKey: KEYS.health,

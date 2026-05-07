@@ -111,7 +111,13 @@ class ScoreResult:
 def _score_entry(inp: ScoreInputs) -> tuple[int, str]:
     """How the fill landed in the day's range. Lower-half good
     for BUYs, upper-half good for SELLs. Neutral when bar
-    missing or zero range."""
+    missing or zero range.
+
+    Reason text is explicitly side-aware so the operator never has
+    to mentally invert the framing for a SELL row:
+        BUY  · lower quartile = favorable
+        SELL · upper quartile = favorable
+    """
     lo, hi = inp.bar_low, inp.bar_high
     if lo is None or hi is None or hi <= lo:
         return ENTRY_MAX // 2, (
@@ -120,37 +126,46 @@ def _score_entry(inp: ScoreInputs) -> tuple[int, str]:
         )
     pos = (inp.entry_price - lo) / (hi - lo)
     pos = max(0.0, min(1.0, pos))
+    side_upper = inp.side.upper()
     if inp.side == "buy":
         # lower position = better (bought near low)
         if pos <= 0.25:
             pts = ENTRY_MAX
-            note = "lower quartile"
+            quality = "favorable"
+            zone = "lower quartile"
         elif pos <= 0.5:
             pts = int(ENTRY_MAX * 0.65)
-            note = "lower half"
+            quality = "decent"
+            zone = "lower half"
         elif pos <= 0.75:
             pts = int(ENTRY_MAX * 0.35)
-            note = "upper half"
+            quality = "weak"
+            zone = "upper half"
         else:
             pts = 0
-            note = "top quartile (chased)"
+            quality = "unfavorable"
+            zone = "top quartile (chased)"
     else:
         # sell: higher = better
         if pos >= 0.75:
             pts = ENTRY_MAX
-            note = "upper quartile"
+            quality = "favorable"
+            zone = "upper quartile"
         elif pos >= 0.5:
             pts = int(ENTRY_MAX * 0.65)
-            note = "upper half"
+            quality = "decent"
+            zone = "upper half"
         elif pos >= 0.25:
             pts = int(ENTRY_MAX * 0.35)
-            note = "lower half"
+            quality = "weak"
+            zone = "lower half"
         else:
             pts = 0
-            note = "bottom quartile (sold low)"
+            quality = "unfavorable"
+            zone = "bottom quartile (sold low)"
     return pts, (
-        f"Entry: filled in {note} of day range "
-        f"({pos * 100:.0f}%) — {pts} of {ENTRY_MAX}."
+        f"Entry: {quality} fill for {side_upper} ({zone}, "
+        f"{pos * 100:.0f}% of day range) — {pts} of {ENTRY_MAX}."
     )
 
 
