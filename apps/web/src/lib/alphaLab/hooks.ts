@@ -147,6 +147,76 @@ export interface TradeQualityResponse {
   items: TradeQualityItem[];
 }
 
+// ---------------------------------------------------------------
+// Exit Analytics (Phase D — read-only).
+// ---------------------------------------------------------------
+
+export type ExitCategory =
+  | "take_profit" | "stop_loss" | "max_hold" | "other";
+
+export interface ExitTrade {
+  trade_id: string;
+  symbol: string;
+  exit_ts: string | null;
+  exit_price: number;
+  realized_pnl: number;
+  reason: string | null;
+  category: ExitCategory;
+  held_days: number | null;
+}
+
+export interface ExitCategoryRow {
+  category: ExitCategory;
+  n: number;
+  win_rate: number | null;
+  total_pnl: number;
+  avg_pnl: number | null;
+}
+
+export interface ExitAnalyticsResponse {
+  notice: string;
+  include_replay: boolean;
+  n_closed: number;
+  n_winners: number;
+  n_losers: number;
+  win_rate: number | null;
+  note?: string;
+  realized_pnl_total: number;
+  avg_win_dollars: number | null;
+  avg_loss_dollars: number | null;
+  avg_hold_days: number | null;
+  best_exit: ExitTrade | null;
+  worst_exit: ExitTrade | null;
+  by_category: ExitCategoryRow[];
+  exit_reason_raw_breakdown: Array<{ reason: string; n: number }>;
+  tp_sl_effectiveness: {
+    tp_count: number;
+    tp_total_pnl: number;
+    tp_avg_pnl: number | null;
+    tp_win_rate: number | null;
+    sl_count: number;
+    sl_total_pnl: number;
+    sl_avg_pnl: number | null;
+    sl_win_rate: number | null;
+  };
+  small_sample_warning: string | null;
+  small_sample_threshold: number;
+  trades: ExitTrade[];
+}
+
+export function useExitAnalytics(includeReplay = false) {
+  const qs = includeReplay ? "?include_replay=true" : "";
+  return useQuery<ExitAnalyticsResponse>({
+    queryKey: ["exit-analytics", includeReplay],
+    queryFn: () => apiGet<ExitAnalyticsResponse>(
+      `/performance/paper/exit-analytics${qs}`,
+    ),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+}
+
+
 export function useTradeQuality(limit: number = 50) {
   return useQuery<TradeQualityResponse>({
     queryKey: ["trade-quality", limit],

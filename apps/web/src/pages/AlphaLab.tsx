@@ -18,6 +18,7 @@ import {
   type AlphaLabClosedTrade,
 } from "@/lib/alphaLab/hooks";
 import TradeQualityCard from "@/components/alpha-lab/TradeQualityCard";
+import ExitAnalyticsCard from "@/components/alpha-lab/ExitAnalyticsCard";
 
 
 const TABS = [
@@ -324,24 +325,32 @@ function ClosedSection({ d }: { d: DType }) {
   const total = d.closed_winners.length + d.closed_losers.length;
   if (!total) {
     return (
-      <div
-        className="u-card-tight"
-        data-test="alpha-closed-empty"
-      >
-        <p className="u-caption">
-          Closed outcomes will appear after exit rules close
-          positions. Open trade performance is available in the
-          Open Winners / Open Losers tabs.
-        </p>
-        <p className="u-caption-2 text-fg-3 mt-1">
-          Operator can trigger exits via{" "}
-          <code>scripts.run_paper_exit_cycle</code>.
-        </p>
+      <div className="space-y-4">
+        <div
+          className="u-card-tight"
+          data-test="alpha-closed-empty"
+        >
+          <p className="u-caption">
+            Closed outcomes will appear after exit rules close
+            positions. Open trade performance is available in the
+            Open Winners / Open Losers tabs.
+          </p>
+          <p className="u-caption-2 text-fg-3 mt-1">
+            Operator can trigger exits via{" "}
+            <code>scripts.run_paper_exit_cycle</code>.
+          </p>
+        </div>
+        {/* Phase D — even with zero closed trades the card
+            renders the honest zero-state from the server. */}
+        <ExitAnalyticsCard />
       </div>
     );
   }
   return (
     <div className="space-y-4" data-test="alpha-closed">
+      {/* Phase D — full read-only closed-trade analytics with
+          server-supplied small-sample caveat. */}
+      <ExitAnalyticsCard />
       <ClosedTable rows={d.closed_winners} kind="winners" />
       <ClosedTable rows={d.closed_losers} kind="losers" />
       <ExitReasonBreakdown

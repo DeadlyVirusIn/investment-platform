@@ -2859,6 +2859,260 @@ def options_promotion_candidates(
 
 
 # ---------------------------------------------------------------------------
+# /performance/paper/exit-analytics  (Phase D — closed-trade analytics)
+# ---------------------------------------------------------------------------
+# Read-only analytics over the SELL rows in `paper_trade` joined to
+# their closed `paper_position`. Each SELL is one realized event.
+# Categorisation is done by string-matching the operator's exit
+# reason text (set by run_paper_exit_cycle): "take_profit",
+# "stop_loss", "max_hold", else "other". NEVER fabricates win
+# rates on tiny samples — surfaces a sample-size caveat instead.
+
+_EXIT_TP_TOKEN = "take_profit"
+_EXIT_SL_TOKEN = "stop_loss"
+_EXIT_MAX_HOLD_TOKEN = "max_hold"
+_EXIT_SMALL_SAMPLE_THRESHOLD = 30
+
+
+def _classify_exit_reason(reason: str | None) -> str:
+    if not reason:
+        return "other"
+    r = reason.lower()
+    if _EXIT_TP_TOKEN in r:
+        return "take_profit"
+    if _EXIT_SL_TOKEN in r:
+        return "stop_loss"
+    if _EXIT_MAX_HOLD_TOKEN in r:
+        return "max_hold"
+    return "other"
+
+
+def _trading_days_inclusive(a: dt.date, b: dt.date) -> int:
+    if b < a:
+        return 0
+    n = 0
+    cur = a
+    while cur <= b:
+        if cur.weekday() < 5:
+            n += 1
+        cur = cur + dt.timedelta(days=1)
+    return n
+
+
+@router.get("/exit-analytics")
+def paper_exit_analytics(
+    db: Session = Depends(get_session),
+    include_replay: bool = Query(
+        False,
+        description=(
+            "Include replay-recovered rows. Default false to keep "
+            "live-only headline."
+        ),
+    ),
+    limit: int = Query(500, ge=1, le=2000),
+) -> dict[str, Any]:
+    """Read-only closed-trade analytics. Each SELL row is one
+    realized event. Categories: take_profit / stop_loss /
+    max_hold / other (string match on `paper_trade.reason`).
+
+    NEVER fabricates a denominator. When `n_closed=0` the win
+    rate is null and the response includes
+    `note='no_closed_outcomes_yet'`. When n_closed is below the
+    small-sample threshold the response surfaces
+    `small_sample_warning` so the frontend can render the
+    caveat verbatim.
+    """
+    excl = ""
+    if not include_replay:
+        excl = (
+            " AND NOT EXISTS ("
+            "  SELECT 1 FROM replay_recovery_manifest m"
+            "  WHERE m.entity_type = 'paper_trade'"
+            "    AND m.entity_id = pt.id::text"
+            "    AND m.source IN ('replay','test')"
+            ")"
+        )
+    rows = db.execute(text(f"""
+        SELECT
+          pt.id, a.symbol, pt.fill_ts, pt.fill_price,
+          pt.realized_pnl, pt.reason,
+          pt.portfolio_id, pp.opened_at AS pos_opened_at,
+          pp.avg_cost AS pos_avg_cost,
+          pp.quantity AS pos_quantity
+        FROM paper_trade pt
+        JOIN asset a ON a.id = pt.asset_id
+        LEFT JOIN paper_position pp
+               ON pp.portfolio_id = pt.portfolio_id
+              AND pp.asset_id = pt.asset_id
+        WHERE pt.side = 'sell'
+          AND pt.realized_pnl IS NOT NULL
+          {excl}
+        ORDER BY pt.fill_ts DESC
+        LIMIT :n
+    """), {"n": limit}).mappings().all()
+
+    n_closed = len(rows)
+    if n_closed == 0:
+        return {
+            "notice": (
+                "Read-only closed-trade analytics. No closed "
+                "trades yet — denominator-free zero state."
+            ),
+            "include_replay": include_replay,
+            "n_closed": 0,
+            "n_winners": 0,
+            "n_losers": 0,
+            "win_rate": None,
+            "note": "no_closed_outcomes_yet",
+            "realized_pnl_total": 0.0,
+            "avg_win_dollars": None,
+            "avg_loss_dollars": None,
+            "avg_hold_days": None,
+            "best_exit": None,
+            "worst_exit": None,
+            "by_category": [],
+            "exit_reason_raw_breakdown": [],
+            "tp_sl_effectiveness": {
+                "tp_count": 0, "sl_count": 0,
+                "tp_total_pnl": 0.0, "sl_total_pnl": 0.0,
+                "tp_avg_pnl": None, "sl_avg_pnl": None,
+            },
+            "small_sample_warning": None,
+            "small_sample_threshold": _EXIT_SMALL_SAMPLE_THRESHOLD,
+            "trades": [],
+        }
+
+    wins: list[float] = []
+    losses: list[float] = []
+    by_cat: dict[str, dict[str, Any]] = {
+        "take_profit": {"n": 0, "wins": 0, "total_pnl": 0.0},
+        "stop_loss":   {"n": 0, "wins": 0, "total_pnl": 0.0},
+        "max_hold":    {"n": 0, "wins": 0, "total_pnl": 0.0},
+        "other":       {"n": 0, "wins": 0, "total_pnl": 0.0},
+    }
+    raw_reasons: dict[str, int] = {}
+    hold_days: list[int] = []
+    trades: list[dict[str, Any]] = []
+    pnl_total = 0.0
+    best_row: dict[str, Any] | None = None
+    worst_row: dict[str, Any] | None = None
+
+    for r in rows:
+        pnl = float(r["realized_pnl"])
+        pnl_total += pnl
+        if pnl > 0:
+            wins.append(pnl)
+        elif pnl < 0:
+            losses.append(pnl)
+        cat = _classify_exit_reason(r["reason"])
+        by_cat[cat]["n"] += 1
+        by_cat[cat]["total_pnl"] += pnl
+        if pnl > 0:
+            by_cat[cat]["wins"] += 1
+        raw = r["reason"] or "(none)"
+        raw_reasons[raw] = raw_reasons.get(raw, 0) + 1
+        if r["pos_opened_at"] and r["fill_ts"]:
+            hd = _trading_days_inclusive(
+                r["pos_opened_at"].date(), r["fill_ts"].date(),
+            )
+            hold_days.append(hd)
+        else:
+            hd = None
+        item = {
+            "trade_id": str(r["id"]),
+            "symbol": r["symbol"],
+            "exit_ts": r["fill_ts"].isoformat() if r["fill_ts"] else None,
+            "exit_price": float(r["fill_price"]),
+            "realized_pnl": pnl,
+            "reason": r["reason"],
+            "category": cat,
+            "held_days": hd,
+        }
+        trades.append(item)
+        if best_row is None or pnl > best_row["realized_pnl"]:
+            best_row = item
+        if worst_row is None or pnl < worst_row["realized_pnl"]:
+            worst_row = item
+
+    win_rate = (
+        len(wins) / n_closed if n_closed > 0 else None
+    )
+    avg_win = sum(wins) / len(wins) if wins else None
+    avg_loss = sum(losses) / len(losses) if losses else None
+    avg_hold = (
+        sum(hold_days) / len(hold_days) if hold_days else None
+    )
+
+    by_category = [
+        {
+            "category": cat,
+            "n": v["n"],
+            "win_rate": (
+                v["wins"] / v["n"] if v["n"] > 0 else None
+            ),
+            "total_pnl": v["total_pnl"],
+            "avg_pnl": (
+                v["total_pnl"] / v["n"] if v["n"] > 0 else None
+            ),
+        }
+        for cat, v in by_cat.items()
+    ]
+    raw_breakdown = sorted(
+        [{"reason": k, "n": v} for k, v in raw_reasons.items()],
+        key=lambda x: -x["n"],
+    )
+    tp = by_cat["take_profit"]
+    sl = by_cat["stop_loss"]
+    tp_sl = {
+        "tp_count": tp["n"],
+        "tp_total_pnl": tp["total_pnl"],
+        "tp_avg_pnl": (
+            tp["total_pnl"] / tp["n"] if tp["n"] > 0 else None
+        ),
+        "tp_win_rate": (
+            tp["wins"] / tp["n"] if tp["n"] > 0 else None
+        ),
+        "sl_count": sl["n"],
+        "sl_total_pnl": sl["total_pnl"],
+        "sl_avg_pnl": (
+            sl["total_pnl"] / sl["n"] if sl["n"] > 0 else None
+        ),
+        "sl_win_rate": (
+            sl["wins"] / sl["n"] if sl["n"] > 0 else None
+        ),
+    }
+    small_sample = (
+        f"Only {n_closed} closed "
+        f"trade{'s' if n_closed != 1 else ''} so far — "
+        f"statistics are directional, not reliable."
+        if n_closed < _EXIT_SMALL_SAMPLE_THRESHOLD else None
+    )
+    return {
+        "notice": (
+            "Read-only closed-trade analytics. SELL rows are "
+            "the realized events; buys never appear here."
+        ),
+        "include_replay": include_replay,
+        "n_closed": n_closed,
+        "n_winners": len(wins),
+        "n_losers": len(losses),
+        "win_rate": win_rate,
+        "realized_pnl_total": pnl_total,
+        "avg_win_dollars": avg_win,
+        "avg_loss_dollars": avg_loss,
+        "avg_hold_days": avg_hold,
+        "best_exit": best_row,
+        "worst_exit": worst_row,
+        "by_category": by_category,
+        "exit_reason_raw_breakdown": raw_breakdown,
+        "tp_sl_effectiveness": tp_sl,
+        "small_sample_warning": small_sample,
+        "small_sample_threshold": _EXIT_SMALL_SAMPLE_THRESHOLD,
+        "trades": trades,
+    }
+
+
+# ---------------------------------------------------------------------------
 # /performance/paper/risk-dashboard  (Phase C — read-only risk rollup)
 # ---------------------------------------------------------------------------
 # Aggregate paper-trading risk view sourced exclusively from
