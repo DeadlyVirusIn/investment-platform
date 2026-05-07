@@ -1,17 +1,30 @@
-// Phase EXEC-VISIBILITY — clear "signals ready vs next-bar pending"
-// banner. Resolves the operator confusion where a fresh signal date
-// (e.g. 05/04 ready, pending=14) was being read as "system ignored
-// 05/04 data" when in fact it correctly held those orders for the
-// next-bar fill on 05/05.
+// Phase EXEC-VISIBILITY (revised) — operator-facing execution-status
+// banner. Replaces the previous one-line "{date} signals generated;
+// waiting for {date} bar to fill" copy that conflated three separate
+// pieces of state:
+//   * the signal batch date (already generated and on file),
+//   * the bar required for next-bar fill, and
+//   * the latest market data date the system has ingested.
 //
-// Wires the three new endpoints:
+// We now surface them as five labeled rows so an operator never reads
+// "05/04 signals generated; waiting for 05/05 bar" as "the system
+// failed to process 05/04". The row order is fixed:
+//
+//   1. Signal batch        — date the daily pipeline produced + status.
+//   2. Required next bar   — bar needed to fill held orders + availability.
+//   3. Current data        — the latest price_bar date on file (today
+//                            vs not-ready-yet shown explicitly).
+//   4. Pending fills       — count of orders held by the next-bar guard.
+//   5. Next action         — what the operator should do, or wait for.
+//
+// NO execution logic changes. NO scheduler changes. NO new endpoint
+// fields. Wires the same three read-only endpoints as before:
 //   /api/performance/paper/pending-fills
 //   /api/performance/paper/daily-suggestions
 //   /api/performance/options/strategy-suggestions
 
 import {
   usePendingFills, useDailySuggestions, useOptionsStrategySuggestions,
-  fmtMMDD,
 } from "@/lib/paper/execution-status";
 import { Label } from "@/components/ui/primitives";
 import { cn } from "@/lib/cn";
@@ -36,6 +49,9 @@ export default function ExecutionStatusCard() {
     );
   }
 
+  // ----------------------------------------------------------------
+  // Server-supplied fields
+  // ----------------------------------------------------------------
   const signalDate = sugs.data?.as_of_date ?? null;
   const pendingCount = pending.data?.count ?? 0;
   const optionsSignalCount = optSugs.data?.count ?? 0;
@@ -45,42 +61,93 @@ export default function ExecutionStatusCard() {
   const nextBarTarget = pending.data?.next_expected_bar_date
     ?? pending.data?.items[0]?.next_expected_bar_date
     ?? null;
-  // Latest price_bar timestamp from any pending item — for clarity
-  // about what date the system has on file already.
+  // Latest price_bar timestamp from any pending item — what the
+  // system has on file already. Use ISO date prefix only.
   const latestPriceBarTs = pending.data?.items
     .map(i => i.latest_price_bar_ts)
     .filter((s): s is string => !!s)
     .sort()
     .reverse()[0] ?? null;
+  const latestDate = latestPriceBarTs
+    ? latestPriceBarTs.slice(0, 10)
+    : null;
 
-  // Tone: warning when there are pending fills (fine — system is
-  // doing the right thing, not stuck), success when nothing pending,
-  // neutral when no signals yet.
+  // ----------------------------------------------------------------
+  // Derived booleans
+  // ----------------------------------------------------------------
+  // The required next bar is "available" once the system has
+  // ingested a price_bar dated >= the target. Lexicographic ISO
+  // string comparison is safe here.
+  const requiredBarAvailable = !!(
+    nextBarTarget && latestDate && latestDate >= nextBarTarget
+  );
+
+  // Calendar today (UTC) — used only to hint at "today's bar
+  // hasn't ingested yet" when the latest on file is older. NEVER
+  // used in execution / fill logic.
+  const todayIso = new Date().toISOString().slice(0, 10);
+
+  // ----------------------------------------------------------------
+  // Status-chip tone
+  // ----------------------------------------------------------------
   const tone: "success" | "warning" | "neutral" =
     pendingCount > 0 ? "warning"
     : (signalDate ? "success" : "neutral");
 
-  const headline =
-    pendingCount > 0
-      ? (signalDate && nextBarTarget
-          ? `${fmtMMDD(signalDate)} signals generated; waiting for `
-            + `${fmtMMDD(nextBarTarget)} bar to fill.`
-          : `Signals generated; waiting for next-bar data to fill.`)
-      : (signalDate
-          ? `${fmtMMDD(signalDate)} signals processed; no pending fills.`
-          : "No signals on file yet for today.");
+  const chipText =
+    tone === "warning"
+      ? (requiredBarAvailable
+          ? "Ready for paper cycle"
+          : "Holding for next bar")
+      : tone === "success"
+        ? "Signals processed"
+        : "Idle";
 
-  const reason =
-    pendingCount > 0
-      ? "Held by next-bar guard — execution refuses same-bar fills."
-      : (signalDate
-          ? "All signals either filled or skipped by gates; "
-            + "no orders are waiting on data."
-          : "Daily pipeline has not produced suggestions yet.");
+  // ----------------------------------------------------------------
+  // Row values
+  // ----------------------------------------------------------------
+  const signalBatchValue = signalDate
+    ? `${signalDate} — generated`
+    : "no signals on file";
+
+  const requiredBarValue = nextBarTarget
+    ? (requiredBarAvailable
+        ? `${nextBarTarget} — available`
+        : `${nextBarTarget} — waiting for ingestion`)
+    : "—";
+  const requiredBarTone: "neutral" | "warning" =
+    nextBarTarget && !requiredBarAvailable ? "warning" : "neutral";
+
+  // Current data row: distinguish "latest is today" from "today's
+  // bar not ingested yet" so the operator never reads a blank or
+  // ambiguous "May 6 not ready" line.
+  const currentDataValue = !latestDate
+    ? "—"
+    : latestDate >= todayIso
+      ? `${latestDate} — latest available`
+      : `${todayIso} — not ingested yet`;
+  const currentDataSubtitle = (latestDate && latestDate < todayIso)
+    ? `latest on file: ${latestDate}`
+    : undefined;
+
+  const pendingFillsValue = pendingCount === 0
+    ? "0 — no orders waiting"
+    : `${pendingCount} held by next-bar guard`;
+
+  // ----------------------------------------------------------------
+  // Action hint — never implies the next-bar guard is broken.
+  // ----------------------------------------------------------------
+  const actionHint = pendingCount === 0
+    ? (signalDate
+        ? "No action — all signals filled or skipped by gates."
+        : "Waiting for the daily pipeline to produce suggestions.")
+    : requiredBarAvailable
+      ? "Run post-ingest paper cycle to process pending fills."
+      : "Waiting for next daily bar ingestion.";
 
   return (
     <div className="u-card-tight" data-test="execution-status-card">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-3">
         <Label>Execution Status</Label>
         <span className={cn(
           "u-chip",
@@ -94,75 +161,58 @@ export default function ExecutionStatusCard() {
             : tone === "warning" ? "u-dot-warning"
             : "u-dot-neutral",
           )} />
-          <span className="ml-1">
-            {tone === "warning"
-              ? "Holding for next bar"
-              : tone === "success" ? "Signals processed"
-              : "Idle"}
-          </span>
+          <span className="ml-1">{chipText}</span>
         </span>
       </div>
 
-      <div className="u-caption text-fg" data-test="exec-headline">
-        {headline}
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 md:grid-cols-5 gap-y-2 gap-x-4">
-        <Cell
-          label="Signals (stock)"
-          value={signalDate ? `${fmtMMDD(signalDate)} ready` : "—"}
-          test="cell-signals"
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-y-2 gap-x-4">
+        <LabeledRow
+          label="Signal batch"
+          value={signalBatchValue}
+          test="exec-row-signal-batch"
         />
-        <Cell
-          label="Latest price bar"
-          value={
-            latestPriceBarTs ? fmtMMDD(latestPriceBarTs) : "—"
-          }
-          test="cell-latest-bar"
+        <LabeledRow
+          label="Required next bar"
+          value={requiredBarValue}
+          tone={requiredBarTone}
+          test="exec-row-required-bar"
         />
-        <Cell
-          label="Options sigs"
-          value={
-            optionsSignalCount > 0
-              ? `${optionsSignalCount}${optionsAsOf
-                  ? ` · ${fmtMMDD(optionsAsOf)}` : ""}`
-              : "—"
-          }
-          test="cell-options"
+        <LabeledRow
+          label="Current data"
+          value={currentDataValue}
+          subtitle={currentDataSubtitle}
+          test="exec-row-current-data"
         />
-        <Cell
+        <LabeledRow
           label="Pending fills"
-          value={String(pendingCount)}
+          value={pendingFillsValue}
           tone={pendingCount > 0 ? "warning" : "neutral"}
-          test="cell-pending"
-        />
-        <Cell
-          label="Live fills today"
-          value="0"
-          subtitle={
-            pendingCount > 0
-              ? "by design — next-bar guard"
-              : "no orders waiting"
-          }
-          test="cell-live"
+          test="exec-row-pending"
         />
       </div>
 
-      <div className="mt-3 u-caption-2 text-fg-3" data-test="exec-reason">
-        Reason: {reason}
-      </div>
-
-      {pendingCount > 0 && nextBarTarget && (
-        <div className="mt-1 u-caption-2 text-fg-3"
-             data-test="exec-next-bar">
-          Waiting for {fmtMMDD(nextBarTarget)} next bar — orders fill
-          on the first chain/price bar with date strictly after
-          submitted_at::date. Same-bar fills are forbidden.
+      {optionsSignalCount > 0 && (
+        <div
+          className="mt-3 u-caption-2 text-fg-3"
+          data-test="exec-options-line"
+        >
+          Options signals on file: {optionsSignalCount}
+          {optionsAsOf ? ` · ${optionsAsOf}` : ""}
         </div>
       )}
+
+      <div
+        className="mt-3 u-caption text-fg"
+        data-test="exec-next-action"
+      >
+        Next action: {actionHint}
+      </div>
+
       {pendingCount > 0 && (
-        <div className="mt-1 u-caption-2 text-fg-3"
-             data-test="exec-post-ingest-hint">
+        <div
+          className="mt-2 u-caption-2 text-fg-3"
+          data-test="exec-post-ingest-hint"
+        >
           Post-ingest one-shot:{" "}
           <code className="u-mono-sm">
             python -m scripts.run_post_ingest_paper_cycle --commit
@@ -176,7 +226,7 @@ export default function ExecutionStatusCard() {
 }
 
 
-function Cell({
+function LabeledRow({
   label, value, subtitle, tone = "neutral", test,
 }: {
   label: string;
@@ -195,7 +245,9 @@ function Cell({
         {value}
       </div>
       {subtitle && (
-        <div className="u-caption-2 text-fg-3 truncate">{subtitle}</div>
+        <div className="u-caption-2 text-fg-3 truncate">
+          {subtitle}
+        </div>
       )}
     </div>
   );
