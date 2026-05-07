@@ -19,6 +19,8 @@ import {
 } from "@/lib/alphaLab/hooks";
 import TradeQualityCard from "@/components/alpha-lab/TradeQualityCard";
 import ExitAnalyticsCard from "@/components/alpha-lab/ExitAnalyticsCard";
+// Commit 4 (Novice UX) — page-level intro card.
+import { PageGuide } from "@/components/novice";
 
 
 const TABS = [
@@ -69,20 +71,31 @@ function Wrap({ title, children }: {
 }) {
   return (
     <div className="max-w-[1520px] mx-auto px-6 py-6 space-y-5">
-      <header>
-        <Label>{title}</Label>
-        <h1 className="u-title-lg mt-1">
-          Open + Closed Trade Intelligence
-        </h1>
-        <p className="u-body mt-2 max-w-3xl">
-          Real paper-trading state from{" "}
-          <code>paper_position</code>, <code>paper_trade</code>,
-          and <code>paper_equity_snapshot</code>. Unrealized P&L
-          marked from the latest <code>price_bar</code>.
-          Closed-trade analytics activate after the exit-cycle
-          runner closes eligible positions.
-        </p>
-      </header>
+      {/* Commit 4 (Novice UX) — plain-English page intro.       */}
+      {/* Engineering-flavored data-source detail moved into a   */}
+      {/* secondary line, kept truthful but less prominent.      */}
+      <PageGuide
+        eyebrow={title}
+        title="Trade review"
+        subtitle={
+          "Looking back at how each paper trade behaved. Profit or "
+          + "loss is shown if you closed the position right now — "
+          + "open positions stay open until the strategy exits them."
+        }
+        firstLook={
+          <>
+            Start with <strong>Overview</strong>. The other tabs split
+            current holdings into "going up" and "going down", plus a
+            history of trades the system already closed.
+          </>
+        }
+      />
+      <p className="u-caption-2 text-fg-3 -mt-2 max-w-3xl">
+        Source: live paper-trading state from <code>paper_position</code>,
+        {" "}<code>paper_trade</code>, and <code>paper_equity_snapshot</code>.
+        Closed-trade analytics activate after the exit-cycle runner
+        closes eligible positions.
+      </p>
       {children}
     </div>
   );
@@ -102,11 +115,14 @@ function TabBar({ tab, setTab, d }: {
     closed: d.closed_winners.length + d.closed_losers.length,
     patterns: d.patterns.by_age_bucket.length,
   };
+  // Commit 4 (Novice UX) — plain-English tab labels. Tab keys
+  // (overview / open_winners / etc.) stay stable so any deep
+  // links and data-test selectors continue to work.
   const labels: Record<Tab, string> = {
     overview: "Overview",
-    open_winners: "Open Winners",
-    open_losers: "Open Losers",
-    closed: "Closed Outcomes",
+    open_winners: "Currently up",
+    open_losers: "Currently down",
+    closed: "Closed trades",
     patterns: "Patterns",
   };
   return (
