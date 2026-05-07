@@ -248,6 +248,23 @@ if (
 
 
 # ---------------------------------------------------------------------------
+# Phase F5 — admin-only insight cache maintenance.
+# Mounted ONLY when AGENT_INSIGHTS_ADMIN_MAINTENANCE_ENABLED=true AND
+# RESEARCH_ADMIN_TOKEN is non-empty. When either precondition fails,
+# DELETE /api/insights/cache is not registered → requests 404.
+# Default deployments cannot expose this surface.
+# ---------------------------------------------------------------------------
+if (
+    settings.AGENT_INSIGHTS_ADMIN_MAINTENANCE_ENABLED
+    and bool((settings.RESEARCH_ADMIN_TOKEN or "").strip())
+):
+    from apps.api.src.api.insights import (
+        admin_router as insights_admin_router,
+    )
+    app.include_router(insights_admin_router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
 # Built-in health route
 # ---------------------------------------------------------------------------
 

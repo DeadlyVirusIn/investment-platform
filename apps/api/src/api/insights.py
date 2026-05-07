@@ -23,12 +23,16 @@ import binascii
 import json
 from typing import Any
 
-from fastapi import APIRouter, Body, Depends, Query
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
+from fastapi.exceptions import HTTPException as _HTTPException
 from fastapi.responses import JSONResponse
+from sqlalchemy import func, select
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
 from apps.api.src.db import get_session
+from apps.api.src.db.models import AgentInsight
 from apps.api.src.domain.agents import cache as insight_cache
 from apps.api.src.domain.agents import llm_client
 from apps.api.src.domain.agents.registry import AgentKind, BANNER, REGISTRY
@@ -151,6 +155,52 @@ def _unsafe_response(reason: str) -> JSONResponse:
     )
 
 
+# ---------------------------------------------------------------------
+# F5 — operational status endpoint (read-only, no LLM, no exec reads)
+# Declared BEFORE the `/{kind}` catch-all so FastAPI's registration-
+# order routing matches `/status` exactly rather than treating
+# "status" as a `kind` parameter.
+# ---------------------------------------------------------------------
+
+def _count_cache_rows(db: Session | None) -> int:
+    """Best-effort row count over `agent_insight` only. Returns 0
+    when DB unavailable or the table doesn't exist yet. NEVER
+    queries any other table."""
+    if db is None:
+        return 0
+    try:
+        return int(db.execute(
+            select(func.count()).select_from(AgentInsight),
+        ).scalar() or 0)
+    except (OperationalError, ProgrammingError):
+        return 0
+
+
+@router.get("/status")
+def get_status(
+    db: Session | None = Depends(get_session),
+) -> dict[str, Any]:
+    """Read-only health/visibility endpoint. Surfaces the feature
+    flag, configured model, and a count of cache rows so an
+    operator can verify the layer is dormant by default. NEVER
+    calls the LLM. NEVER reads from any table other than
+    `agent_insight`. NEVER returns the API key value — the
+    `llm_configured` boolean reports presence only."""
+    enabled = bool(getattr(settings, "AGENT_INSIGHTS_ENABLED", False))
+    api_key = (
+        getattr(settings, "ANTHROPIC_API_KEY", "") or ""
+    ).strip()
+    return {
+        "enabled": enabled,
+        "model": settings.AGENT_INSIGHTS_MODEL,
+        "cache_enabled": True,
+        "cache_rows": _count_cache_rows(db),
+        "banner": BANNER,
+        "execution_linked": False,
+        "llm_configured": bool(api_key),
+    }
+
+
 @router.get("/{kind}")
 async def get_insight(
     kind: str,
@@ -259,3 +309,50 @@ async def get_insight(
         "llm_enabled": True,
         "cache": "miss",
     }
+
+
+# ---------------------------------------------------------------------
+# F5 — admin-only cache maintenance (DELETE)
+# ---------------------------------------------------------------------
+
+def _require_admin_token(
+    x_admin_token: str = Header(..., alias="X-Admin-Token"),
+) -> None:
+    """Same header-based auth pattern as research_manual. The route
+    is only mounted when `AGENT_INSIGHTS_ADMIN_MAINTENANCE_ENABLED`
+    is true AND `RESEARCH_ADMIN_TOKEN` is non-empty (see main.py),
+    so reaching this handler means a token is configured."""
+    expected = (settings.RESEARCH_ADMIN_TOKEN or "").strip()
+    if not expected:
+        raise HTTPException(status_code=503, detail="admin_token_unset")
+    if (x_admin_token or "").strip() != expected:
+        raise HTTPException(status_code=403, detail="invalid_admin_token")
+
+
+# Separate router for the admin-only DELETE so main.py can mount
+# it conditionally without affecting the public `insights` router.
+admin_router = APIRouter(prefix="/insights", tags=["insights-admin"])
+
+
+@admin_router.delete("/cache")
+def delete_cache(
+    db: Session = Depends(get_session),
+    _: None = Depends(_require_admin_token),
+) -> dict[str, Any]:
+    """Truncate ONLY the `agent_insight` table. Returns a count of
+    rows removed. Does NOT touch any other table; does NOT cascade
+    anywhere. Mounting is gated by
+    `AGENT_INSIGHTS_ADMIN_MAINTENANCE_ENABLED=true` so a default
+    deployment cannot expose this surface."""
+    try:
+        n = int(db.execute(
+            select(func.count()).select_from(AgentInsight),
+        ).scalar() or 0)
+        db.query(AgentInsight).delete()
+        db.commit()
+    except (OperationalError, ProgrammingError) as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503, detail=f"cache table unavailable: {exc}",
+        ) from exc
+    return {"deleted_rows": n, "table": "agent_insight"}

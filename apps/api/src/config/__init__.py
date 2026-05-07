@@ -487,5 +487,12 @@ class Settings(BaseSettings):
     # wire a real running-total guard.
     AGENT_INSIGHTS_COST_GUARD_USD: float = 5.0
 
+    # F5 — admin-only cache maintenance gate. When True the
+    # `DELETE /api/insights/cache` route is mounted, gated by the
+    # same `X-Admin-Token` header used by research_manual. Default
+    # False so production deployments cannot accidentally expose a
+    # destructive endpoint.
+    AGENT_INSIGHTS_ADMIN_MAINTENANCE_ENABLED: bool = False
+
 
 settings = Settings()
