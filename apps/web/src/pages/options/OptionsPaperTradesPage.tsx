@@ -47,6 +47,21 @@ export default function OptionsPaperTradesPage() {
     <div className="space-y-3">
       <OptionsPaperOnlyBanner />
 
+      {/* UX-1 Commit O — quiet intro. */}
+      <header data-test="options-paper-trades-intro" className="mb-1">
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Pro view · Options paper trades
+        </div>
+        <h2 className="text-base font-semibold text-zinc-100">
+          Multi-leg paper options trades
+        </h2>
+        <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
+          Simulated by the options paper engine. Separate from
+          your stock paper trades. Read-only — nothing here places
+          real orders. Click a row for full leg detail.
+        </p>
+      </header>
+
       <div className="flex gap-1 border-b border-zinc-800 text-sm">
         {STATUS_TABS.map((s) => (
           <button

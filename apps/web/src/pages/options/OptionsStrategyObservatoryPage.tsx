@@ -30,6 +30,22 @@ export default function OptionsStrategyObservatoryPage() {
       <OptionsPaperOnlyBanner />
       <OptionsObservationOnlyBanner />
 
+      {/* UX-1 Commit O — quiet intro. */}
+      <header data-test="options-observatory-intro" className="mb-1">
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Pro view · Strategy explorer
+        </div>
+        <h2 className="text-base font-semibold text-zinc-100">
+          Available paper strategy templates
+        </h2>
+        <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
+          Catalogue of options strategy templates the engine can
+          evaluate (long calls, verticals, etc.) and recent
+          observations. Read-only research — never recommends or
+          executes trades.
+        </p>
+      </header>
+
       <section>
         <h2 className="mb-2 text-sm font-semibold text-zinc-100">
           Available paper strategies (rule definitions)

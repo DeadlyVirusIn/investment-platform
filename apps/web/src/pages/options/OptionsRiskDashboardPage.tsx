@@ -13,6 +13,22 @@ export default function OptionsRiskDashboardPage() {
   return (
     <div className="space-y-4">
       <OptionsPaperOnlyBanner />
+
+      {/* UX-1 Commit O — quiet intro. */}
+      <header data-test="options-risk-intro" className="mb-1">
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Pro view · Options risk
+        </div>
+        <h2 className="text-base font-semibold text-zinc-100">
+          Greeks-based exposure for paper options trades
+        </h2>
+        <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
+          Net delta / gamma / theta / vega and max-loss exposure
+          across open paper options positions. Advanced —
+          assumes familiarity with options pricing.
+        </p>
+      </header>
+
       {isLoading ? (
         <p className="text-sm text-zinc-400">Loading risk summary…</p>
       ) : error ? (

@@ -24,6 +24,20 @@ export default function OptionsPaperPerformancePage() {
       <OptionsPaperOnlyBanner />
       <OptionsObservationOnlyBanner />
 
+      {/* UX-1 Commit O — quiet intro. */}
+      <header data-test="options-performance-intro" className="mb-1">
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Pro view · Options paper performance
+        </div>
+        <h2 className="text-base font-semibold text-zinc-100">
+          How closed paper options trades behaved
+        </h2>
+        <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
+          Aggregates over closed, expired, and assigned paper
+          trades. Read-only — never affects future trading.
+        </p>
+      </header>
+
       <section className="flex flex-wrap items-end gap-3">
         <label className="text-xs">
           <div className="mb-1 uppercase tracking-wide text-zinc-400">Underlying filter</div>

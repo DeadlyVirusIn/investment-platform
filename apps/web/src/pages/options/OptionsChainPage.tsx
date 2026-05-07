@@ -31,6 +31,21 @@ export default function OptionsChainPage() {
     <div className="space-y-3">
       <OptionsPaperOnlyBanner />
 
+      {/* UX-1 Commit O — quiet intro telegraphs page intent      */}
+      {/* without redesigning the page or hiding any control.     */}
+      <header data-test="options-chain-intro" className="mb-1">
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Pro view · Options chain
+        </div>
+        <h2 className="text-base font-semibold text-zinc-100">
+          Strikes, expirations, and quoted prices
+        </h2>
+        <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
+          Raw options chain for the selected symbol and expiry.
+          Read-only research surface — most users never need this.
+        </p>
+      </header>
+
       <section className="flex flex-wrap items-end gap-3">
         <label className="text-xs">
           <div className="mb-1 uppercase tracking-wide text-zinc-400">Symbol</div>
