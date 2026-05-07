@@ -36,6 +36,8 @@ import OptionsChainPage from '@/pages/options/OptionsChainPage';
 import OptionsFeaturesPage from '@/pages/options/OptionsFeaturesPage';
 import OptionsPaperTradesPage from '@/pages/options/OptionsPaperTradesPage';
 import OptionsRiskDashboardPage from '@/pages/options/OptionsRiskDashboardPage';
+// UX-1 Commit F — Options summary-first landing page.
+import OptionsOverviewPage from '@/pages/options/OptionsOverviewPage';
 
 // Phase 11G — Options Strategy Observatory (read-only)
 import OptionsStrategyObservatoryPage from '@/pages/options/OptionsStrategyObservatoryPage';
@@ -74,7 +76,10 @@ export default function App() {
 
         {/* --- Options (Phase 11F) — read-only, paper-trading only --- */}
         <Route path="/options" element={<OptionsLayout />}>
-          <Route index             element={<Navigate to="chain" replace />} />
+          {/* UX-1 Commit F — index lands on the new beginner-     */}
+          {/* friendly Overview, not the dense chain table.         */}
+          <Route index             element={<Navigate to="overview" replace />} />
+          <Route path="overview"   element={<OptionsOverviewPage />} />
           <Route path="chain"      element={<OptionsChainPage />} />
           <Route path="features"   element={<OptionsFeaturesPage />} />
           <Route path="trades"     element={<OptionsPaperTradesPage />} />
