@@ -30,6 +30,9 @@ import type {
   PaperSummary, AnomalySummary, SystemHealth,
 } from "@/lib/operator/types";
 import { cn } from "@/lib/cn";
+// Commit 2 (Novice UX) — page-level intro card. Pure layout add;
+// no data dependency, no auto-fetch.
+import { PageGuide } from "@/components/novice";
 
 export default function Overview() {
   const { data: summary } = usePaperSummary();
@@ -64,6 +67,24 @@ export default function Overview() {
 
   return (
     <div className="max-w-[1520px] mx-auto px-6 py-6 space-y-5">
+
+      {/* === 0. NOVICE PAGE GUIDE (Commit 2) ============================ */}
+      {/* Plain-English page intro. Read-only research footer is shown    */}
+      {/* once at the page level — individual cards do NOT repeat it.     */}
+      <PageGuide
+        title="Today at a glance"
+        subtitle={
+          "Quick summary of your paper account and what the system is "
+          + "doing right now. All numbers are from simulated trades — "
+          + "no real money is involved."
+        }
+        firstLook={
+          <>
+            Look at <strong>Account value</strong> first. Green means
+            up vs your starting amount; red means down.
+          </>
+        }
+      />
 
       {/* === 1. READINESS STRIP — single source of truth (CF-1, CF-3) === */}
       <section className="u-card-tight"
@@ -133,37 +154,41 @@ export default function Overview() {
         <div className="u-stat-strip"
              style={{ gridTemplateColumns: "2.2fr 1fr 1fr 1fr 1fr",
                       padding: 0, gap: "44px" }}>
-          <StatCell label="Net Asset Value"
+          {/* Commit 2 (Novice UX) — labels renamed to plain English. */}
+          {/* Calculations + sub-text data sources unchanged.         */}
+          <StatCell label="Account value"
             value={summary ? fmtUSD(summary.equity) : "—"}
-            sub={summary ? `cash ${fmtUSD(summary.cash)}` : "awaiting first run"}
+            sub={summary
+              ? `Available cash ${fmtUSD(summary.cash)}`
+              : "Waiting for first run"}
             size="mega"
             tone={toneForNumber(summary?.total_return_pct ?? 0)}
             glow />
-          <StatCell label="Day P&L"
+          <StatCell label="Today's change"
             value={summary ? fmtSignedCompact(summary.daily_pnl) : "—"}
             tone={toneForNumber(summary?.daily_pnl ?? 0)}
             sub={summary
               ? fmtPct(summary.daily_pnl / (summary.equity || 1) * 100, 3)
               : "n/a"}
             size="sec" />
-          <StatCell label="Total Return"
+          <StatCell label="Total return so far"
             value={fmtPct(summary?.total_return_pct)}
             tone={toneForNumber(summary?.total_return_pct ?? 0)}
-            sub="since inception"
+            sub="Since the system started"
             size="sec" />
-          <StatCell label="Max Drawdown"
+          <StatCell label="Biggest drop from peak"
             value={fmtPct(summary?.max_drawdown_pct)}
             tone="neg"
-            sub="peak-to-trough"
+            sub="Largest dip in account value"
             size="sec" />
-          <StatCell label="Trades"
+          <StatCell label="Paper trades so far"
             value={String(liveTradeCount)}
             sub={
               hasReplayRecovered
-                ? `${replayTradeCount} recovered replay available`
+                ? `${replayTradeCount} rebuilt simulation rows available`
                 : winRate !== null
-                  ? `${(winRate * 100).toFixed(0)}% win rate`
-                  : "none closed"
+                  ? `${(winRate * 100).toFixed(0)}% of closed trades finished positive`
+                  : "None closed yet"
             }
             size="sec" />
         </div>
