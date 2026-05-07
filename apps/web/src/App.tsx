@@ -13,6 +13,7 @@ import AlphaLab from '@/pages/AlphaLab';
 import MLLab from '@/pages/MLLab';
 import Ops from '@/pages/Ops';
 import RiskDashboard from '@/pages/RiskDashboard';
+import AgentWorkflows from '@/pages/AgentWorkflows';
 
 // Legacy pages (kept reachable for continuity)
 import Dashboard from '@/pages/Dashboard';
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/ml-lab"     element={<MLLab />} />
         <Route path="/ops"        element={<Ops />} />
         <Route path="/risk"       element={<RiskDashboard />} />
+        <Route path="/agents"     element={<AgentWorkflows />} />
 
         {/* --- Options (Phase 11F) — read-only, paper-trading only --- */}
         <Route path="/options" element={<OptionsLayout />}>
