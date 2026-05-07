@@ -20,7 +20,8 @@ import {
 import TradeQualityCard from "@/components/alpha-lab/TradeQualityCard";
 import ExitAnalyticsCard from "@/components/alpha-lab/ExitAnalyticsCard";
 // Commit 4 (Novice UX) — page-level intro card.
-import { PageGuide } from "@/components/novice";
+// UX-1 Commit D — focus guidance + collapsible source.
+import { PageGuide, AdvancedDetails } from "@/components/novice";
 
 
 const TABS = [
@@ -84,18 +85,40 @@ function Wrap({ title, children }: {
         }
         firstLook={
           <>
-            Start with <strong>Overview</strong>. The other tabs split
-            current holdings into "going up" and "going down", plus a
-            history of trades the system already closed.
+            Start with <strong>Overview</strong>. The other tabs go
+            deeper for users who want them — safe to ignore otherwise.
           </>
         }
       />
-      <p className="u-caption-2 text-fg-3 -mt-2 max-w-3xl">
-        Source: live paper-trading state from <code>paper_position</code>,
-        {" "}<code>paper_trade</code>, and <code>paper_equity_snapshot</code>.
-        Closed-trade analytics activate after the exit-cycle runner
-        closes eligible positions.
-      </p>
+      {/* UX-1 Commit D — focus guidance card. Tells the beginner   */}
+      {/* what matters most before they encounter four tabs.        */}
+      <div
+        className="u-card-tight"
+        data-test="alpha-lab-focus"
+        style={{ padding: "12px 16px" }}
+      >
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Focus today
+        </div>
+        <p className="u-body text-fg">
+          The system is reviewing how recent paper trades behaved.
+          Most users only need the <strong>Overview</strong> tab.
+          The other tabs are deeper detail — safe to ignore unless
+          you want it.
+        </p>
+      </div>
+      {/* UX-1 Commit D — engineering source detail moved into a    */}
+      {/* collapsible block so beginners do not see schema names    */}
+      {/* on first load. Truth preserved one click away.            */}
+      <AdvancedDetails label="Where this data comes from">
+        <p className="u-caption-2 text-fg-3 max-w-3xl">
+          Source: live paper-trading state from{" "}
+          <code>paper_position</code>, <code>paper_trade</code>, and{" "}
+          <code>paper_equity_snapshot</code>. Closed-trade analytics
+          activate after the exit-cycle runner closes eligible
+          positions.
+        </p>
+      </AdvancedDetails>
       {children}
     </div>
   );
@@ -162,43 +185,47 @@ function Overview({ d }: { d: DType }) {
   const worstOpen = d.open_losers[0];
   return (
     <section className="space-y-4" data-test="alpha-overview">
+      {/* UX-1 Commit D — primary metrics: 4 cards (cognitive cap). */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard
-          label="Open positions" value={String(s.open_positions)}
+          label="Currently held"
+          value={String(s.open_positions)}
         />
         <SummaryCard
-          label="Closed positions"
+          label="Closed trades"
           value={String(s.closed_positions)}
         />
         <SummaryCard
-          label="Open unrealized P&L"
+          label="If closed now"
           value={fmtUSD(s.open_unrealized_pnl)}
           tone={toneFromN(s.open_unrealized_pnl)}
         />
         <SummaryCard
-          label="Closed realized P&L"
+          label="Profit from closed trades"
           value={fmtUSD(s.closed_realized_pnl)}
           tone={toneFromN(s.closed_realized_pnl)}
         />
-        <SummaryCard
-          label="Pending fills" value={String(s.pending_fills)}
-        />
-        <SummaryCard
-          label="Live trades" value={String(s.live_trades)}
-        />
-        <SummaryCard
-          label="Replay trades" value={String(s.replay_trades)}
-        />
-        <SummaryCard label="As of" value={s.as_of_date} />
+      </div>
+
+      {/* UX-1 Commit D — secondary breakdown demoted to a single  */}
+      {/* small caption row so it stops competing for attention.   */}
+      <div
+        className="u-caption-2 text-fg-3"
+        data-test="alpha-overview-secondary"
+      >
+        {s.pending_fills} waiting for tomorrow's market data ·
+        {" "}{s.live_trades} real ·
+        {" "}{s.replay_trades} recovered from backup data ·
+        {" "}as of {s.as_of_date}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="u-card-tight">
-          <Label>Best open winner</Label>
+          <Label>Best so far among open positions</Label>
           {bestOpen ? <PositionLine row={bestOpen} /> : <Empty />}
         </div>
         <div className="u-card-tight">
-          <Label>Worst open loser</Label>
+          <Label>Biggest loss among open positions</Label>
           {worstOpen ? <PositionLine row={worstOpen} /> : <Empty />}
         </div>
       </div>
