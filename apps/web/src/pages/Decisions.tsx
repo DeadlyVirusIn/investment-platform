@@ -19,7 +19,8 @@ import type {
 } from "@/lib/operator/types";
 import { cn } from "@/lib/cn";
 // UX-1 — plain-English page intro card.
-import { PageGuide } from "@/components/novice";
+// UX-1 Commit J — focus guidance + collapsible engineering source.
+import { PageGuide, AdvancedDetails } from "@/components/novice";
 
 // Filter set — paper-trading aware. Engine A/B retained for the
 // rare legacy row that still carries those engine values; the
@@ -81,9 +82,7 @@ export default function Decisions() {
 
   return (
     <div className="max-w-[1680px] mx-auto px-8 py-8">
-      <header className="mb-6">
-        {/* UX-1 — plain-English page intro. Engineering source */}
-        {/* note demoted to a small caption below.              */}
+      <header className="mb-6 space-y-3">
         <PageGuide
           eyebrow="Decisions"
           title="Trade Decisions"
@@ -95,17 +94,57 @@ export default function Decisions() {
             </>
           }
         />
-        <p className="u-caption-2 text-fg-3 -mt-2 max-w-3xl">
-          Source: <code>paper_trade</code> joined to{" "}
-          <code>paper_position</code>. Recovered-history rows
-          (reconstructed from backup data) are tagged separately.
-          Trades waiting for tomorrow's market data are held
-          intentionally — they are not stuck.
-        </p>
-        {/* UX-1 ripple: reduced visual noise — three primary chips +    */}
-        {/* a small caption row carrying the secondary breakdown.        */}
+
+        {/* UX-1 Commit J — Start-here focus card. Calmer framing  */}
+        {/* for a page that previously read like an audit         */}
+        {/* workstation.                                          */}
+        <section
+          className="u-card-tight"
+          data-test="decisions-start-here"
+          style={{ padding: "12px 16px" }}
+        >
+          <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+            How to read this page
+          </div>
+          <ol className="u-body text-fg space-y-1 list-decimal pl-5">
+            <li>
+              <strong>Pick any row</strong> in the timeline on
+              the left.
+            </li>
+            <li>
+              <strong>Read the reason</strong> in the centre — a
+              plain-English explanation of why the system bought
+              or skipped this candidate.
+            </li>
+            <li>
+              <strong>Outcome &amp; pattern context</strong> on
+              the right shows how similar past trades behaved.
+            </li>
+          </ol>
+          <p className="u-caption-2 text-fg-3 mt-2">
+            Safe to ignore for now: the engineering snapshot, the
+            inputs table on the detail panel, and the
+            recovered-history filter. Every row is read-only;
+            nothing here trades on your behalf.
+          </p>
+        </section>
+
+        {/* UX-1 Commit J — calm interpretation card. Tells the  */}
+        {/* operator whether anything needs attention BEFORE the  */}
+        {/* timeline density is shown.                            */}
+        <DecisionsCalmCard
+          total={totals.total}
+          openCount={totals.open}
+          pending={totals.pending}
+          replayCount={totals.replay}
+          loaded={trades !== undefined}
+        />
+
+        {/* Truth-banner row (existing data-test preserved).      */}
+        {/* Now reads as quieter SECONDARY context after the calm */}
+        {/* card has answered "is this okay?".                    */}
         <div
-          className="mt-3 flex flex-wrap items-center gap-2 u-caption-2"
+          className="flex flex-wrap items-center gap-2 u-caption-2"
           data-test="decisions-truth-banner"
         >
           <span className="u-chip u-chip-neutral">
@@ -132,10 +171,22 @@ export default function Decisions() {
               </span>
             </span>
           )}
+          <span className="ml-2 text-fg-3">
+            · {totals.live} real · {totals.replay} recovered
+            from backup data
+          </span>
         </div>
-        <div className="mt-2 u-caption-2 text-fg-3">
-          {totals.live} real · {totals.replay} recovered from backup data
-        </div>
+
+        <AdvancedDetails label="Where this data comes from">
+          <p className="u-caption-2 text-fg-3 max-w-3xl">
+            Source: <code>paper_trade</code> joined to{" "}
+            <code>paper_position</code>. Recovered-history rows
+            (reconstructed from backup data) are tagged separately.
+            Trades waiting for tomorrow's market data are held
+            intentionally by the next-bar fill rule — they are not
+            stuck.
+          </p>
+        </AdvancedDetails>
       </header>
 
       <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)_420px]
@@ -1027,6 +1078,117 @@ function TodaysDecisionDetail({ state }: { state: CurrentState | undefined }) {
         outcome, anomalies, and historical pattern context in the right column.
       </p>
     </Card>
+  );
+}
+
+
+// UX-1 Commit J — calm interpretation card for the Decisions
+// page header. Pure render component. NO new hook, NO data
+// fetch — only labels the totals already computed by the parent.
+// Branches in priority order: not loaded > zero > pending > open
+// > all closed.
+function DecisionsCalmCard({
+  total, openCount, pending, replayCount, loaded,
+}: {
+  total: number;
+  openCount: number;
+  pending: number;
+  replayCount: number;
+  loaded: boolean;
+}) {
+  let tone = "Operating normally";
+  let chip: "success" | "neutral" | "warning" = "success";
+  let headline = "Operating normally.";
+  let body =
+    "The system continues to monitor the daily pipeline. New "
+    + "decisions appear here as they are made. No action is "
+    + "needed right now.";
+
+  if (!loaded) {
+    tone = "Loading";
+    chip = "neutral";
+    headline = "Decisions are loading.";
+    body =
+      "The timeline below will populate once today's pipeline "
+      + "finishes. No action needed.";
+  } else if (total === 0) {
+    tone = "Quiet";
+    chip = "neutral";
+    headline = "No decisions yet today.";
+    body =
+      "Once the daily run finishes, every buy / skip will appear "
+      + "here with the reason. No action is needed.";
+  } else if (pending > 0) {
+    tone = "Waiting for next market update";
+    chip = "warning";
+    headline = `${pending} trade${pending === 1 ? "" : "s"} `
+      + "waiting for tomorrow's market data.";
+    body =
+      "These trades matched the strategy and passed safety "
+      + "checks. They are prepared and will complete after "
+      + "tomorrow's market data becomes available — this is "
+      + "intentional, not stuck. The system continues to monitor "
+      + "open paper trades. No action is needed.";
+  } else if (openCount > 0) {
+    tone = "Holding open trades";
+    chip = "neutral";
+    headline = `${openCount} paper trade`
+      + `${openCount === 1 ? "" : "s"} still open.`;
+    body =
+      "The system is holding these positions and will close "
+      + "them automatically when strategy rules trigger. Skipped "
+      + "candidates remain visible below for transparency. No "
+      + "action is needed.";
+  } else {
+    headline = "All paper trades have closed.";
+    body =
+      "The system continues reviewing today's candidates for new "
+      + "matches. Every closed trade and every skipped candidate "
+      + "remains visible below. No action is needed.";
+  }
+
+  // Replay-specific footnote when recovered-history rows exist.
+  let replayNote: string | null = null;
+  if (replayCount > 0) {
+    replayNote =
+      `${replayCount} of the rows below were reconstructed from `
+      + "backup data after a 2026-05-02 reset and are tagged "
+      + "separately — not live trading.";
+  }
+
+  return (
+    <section
+      className="u-card-tight"
+      data-test="decisions-calm-state"
+      style={{ padding: "14px 18px" }}
+    >
+      <div className="flex items-center gap-3 mb-1">
+        <span className={`u-chip u-chip-${chip}`}>
+          <span className={`u-dot u-dot-${chip}`} />
+          {tone}
+        </span>
+        <span
+          className="u-body font-semibold text-fg"
+          data-test="decisions-calm-headline"
+        >
+          {headline}
+        </span>
+      </div>
+      <p
+        className="u-caption text-fg-2 max-w-3xl"
+        data-test="decisions-calm-body"
+      >
+        {body}
+      </p>
+      {replayNote && (
+        <p
+          className="u-caption-2 text-fg-3 mt-1 max-w-3xl"
+          data-test="decisions-calm-replay-note"
+        >
+          {replayNote}
+        </p>
+      )}
+    </section>
   );
 }
 
