@@ -71,7 +71,7 @@ export default function RiskDashboard() {
             checked={includeReplay}
             onChange={e => setIncludeReplay(e.target.checked)}
           />
-          <span>Show rebuilt simulation rows</span>
+          <span>Show recovered history</span>
         </label>
         <button
           type="button"
@@ -199,11 +199,11 @@ function Body({
           warn={data.pending_next_bar_count > 0}
         />
         <Cell
-          label="Current vs rebuilt results"
+          label="Current vs recovered history"
           value={`${data.live_trades_count} / ${data.replay_trades_count}`}
           sub={data.include_replay
-            ? "Rebuilt simulation rows included in totals above"
-            : "Rebuilt simulation rows excluded from totals above"}
+            ? "Recovered history included in totals above"
+            : "Recovered history excluded from totals above"}
         />
       </section>
 

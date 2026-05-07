@@ -114,13 +114,13 @@ export default function PortfolioTerminal() {
         >
           <div className="u-caption">
             <span className="u-chip u-chip-warning mr-2">
-              Rebuilt simulation
+              Recovered history
             </span>
             <strong>{execSummary?.replay_trades_count ?? 0}</strong>{" "}
-            rebuilt simulation trades ·{" "}
+            recovered trades ·{" "}
             <strong>{execSummary?.replay_open_positions_count ?? 0}</strong>{" "}
-            rebuilt open positions. These were reconstructed from past
-            data after a 2026-05-02 reset and are tagged in{" "}
+            recovered open positions. These were reconstructed from
+            backup data after a 2026-05-02 reset and are tagged in{" "}
             <code>replay_recovery_manifest</code>. They are NOT live
             trading activity and are hidden by default.
           </div>
@@ -130,7 +130,7 @@ export default function PortfolioTerminal() {
               checked={includeReplay}
               onChange={e => setIncludeReplay(e.target.checked)}
             />
-            <span>Show rebuilt simulation rows</span>
+            <span>Show recovered history</span>
           </label>
         </div>
       )}
@@ -215,7 +215,7 @@ export default function PortfolioTerminal() {
               </div>
               <div className="u-caption">
                 {execSummary?.has_replay_recovered_rows
-                  ? "Rebuilt simulation rows available — toggle 'Show rebuilt simulation rows' above to view them."
+                  ? "Recovered history rows available — toggle 'Show recovered history' above to view them."
                   : "Nothing currently held. New holdings appear here once a paper trade fills."}
               </div>
             </div>
@@ -249,9 +249,9 @@ export default function PortfolioTerminal() {
                       {p.source === "replay" ? (
                         <span
                           className="u-chip u-chip-warning"
-                          title="Rebuilt simulation row — not live trading activity."
+                          title="Recovered from backup data — not live trading activity."
                         >
-                          rebuilt
+                          recovered
                         </span>
                       ) : (
                         <span className="u-caption-2 text-fg-3">{p.source}</span>
@@ -286,7 +286,7 @@ export default function PortfolioTerminal() {
               </div>
               <div className="u-caption">
                 {execSummary?.has_replay_recovered_rows
-                  ? "Rebuilt simulation rows available — toggle 'Show rebuilt simulation rows' above to view them."
+                  ? "Recovered history rows available — toggle 'Show recovered history' above to view them."
                   : "Buys and sells will appear here as they fill on the next price bar."}
               </div>
             </div>
@@ -323,9 +323,9 @@ export default function PortfolioTerminal() {
                       {t.source === "replay" ? (
                         <span
                           className="u-chip u-chip-warning"
-                          title="Rebuilt simulation row — not live trading activity."
+                          title="Recovered from backup data — not live trading activity."
                         >
-                          rebuilt
+                          recovered
                         </span>
                       ) : (
                         <span className="u-caption-2 text-fg-3">{t.source}</span>

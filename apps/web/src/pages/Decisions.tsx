@@ -32,7 +32,7 @@ type Filter = "all" | "live" | "replay" | "open" | "anom";
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all",    label: "All" },
   { id: "live",   label: "Real" },
-  { id: "replay", label: "Rebuilt" },
+  { id: "replay", label: "Recovered" },
   { id: "open",   label: "Still open" },
   { id: "anom",   label: "Flagged" },
 ];
@@ -97,37 +97,22 @@ export default function Decisions() {
         />
         <p className="u-caption-2 text-fg-3 -mt-2 max-w-3xl">
           Source: <code>paper_trade</code> joined to{" "}
-          <code>paper_position</code>. Trades that fill on a
-          rebuilt simulation are tagged separately. Trades waiting
-          for tomorrow's price are held intentionally by the
-          next-bar fill rule — that is not a failure.
+          <code>paper_position</code>. Recovered-history rows
+          (reconstructed from backup data) are tagged separately.
+          Trades waiting for tomorrow's market data are held
+          intentionally — they are not stuck.
         </p>
+        {/* UX-1 ripple: reduced visual noise — three primary chips +    */}
+        {/* a small caption row carrying the secondary breakdown.        */}
         <div
           className="mt-3 flex flex-wrap items-center gap-2 u-caption-2"
           data-test="decisions-truth-banner"
         >
-          <span
-            className="u-chip u-chip-neutral"
-            title="Every paper-trading decision on file."
-          >
+          <span className="u-chip u-chip-neutral">
             <span className="u-dot u-dot-neutral" />
             <span className="ml-1">
               All decisions {totals.total}
             </span>
-          </span>
-          <span
-            className="u-chip u-chip-success"
-            title="Decisions made during normal day-to-day operation."
-          >
-            <span className="u-dot u-dot-success" />
-            <span className="ml-1">Real {totals.live}</span>
-          </span>
-          <span
-            className="u-chip u-chip-warning"
-            title="Decisions reconstructed from past data after a reset. Not live trading."
-          >
-            <span className="u-dot u-dot-warning" />
-            <span className="ml-1">Rebuilt {totals.replay}</span>
           </span>
           <span
             className="u-chip u-chip-accent"
@@ -139,14 +124,17 @@ export default function Decisions() {
           {totals.pending > 0 && (
             <span
               className="u-chip u-chip-warning"
-              title="Trades that match the strategy and a safety check passed, but they fill on the NEXT price bar — this is intentional, not an error."
+              title="These trades matched the strategy and passed safety checks. They are scheduled to fill once tomorrow's market data arrives — this is intentional, not stuck."
             >
               <span className="u-dot u-dot-warning" />
               <span className="ml-1">
-                Waiting for next price {totals.pending}
+                Waiting for tomorrow's market data {totals.pending}
               </span>
             </span>
           )}
+        </div>
+        <div className="mt-2 u-caption-2 text-fg-3">
+          {totals.live} real · {totals.replay} recovered from backup data
         </div>
       </header>
 
@@ -258,12 +246,12 @@ function TimelineEntry({
       <div className="flex items-center justify-between u-caption-2">
         <span
           className="uppercase tracking-wider font-semibold"
-          title="Underlying strategy. Strategy A buys oversold names; Strategy B reads bond + rates signals."
+          title="The plain-English idea behind this trade."
         >
           {t.engine === "A"
-            ? "Strategy A"
+            ? "Buy-the-dip"
             : t.engine === "B"
-              ? "Strategy B"
+              ? "Defensive"
               : t.regime_at_entry || "paper"}
         </span>
         <span className="u-mono-sm">
@@ -278,9 +266,9 @@ function TimelineEntry({
         {t.is_replay
           ? <span
               className="u-chip u-chip-warning"
-              title="Rebuilt simulation row — not live trading."
+              title="Recovered from backup data — not live trading."
             >
-              rebuilt
+              recovered
             </span>
           : <span className="u-chip u-chip-success">real</span>}
         {hasAnomaly &&
@@ -312,9 +300,9 @@ function TodaysDecisionFallback({ state }: {
   // UX-1 — humanized strategy + status copy. "fire" = the system
   // would buy today; "stood by" = nothing matched the strategy.
   const strategyLabel = state.engine === "A"
-    ? "Strategy A (buy-the-dip)"
+    ? "Buy-the-dip strategy"
     : state.engine === "B"
-      ? "Strategy B (bond-signal)"
+      ? "Defensive strategy"
       : "system";
   return (
     <div className="u-card-tight"
@@ -378,8 +366,8 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
   const isLegacyEngine = trade.engine === "A" || trade.engine === "B";
   const engineLabel = isLegacyEngine
     ? (trade.engine === "A"
-        ? "Strategy A · buy-the-dip"
-        : "Strategy B · bond-signal")
+        ? "Buy-the-dip strategy"
+        : "Defensive strategy")
     : isAccountPath
       ? "Paper trade"
       : "Older trade — full review notes unavailable";
@@ -453,7 +441,7 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
 
       {/* D — blocking logic */}
       <Section title="Safety checks"
-               hint="Whether any pre-trade rule refused entry">
+               hint="Whether any pre-trade rule skipped this trade for safety">
         <BlockingPanel decision={decision ?? null} trade={trade} />
       </Section>
 
@@ -609,11 +597,11 @@ function BlockingPanel({
         borderColor: "rgba(248,166,56,0.4)",
       }}>
         <div className="u-label-sm mb-1 text-warning">
-          Trade refused by a safety rule
+          Skipped for safety
         </div>
         <div className="u-body-fg text-warning">
           This candidate matched the strategy, but a safety rule
-          stopped the trade from happening. Reason:{" "}
+          stepped in to skip it. No action needed. Reason:{" "}
           <span className="font-semibold">{decision.blocked_by}</span>
         </div>
       </div>

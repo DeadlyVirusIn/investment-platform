@@ -185,7 +185,7 @@ export default function Overview() {
             value={String(liveTradeCount)}
             sub={
               hasReplayRecovered
-                ? `${replayTradeCount} rebuilt simulation rows available`
+                ? `${replayTradeCount} recovered history rows available`
                 : winRate !== null
                   ? `${(winRate * 100).toFixed(0)}% of closed trades finished positive`
                   : "None closed yet"
