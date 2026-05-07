@@ -22,8 +22,12 @@ import {
 import EquityDrawdownChart from "@/components/operator/EquityDrawdownChart";
 import Sparkline from "@/components/ui/Sparkline";
 import { cn } from "@/lib/cn";
+import type {
+  PaperSummary, EquityPoint,
+} from "@/lib/operator/types";
 // Commit 3 (Novice UX) — page-level intro card.
-import { PageGuide } from "@/components/novice";
+// UX-1 Commit H — focus guidance + emotional interpretation.
+import { PageGuide, AdvancedDetails } from "@/components/novice";
 
 export default function PortfolioTerminal() {
   const { data: summary } = usePaperSummary();
@@ -82,6 +86,17 @@ export default function PortfolioTerminal() {
   const openPositionsCount = summary?.open_positions_count
     ?? openExecPositions.length;
 
+  // UX-1 Commit H — single calm interpretation sentence at top of
+  // body. Derives a tone + headline + body from data already on
+  // the page — no new hook, no auto-fetch. Light temporal framing
+  // uses the last two equity points when present. Order matters:
+  // markUnavailable > losing today + unrealized < 0 > unrealized
+  // > 0 + up today > unrealized > 0 > unrealized < 0 > flat.
+  const calm = derivePortfolioCalm({
+    summary, markUnavailable, openPositionsCount,
+    equityHistory: equityHistory ?? [],
+  });
+
   return (
     <div className="max-w-[1440px] mx-auto px-8 py-8 space-y-6">
       {/* Commit 3 (Novice UX) — plain-English page intro. The body */}
@@ -102,6 +117,38 @@ export default function PortfolioTerminal() {
           </>
         }
       />
+
+      {/* UX-1 Commit H — Start-here focus card. Tells the operator  */}
+      {/* what matters first and what they can defer.                */}
+      <section
+        className="u-card-tight"
+        data-test="portfolio-start-here"
+        style={{ padding: "12px 16px" }}
+      >
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Focus today
+        </div>
+        <ol className="u-body text-fg space-y-1 list-decimal pl-5">
+          <li>
+            <strong>Account value</strong> — total worth of your
+            paper account today.
+          </li>
+          <li>
+            <strong>Holdings (still open)</strong> — what the system
+            is currently holding for you.
+          </li>
+          <li>
+            <strong>If closed now</strong> — what the open holdings
+            would be worth if every trade closed at today's price.
+          </li>
+        </ol>
+        <p className="u-caption-2 text-fg-3 mt-2">
+          Safe to ignore for now: strategy-log internals, engine
+          attribution, and the closed-trade engineering breakdown
+          further down. They're collapsed under "Advanced strategy
+          detail" — none require action.
+        </p>
+      </section>
       <div className="u-caption-2 text-fg-3 -mt-2">
         {execSummary?.live_trades_count ?? 0} paper trades placed ·
         {" "}{execSummary?.live_open_positions_count ?? 0} open paper positions ·
@@ -134,6 +181,34 @@ export default function PortfolioTerminal() {
           </label>
         </div>
       )}
+
+      {/* UX-1 Commit H — calm interpretation card. Sits between    */}
+      {/* the page intro and the strip so a beginner reads "is this */}
+      {/* okay?" before they encounter five dollar values.          */}
+      <section
+        className="u-card-tight"
+        data-test="portfolio-calm-state"
+        style={{ padding: "14px 18px" }}
+      >
+        <div className="flex items-center gap-3 mb-1">
+          <span className={`u-chip u-chip-${calm.chip}`}>
+            <span className={`u-dot u-dot-${calm.chip}`} />
+            {calm.tone}
+          </span>
+          <span
+            className="u-body font-semibold text-fg"
+            data-test="portfolio-calm-headline"
+          >
+            {calm.headline}
+          </span>
+        </div>
+        <p
+          className="u-caption text-fg-2 max-w-3xl"
+          data-test="portfolio-calm-body"
+        >
+          {calm.body}
+        </p>
+      </section>
 
       {/* STRIP — Commit 3 (Novice UX): plain-English labels.        */}
       {/* Calculations and tone unchanged.                            */}
@@ -339,6 +414,13 @@ export default function PortfolioTerminal() {
         </div>
       </div>
 
+      {/* UX-1 Commit H — Advanced strategy detail block.            */}
+      {/* Wraps the selector-path Strategy Logs + Realized History  */}
+      {/* (Engine A / Engine B internals) and the Engine            */}
+      {/* Attribution breakdown so the page presents a calm primary */}
+      {/* surface above the fold and only reveals deeper detail     */}
+      {/* when the operator asks for it.                            */}
+      <AdvancedDetails label="Advanced strategy detail">
       {/* SELECTOR STRATEGY LOGS (Engine A/B path) — separate stream */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="u-card">
@@ -485,8 +567,112 @@ export default function PortfolioTerminal() {
           </div>
         )}
       </div>
+      </AdvancedDetails>
     </div>
   );
+}
+
+
+// UX-1 Commit H — derive calm portfolio interpretation. Pure
+// function. No I/O. Inputs are the values already loaded on the
+// page. Tone branches: caution > neutral > healthy. Light
+// temporal context uses the last two equity points when present;
+// when the history is sparse we fall back to "today" framing.
+function derivePortfolioCalm({
+  summary, markUnavailable, openPositionsCount, equityHistory,
+}: {
+  summary: PaperSummary | undefined;
+  markUnavailable: boolean;
+  openPositionsCount: number;
+  equityHistory: EquityPoint[];
+}): {
+  tone: string;
+  chip: "success" | "neutral" | "warning";
+  headline: string;
+  body: string;
+} {
+  if (!summary) {
+    return {
+      tone: "Warming up",
+      chip: "neutral",
+      headline: "Account summary is loading.",
+      body:
+        "Once the daily run finishes, your holdings, gains, and "
+        + "losses will appear here. No action is needed.",
+    };
+  }
+  if (markUnavailable) {
+    return {
+      tone: "Worth a closer look",
+      chip: "warning",
+      headline: "A current price is missing.",
+      body:
+        "One or more open holdings don't have a fresh price right "
+        + "now. We never substitute a fake zero — we show the "
+        + "missing-price flag honestly. Nothing requires action.",
+    };
+  }
+  if (openPositionsCount === 0) {
+    return {
+      tone: "Quiet",
+      chip: "neutral",
+      headline: "No open holdings right now.",
+      body:
+        "The paper account is fully in cash. Once a trade fills, "
+        + "it will appear in the holdings table below. No action "
+        + "is needed.",
+    };
+  }
+
+  // Light temporal storytelling — compare today's equity vs the
+  // previous snapshot. Used to choose the trailing sentence.
+  let temporal = "Most holdings are moving within their normal "
+    + "range today.";
+  if (equityHistory.length >= 2) {
+    const today = equityHistory[equityHistory.length - 1].equity;
+    const prior = equityHistory[equityHistory.length - 2].equity;
+    if (prior > 0) {
+      const dayPct = (today - prior) / prior;
+      if (dayPct >= 0.005) {
+        temporal = "The account is up versus the previous session.";
+      } else if (dayPct <= -0.005) {
+        temporal = "The account is down versus the previous "
+          + "session — temporary while trades remain open.";
+      }
+    }
+  }
+  const closeFootnote =
+    "The system will close trades automatically when strategy "
+    + "rules trigger. Until then, gains and losses are temporary.";
+
+  const u = summary.unrealized_pnl ?? 0;
+  if (u > 0) {
+    return {
+      tone: "Open positions ahead",
+      chip: "success",
+      headline:
+        "Several holdings are currently above their entry price.",
+      body: `${temporal} ${closeFootnote}`,
+    };
+  }
+  if (u < 0) {
+    return {
+      tone: "Open positions behind",
+      chip: "neutral",
+      headline:
+        "Open holdings would be down if closed right now.",
+      body:
+        "This fluctuates naturally while trades remain open. "
+        + `${temporal} ${closeFootnote}`,
+    };
+  }
+  return {
+    tone: "Flat",
+    chip: "neutral",
+    headline:
+      "Holdings are roughly flat against their entry prices.",
+    body: `${temporal} ${closeFootnote}`,
+  };
 }
 
 function Strip({
