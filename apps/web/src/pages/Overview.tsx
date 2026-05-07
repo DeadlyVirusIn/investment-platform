@@ -350,9 +350,11 @@ export default function Overview() {
         <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]
                              gap-5">
           <div className="u-card">
-            <div className="flex items-center justify-between mb-3">
+            {/* UX-1 Commit L — drop redundant LIVE chip; the panel */}
+            {/* sits inside an expander already labeled "Today's…" */}
+            {/* so the chip added shouty emphasis without signal.   */}
+            <div className="flex items-center mb-3">
               <Label>Intelligence</Label>
-              <span className="u-chip u-chip-accent">LIVE</span>
             </div>
             <div className="grid grid-cols-2 gap-2.5">
               <IntelTile label="Top driver"   item={intel.topDriver} />
@@ -412,10 +414,14 @@ export default function Overview() {
                 return (
                   <div key={t.trade_id} className={cn("u-act-row", rowCls)}>
                     <span className="u-mono text-fg">{t.entry_date}</span>
-                    <span>
-                      <span className="u-chip u-chip-accent">{t.engine}</span>
+                    {/* UX-1 Commit L — engine rendered as muted    */}
+                    {/* inline text instead of a chip; the row's   */}
+                    {/* color class already encodes status, so the */}
+                    {/* engine cell adds context without shouting. */}
+                    <span className="u-caption text-fg-2">
+                      {t.engine}
                     </span>
-                    <span className="u-caption uppercase text-fg-2 tracking-wide">
+                    <span className="u-caption text-fg-3 tracking-wide">
                       {t.regime_at_entry}
                     </span>
                     <span className={cn(

@@ -309,19 +309,23 @@ function TimelineEntry({
           {t.days_held !== null ? `${t.days_held}d held` : "still open"}
         </span>
       </div>
+      {/* UX-1 Commit L — chip dedupe. Drop redundant "real" chip   */}
+      {/* (the default state needs no badge); the recovered-from-   */}
+      {/* backup tag still fires when applicable. Status + anomaly  */}
+      {/* chips kept since they carry independent signal.            */}
       <div className="flex gap-1.5 flex-wrap mt-2">
         {t.status === "open" &&
           <span className="u-chip u-chip-neutral">still open</span>}
         {t.status === "closed" &&
           <span className="u-chip u-chip-success">closed</span>}
-        {t.is_replay
-          ? <span
-              className="u-chip u-chip-warning"
-              title="Recovered from backup data — not live trading."
-            >
-              recovered
-            </span>
-          : <span className="u-chip u-chip-success">real</span>}
+        {t.is_replay && (
+          <span
+            className="u-chip u-chip-warning"
+            title="Recovered from backup data — not live trading."
+          >
+            recovered
+          </span>
+        )}
         {hasAnomaly &&
           <span
             className="u-chip u-chip-danger"
