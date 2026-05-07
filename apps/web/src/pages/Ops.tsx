@@ -122,6 +122,15 @@ export default function Ops() {
         </p>
       </section>
 
+      {/* UX-1 Commit N — quiet section anchor preceding the      */}
+      {/* sticky OpsAnchorNav and the engineering cards beneath.   */}
+      <div
+        data-test="ops-section-anchor-engineering"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Infrastructure detail
+      </div>
+
       {/* Phase 3 anchor nav — sticky 3-section jump nav */}
       <OpsAnchorNav />
 

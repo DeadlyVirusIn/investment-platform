@@ -285,6 +285,15 @@ function Body({
         </p>
       </section>
 
+      {/* UX-1 Commit N — quiet section anchor introducing the    */}
+      {/* numeric posture group (headline strip + P&L strip).      */}
+      <div
+        data-test="risk-section-anchor-posture"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Current risk posture
+      </div>
+
       {/* Top strip: account value / cash / money invested / drop */}
       {/* Commit 4 (Novice UX) — labels/sub-text in plain English. */}
       <section
@@ -368,6 +377,15 @@ function Body({
             : "Recovered history excluded from totals above"}
         />
       </section>
+
+      {/* UX-1 Commit N — quiet section anchor introducing the    */}
+      {/* concentration group.                                      */}
+      <div
+        data-test="risk-section-anchor-concentration"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Concentration
+      </div>
 
       {/* Concentration tables — plain-English titles. Source     */}
       {/* attribution preserved for transparency.                  */}

@@ -189,6 +189,15 @@ export default function Decisions() {
         </AdvancedDetails>
       </header>
 
+      {/* UX-1 Commit N — quiet section anchor introducing the     */}
+      {/* 3-column "decision narrative" grid below.                 */}
+      <div
+        data-test="decisions-section-anchor-grid"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2 mb-2"
+      >
+        Decisions in detail
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)_420px]
                         gap-6 h-[calc(100vh-240px)] min-h-[680px]">
         {/* ============== COL 1: TIMELINE ============== */}
