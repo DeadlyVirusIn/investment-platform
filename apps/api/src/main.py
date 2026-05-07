@@ -90,6 +90,7 @@ from apps.api.src.api.stock_engine_analytics import (
 )
 from apps.api.src.api.universe import router as universe_router
 from apps.api.src.api.watchlist import router as watchlist_router
+from apps.api.src.api.insights import router as insights_router
 from apps.api.src.config import settings
 
 # ---------------------------------------------------------------------------
@@ -214,6 +215,7 @@ for _router in (
     options_shadow_router,
     auth_me_router,
     safe_gate_evolution_router,
+    insights_router,
 ):
     app.include_router(_router, prefix="/api")
 

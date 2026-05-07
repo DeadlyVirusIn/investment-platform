@@ -466,5 +466,26 @@ class Settings(BaseSettings):
     RESEARCH_GRACE_ENABLED: bool = False
     RESEARCH_GRACE_HOURS: int = 72
 
+    # ------------------------------------------------------------------
+    # PHASE F2 — Agent insights LLM adapter (read-only, default OFF)
+    # ------------------------------------------------------------------
+    # Wraps the deterministic narrator (Phase F1) in a single
+    # Anthropic Messages-API call. NO DB writes, NO caching, NO
+    # background tasks. The /api/insights/{kind} endpoint returns 503
+    # unless BOTH AGENT_INSIGHTS_ENABLED is true AND ANTHROPIC_API_KEY
+    # is non-empty. Insight output is read-only research context; it
+    # MUST NEVER influence scoring, signals, trades, exits, or
+    # execution. Rollback = set AGENT_INSIGHTS_ENABLED=false.
+    AGENT_INSIGHTS_ENABLED: bool = False
+    ANTHROPIC_API_KEY: str = ""
+    AGENT_INSIGHTS_MODEL: str = "claude-3-5-haiku-latest"
+    AGENT_INSIGHTS_MAX_TOKENS: int = 800
+    AGENT_INSIGHTS_TIMEOUT_SECONDS: float = 5.0
+    # Soft per-process cost ceiling for insight calls. Not enforced
+    # at the SDK boundary in F2 (no per-call cost accounting yet);
+    # operators surface this number in dashboards. Phase F3 will
+    # wire a real running-total guard.
+    AGENT_INSIGHTS_COST_GUARD_USD: float = 5.0
+
 
 settings = Settings()
