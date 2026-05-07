@@ -34,7 +34,7 @@ from apps.api.src.config import settings
 from apps.api.src.db import get_session
 from apps.api.src.db.models import AgentInsight
 from apps.api.src.domain.agents import cache as insight_cache
-from apps.api.src.domain.agents import llm_client
+from apps.api.src.domain.agents import llm_client, metrics
 from apps.api.src.domain.agents.registry import AgentKind, BANNER, REGISTRY
 from apps.api.src.domain.agents.safety import scrub_sensitive_ids
 
@@ -198,6 +198,9 @@ def get_status(
         "banner": BANNER,
         "execution_linked": False,
         "llm_configured": bool(api_key),
+        # F7: process-local counters + cost estimate. Resets on
+        # API restart; documented in AGENT_INSIGHTS_RUNBOOK.
+        "metrics": metrics.snapshot(),
     }
 
 
@@ -208,10 +211,15 @@ async def get_insight(
     payload_b64: str | None = _PAYLOAD_QUERY,
     db: Session | None = Depends(get_session),
 ) -> Any:
+    # F7: every reach of the endpoint counts as a request, even
+    # disabled / 404 paths.
+    metrics.record_request()
+
     # Feature-flag guard runs FIRST so a disabled deployment never
     # touches the SDK or the cache. NEVER read or write `agent_insight`
     # while the flag is off.
     if not llm_client.is_enabled():
+        metrics.record_disabled()
         return _disabled_response()
 
     # Resolve the agent kind. 404 (not 422) so a typo'd path does
@@ -259,6 +267,7 @@ async def get_insight(
         model=model,
     )
     if hit is not None:
+        metrics.record_cache_hit()
         return {
             "kind": hit.kind,
             "model": hit.model,
@@ -271,12 +280,19 @@ async def get_insight(
         }
 
     # Miss → call the LLM. Unsafe responses NEVER reach the cache.
+    metrics.record_cache_miss()
     try:
         result = llm_client.generate_insight(agent_kind, use_payload)
     except llm_client.InsightsDisabled:
         # Race: flag flipped off mid-request, or SDK import failed.
+        metrics.record_disabled()
         return _disabled_response()
+    except llm_client.TransportError:
+        # transport_error counter already incremented inside
+        # llm_client; do NOT double-record here.
+        return _unsafe_response("insight transport error")
     except llm_client.UnsafeResponseError as exc:
+        metrics.record_safety_rejection(str(exc))
         return _unsafe_response(str(exc))
 
     # Safe response — attempt to cache. A validation error on the

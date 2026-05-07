@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from apps.api.src.config import settings
-from apps.api.src.domain.agents import safety
+from apps.api.src.domain.agents import metrics, safety
 from apps.api.src.domain.agents.narrator import build_prompt
 from apps.api.src.domain.agents.registry import (
     AgentKind, BANNER, REGISTRY,
@@ -84,6 +84,14 @@ class UnsafeResponseError(RuntimeError):
     """Raised when the LLM response violates a safety guardrail.
     The endpoint converts this into HTTP 502 with a redacted reason
     field. NEVER returns the unsafe content."""
+
+
+class TransportError(UnsafeResponseError):
+    """Subclass for SDK / network / empty-body failures. Distinct
+    from a true safety rejection so the F7 metrics layer can
+    increment the right counter. Still subclasses
+    `UnsafeResponseError` so existing callers / tests that catch
+    the parent class continue to work unchanged."""
 
 
 @dataclass(frozen=True)
@@ -254,16 +262,28 @@ def generate_insight(
             messages=[{"role": "user", "content": prompt}],
         )
     except TimeoutError as exc:
-        raise UnsafeResponseError(
+        metrics.record_transport_error(f"timeout:{exc}")
+        raise TransportError(
             f"insight call timed out after "
             f"{settings.AGENT_INSIGHTS_TIMEOUT_SECONDS}s: {exc}"
         ) from exc
     except Exception as exc:  # noqa: BLE001 — fail-closed boundary
-        raise UnsafeResponseError(f"insight call failed: {exc}") from exc
+        metrics.record_transport_error(f"sdk:{exc}")
+        raise TransportError(f"insight call failed: {exc}") from exc
 
     body = _extract_text(response)
     if not body:
-        raise UnsafeResponseError("empty response body")
+        metrics.record_transport_error("empty_response_body")
+        raise TransportError("empty response body")
+
+    # Successful transport — record the call + cost BEFORE the
+    # safety gates run. A subsequent validation rejection still
+    # cost real tokens, so the bill should reflect that.
+    metrics.record_llm_call(
+        prompt=prompt,
+        body=body,
+        usage=getattr(response, "usage", None),
+    )
 
     _validate_response(body, payload, kind=kind)
     body = _ensure_banner(body)

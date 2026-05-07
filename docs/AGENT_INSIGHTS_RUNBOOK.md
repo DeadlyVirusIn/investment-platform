@@ -287,15 +287,97 @@ the F1–F5 test suites.
 
 ## 12. Monitoring / observability
 
-Today the layer emits no custom metrics. Operational visibility is:
+`GET /api/insights/status` now returns a `metrics` block produced
+by the in-process counters added in Phase F7. Sample disabled-
+state response:
 
-- `GET /api/insights/status` — flag, model, cache rows, banner.
-- `GET /api/health` — overall API health.
+```json
+{
+  "enabled": false,
+  "model": "claude-3-5-haiku-latest",
+  "cache_enabled": true,
+  "cache_rows": 0,
+  "banner": "AI research insight — not execution logic.",
+  "execution_linked": false,
+  "llm_configured": false,
+  "metrics": {
+    "requests_total": 0,
+    "disabled_total": 0,
+    "cache_hit_total": 0,
+    "cache_miss_total": 0,
+    "llm_calls_total": 0,
+    "safety_rejected_total": 0,
+    "transport_error_total": 0,
+    "estimated_cost_usd_total": 0.0,
+    "last_call_at": null,
+    "last_error_reason": null
+  }
+}
+```
+
+### What the counters mean
+
+| Field | Increments when |
+|-------|----------------|
+| `requests_total` | Any reach of `GET /api/insights/{kind}`, regardless of outcome. |
+| `disabled_total` | Endpoint short-circuited because `AGENT_INSIGHTS_ENABLED=false` or the API key was empty. |
+| `cache_hit_total` | A row matched in `agent_insight`; SDK was NOT invoked. |
+| `cache_miss_total` | No row matched; the LLM path was attempted. Increments before the SDK call so failures still count as misses. |
+| `llm_calls_total` | A successful Messages-API call returned a non-empty body. Validation might still reject the body afterwards — see `safety_rejected_total`. |
+| `safety_rejected_total` | Post-call gate (forbidden phrase, hallucinated number, code fence) refused the body. NOT incremented for transport failures. |
+| `transport_error_total` | SDK timeout, connection failure, or empty body. NOT incremented for safety rejections. |
+| `estimated_cost_usd_total` | Sum of per-call cost estimates. Provider `usage` (input/output token counts) is preferred; falls back to char/4 token approximation. |
+| `last_call_at` | UTC ISO-8601 timestamp of the most recent successful LLM call. |
+| `last_error_reason` | Bounded string (`safety:…` or `transport:…`) describing the most recent failure. |
+
+### Interpretation guidance
+
+* **High `cache_hit_total / requests_total` ratio** → working as
+  intended; identical payloads are short-circuiting the LLM.
+* **Rising `safety_rejected_total`** → investigate model output.
+  If a single rejection reason recurs, consider adjusting the
+  narrator prompt or the per-kind allowed-constants list rather
+  than disabling the gate.
+* **Rising `transport_error_total`** → SDK / network issue. The
+  feature flag does NOT need to be disabled; the endpoint already
+  returns 502 on these and never caches a partial response.
+* **`estimated_cost_usd_total` is an estimate.** It is not billing
+  truth. Use it as a leading indicator before reconciling with
+  Anthropic's invoice. The `AGENT_INSIGHTS_COST_GUARD_USD`
+  setting surfaces the soft ceiling alongside this counter on
+  operator dashboards but does not enforce it in F7.
+
+### Restart semantics
+
+Counters are **process-local**. They reset to zero when the API
+process restarts. There is no shared meter, no Prometheus
+exporter, and no per-call ledger table — all by design for F7
+scope. A future phase may wire a real exporter; until then, treat
+the snapshot as a best-effort view of the current process.
+
+### When to disable AGENT_INSIGHTS_ENABLED based on metrics
+
+Toggle `AGENT_INSIGHTS_ENABLED=false` and restart when any of the
+following are observed and unexplained:
+
+* `safety_rejected_total / llm_calls_total` exceeds 10% over a
+  sustained window — the model is fighting the guards.
+* `estimated_cost_usd_total` crosses
+  `AGENT_INSIGHTS_COST_GUARD_USD` for the running process.
+* `transport_error_total` is climbing AND the operator dashboard
+  shows downstream Anthropic incidents.
+* `last_error_reason` shows a payload smuggling pattern that the
+  narrator scrub did not catch.
+
+In every case, disabling the flag is non-destructive: the cache
+remains, the drawer surfaces the disabled message, and the rest
+of the platform is unaffected.
+
+### Other observability surfaces
+
+- `GET /api/health` — overall API health (independent of agents).
 - DB query: `SELECT count(*), max(created_at) FROM agent_insight;`
   for cache freshness.
-
-A future phase may add per-call cost accounting + Prometheus
-metrics; the F5 layer intentionally stops short of that.
 
 ## 13. Escalation
 
