@@ -210,6 +210,15 @@ export default function PortfolioTerminal() {
         </p>
       </section>
 
+      {/* UX-1 Commit M — quiet section anchor between calm card    */}
+      {/* and the numeric strip.                                     */}
+      <div
+        data-test="portfolio-section-anchor-numbers"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Today's numbers
+      </div>
+
       {/* STRIP — Commit 3 (Novice UX): plain-English labels.        */}
       {/* Calculations and tone unchanged.                            */}
       <div className="u-card">
@@ -264,6 +273,15 @@ export default function PortfolioTerminal() {
           </div>
         </div>
         <EquityDrawdownChart />
+      </div>
+
+      {/* UX-1 Commit M — quiet section anchor introduces the      */}
+      {/* holdings + history pair.                                  */}
+      <div
+        data-test="portfolio-section-anchor-holdings"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Holdings & trade history
       </div>
 
       {/* EXECUTED ACTIVITY (account/recommendation path) — Phase 11Z */}

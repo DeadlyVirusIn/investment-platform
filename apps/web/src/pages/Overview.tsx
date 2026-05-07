@@ -217,6 +217,16 @@ export default function Overview() {
       {/* === 3. DAILY ACTIVITY — promoted above fold (CF-4) === */}
       <DailyActivityCard />
 
+      {/* UX-1 Commit M — quiet section anchor. Telegraphs the      */}
+      {/* narrative jump from "current status" up top to "today's   */}
+      {/* numbers" without introducing a heavy header.              */}
+      <div
+        data-test="overview-section-anchor-numbers"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Today's numbers
+      </div>
+
       {/* ================= 2. NAV STRIP — premium rail ================= */}
       <section className="u-nav-strip">
         <div className="u-stat-strip"
@@ -281,6 +291,15 @@ export default function Overview() {
           </div>
         )}
       </section>
+
+      {/* UX-1 Commit M — quiet section anchor. Marks the move from */}
+      {/* the numeric strip to the chart-and-insights area.         */}
+      <div
+        data-test="overview-section-anchor-charts"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Charts & insights
+      </div>
 
       {/* ================= 3. CORE GRID — 70/30 terminal ============== */}
       {/*  LEFT  : chart + recent events (no empty space under chart)    */}
@@ -369,6 +388,16 @@ export default function Overview() {
           </div>
         </section>
       </AdvancedDetails>
+
+      {/* UX-1 Commit M — quiet section anchor. Marks the recent-   */}
+      {/* activity story which is the page's last always-visible   */}
+      {/* content block before the advanced expanders.            */}
+      <div
+        data-test="overview-section-anchor-activity"
+        className="u-caption-2 text-fg-3 uppercase tracking-wide pt-2"
+      >
+        Recent activity
+      </div>
 
       {/* ================= 4. ACTIVITY + LATEST DECISION ================= */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]
