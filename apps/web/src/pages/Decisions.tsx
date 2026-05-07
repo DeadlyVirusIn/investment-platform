@@ -11,13 +11,15 @@ import {
 } from "@/lib/operator/hooks";
 import { usePendingFills } from "@/lib/paper/execution-status";
 import {
-  Card, Pill, Divider, fmtPct, toneForNumber, Skeleton, Label,
+  Card, Pill, Divider, fmtPct, toneForNumber, Skeleton,
 } from "@/components/ui/primitives";
 import FactorAttributionMini from "@/components/decisions/FactorAttributionMini";
 import type {
   TradeRow, CurrentState, DecisionRow, AnomalyEvent,
 } from "@/lib/operator/types";
 import { cn } from "@/lib/cn";
+// UX-1 — plain-English page intro card.
+import { PageGuide } from "@/components/novice";
 
 // Filter set — paper-trading aware. Engine A/B retained for the
 // rare legacy row that still carries those engine values; the
@@ -25,12 +27,14 @@ import { cn } from "@/lib/cn";
 // "All" / "Open" / "Live" / "Replay".
 type Filter = "all" | "live" | "replay" | "open" | "anom";
 
+// UX-1 — plain-English filter labels. Filter `id` keys are
+// preserved (data-test selectors and behavior unchanged).
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "all",    label: "All" },
-  { id: "live",   label: "Live" },
-  { id: "replay", label: "Replay" },
-  { id: "open",   label: "Open" },
-  { id: "anom",   label: "Anomaly" },
+  { id: "live",   label: "Real" },
+  { id: "replay", label: "Rebuilt" },
+  { id: "open",   label: "Still open" },
+  { id: "anom",   label: "Flagged" },
 ];
 
 export default function Decisions() {
@@ -78,43 +82,68 @@ export default function Decisions() {
   return (
     <div className="max-w-[1680px] mx-auto px-8 py-8">
       <header className="mb-6">
-        <Label>Decisions</Label>
-        <h1 className="u-title-lg mt-1">Decision Audit Workstation</h1>
-        <p className="u-body mt-2 max-w-3xl">
-          Real paper-trading decisions sourced from{" "}
-          <code>paper_trade</code> joined to{" "}
-          <code>paper_position</code>. Live and replay-recovered
-          rows are tagged separately. Pending next-bar fills are
-          shown in the badge below — they are valid decisions
-          held by the next-bar guard, not failures.
+        {/* UX-1 — plain-English page intro. Engineering source */}
+        {/* note demoted to a small caption below.              */}
+        <PageGuide
+          eyebrow="Decisions"
+          title="Trade Decisions"
+          subtitle="See why trades were placed or skipped."
+          firstLook={
+            <>
+              Pick any row in the timeline below to read the
+              reason in plain English. Latest day first.
+            </>
+          }
+        />
+        <p className="u-caption-2 text-fg-3 -mt-2 max-w-3xl">
+          Source: <code>paper_trade</code> joined to{" "}
+          <code>paper_position</code>. Trades that fill on a
+          rebuilt simulation are tagged separately. Trades waiting
+          for tomorrow's price are held intentionally by the
+          next-bar fill rule — that is not a failure.
         </p>
         <div
           className="mt-3 flex flex-wrap items-center gap-2 u-caption-2"
           data-test="decisions-truth-banner"
         >
-          <span className="u-chip u-chip-neutral">
+          <span
+            className="u-chip u-chip-neutral"
+            title="Every paper-trading decision on file."
+          >
             <span className="u-dot u-dot-neutral" />
             <span className="ml-1">
-              Total {totals.total}
+              All decisions {totals.total}
             </span>
           </span>
-          <span className="u-chip u-chip-success">
+          <span
+            className="u-chip u-chip-success"
+            title="Decisions made during normal day-to-day operation."
+          >
             <span className="u-dot u-dot-success" />
-            <span className="ml-1">Live {totals.live}</span>
+            <span className="ml-1">Real {totals.live}</span>
           </span>
-          <span className="u-chip u-chip-warning">
+          <span
+            className="u-chip u-chip-warning"
+            title="Decisions reconstructed from past data after a reset. Not live trading."
+          >
             <span className="u-dot u-dot-warning" />
-            <span className="ml-1">Replay {totals.replay}</span>
+            <span className="ml-1">Rebuilt {totals.replay}</span>
           </span>
-          <span className="u-chip u-chip-accent">
+          <span
+            className="u-chip u-chip-accent"
+            title="Trades that have not closed yet."
+          >
             <span className="u-dot u-dot-accent" />
-            <span className="ml-1">Open {totals.open}</span>
+            <span className="ml-1">Still open {totals.open}</span>
           </span>
           {totals.pending > 0 && (
-            <span className="u-chip u-chip-warning">
+            <span
+              className="u-chip u-chip-warning"
+              title="Trades that match the strategy and a safety check passed, but they fill on the NEXT price bar — this is intentional, not an error."
+            >
               <span className="u-dot u-dot-warning" />
               <span className="ml-1">
-                Pending next-bar {totals.pending}
+                Waiting for next price {totals.pending}
               </span>
             </span>
           )}
@@ -227,26 +256,39 @@ function TimelineEntry({
         </span>
       </div>
       <div className="flex items-center justify-between u-caption-2">
-        <span className="uppercase tracking-wider font-semibold">
-          {t.engine === "A" || t.engine === "B"
-            ? `Engine ${t.engine}`
-            : t.regime_at_entry || "paper"}
+        <span
+          className="uppercase tracking-wider font-semibold"
+          title="Underlying strategy. Strategy A buys oversold names; Strategy B reads bond + rates signals."
+        >
+          {t.engine === "A"
+            ? "Strategy A"
+            : t.engine === "B"
+              ? "Strategy B"
+              : t.regime_at_entry || "paper"}
         </span>
         <span className="u-mono-sm">
-          {t.days_held !== null ? `${t.days_held}d` : "holding"}
+          {t.days_held !== null ? `${t.days_held}d held` : "still open"}
         </span>
       </div>
       <div className="flex gap-1.5 flex-wrap mt-2">
         {t.status === "open" &&
-          <span className="u-chip u-chip-neutral">open</span>}
+          <span className="u-chip u-chip-neutral">still open</span>}
         {t.status === "closed" &&
           <span className="u-chip u-chip-success">closed</span>}
         {t.is_replay
-          ? <span className="u-chip u-chip-warning">replay</span>
-          : <span className="u-chip u-chip-success">live</span>}
+          ? <span
+              className="u-chip u-chip-warning"
+              title="Rebuilt simulation row — not live trading."
+            >
+              rebuilt
+            </span>
+          : <span className="u-chip u-chip-success">real</span>}
         {hasAnomaly &&
-          <span className="u-chip u-chip-danger">
-            <span className="u-dot u-dot-danger u-dot-pulse" />anomaly
+          <span
+            className="u-chip u-chip-danger"
+            title="Something unusual was detected for this date — open the row for detail."
+          >
+            <span className="u-dot u-dot-danger u-dot-pulse" />flagged
           </span>}
       </div>
     </button>
@@ -257,7 +299,7 @@ function EmptyFilter() {
   return (
     <div className="u-card-tight">
       <div className="u-caption-2 italic">
-        No decisions match this filter.
+        🌱 Nothing matches this filter yet. Try "All".
       </div>
     </div>
   );
@@ -267,19 +309,30 @@ function TodaysDecisionFallback({ state }: {
   state: CurrentState | undefined;
 }) {
   if (!state) return <Skeleton className="h-24" />;
+  // UX-1 — humanized strategy + status copy. "fire" = the system
+  // would buy today; "stood by" = nothing matched the strategy.
+  const strategyLabel = state.engine === "A"
+    ? "Strategy A (buy-the-dip)"
+    : state.engine === "B"
+      ? "Strategy B (bond-signal)"
+      : "system";
   return (
     <div className="u-card-tight"
          style={{ background: "var(--accent-subtle)",
                   borderColor: "rgba(75,139,255,0.4)" }}>
       <div className="flex items-center gap-2 mb-2">
-        <Pill tone="accent" dot>LIVE</Pill>
+        <Pill tone="accent" dot>TODAY</Pill>
         <span className="u-mono-sm">{state.as_of_date}</span>
       </div>
       <div className="u-body-fg font-medium mb-2">
-        {state.fire ? `Engine ${state.engine} → enter_long` : "Stood by"}
+        {state.fire
+          ? `${strategyLabel} would buy today`
+          : "No matches today — system stood by"}
       </div>
       <div className="u-caption-2">
-        No trades recorded yet. Timeline shows today's live decision.
+        No trades recorded yet. The line above is today's plan;
+        the actual fill (if any) waits for the next price bar
+        before it appears in the timeline.
       </div>
     </div>
   );
@@ -299,46 +352,47 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
         <div className="u-empty w-full">
           <div className="text-fg-4 text-3xl mb-3">◁</div>
           <div className="u-body-fg font-medium mb-1">
-            Select a decision on the left
+            Pick a decision on the left
           </div>
           <div className="u-caption-2 max-w-xs text-center">
-            Full reasoning, production inputs, blocking logic, and diagnostic
-            snapshot appear here.
+            The plain-English reason, the inputs the system used,
+            any safety rules that fired, and a short history of
+            similar past trades will appear here.
           </div>
         </div>
       </Card>
     );
   }
 
-  // Decision-audit messaging:
-  //   * Engine A / B fills came from the legacy selector path and
-  //     advertise their engine + regime in the header.
+  // UX-1 messaging:
+  //   * Strategy A / B fills came from the legacy selector path and
+  //     advertise their strategy + market condition in the header.
   //   * Account-path fills (paper_trade) carry engine="paper" — these
   //     ARE real executed trades. They predate the decision_log
   //     retention window OR were entered by auto_trader without a
-  //     captured decision row, so the header must show that the
-  //     trade actually executed and only the *context* is missing.
+  //     captured decision row, so the header says the trade ran but
+  //     the original review notes weren't saved.
   //   * Anything else (engine=null, "none") with no decision row is
   //     treated as backfilled.
   const isAccountPath = trade.engine === "paper";
   const isLegacyEngine = trade.engine === "A" || trade.engine === "B";
   const engineLabel = isLegacyEngine
     ? (trade.engine === "A"
-        ? "Engine A · mean reversion"
-        : "Engine B · credit + rates")
+        ? "Strategy A · buy-the-dip"
+        : "Strategy B · bond-signal")
     : isAccountPath
-      ? "Paper trade · account path"
-      : "Backfilled trade — decision context unavailable";
+      ? "Paper trade"
+      : "Older trade — full review notes unavailable";
   const subLabel = isLegacyEngine
-    ? `Fired long · ${trade.regime_at_entry ?? "unknown"} regime · `
-      + `version ${trade.decision_version ?? "—"}`
+    ? `Bought · ${trade.regime_at_entry ?? "market condition unknown"} · `
+      + `review version ${trade.decision_version ?? "—"}`
     : isAccountPath
       ? (trade.status === "closed"
-          ? `Executed ${trade.entry_date} · closed ${trade.exit_date ?? "—"}`
+          ? `Bought ${trade.entry_date} · closed ${trade.exit_date ?? "—"}`
             + ` · ${trade.reason ?? "no reason recorded"}`
-          : `Executed ${trade.entry_date} · `
+          : `Bought ${trade.entry_date} · `
             + `${trade.reason ?? "no reason recorded"}`)
-      : "Backfilled — decision_log row not retained for this date.";
+      : "Older row — the review notes for this date are no longer kept.";
 
   return (
     <Card size="md" className="space-y-6">
@@ -348,12 +402,15 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
           <span className="u-chip u-chip-accent">Decision</span>
           <span className="u-mono-sm">{trade.entry_date}</span>
           {trade.status === "open" &&
-            <span className="u-chip u-chip-neutral">open</span>}
+            <span className="u-chip u-chip-neutral">still open</span>}
           {trade.status === "closed" &&
             <span className="u-chip u-chip-success">closed</span>}
           {!isLegacyEngine && (
-            <span className="u-chip u-chip-warning">
-              decision context missing
+            <span
+              className="u-chip u-chip-warning"
+              title="The trade ran, but the original review notes weren't saved. The trade itself is fine — only the explanation is missing."
+            >
+              review notes unavailable
             </span>
           )}
         </div>
@@ -368,7 +425,7 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
       <Divider />
 
       {/* B — plain-english reasoning */}
-      <Section title="Reasoning">
+      <Section title="Why this happened">
         <p className="u-body-fg leading-relaxed">
           {humanReasoning(trade, decision ?? null)}
         </p>
@@ -382,29 +439,29 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
 
       {/* C — production inputs */}
       {decision?.factor_attribution && (
-        <Section title="Factor Attribution"
-                 hint="Deterministic 7-factor breakdown (advisory)">
+        <Section title="What pushed the score up or down"
+                 hint="Deterministic 7-input breakdown (review only)">
           <FactorAttributionMini
             attribution={decision.factor_attribution as any} />
         </Section>
       )}
 
-      <Section title="Production Inputs"
-               hint="Raw features used by the decision rule">
+      <Section title="Inputs the system looked at"
+               hint="Raw values the strategy used to decide">
         <KVTable data={decision?.inputs_used ?? {}} />
       </Section>
 
       {/* D — blocking logic */}
-      <Section title="Blocking Logic"
-               hint="Why entry was/was-not suppressed">
+      <Section title="Safety checks"
+               hint="Whether any pre-trade rule refused entry">
         <BlockingPanel decision={decision ?? null} trade={trade} />
       </Section>
 
       {/* E — diagnostic snapshot */}
       {decision?.diagnostic_snapshot
        && Object.keys(decision.diagnostic_snapshot).length > 0 && (
-        <Section title="Diagnostic Snapshot"
-                 hint="Observed but NOT USED IN PRODUCTION"
+        <Section title="Engineering snapshot"
+                 hint="Observed but NOT used by the trading rule"
                  warn>
           <KVTable data={decision.diagnostic_snapshot} diagnostic />
         </Section>
@@ -529,17 +586,19 @@ function BlockingPanel({
   decision, trade,
 }: { decision: DecisionRow | null; trade: TradeRow }) {
   if (!decision) {
-    // Trade exists in paper_trade but decision_log row was not
-    // retained for this date (common for backfilled / account-path
-    // fills). Be explicit that the trade DID execute.
+    // UX-1 — humanized fallback. Trade exists in paper_trade but
+    // decision_log row was not retained for this date (common
+    // for backfilled / account-path fills). Make it clear the
+    // trade itself ran fine.
     const isAccountPath = trade.engine === "paper";
     return (
       <div className="u-caption-2 italic">
         {isAccountPath
-          ? "Trade executed via account path; decision_log row not "
-            + "captured. Blocking gates are unavailable."
-          : `Backfilled trade — decision context unavailable for `
-            + `${trade.entry_date}.`}
+          ? "This trade ran normally. The original safety-check "
+            + "notes weren't saved, so we can't show which rules "
+            + "passed — but the trade itself is fine."
+          : `Older trade — review notes for `
+            + `${trade.entry_date} are no longer kept on file.`}
       </div>
     );
   }
@@ -549,8 +608,14 @@ function BlockingPanel({
         background: "var(--warning-muted)",
         borderColor: "rgba(248,166,56,0.4)",
       }}>
-        <div className="u-label-sm mb-1 text-warning">Blocked</div>
-        <div className="u-body-fg text-warning">{decision.blocked_by}</div>
+        <div className="u-label-sm mb-1 text-warning">
+          Trade refused by a safety rule
+        </div>
+        <div className="u-body-fg text-warning">
+          This candidate matched the strategy, but a safety rule
+          stopped the trade from happening. Reason:{" "}
+          <span className="font-semibold">{decision.blocked_by}</span>
+        </div>
       </div>
     );
   }
@@ -559,7 +624,7 @@ function BlockingPanel({
   return (
     <div className="space-y-2">
       <div className="u-caption text-fg-2">
-        Entry allowed — all required contexts aligned.
+        All safety checks passed — the trade was allowed to proceed.
       </div>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(ctx).map(([k, v]) => (
