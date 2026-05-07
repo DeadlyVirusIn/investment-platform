@@ -190,6 +190,18 @@ def get_status(
     api_key = (
         getattr(settings, "ANTHROPIC_API_KEY", "") or ""
     ).strip()
+    guard_usd = float(
+        getattr(settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.0) or 0.0
+    )
+
+    snap = metrics.snapshot()
+    # F8: guard view enriches the metrics block — counter is
+    # already in `snap`; we add the configured ceiling and the
+    # current reached state. `cost_guard_reached` is False when
+    # guard <= 0 (interpreted as unlimited).
+    snap["cost_guard_usd"] = guard_usd
+    snap["cost_guard_reached"] = metrics.is_cost_guard_reached(guard_usd)
+
     return {
         "enabled": enabled,
         "model": settings.AGENT_INSIGHTS_MODEL,
@@ -198,9 +210,10 @@ def get_status(
         "banner": BANNER,
         "execution_linked": False,
         "llm_configured": bool(api_key),
-        # F7: process-local counters + cost estimate. Resets on
-        # API restart; documented in AGENT_INSIGHTS_RUNBOOK.
-        "metrics": metrics.snapshot(),
+        # F7 + F8: process-local counters, cost estimate, and the
+        # cost-guard view. Resets on API restart; documented in
+        # AGENT_INSIGHTS_RUNBOOK §12.
+        "metrics": snap,
     }
 
 
@@ -279,8 +292,28 @@ async def get_insight(
             "cache": "hit",
         }
 
-    # Miss → call the LLM. Unsafe responses NEVER reach the cache.
+    # Miss → check the F8 cost guard BEFORE attempting the LLM
+    # call. Cache hits above are deliberately NOT gated since they
+    # do not spend; only the LLM-bound path is throttled.
     metrics.record_cache_miss()
+
+    guard_usd = float(
+        getattr(settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.0) or 0.0
+    )
+    if metrics.is_cost_guard_reached(guard_usd):
+        metrics.record_cost_guard_blocked(guard_usd=guard_usd)
+        snap = metrics.snapshot()
+        return JSONResponse(
+            status_code=429,
+            content={
+                "error": "agent insights cost guard reached",
+                "cache": "disabled",
+                "estimated_cost_usd_total":
+                    snap["estimated_cost_usd_total"],
+                "cost_guard_usd": guard_usd,
+            },
+        )
+
     try:
         result = llm_client.generate_insight(agent_kind, use_payload)
     except llm_client.InsightsDisabled:

@@ -47,6 +47,11 @@ class _Counters:
     llm_calls_total: int = 0
     safety_rejected_total: int = 0
     transport_error_total: int = 0
+    # F8: number of times the LLM call was blocked at the cost-guard
+    # gate. Independent of `disabled_total` (which counts feature-
+    # flag disablement) and `safety_rejected_total` (which counts
+    # post-call rejections).
+    cost_guard_blocked_total: int = 0
     estimated_cost_usd_total: float = 0.0
     last_call_at: str | None = None
     last_error_reason: str | None = None
@@ -81,12 +86,29 @@ def snapshot() -> dict[str, Any]:
             "llm_calls_total": _state.llm_calls_total,
             "safety_rejected_total": _state.safety_rejected_total,
             "transport_error_total": _state.transport_error_total,
+            "cost_guard_blocked_total":
+                _state.cost_guard_blocked_total,
             "estimated_cost_usd_total": round(
                 _state.estimated_cost_usd_total, 6,
             ),
             "last_call_at": _state.last_call_at,
             "last_error_reason": _state.last_error_reason,
         }
+
+
+def is_cost_guard_reached(guard_usd: float) -> bool:
+    """True iff the configured guard is positive AND the running
+    estimated cost has met or exceeded it. A guard <= 0 means
+    "unlimited" — always returns False so the endpoint never
+    short-circuits on a misconfigured ceiling."""
+    try:
+        guard = float(guard_usd or 0.0)
+    except (TypeError, ValueError):
+        return False
+    if guard <= 0.0:
+        return False
+    with _lock:
+        return _state.estimated_cost_usd_total >= guard
 
 
 def record_request() -> None:
@@ -186,5 +208,19 @@ def record_transport_error(reason: str) -> None:
         with _lock:
             _state.transport_error_total += 1
             _state.last_error_reason = f"transport:{(reason or '').strip()[:240]}"
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def record_cost_guard_blocked(*, guard_usd: float) -> None:
+    """The cost-guard gate refused an LLM call. Sets last_error_reason
+    to a `guard:` prefix so dashboards can distinguish guard blocks
+    from safety rejections / transport failures."""
+    try:
+        with _lock:
+            _state.cost_guard_blocked_total += 1
+            _state.last_error_reason = (
+                f"guard:cost_blocked:guard={guard_usd:.6f}"
+            )
     except Exception:  # noqa: BLE001
         pass

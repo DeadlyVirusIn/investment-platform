@@ -31,7 +31,8 @@ def test_snapshot_zero_state_has_all_keys():
         "requests_total", "disabled_total",
         "cache_hit_total", "cache_miss_total",
         "llm_calls_total", "safety_rejected_total",
-        "transport_error_total", "estimated_cost_usd_total",
+        "transport_error_total", "cost_guard_blocked_total",
+        "estimated_cost_usd_total",
         "last_call_at", "last_error_reason",
     }
     assert set(snap.keys()) == expected
@@ -154,11 +155,73 @@ def test_reset_clears_all_counters():
     metrics.record_cache_hit()
     metrics.record_llm_call(prompt="p", body="b")
     metrics.record_safety_rejection("r")
+    metrics.record_cost_guard_blocked(guard_usd=5.0)
     metrics.reset()
     snap = metrics.snapshot()
     assert snap["requests_total"] == 0
     assert snap["cache_hit_total"] == 0
     assert snap["llm_calls_total"] == 0
     assert snap["safety_rejected_total"] == 0
+    assert snap["cost_guard_blocked_total"] == 0
     assert snap["last_call_at"] is None
     assert snap["last_error_reason"] is None
+
+
+# ---------------------------------------------------------------------
+# F8 — cost guard
+# ---------------------------------------------------------------------
+
+def test_is_cost_guard_reached_false_at_zero_cost():
+    assert metrics.is_cost_guard_reached(5.0) is False
+
+
+def test_is_cost_guard_reached_true_when_total_meets_guard():
+    # Spend ~$0.05 by claiming 50_000 tokens of $1/M input.
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=50_000, output_tokens=0),
+    )
+    snap = metrics.snapshot()
+    assert snap["estimated_cost_usd_total"] == pytest.approx(0.05)
+    assert metrics.is_cost_guard_reached(0.05) is True
+    assert metrics.is_cost_guard_reached(0.10) is False
+
+
+def test_is_cost_guard_reached_strict_inequality_at_exact_match():
+    """`>=` semantics: total exactly equal to guard counts as
+    reached. Operator dashboards rely on this so the very first
+    block fires at the threshold, not one cent past it."""
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=1_000_000, output_tokens=0),
+    )
+    snap = metrics.snapshot()
+    assert snap["estimated_cost_usd_total"] == pytest.approx(1.0)
+    assert metrics.is_cost_guard_reached(1.0) is True
+
+
+@pytest.mark.parametrize("guard", [0.0, -1.0, -1e9])
+def test_guard_disabled_when_value_non_positive(guard):
+    """Guard <= 0 means unlimited; reached is always False even
+    when actual cost has accrued."""
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=1_000_000, output_tokens=0),
+    )
+    assert metrics.is_cost_guard_reached(guard) is False
+
+
+def test_record_cost_guard_blocked_increments_and_records_reason():
+    metrics.record_cost_guard_blocked(guard_usd=5.0)
+    metrics.record_cost_guard_blocked(guard_usd=5.0)
+    snap = metrics.snapshot()
+    assert snap["cost_guard_blocked_total"] == 2
+    assert snap["last_error_reason"].startswith("guard:cost_blocked")
+    assert "5.000000" in snap["last_error_reason"]
+
+
+def test_is_cost_guard_reached_handles_garbage_input():
+    """Garbage guard values must not raise — observability layer
+    is fail-soft."""
+    assert metrics.is_cost_guard_reached(None) is False  # type: ignore[arg-type]
+    assert metrics.is_cost_guard_reached("nope") is False  # type: ignore[arg-type]

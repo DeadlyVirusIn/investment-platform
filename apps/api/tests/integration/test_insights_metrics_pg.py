@@ -348,6 +348,183 @@ def test_status_does_not_invoke_sdk(client, monkeypatch):
 # No execution-table writes
 # ---------------------------------------------------------------------
 
+# ---------------------------------------------------------------------
+# F8 — cost guard
+# ---------------------------------------------------------------------
+
+def test_cost_guard_blocks_cache_miss_before_llm(
+    client, monkeypatch,
+):
+    """Pre-load the cost counter past the guard, then a cache-miss
+    request must return 429 WITHOUT touching the SDK or writing a
+    cache row."""
+    test_client, SessionCls = client
+    _enable(monkeypatch)
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.01,
+    )
+
+    # Spend $0.05 (50k input tokens × $1/M).
+    from types import SimpleNamespace
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=50_000, output_tokens=0),
+    )
+    assert metrics.is_cost_guard_reached(0.01) is True
+
+    # SDK must not be invoked.
+    def _explode():
+        raise AssertionError(
+            "SDK must not be called when cost guard is reached",
+        )
+    monkeypatch.setattr(llm_client, "_get_sdk", _explode)
+
+    r = test_client.request(
+        "GET", "/api/insights/trade_quality", json=_PAYLOAD,
+    )
+    assert r.status_code == 429, r.text
+    body = r.json()
+    assert body["error"] == "agent insights cost guard reached"
+    assert body["cache"] == "disabled"
+    assert body["cost_guard_usd"] == 0.01
+    assert body["estimated_cost_usd_total"] >= 0.05
+
+    snap = metrics.snapshot()
+    assert snap["cost_guard_blocked_total"] == 1
+    # Endpoint counted this as a cache miss but did NOT incur a
+    # new LLM call.
+    assert snap["cache_miss_total"] == 1
+    assert snap["llm_calls_total"] == 1   # only the seed call
+    # Cache stays empty.
+    with SessionCls() as s:
+        rows = s.execute(select(AgentInsight)).scalars().all()
+        assert len(rows) == 0
+    assert snap["last_error_reason"].startswith("guard:cost_blocked")
+
+
+def test_cost_guard_does_not_block_cache_hit(client, monkeypatch):
+    """A cache hit costs nothing additional, so the guard MUST NOT
+    refuse it. Operator must keep getting research narratives that
+    are already paid for even after the guard is reached."""
+    test_client, SessionCls = client
+    _enable(monkeypatch)
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 1000.0,
+    )
+
+    sdk = _SDK(_SAFE_BODY)
+    monkeypatch.setattr(llm_client, "_get_sdk", lambda: sdk)
+
+    # First request seeds the cache.
+    r1 = test_client.request(
+        "GET", "/api/insights/trade_quality", json=_PAYLOAD,
+    )
+    assert r1.status_code == 200
+    assert r1.json()["cache"] == "miss"
+
+    # Now lower the guard so the running total exceeds it.
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.0000001,
+    )
+    assert metrics.is_cost_guard_reached(0.0000001) is True
+
+    # And neutralize the SDK — proves we do NOT touch it on a hit.
+    def _explode():
+        raise AssertionError(
+            "Cache hit must not trigger an SDK call",
+        )
+    monkeypatch.setattr(llm_client, "_get_sdk", _explode)
+
+    r2 = test_client.request(
+        "GET", "/api/insights/trade_quality", json=_PAYLOAD,
+    )
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["cache"] == "hit"
+    snap = metrics.snapshot()
+    assert snap["cost_guard_blocked_total"] == 0
+    assert snap["cache_hit_total"] == 1
+
+
+def test_disabled_flag_skips_guard_evaluation(client, monkeypatch):
+    """When AGENT_INSIGHTS_ENABLED=false, the response is the
+    existing 503 disabled body and the guard is NOT evaluated —
+    cost_guard_blocked_total stays zero."""
+    test_client, _ = client
+    _disable(monkeypatch)
+    # Pre-spend so the guard would be reached if it were checked.
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.01,
+    )
+    from types import SimpleNamespace
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=50_000, output_tokens=0),
+    )
+
+    r = test_client.get("/api/insights/trade_quality")
+    assert r.status_code == 503
+    assert r.json()["error"] == "agent insights disabled"
+    snap = metrics.snapshot()
+    assert snap["disabled_total"] == 1
+    assert snap["cost_guard_blocked_total"] == 0
+
+
+def test_status_reports_guard_fields(client, monkeypatch):
+    test_client, _ = client
+    _enable(monkeypatch)
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.05,
+    )
+
+    r = test_client.get("/api/insights/status")
+    assert r.status_code == 200
+    m = r.json()["metrics"]
+    assert m["cost_guard_usd"] == 0.05
+    assert m["cost_guard_reached"] is False
+    assert m["cost_guard_blocked_total"] == 0
+
+
+def test_status_reports_guard_reached_when_total_meets_guard(
+    client, monkeypatch,
+):
+    test_client, _ = client
+    _enable(monkeypatch)
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.001,
+    )
+    from types import SimpleNamespace
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=2_000, output_tokens=0),
+    )
+    # 2_000 tokens × $1/M = $0.002 >= guard 0.001
+    r = test_client.get("/api/insights/status")
+    assert r.status_code == 200
+    m = r.json()["metrics"]
+    assert m["cost_guard_reached"] is True
+
+
+def test_status_reports_guard_unlimited_when_value_non_positive(
+    client, monkeypatch,
+):
+    test_client, _ = client
+    _enable(monkeypatch)
+    monkeypatch.setattr(
+        settings, "AGENT_INSIGHTS_COST_GUARD_USD", 0.0,
+    )
+    from types import SimpleNamespace
+    metrics.record_llm_call(
+        prompt="p", body="b",
+        usage=SimpleNamespace(input_tokens=10_000_000, output_tokens=0),
+    )
+    r = test_client.get("/api/insights/status")
+    m = r.json()["metrics"]
+    # Guard value 0 → unlimited; reached must stay False even with
+    # large accrued cost.
+    assert m["cost_guard_usd"] == 0.0
+    assert m["cost_guard_reached"] is False
+
+
 def test_metrics_path_writes_no_execution_rows(
     client, pg_engine, monkeypatch,
 ):

@@ -326,9 +326,12 @@ state response:
 | `llm_calls_total` | A successful Messages-API call returned a non-empty body. Validation might still reject the body afterwards — see `safety_rejected_total`. |
 | `safety_rejected_total` | Post-call gate (forbidden phrase, hallucinated number, code fence) refused the body. NOT incremented for transport failures. |
 | `transport_error_total` | SDK timeout, connection failure, or empty body. NOT incremented for safety rejections. |
+| `cost_guard_blocked_total` | F8 cost-guard gate refused the LLM call before any SDK invocation. Cache hits never increment this counter. |
 | `estimated_cost_usd_total` | Sum of per-call cost estimates. Provider `usage` (input/output token counts) is preferred; falls back to char/4 token approximation. |
+| `cost_guard_usd` | Effective ceiling read from `AGENT_INSIGHTS_COST_GUARD_USD`. Values `<= 0` mean "unlimited" — guard is disabled. |
+| `cost_guard_reached` | Computed: `cost_guard_usd > 0 AND estimated_cost_usd_total >= cost_guard_usd`. |
 | `last_call_at` | UTC ISO-8601 timestamp of the most recent successful LLM call. |
-| `last_error_reason` | Bounded string (`safety:…` or `transport:…`) describing the most recent failure. |
+| `last_error_reason` | Bounded string (`safety:…`, `transport:…`, or `guard:cost_blocked:…`) describing the most recent failure. |
 
 ### Interpretation guidance
 
@@ -347,13 +350,85 @@ state response:
   setting surfaces the soft ceiling alongside this counter on
   operator dashboards but does not enforce it in F7.
 
+### Cost guard (F8)
+
+Phase F8 enforces `AGENT_INSIGHTS_COST_GUARD_USD` at request time.
+
+Behavior:
+
+* Order of operations: payload → scrub → hash → **cache lookup
+  first** → if miss, **then** check guard → if reached, return
+  HTTP 429 without invoking the SDK or writing the cache.
+* **Cache hits are NEVER blocked by the guard.** A hit costs no
+  additional spend, so the operator continues to see narratives
+  that are already paid for even after the guard is reached.
+* Disabled flag (`AGENT_INSIGHTS_ENABLED=false`) short-circuits
+  before guard evaluation. A disabled deployment NEVER touches
+  the guard, the SDK, or the cache.
+* Unsafe responses (502) and transport errors are unchanged —
+  they reach the SDK and ARE counted toward `estimated_cost_usd_total`
+  if the SDK returned a body, since the operator was billed for
+  those tokens regardless of validation outcome.
+* Guard `<= 0` is treated as **unlimited** — `cost_guard_reached`
+  always reports False in that mode.
+
+Sample 429 response body when guard is reached on a cache miss:
+
+```json
+{
+  "error": "agent insights cost guard reached",
+  "cache": "disabled",
+  "estimated_cost_usd_total": 0.052100,
+  "cost_guard_usd": 0.05
+}
+```
+
+The operator sees the running spend AND the configured ceiling so
+they can decide whether to raise the limit, restart, or
+investigate.
+
+### How to clear / reset the guard
+
+The estimated total is process-local. To reset:
+
+1. **Restart the API**: `docker compose restart api` — counters
+   zero, guard re-evaluates from `$0.00`.
+2. **Disable then re-enable** the flag: setting
+   `AGENT_INSIGHTS_ENABLED=false` then `true` does NOT clear the
+   counter (it persists until process restart). Use this only to
+   stop accruing cost, not to reset the gauge.
+3. **Raise the ceiling**: change `AGENT_INSIGHTS_COST_GUARD_USD`
+   in env and restart.
+
+There is no in-memory reset endpoint — by design, so a misconfigured
+client cannot DoS the cost ceiling by spamming a reset call.
+
+### Recommended operator response when guard fires
+
+1. Disable `AGENT_INSIGHTS_ENABLED` to halt new spend immediately.
+2. `GET /api/insights/status` and read the metrics block:
+   * `estimated_cost_usd_total` — confirm the running total.
+   * `cache_hit_total / requests_total` — high ratio means cache
+     is working and the new spend is concentrated on novel
+     payloads.
+   * `safety_rejected_total` — non-zero means tokens were
+     spent on rejected bodies; investigate prompt or model.
+3. Inspect `agent_insight` for redundant rows / stale safety
+   versions: `SELECT count(*), safety_version FROM agent_insight
+   GROUP BY safety_version;`.
+4. Decide whether to raise `AGENT_INSIGHTS_COST_GUARD_USD` and
+   re-enable, or leave disabled until the budget cycle resets.
+
 ### Restart semantics
 
 Counters are **process-local**. They reset to zero when the API
 process restarts. There is no shared meter, no Prometheus
-exporter, and no per-call ledger table — all by design for F7
+exporter, and no per-call ledger table — all by design for F7-F8
 scope. A future phase may wire a real exporter; until then, treat
-the snapshot as a best-effort view of the current process.
+the snapshot as a best-effort view of the current process. The
+F8 guard ceiling is also re-evaluated against the per-process
+counter only — multiple replicas each track their own running
+total.
 
 ### When to disable AGENT_INSIGHTS_ENABLED based on metrics
 
