@@ -165,6 +165,14 @@ function Meta({
       <div>
         <span className="uppercase tracking-wide">Source: </span>
         <code>{data.source_endpoint}</code>
+        {data.cache && (
+          <span
+            data-test="insight-cache-chip"
+            className="ml-3 rounded border border-zinc-700 px-1.5 py-0.5 text-[9px] uppercase tracking-wide text-zinc-400"
+          >
+            {data.cache === "hit" ? "cached insight" : "new insight"}
+          </span>
+        )}
       </div>
       <div>
         <span className="uppercase tracking-wide">Model: </span>

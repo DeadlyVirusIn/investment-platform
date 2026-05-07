@@ -1672,3 +1672,69 @@ class PaperResearchFill(Base):
         ),
     )
 
+
+# ---------------------------------------------------------------------------
+# Phase F4 — Agent insight cache (read-only research).
+#
+# Isolated cache for /api/insights/{kind} responses. Has NO foreign
+# keys to trading / paper / options / decision / replay tables and
+# is NEVER referenced by execution paths. Cache hits short-circuit
+# the LLM call; misses write a single row only after the response
+# passes pre- and post-call safety gates.
+# ---------------------------------------------------------------------------
+
+class AgentInsight(Base):
+    __tablename__ = "agent_insight"
+
+    id: Mapped[str] = mapped_column(
+        Text, primary_key=True, default=_uuid,
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    payload_redacted: Mapped[dict] = mapped_column(
+        JSON_COL, nullable=False,
+    )
+    content_markdown: Mapped[str] = mapped_column(
+        Text, nullable=False,
+    )
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    source_endpoint: Mapped[str] = mapped_column(
+        Text, nullable=False,
+    )
+    banner: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+        default=_now, server_default=text("now()"),
+    )
+    expires_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True,
+    )
+    safety_version: Mapped[str] = mapped_column(
+        Text, nullable=False, default="v1",
+        server_default="v1",
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "kind", "payload_hash", "model", "safety_version",
+            name="ux_agent_insight_natural_key",
+        ),
+        CheckConstraint(
+            "kind IN ('trade_quality', 'risk_commentary', "
+            "'exit_review', 'options_thesis')",
+            name="ck_agent_insight_kind",
+        ),
+        CheckConstraint(
+            "banner = 'AI research insight — not execution logic.'",
+            name="ck_agent_insight_banner",
+        ),
+        CheckConstraint(
+            "length(content_markdown) > 0",
+            name="ck_agent_insight_content_nonempty",
+        ),
+        Index(
+            "ix_agent_insight_lookup",
+            "kind", "payload_hash", "model", "safety_version",
+        ),
+    )
+

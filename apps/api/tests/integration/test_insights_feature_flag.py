@@ -23,9 +23,24 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.src.config import settings
+from apps.api.src.db import get_session
 from apps.api.src.domain.agents import llm_client
 from apps.api.src.api import insights as insights_module
 from apps.api.src.domain.agents.registry import BANNER
+
+
+@pytest.fixture(autouse=True)
+def _disable_db_cache():
+    """Feature-flag tests do not need DB-backed caching. Override
+    `get_session` to yield None so the F4 cache layer is a no-op."""
+    from apps.api.src.main import app
+
+    def _no_session():
+        yield None
+
+    app.dependency_overrides[get_session] = _no_session
+    yield
+    app.dependency_overrides.pop(get_session, None)
 
 
 # ---------------------------------------------------------------------
@@ -72,7 +87,11 @@ def test_disabled_flag_returns_503_with_exact_shape(monkeypatch):
     client = TestClient(app)
     r = client.get("/api/insights/trade_quality")
     assert r.status_code == 503
-    assert r.json() == {"error": "agent insights disabled"}
+    body = r.json()
+    assert body["error"] == "agent insights disabled"
+    # F4: response carries `cache: "disabled"` so the frontend chip
+    # shows a consistent state machine without a separate flag.
+    assert body["cache"] == "disabled"
 
 
 def test_disabled_when_only_key_missing(monkeypatch):
@@ -85,7 +104,9 @@ def test_disabled_when_only_key_missing(monkeypatch):
     client = TestClient(app)
     r = client.get("/api/insights/trade_quality")
     assert r.status_code == 503
-    assert r.json() == {"error": "agent insights disabled"}
+    body = r.json()
+    assert body["error"] == "agent insights disabled"
+    assert body["cache"] == "disabled"
 
 
 @pytest.mark.parametrize("kind", [
@@ -189,16 +210,33 @@ def test_llm_client_module_has_no_forbidden_tokens():
         )
 
 
-def test_insights_endpoint_has_no_db_dependency():
-    """The endpoint module must not import the SQLAlchemy session
-    helper — proof at file scope that it cannot write to the DB."""
+def test_insights_endpoint_only_writes_to_agent_insight():
+    """F4 introduces a single DB dependency on the agent_insight
+    cache table. Verify the endpoint does not reference any
+    execution / paper / options / decision / replay table by name —
+    the cache is the ONLY table this module is allowed to touch."""
     src = inspect.getsource(insights_module)
-    assert "from apps.api.src.db" not in src
-    assert "Depends(get_session)" not in src
-    # `sqlalchemy.orm.Session` import would be the canonical way to
-    # talk to the DB; assert no such import line exists.
-    assert "from sqlalchemy" not in src
-    assert "import sqlalchemy" not in src
+    forbidden_tables = (
+        "paper_trade", "paper_position", "paper_equity_snapshot",
+        "options_paper_trade", "options_paper_trade_leg",
+        "decision_log", "recommendation",
+        "replay_recovery_manifest",
+    )
+    for name in forbidden_tables:
+        assert name not in src, (
+            f"insights.py must not reference table {name!r}"
+        )
+
+
+def test_insights_endpoint_has_no_inline_sql_writes():
+    """Even with cache wiring, the endpoint must NOT carry inline
+    DML — all writes must go through `cache.store(...)`."""
+    src = inspect.getsource(insights_module)
+    for tok in ("INSERT INTO", "UPDATE ", "DELETE FROM",
+                "session.commit", "session.add("):
+        assert tok not in src, (
+            f"insights.py must not contain inline DML: {tok!r}"
+        )
 
 
 def test_insights_router_only_declares_get():

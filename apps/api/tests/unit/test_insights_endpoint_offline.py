@@ -15,8 +15,26 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api.src.config import settings
+from apps.api.src.db import get_session
 from apps.api.src.domain.agents import llm_client
 from apps.api.src.domain.agents.registry import BANNER
+
+
+@pytest.fixture(autouse=True)
+def _disable_db_cache():
+    """F2 unit tests run without a DB. Override `get_session` to
+    yield None so the F4 cache layer skips both lookup and store.
+    Behavior is unchanged: cache.lookup(None,...) → None (miss),
+    and the endpoint still calls the LLM and returns the response,
+    just without caching."""
+    from apps.api.src.main import app
+
+    def _no_session():
+        yield None
+
+    app.dependency_overrides[get_session] = _no_session
+    yield
+    app.dependency_overrides.pop(get_session, None)
 
 
 # ---------------------------------------------------------------------

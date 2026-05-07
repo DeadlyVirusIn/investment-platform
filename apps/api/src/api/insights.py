@@ -23,11 +23,16 @@ import binascii
 import json
 from typing import Any
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Depends, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
+from apps.api.src.config import settings
+from apps.api.src.db import get_session
+from apps.api.src.domain.agents import cache as insight_cache
 from apps.api.src.domain.agents import llm_client
-from apps.api.src.domain.agents.registry import AgentKind, BANNER
+from apps.api.src.domain.agents.registry import AgentKind, BANNER, REGISTRY
+from apps.api.src.domain.agents.safety import scrub_sensitive_ids
 
 
 router = APIRouter(prefix="/insights", tags=["insights"])
@@ -122,10 +127,14 @@ _FIXTURES: dict[AgentKind, dict[str, Any]] = {
 def _disabled_response() -> JSONResponse:
     """Flat error shape per spec — NOT FastAPI's default `{"detail":
     ...}` wrapper. Returned as-is so clients can pattern-match on the
-    `error` key."""
+    `error` key. The `cache` field is included so the F3 frontend can
+    surface the same chip semantics on every response."""
     return JSONResponse(
         status_code=503,
-        content={"error": "agent insights disabled"},
+        content={
+            "error": "agent insights disabled",
+            "cache": "disabled",
+        },
     )
 
 
@@ -147,9 +156,11 @@ async def get_insight(
     kind: str,
     payload: dict[str, Any] | None = Body(default=None),
     payload_b64: str | None = _PAYLOAD_QUERY,
+    db: Session | None = Depends(get_session),
 ) -> Any:
     # Feature-flag guard runs FIRST so a disabled deployment never
-    # touches the SDK or even resolves the kind.
+    # touches the SDK or the cache. NEVER read or write `agent_insight`
+    # while the flag is off.
     if not llm_client.is_enabled():
         return _disabled_response()
 
@@ -178,6 +189,38 @@ async def get_insight(
     if use_payload is None:
         use_payload = _FIXTURES[agent_kind]
 
+    meta = REGISTRY[agent_kind]
+    model = settings.AGENT_INSIGHTS_MODEL
+
+    # Compute the hash over the SCRUBBED payload so two requests that
+    # differ only in UUID values produce the same key. This is also
+    # the safety guard: even if the caller smuggled a UUID through
+    # `payload_b64`, the cache row stores only the redacted form.
+    scrubbed = scrub_sensitive_ids(use_payload)
+    payload_hash = insight_cache.compute_payload_hash(
+        agent_kind, scrubbed,
+        source_endpoint=meta.source_endpoint,
+    )
+
+    # Cache lookup (graceful no-op if DB unavailable).
+    hit = insight_cache.lookup(
+        db,
+        kind=agent_kind, payload_hash=payload_hash,
+        model=model,
+    )
+    if hit is not None:
+        return {
+            "kind": hit.kind,
+            "model": hit.model,
+            "generated_at": hit.created_at.isoformat(),
+            "banner": hit.banner,
+            "content_markdown": hit.content_markdown,
+            "source_endpoint": hit.source_endpoint,
+            "llm_enabled": True,
+            "cache": "hit",
+        }
+
+    # Miss → call the LLM. Unsafe responses NEVER reach the cache.
     try:
         result = llm_client.generate_insight(agent_kind, use_payload)
     except llm_client.InsightsDisabled:
@@ -185,6 +228,26 @@ async def get_insight(
         return _disabled_response()
     except llm_client.UnsafeResponseError as exc:
         return _unsafe_response(str(exc))
+
+    # Safe response — attempt to cache. A validation error on the
+    # write path means the response is still safe enough to return
+    # (pre/post safety gates already passed) but we refuse to
+    # persist; client gets the body without `cache: "hit"` semantics
+    # on a future request. DB unavailability silently degrades to
+    # uncached responses.
+    try:
+        insight_cache.store(
+            db,
+            kind=agent_kind,
+            payload_hash=payload_hash,
+            payload_redacted=scrubbed,
+            content_markdown=result.content_markdown,
+            model=result.model,
+            source_endpoint=result.source_endpoint,
+            banner=BANNER,
+        )
+    except insight_cache.CacheValidationError:
+        pass
 
     return {
         "kind": result.kind.value,
@@ -194,4 +257,5 @@ async def get_insight(
         "content_markdown": result.content_markdown,
         "source_endpoint": result.source_endpoint,
         "llm_enabled": True,
+        "cache": "miss",
     }
