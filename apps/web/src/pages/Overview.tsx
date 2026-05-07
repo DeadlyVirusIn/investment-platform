@@ -32,7 +32,7 @@ import type {
 import { cn } from "@/lib/cn";
 // Commit 2 (Novice UX) — page-level intro card. Pure layout add;
 // no data dependency, no auto-fetch.
-import { PageGuide } from "@/components/novice";
+import { PageGuide, AdvancedDetails } from "@/components/novice";
 
 export default function Overview() {
   const { data: summary } = usePaperSummary();
@@ -64,6 +64,13 @@ export default function Overview() {
   }), [state, perf, anomalies, winRate, trades]);
 
   const hero = deriveHero({ state, summary, anomSummary });
+  // UX-1 Commit C — single calm sentence summarising current
+  // operational state. Logic-only derivation from data already
+  // fetched above; no new hook, no auto-fetch. Order matters:
+  // critical anomalies > pipeline failure > cautious gates >
+  // normal. Shown in plain English so a beginner does not need
+  // to read four telemetry chips to know "am I okay?".
+  const calmState = deriveCalmState({ state, summary, anomSummary });
 
   return (
     <div className="max-w-[1520px] mx-auto px-6 py-6 space-y-5">
@@ -86,6 +93,40 @@ export default function Overview() {
         }
       />
 
+      {/* === 0b. START-HERE FOCUS CARD (UX-1 Commit E) ================ */}
+      {/* Attention-sequencing guidance: tells the operator where to    */}
+      {/* place their eye in order, and what they can defer. NOT a new  */}
+      {/* data fetch — it just labels the existing layout below.        */}
+      <section
+        className="u-card-tight"
+        data-test="overview-start-here"
+        style={{ padding: "12px 16px" }}
+      >
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Start here
+        </div>
+        <ol className="u-body text-fg space-y-1 list-decimal pl-5">
+          <li>
+            <strong>Account value</strong> — total worth of your
+            paper account today.
+          </li>
+          <li>
+            <strong>System status</strong> — the calm summary
+            below answers "am I okay?".
+          </li>
+          <li>
+            <strong>Trades still open</strong> — what the system is
+            holding right now.
+          </li>
+        </ol>
+        <p className="u-caption-2 text-fg-3 mt-2">
+          Safe to ignore for now: the deeper diagnostics, market
+          heatmap, intelligence grid, and engine attribution
+          further down the page. They're available when you want
+          them — none require action.
+        </p>
+      </section>
+
       {/* === 1. READINESS STRIP — single source of truth (CF-1, CF-3) === */}
       <section className="u-card-tight"
                style={{ padding: "10px 14px" }}>
@@ -97,53 +138,80 @@ export default function Overview() {
       {/*        signals ready, pending count, next-bar target, reason.  */}
       <ExecutionStatusCard />
 
-      {/* === 2. COMPACT STATUS BANNER (CF-4) — replaces dominant hero === */}
-      {/*       Regime · Gates · Engine · Pipeline · Last decision           */}
-      <section className="u-card-tight"
-               style={{ padding: "12px 16px" }}>
-        <div className="flex items-center flex-wrap gap-x-8 gap-y-2">
-          <span className={`u-chip u-chip-${hero.chip}`}>
-            <span className={`u-dot u-dot-${hero.chip}`} />
-            {hero.toneLabel}
+      {/* === 2. CALM-STATE LINE (UX-1 Commit C) — replaces wall of   */}
+      {/*       chips at top level. Single plain-English sentence     */}
+      {/*       answering "am I okay? / do I need to do anything?".   */}
+      {/*       Engineering chips (Regime / Gates / Engine / Pipeline */}
+      {/*       / last decision) preserved one click away inside      */}
+      {/*       AdvancedDetails. ExploratoryBanner stays visible      */}
+      {/*       when active — it is a real warning.                   */}
+      <section
+        className="u-card-tight"
+        style={{ padding: "12px 16px" }}
+        data-test="overview-calm-state"
+      >
+        <div className="flex items-center gap-3">
+          <span className={`u-chip u-chip-${calmState.chip}`}>
+            <span className={`u-dot u-dot-${calmState.chip}`} />
+            {calmState.tone}
           </span>
-          <BannerCell label="Regime">
-            <RegimeBadge state={state} />
-          </BannerCell>
-          <BannerCell label="Gates">
-            <span className={cn(
-              "u-mono-sm font-semibold",
-              (state?.gates_favorable ?? 0) >= 3 ? "text-success"
-              : (state?.gates_favorable ?? 0) <= 1 ? "text-danger"
-              : "text-warning"
-            )}>
-              {state?.gates_favorable ?? 0}
-              <span className="text-fg-3"> / 4</span>
-            </span>
-          </BannerCell>
-          <BannerCell label="Engine">
-            <span className={`u-chip u-chip-${
-              state?.fire ? "accent" : "neutral"}`}>
-              {state?.fire
-                ? `Engine ${state.engine} firing`
-                : state?.engine && state.engine !== "none"
-                  ? `Engine ${state.engine} standby` : "None armed"}
-            </span>
-          </BannerCell>
-          <BannerCell label="Pipeline">
-            <span className={`u-chip u-chip-${
-              summary?.pipeline_status === "success" ? "success"
-              : summary?.pipeline_status === "failed" ? "danger" : "neutral"
-            }`}>
-              {pipelineLabel(summary?.pipeline_status, !!state?.fire)}
-            </span>
-          </BannerCell>
-          <span className="ml-auto u-caption-2 u-mono-sm text-fg-3">
-            {summary?.last_decision_ts
-              ? new Date(summary.last_decision_ts).toLocaleString()
-              : "—"}
-          </span>
+          <p className="u-body text-fg" data-test="overview-calm-sentence">
+            {calmState.sentence}
+          </p>
         </div>
         <ExploratoryBannerWired />
+        <AdvancedDetails
+          label="System diagnostics"
+          className="mt-3"
+        >
+          <div
+            className="flex items-center flex-wrap gap-x-8 gap-y-2"
+            data-test="overview-system-diagnostics"
+          >
+            <span className={`u-chip u-chip-${hero.chip}`}>
+              <span className={`u-dot u-dot-${hero.chip}`} />
+              {hero.toneLabel}
+            </span>
+            <BannerCell label="Market condition">
+              <RegimeBadge state={state} />
+            </BannerCell>
+            <BannerCell label="Safety checks passing">
+              <span className={cn(
+                "u-mono-sm font-semibold",
+                (state?.gates_favorable ?? 0) >= 3 ? "text-success"
+                : (state?.gates_favorable ?? 0) <= 1 ? "text-danger"
+                : "text-warning"
+              )}>
+                {state?.gates_favorable ?? 0}
+                <span className="text-fg-3"> / 4</span>
+              </span>
+            </BannerCell>
+            <BannerCell label="Active strategy">
+              <span className={`u-chip u-chip-${
+                state?.fire ? "accent" : "neutral"}`}>
+                {state?.fire
+                  ? `${strategyHumanName(state.engine)} active`
+                  : state?.engine && state.engine !== "none"
+                    ? `${strategyHumanName(state.engine)} standby`
+                    : "No strategy armed"}
+              </span>
+            </BannerCell>
+            <BannerCell label="Daily run">
+              <span className={`u-chip u-chip-${
+                summary?.pipeline_status === "success" ? "success"
+                : summary?.pipeline_status === "failed" ? "danger" : "neutral"
+              }`}>
+                {pipelineLabel(summary?.pipeline_status, !!state?.fire)}
+              </span>
+            </BannerCell>
+            <span className="ml-auto u-caption-2 u-mono-sm text-fg-3">
+              Last activity:{" "}
+              {summary?.last_decision_ts
+                ? new Date(summary.last_decision_ts).toLocaleString()
+                : "—"}
+            </span>
+          </div>
+        </AdvancedDetails>
       </section>
 
       {/* === 3. DAILY ACTIVITY — promoted above fold (CF-4) === */}
@@ -256,10 +324,10 @@ export default function Overview() {
                   <span className="u-dot u-dot-accent" />
                   <span className="u-section-title text-fg"
                         style={{ fontSize: 17 }}>
-                    Next Action
+                    Next step
                   </span>
                 </div>
-                <span className="u-chip u-chip-accent">WATCHING</span>
+                <span className="u-chip u-chip-accent">Watching market</span>
               </div>
               <NextActionBlock state={state} health={health} />
             </div>
@@ -267,29 +335,38 @@ export default function Overview() {
         </div>
       </section>
 
-      {/* ============= Layer 3: Regime memory heatmap ============= */}
-      <RegimeHeatmap />
+      {/* UX-1 Commit K — global hierarchy calming. The market-     */}
+      {/* condition heatmap is below-the-fold context, not primary, */}
+      {/* so it now collapses by default. Truth one click away.     */}
+      <AdvancedDetails label="Market condition history (advanced)">
+        <RegimeHeatmap />
+      </AdvancedDetails>
 
-      {/* === Intelligence grid + Guidance — demoted below the fold === */}
-      <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]
+      {/* UX-1 Commit K — Intelligence + Guidance section was       */}
+      {/* already 'demoted below the fold' per its own comment.     */}
+      {/* Now hidden behind a single expander so it stops competing */}
+      {/* with the primary calm-state line and NAV strip up top.    */}
+      <AdvancedDetails label="Today's intelligence & guidance (advanced)">
+        <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]
                              gap-5">
-        <div className="u-card">
-          <div className="flex items-center justify-between mb-3">
-            <Label>Intelligence</Label>
-            <span className="u-chip u-chip-accent">LIVE</span>
+          <div className="u-card">
+            <div className="flex items-center justify-between mb-3">
+              <Label>Intelligence</Label>
+              <span className="u-chip u-chip-accent">LIVE</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <IntelTile label="Top driver"   item={intel.topDriver} />
+              <IntelTile label="Drag"         item={intel.topBlocker} />
+              <IntelTile label="Risk"         item={intel.topConcern} />
+              <IntelTile label="Next action"  item={intel.nextTrigger} />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
-            <IntelTile label="Top driver"   item={intel.topDriver} />
-            <IntelTile label="Drag"         item={intel.topBlocker} />
-            <IntelTile label="Risk"         item={intel.topConcern} />
-            <IntelTile label="Next action"  item={intel.nextTrigger} />
+          <div>
+            <GuidancePanel state={state} summary={summary}
+                              anomSummary={anomSummary} />
           </div>
-        </div>
-        <div>
-          <GuidancePanel state={state} summary={summary}
-                            anomSummary={anomSummary} />
-        </div>
-      </section>
+        </section>
+      </AdvancedDetails>
 
       {/* ================= 4. ACTIVITY + LATEST DECISION ================= */}
       <section className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)]
@@ -369,10 +446,15 @@ export default function Overview() {
         <LatestDecisionPreview state={state} trades={trades ?? []} />
       </section>
 
-      {/* ============= Layer 5: Trade blotter live feed ============= */}
-      <TradeBlotter />
+      {/* UX-1 Commit K — trade blotter live feed and the macro    */}
+      {/* insights ticker are both detailed telemetry. Demoted     */}
+      {/* under expanders so the page presents a calm primary      */}
+      {/* surface and reveals deeper detail only on request.       */}
+      <AdvancedDetails label="Trade activity feed (advanced)">
+        <TradeBlotter />
+      </AdvancedDetails>
 
-      {/* ================= 5. MICRO INSIGHTS TICKER ================= */}
+      <AdvancedDetails label="Detailed insights ticker (advanced)">
       <section className="u-ticker">
         <TickerCell label="Regime"
           value={state?.stress_regime ? "STRESS"
@@ -412,6 +494,7 @@ export default function Overview() {
           tone={health?.overall === "healthy" ? "success"
                 : health?.overall === "failed" ? "danger" : "warning"} />
       </section>
+      </AdvancedDetails>
     </div>
   );
 }
@@ -451,6 +534,78 @@ function pipelineLabel(
 }
 
 
+// UX-1 Commit C — single calm sentence summarising current state.
+// Derived from data already fetched on the page (no new hook).
+// Order: critical anomalies > pipeline failure > cautious gates >
+// normal. Result feeds the top-of-page "am I okay?" line.
+function deriveCalmState({
+  state, summary, anomSummary,
+}: {
+  state: CurrentState | undefined;
+  summary: PaperSummary | undefined;
+  anomSummary: AnomalySummary | undefined;
+}): {
+  tone: string;
+  chip: "success" | "warning" | "danger" | "accent";
+  sentence: string;
+} {
+  if (!state || !summary) {
+    return {
+      tone: "Warming up",
+      chip: "warning",
+      sentence:
+        "System is starting up. Once the daily run finishes, "
+        + "your account summary will appear here. No action needed.",
+    };
+  }
+  const crit = anomSummary?.by_severity?.critical ?? 0;
+  if (crit > 0) {
+    return {
+      tone: "Needs attention",
+      chip: "danger",
+      sentence:
+        `Something needs attention (${crit} flagged). `
+        + "Open System diagnostics below for the specific reason.",
+    };
+  }
+  if (summary.pipeline_status === "failed") {
+    return {
+      tone: "Needs attention",
+      chip: "danger",
+      sentence:
+        "Today's automated workflow ran into trouble. The team "
+        + "reviews these on the Ops page. Your account is unaffected.",
+    };
+  }
+  const gatesFav = state.gates_favorable ?? 0;
+  if (gatesFav <= 1) {
+    return {
+      tone: "Cautious",
+      chip: "warning",
+      sentence:
+        "Trading activity is intentionally cautious today — most "
+        + "safety checks are signalling caution. No action needed.",
+    };
+  }
+  return {
+    tone: "Operating normally",
+    chip: "success",
+    sentence:
+      "System operating normally. No action needed right now.",
+  };
+}
+
+
+// UX-1 Commit C — plain-English strategy name for visible chips.
+// Engineering identifiers (engine === "A" / "B") preserved
+// throughout the codebase; this is a display-only helper.
+function strategyHumanName(engine: string | null | undefined): string {
+  if (engine === "A") return "Buy-the-dip strategy";
+  if (engine === "B") return "Defensive strategy";
+  return "Strategy";
+}
+
+
 function deriveHero({
   state, summary, anomSummary,
 }: {
@@ -470,7 +625,7 @@ function deriveHero({
       body: "Waiting for the daily pipeline to produce its first evaluation.",
       word: "text-warning", glow: "u-glow-warning",
       chip: "warning", ring: "is-warning",
-      toneLabel: "WARMING UP",
+      toneLabel: "Warming up",
     };
   }
 
@@ -485,7 +640,7 @@ function deriveHero({
         : "Pipeline failed on last run. Diagnose before re-enabling.",
       word: "text-danger", glow: "u-glow-danger",
       chip: "danger", ring: "is-danger",
-      toneLabel: "CRITICAL",
+      toneLabel: "Needs attention",
     };
   }
 
@@ -497,7 +652,7 @@ function deriveHero({
         : "Pipeline ran partially. Some non-critical data sources missing.",
       word: "text-warning", glow: "u-glow-warning",
       chip: "warning", ring: "is-warning",
-      toneLabel: "WATCHING",
+      toneLabel: "Watching",
     };
   }
 
@@ -516,7 +671,7 @@ function deriveHero({
       }. System will hold to target exit. No operator action required.`,
       word: "text-success", glow: "u-glow-success",
       chip: "success", ring: "is-success",
-      toneLabel: "HEALTHY",
+      toneLabel: "Healthy",
     };
   }
 
@@ -529,7 +684,7 @@ function deriveHero({
       : `${engine} waiting on ${joinEn(blockers.slice(0, 2))} to align.`,
     word: "text-success", glow: "u-glow-success",
     chip: "success", ring: "is-success",
-    toneLabel: "HEALTHY",
+    toneLabel: "Healthy",
   };
 }
 
