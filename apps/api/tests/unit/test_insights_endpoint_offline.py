@@ -183,6 +183,79 @@ def test_unsafe_response_returns_502(monkeypatch):
     assert "Operator" not in body.get("content_markdown", "")
 
 
+def test_payload_b64_query_param_used_when_body_absent(monkeypatch):
+    """Browsers cannot send a body on GET, so the frontend transports
+    the row-specific payload via `?payload_b64=...`. Endpoint must
+    decode it and feed it to the LLM call, falling back to the fixture
+    only when neither body nor query param is provided."""
+    import base64
+    import json as _json
+
+    monkeypatch.setattr(settings, "AGENT_INSIGHTS_ENABLED", True)
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "AGENT_INSIGHTS_MODEL", "claude-test")
+
+    fake = _SDK(body=(
+        f"{BANNER}\n"
+        "Score is 41 — D grade. Entry component held at 5."
+    ))
+    monkeypatch.setattr(llm_client, "_get_sdk", lambda: fake)
+
+    payload = {
+        "score": 41,
+        "grade": "D",
+        "thesis": "stopped_out",
+        "completeness": "full",
+        "components": {
+            "entry": 5, "return": 6,
+            "hold": 10, "exit_or_status": 10,
+            "completeness": 10,
+        },
+        "reasons": ["Entry: poor fill.", "Return: negative."],
+    }
+    raw = _json.dumps(payload).encode("utf-8")
+    b64 = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    from apps.api.src.main import app
+    client = TestClient(app)
+    r = client.get(f"/api/insights/trade_quality?payload_b64={b64}")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "41" in body["content_markdown"]
+
+
+def test_invalid_payload_b64_returns_400(monkeypatch):
+    monkeypatch.setattr(settings, "AGENT_INSIGHTS_ENABLED", True)
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(llm_client, "_get_sdk", lambda: _SDK(body=""))
+
+    from apps.api.src.main import app
+    client = TestClient(app)
+    r = client.get(
+        "/api/insights/trade_quality?payload_b64=not-base64@@",
+    )
+    assert r.status_code == 400
+    body = r.json()
+    assert body["error"] == "invalid payload_b64"
+
+
+def test_payload_b64_must_decode_to_object(monkeypatch):
+    """A base64-encoded array (or scalar) is not a valid payload."""
+    import base64
+
+    monkeypatch.setattr(settings, "AGENT_INSIGHTS_ENABLED", True)
+    monkeypatch.setattr(settings, "ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setattr(llm_client, "_get_sdk", lambda: _SDK(body=""))
+
+    raw = b"[1, 2, 3]"
+    b64 = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+    from apps.api.src.main import app
+    client = TestClient(app)
+    r = client.get(f"/api/insights/trade_quality?payload_b64={b64}")
+    assert r.status_code == 400
+
+
 def test_response_is_deterministic_for_same_input(app_client):
     """Same fixture body → identical response shape on repeat calls.
     `generated_at` may differ, every other field must be equal."""

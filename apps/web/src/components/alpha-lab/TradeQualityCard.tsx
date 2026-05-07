@@ -14,6 +14,8 @@ import {
   type TradeQualityThesis,
   type TradeQualityCompleteness,
 } from "@/lib/alphaLab/hooks";
+import InsightDrawer from "@/components/insights/InsightDrawer";
+import { useInsight } from "@/lib/insights/hooks";
 
 
 const GRADE_TONE: Record<TradeQualityGrade, string> = {
@@ -51,6 +53,21 @@ const COMPLETENESS_TONE: Record<TradeQualityCompleteness, string> = {
 export default function TradeQualityCard() {
   const q = useTradeQuality(50);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // F3: insight drawer state. Drawer payload is the row clicked on,
+  // never the full table — keeps the prompt scope narrow and the
+  // drawer label exact. NEVER auto-fetched on mount.
+  const insight = useInsight("trade_quality");
+  const [drawerItem, setDrawerItem] = useState<TradeQualityItem | null>(
+    null,
+  );
+  const handleExplain = (it: TradeQualityItem) => {
+    setDrawerItem(it);
+    void insight.fetchInsight(it);
+  };
+  const handleCloseDrawer = () => {
+    setDrawerItem(null);
+    insight.reset();
+  };
 
   if (q.isLoading) {
     return (
@@ -125,6 +142,7 @@ export default function TradeQualityCard() {
             <th className="text-right">Grade</th>
             <th>Completeness</th>
             <th></th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -136,10 +154,24 @@ export default function TradeQualityCard() {
               onToggle={() => setExpanded(
                 expanded === it.trade_id ? null : it.trade_id,
               )}
+              onExplain={() => handleExplain(it)}
             />
           ))}
         </tbody>
       </table>
+      <InsightDrawer
+        open={drawerItem !== null}
+        kind="trade_quality"
+        subjectLabel={
+          drawerItem
+            ? `${drawerItem.symbol} · ${drawerItem.grade} (${drawerItem.score})`
+            : undefined
+        }
+        status={insight.status}
+        data={insight.data}
+        error={insight.error}
+        onClose={handleCloseDrawer}
+      />
     </Shell>
   );
 }
@@ -250,11 +282,12 @@ function DistBlock({
 
 
 function Row({
-  it, expanded, onToggle,
+  it, expanded, onToggle, onExplain,
 }: {
   it: TradeQualityItem;
   expanded: boolean;
   onToggle: () => void;
+  onExplain: () => void;
 }) {
   return (
     <>
@@ -296,10 +329,21 @@ function Row({
             {expanded ? "hide" : "why"}
           </button>
         </td>
+        <td>
+          {/* F3: research-only narrative. Read-only, never trades. */}
+          <button
+            type="button"
+            onClick={onExplain}
+            data-test="trade-quality-explain-btn"
+            className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
+          >
+            Explain
+          </button>
+        </td>
       </tr>
       {expanded && (
         <tr>
-          <td colSpan={8} className="bg-zinc-950/40 px-4 py-3">
+          <td colSpan={9} className="bg-zinc-950/40 px-4 py-3">
             <ul className="space-y-1 text-xs text-zinc-300">
               {it.reasons.map((r, i) => (
                 <li key={i}>· {r}</li>

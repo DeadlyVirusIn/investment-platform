@@ -15,11 +15,26 @@ import {
   type ConcentrationSymbolRow,
   type ConcentrationPortfolioRow,
 } from "@/lib/operator/hooks";
+import InsightDrawer from "@/components/insights/InsightDrawer";
+import { useInsight } from "@/lib/insights/hooks";
 
 
 export default function RiskDashboard() {
   const [includeReplay, setIncludeReplay] = useState(false);
   const q = useRiskDashboard(includeReplay);
+  // F3: narrative drawer for the current risk surface. NEVER
+  // auto-fetched — operator clicks the "Narrative" button.
+  const insight = useInsight("risk_commentary");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const handleNarrative = () => {
+    if (!q.data) return;
+    setDrawerOpen(true);
+    void insight.fetchInsight(q.data);
+  };
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    insight.reset();
+  };
 
   return (
     <div className="max-w-[1480px] mx-auto px-6 py-6 space-y-5">
@@ -35,14 +50,25 @@ export default function RiskDashboard() {
             No execution controls.
           </p>
         </div>
-        <label className="flex items-center gap-2 u-caption-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={includeReplay}
-            onChange={e => setIncludeReplay(e.target.checked)}
-          />
-          <span>Include replay-recovered rows</span>
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 u-caption-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeReplay}
+              onChange={e => setIncludeReplay(e.target.checked)}
+            />
+            <span>Include replay-recovered rows</span>
+          </label>
+          <button
+            type="button"
+            onClick={handleNarrative}
+            disabled={!q.data}
+            data-test="risk-dashboard-narrative-btn"
+            className="rounded border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Narrative
+          </button>
+        </div>
       </header>
 
       {q.isLoading && (
@@ -59,6 +85,21 @@ export default function RiskDashboard() {
         </div>
       )}
       {q.data && <Body data={q.data} />}
+      <InsightDrawer
+        open={drawerOpen}
+        kind="risk_commentary"
+        subjectLabel={
+          q.data
+            ? `NAV ${q.data.nav != null ? fmtUSD(q.data.nav) : "—"} · ${
+                q.data.open_positions_count ?? 0
+              } open`
+            : undefined
+        }
+        status={insight.status}
+        data={insight.data}
+        error={insight.error}
+        onClose={handleCloseDrawer}
+      />
     </div>
   );
 }

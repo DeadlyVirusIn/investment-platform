@@ -16,6 +16,8 @@ import {
   type ExitCategoryRow,
   type ExitTrade,
 } from "@/lib/alphaLab/hooks";
+import InsightDrawer from "@/components/insights/InsightDrawer";
+import { useInsight } from "@/lib/insights/hooks";
 
 
 const CATEGORY_LABEL: Record<ExitCategory, string> = {
@@ -29,6 +31,18 @@ const CATEGORY_LABEL: Record<ExitCategory, string> = {
 export default function ExitAnalyticsCard() {
   const [includeReplay, setIncludeReplay] = useState(false);
   const q = useExitAnalytics(includeReplay);
+  // F3: review-exits research drawer. NEVER auto-fetched.
+  const insight = useInsight("exit_review");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const handleReviewExits = () => {
+    if (!q.data) return;
+    setDrawerOpen(true);
+    void insight.fetchInsight(q.data);
+  };
+  const handleCloseDrawer = () => {
+    setDrawerOpen(false);
+    insight.reset();
+  };
 
   return (
     <section
@@ -44,14 +58,25 @@ export default function ExitAnalyticsCard() {
             source: GET /performance/paper/exit-analytics
           </div>
         </div>
-        <label className="flex items-center gap-2 u-caption-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={includeReplay}
-            onChange={(e) => setIncludeReplay(e.target.checked)}
-          />
-          <span>Include replay-recovered rows</span>
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 u-caption-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeReplay}
+              onChange={(e) => setIncludeReplay(e.target.checked)}
+            />
+            <span>Include replay-recovered rows</span>
+          </label>
+          <button
+            type="button"
+            onClick={handleReviewExits}
+            disabled={!q.data || (q.data?.n_closed ?? 0) === 0}
+            data-test="exit-analytics-review-btn"
+            className="rounded border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Review exits
+          </button>
+        </div>
       </header>
 
       {q.isLoading && (
@@ -64,6 +89,23 @@ export default function ExitAnalyticsCard() {
         </p>
       )}
       {q.data && <Body data={q.data} />}
+      <InsightDrawer
+        open={drawerOpen}
+        kind="exit_review"
+        subjectLabel={
+          q.data
+            ? `${q.data.n_closed} closed · win rate ${
+                q.data.win_rate != null
+                  ? `${(q.data.win_rate * 100).toFixed(0)}%`
+                  : "—"
+              }`
+            : undefined
+        }
+        status={insight.status}
+        data={insight.data}
+        error={insight.error}
+        onClose={handleCloseDrawer}
+      />
     </section>
   );
 }

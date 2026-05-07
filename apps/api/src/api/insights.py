@@ -18,9 +18,12 @@ Hard rules:
 
 from __future__ import annotations
 
+import base64
+import binascii
+import json
 from typing import Any
 
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Query
 from fastapi.responses import JSONResponse
 
 from apps.api.src.domain.agents import llm_client
@@ -28,6 +31,41 @@ from apps.api.src.domain.agents.registry import AgentKind, BANNER
 
 
 router = APIRouter(prefix="/insights", tags=["insights"])
+
+
+# Browser fetch() rejects a request body on GET, so the F3 frontend
+# transports the row-specific payload via a base64url-encoded query
+# parameter. The route still accepts a JSON body when the client can
+# send one (TestClient, server-to-server). Behavior is unchanged when
+# neither is provided — the per-kind fixture is used.
+_PAYLOAD_QUERY = Query(
+    default=None,
+    description=(
+        "Optional base64url-encoded JSON object. Used when the "
+        "client cannot send a request body (e.g., browser GET)."
+    ),
+)
+
+
+def _decode_payload_b64(raw: str) -> dict[str, Any]:
+    """Decode a base64url string into a JSON object. Raises
+    ValueError on any failure — caller maps that to HTTP 400."""
+    pad = "=" * (-len(raw) % 4)
+    try:
+        decoded_bytes = base64.urlsafe_b64decode(raw + pad)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError(f"base64url decode failed: {exc}") from exc
+    try:
+        text = decoded_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError(f"utf-8 decode failed: {exc}") from exc
+    try:
+        obj = json.loads(text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"JSON decode failed: {exc}") from exc
+    if not isinstance(obj, dict):
+        raise ValueError("payload_b64 must encode a JSON object")
+    return obj
 
 
 # Built-in fixture payloads — used only when the request body is
@@ -108,6 +146,7 @@ def _unsafe_response(reason: str) -> JSONResponse:
 async def get_insight(
     kind: str,
     payload: dict[str, Any] | None = Body(default=None),
+    payload_b64: str | None = _PAYLOAD_QUERY,
 ) -> Any:
     # Feature-flag guard runs FIRST so a disabled deployment never
     # touches the SDK or even resolves the kind.
@@ -124,7 +163,20 @@ async def get_insight(
             content={"error": f"unknown kind: {kind!r}"},
         )
 
-    use_payload = payload if payload else _FIXTURES[agent_kind]
+    # Resolution order: explicit body → query-param payload →
+    # built-in per-kind fixture. The fixture path is what the spec
+    # refers to as "test fixture payload only".
+    use_payload: dict[str, Any] | None = payload if payload else None
+    if use_payload is None and payload_b64:
+        try:
+            use_payload = _decode_payload_b64(payload_b64)
+        except ValueError as exc:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "invalid payload_b64", "reason": str(exc)},
+            )
+    if use_payload is None:
+        use_payload = _FIXTURES[agent_kind]
 
     try:
         result = llm_client.generate_insight(agent_kind, use_payload)
