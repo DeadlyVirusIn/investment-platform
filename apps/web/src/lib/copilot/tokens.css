@@ -1,0 +1,70 @@
+/*
+ * UX-3D Phase A — copilot design tokens.
+ *
+ * Imported by index.css. Defines CSS custom properties used by
+ * copilot components. NEVER overrides existing app tokens. Names
+ * are namespaced with --copilot-* so they cannot collide.
+ *
+ * Atmosphere stack (UX-3D §6b): two locked tokens + one gradient
+ * stop + paragraph rhythm. Anything else drifts.
+ *
+ * Pacing scale (UX-3D §3b): six states. Component CSS reads the
+ * data-pacing attribute and selects the matching values below.
+ */
+
+:root {
+  /* --- Atmosphere ------------------------------------------------ */
+  --copilot-page-bg: #0b0b0d;
+  --copilot-ambient-tint: rgba(120, 130, 150, 0.04);
+  --copilot-prose-line-height: 1.55;
+  --copilot-prose-paragraph-spacing: 12px;
+  --copilot-prose-max-width: 64ch;
+  --copilot-negative-space-baseline: 24px;
+
+  /* --- Type ramp (UX-3B §6c) ------------------------------------- */
+  --copilot-type-12: 11px;
+  --copilot-type-13: 13px;
+  --copilot-type-15: 15px;   /* body default */
+  --copilot-type-19: 19px;   /* hero */
+  --copilot-type-21: 21px;   /* hero, lifted state */
+  --copilot-type-24: 24px;   /* card headline */
+
+  /* --- Card -------------------------------------------------------- */
+  --copilot-card-padding: 24px;
+  --copilot-card-gap: 16px;
+  --copilot-radius: 6px;
+
+  /* --- Tone-dot palette (single hue per kind) -------------------- */
+  --copilot-dot-calm: #9ca3af;        /* zinc-400 */
+  --copilot-dot-healthy: #4ade80;     /* green-400 */
+  --copilot-dot-waiting: #fbbf24;     /* amber-400 */
+  --copilot-dot-attention: #f87171;   /* red-400 */
+  --copilot-dot-insight: #38bdf8;     /* sky-400 */
+
+  /* --- Pacing-scale typography ----------------------------------- */
+  /* Default: calm */
+  --copilot-pacing-hero-size: var(--copilot-type-19);
+  --copilot-pacing-hero-weight: 500;
+  --copilot-pacing-paragraph-spacing: var(--copilot-prose-paragraph-spacing);
+}
+
+/* Pacing variants — applied via [data-pacing="..."] on the slot
+ * container. Type weight ±100, type size up one notch max, spacing
+ * ×1.0 / ×1.2 / ×1.5. NEVER touches color or motion. */
+[data-pacing="meditative"] {
+  --copilot-pacing-paragraph-spacing: calc(var(--copilot-prose-paragraph-spacing) * 1.5);
+}
+[data-pacing="lifted"] {
+  --copilot-pacing-hero-size: var(--copilot-type-21);
+  --copilot-pacing-hero-weight: 600;
+}
+[data-pacing="grounded"] {
+  --copilot-pacing-hero-weight: 500;
+  --copilot-pacing-paragraph-spacing: var(--copilot-prose-paragraph-spacing);
+}
+[data-pacing="slowed"] {
+  --copilot-pacing-paragraph-spacing: calc(var(--copilot-prose-paragraph-spacing) * 1.2);
+}
+[data-pacing="released"] {
+  --copilot-pacing-hero-weight: 500;
+}

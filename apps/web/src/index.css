@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* UX-3D Phase A — copilot design tokens. Namespaced under
+ * --copilot-* to prevent collisions with the existing app tokens
+ * below. Imported once here so any copilot component can read
+ * them via CSS custom properties.
+ */
+@import "./lib/copilot/tokens.css";
+
 /* =========================================================================
    ELITE QUANT TERMINAL DESIGN SYSTEM
    =========================================================================
