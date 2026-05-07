@@ -22,6 +22,8 @@ import {
 import EquityDrawdownChart from "@/components/operator/EquityDrawdownChart";
 import Sparkline from "@/components/ui/Sparkline";
 import { cn } from "@/lib/cn";
+// Commit 3 (Novice UX) — page-level intro card.
+import { PageGuide } from "@/components/novice";
 
 export default function PortfolioTerminal() {
   const { data: summary } = usePaperSummary();
@@ -82,79 +84,97 @@ export default function PortfolioTerminal() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-8 py-8 space-y-6">
-      <header>
-        <div className="u-label mb-1">Portfolio</div>
-        <h1 className="u-title-lg">Paper Trading Terminal</h1>
-        <p className="u-body mt-2">
-          Live paper portfolio ·
-          {" "}{execSummary?.live_trades_count ?? 0} live executed trades ·
-          {" "}{execSummary?.live_open_positions_count ?? 0} live open positions ·
-          {" "}{state?.as_of_date ?? "idle"}
-        </p>
-        {execSummary?.has_replay_recovered_rows && (
-          <div
-            className="u-card-tight mt-2 flex items-center justify-between"
-            style={{ background: "var(--sunken)", padding: "8px 12px" }}
-          >
-            <div className="u-caption">
-              <span className="u-chip u-chip-warning mr-2">
-                Recovered replay
-              </span>
-              <strong>{execSummary?.replay_trades_count ?? 0}</strong>{" "}
-              recovered replay trades ·{" "}
-              <strong>{execSummary?.replay_open_positions_count ?? 0}</strong>{" "}
-              recovered open positions. Rebuilt from the 2026-05-02 DB
-              wipe via the execution-chain replay; tagged in{" "}
-              <code>replay_recovery_manifest</code> and excluded by
-              default. NOT live trading activity.
-            </div>
-            <label className="u-caption flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={includeReplay}
-                onChange={e => setIncludeReplay(e.target.checked)}
-              />
-              <span>Show recovered replay data</span>
-            </label>
+      {/* Commit 3 (Novice UX) — plain-English page intro. The body */}
+      {/* below shows two streams (account-path trades + selector   */}
+      {/* strategy logs). Truth labels preserved.                    */}
+      <PageGuide
+        eyebrow="Paper Account"
+        title="My Holdings"
+        subtitle={
+          "Every position you currently hold and every paper trade "
+          + "the system has placed. All numbers are simulated — no "
+          + "real money is involved."
+        }
+        firstLook={
+          <>
+            Top row shows your account at a glance. Open holdings are
+            below the chart; trade history is below that.
+          </>
+        }
+      />
+      <div className="u-caption-2 text-fg-3 -mt-2">
+        {execSummary?.live_trades_count ?? 0} paper trades placed ·
+        {" "}{execSummary?.live_open_positions_count ?? 0} open paper positions ·
+        {" "}{state?.as_of_date ?? "idle"}
+      </div>
+      {execSummary?.has_replay_recovered_rows && (
+        <div
+          className="u-card-tight flex items-center justify-between"
+          style={{ background: "var(--sunken)", padding: "8px 12px" }}
+        >
+          <div className="u-caption">
+            <span className="u-chip u-chip-warning mr-2">
+              Rebuilt simulation
+            </span>
+            <strong>{execSummary?.replay_trades_count ?? 0}</strong>{" "}
+            rebuilt simulation trades ·{" "}
+            <strong>{execSummary?.replay_open_positions_count ?? 0}</strong>{" "}
+            rebuilt open positions. These were reconstructed from past
+            data after a 2026-05-02 reset and are tagged in{" "}
+            <code>replay_recovery_manifest</code>. They are NOT live
+            trading activity and are hidden by default.
           </div>
-        )}
-      </header>
+          <label className="u-caption flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeReplay}
+              onChange={e => setIncludeReplay(e.target.checked)}
+            />
+            <span>Show rebuilt simulation rows</span>
+          </label>
+        </div>
+      )}
 
-      {/* STRIP */}
+      {/* STRIP — Commit 3 (Novice UX): plain-English labels.        */}
+      {/* Calculations and tone unchanged.                            */}
       <div className="u-card">
         <div className="grid grid-cols-1 md:grid-cols-5 divide-x divide-b2">
-          <Strip label="NAV"
+          <Strip label="Account value"
             value={summary ? fmtUSD(summary.equity) : "—"}
-            sub={`starting $100,000`}
+            sub={`Started with $100,000`}
             spark={
               <Sparkline values={equitySeries}
-                          ariaLabel="NAV history" />
+                          ariaLabel="Account value history" />
             } />
-          <Strip label="Return"
+          <Strip label="Total return"
             value={fmtPct(summary?.total_return_pct)}
             tone={toneForNumber(summary?.total_return_pct ?? 0)}
-            sub={`inception-to-date`}
+            sub={`Since the system started`}
             spark={
               <Sparkline values={returnSeries}
-                          ariaLabel="Cumulative return history" />
+                          ariaLabel="Total return history" />
             } />
-          <Strip label="Drawdown"
+          <Strip label="Biggest drop from peak"
             value={fmtPct(summary?.max_drawdown_pct)}
             tone="neg"
-            sub="peak-to-trough"
+            sub="Largest dip in account value"
             spark={
               <Sparkline values={drawdownSeries}
                           tone="neg"
-                          ariaLabel="Drawdown history" />
+                          ariaLabel="Drop-from-peak history" />
             } />
-          <Strip label="Cash"
+          <Strip label="Available cash"
             value={summary ? fmtUSD(summary.cash) : "—"}
-            sub={summary ? `${((summary.cash / summary.equity) * 100).toFixed(0)}% of NAV` : "—"} />
-          <Strip label="Exposure"
-            value={markUnavailable ? "mark unavailable" : fmtUSD(exposure)}
+            sub={summary
+              ? `${((summary.cash / summary.equity) * 100).toFixed(0)}% of account value`
+              : "—"} />
+          <Strip label="Money invested"
+            value={markUnavailable
+              ? "Current price not available"
+              : fmtUSD(exposure)}
             sub={markUnavailable
-              ? `${openPositionsCount} open · server mark missing`
-              : `${(exposurePct * 100).toFixed(1)}% · ${openPositionsCount} open`} />
+              ? `${openPositionsCount} open · waiting for fresh price data`
+              : `${(exposurePct * 100).toFixed(1)}% invested · ${openPositionsCount} open`} />
         </div>
       </div>
 
@@ -176,27 +196,27 @@ export default function PortfolioTerminal() {
         <div className="u-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="u-label">Open Positions</div>
+              <div className="u-label">Holdings (still open)</div>
               <div className="u-caption-2 mt-1">
                 {openExecPositions.length > 0
-                  ? "Account-path holdings (paper_position)"
-                  : "No active executed positions"}
+                  ? "Stocks you currently hold in your paper account"
+                  : "No paper holdings yet"}
               </div>
             </div>
             <span className="u-pill u-pill-neutral">
-              {openExecPositions.length} open
+              {openExecPositions.length} held
             </span>
           </div>
           {openExecPositions.length === 0 ? (
             <div className="u-card-tight"
                  style={{ background: "var(--sunken)" }}>
               <div className="u-body-fg font-medium mb-2">
-                No open executed positions
+                No open paper holdings
               </div>
               <div className="u-caption">
                 {execSummary?.has_replay_recovered_rows
-                  ? "Recovered replay rows available — toggle 'Include recovered rows' above to view."
-                  : "Account/recommendation path has no open positions. Run the recommendation engine to generate buy candidates."}
+                  ? "Rebuilt simulation rows available — toggle 'Show rebuilt simulation rows' above to view them."
+                  : "Nothing currently held. New holdings appear here once a paper trade fills."}
               </div>
             </div>
           ) : (
@@ -205,9 +225,9 @@ export default function PortfolioTerminal() {
                 <tr>
                   <th>Symbol</th>
                   <th>Portfolio</th>
-                  <th className="text-right">Qty</th>
-                  <th className="text-right">Avg Cost</th>
-                  <th>Opened</th>
+                  <th className="text-right">Shares</th>
+                  <th className="text-right">Average buy price</th>
+                  <th>Bought on</th>
                   <th>Source</th>
                 </tr>
               </thead>
@@ -227,7 +247,12 @@ export default function PortfolioTerminal() {
                     </td>
                     <td>
                       {p.source === "replay" ? (
-                        <span className="u-chip u-chip-warning">replay</span>
+                        <span
+                          className="u-chip u-chip-warning"
+                          title="Rebuilt simulation row — not live trading activity."
+                        >
+                          rebuilt
+                        </span>
                       ) : (
                         <span className="u-caption-2 text-fg-3">{p.source}</span>
                       )}
@@ -242,36 +267,38 @@ export default function PortfolioTerminal() {
         <div className="u-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="u-label">Executed Trades</div>
+              <div className="u-label">Trades placed (history)</div>
               <div className="u-caption-2 mt-1">
                 {executedTrades.length > 0
-                  ? "Account-path fills (paper_trade)"
-                  : "No executed trades yet"}
+                  ? "Buy and sell trades the system placed in your paper account"
+                  : "No paper trades placed yet"}
               </div>
             </div>
             <span className="u-pill u-pill-neutral">
-              {executedTrades.length} fills
+              {executedTrades.length} trades
             </span>
           </div>
           {executedTrades.length === 0 ? (
             <div className="u-card-tight"
                  style={{ background: "var(--sunken)" }}>
-              <div className="u-body-fg font-medium mb-2">No executed trades</div>
+              <div className="u-body-fg font-medium mb-2">
+                No paper trades placed yet
+              </div>
               <div className="u-caption">
                 {execSummary?.has_replay_recovered_rows
-                  ? "Recovered replay rows available — toggle 'Include recovered rows' above."
-                  : "Account/recommendation path has no fills yet."}
+                  ? "Rebuilt simulation rows available — toggle 'Show rebuilt simulation rows' above to view them."
+                  : "Buys and sells will appear here as they fill on the next price bar."}
               </div>
             </div>
           ) : (
             <table className="u-table">
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Date</th>
                   <th>Symbol</th>
-                  <th>Side</th>
-                  <th className="text-right">Qty</th>
-                  <th className="text-right">Fill</th>
+                  <th>Trade type</th>
+                  <th className="text-right">Shares</th>
+                  <th className="text-right">Price</th>
                   <th>Source</th>
                 </tr>
               </thead>
@@ -294,7 +321,12 @@ export default function PortfolioTerminal() {
                     </td>
                     <td>
                       {t.source === "replay" ? (
-                        <span className="u-chip u-chip-warning">replay</span>
+                        <span
+                          className="u-chip u-chip-warning"
+                          title="Rebuilt simulation row — not live trading activity."
+                        >
+                          rebuilt
+                        </span>
                       ) : (
                         <span className="u-caption-2 text-fg-3">{t.source}</span>
                       )}
@@ -375,10 +407,10 @@ export default function PortfolioTerminal() {
         <div className="u-card">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="u-label">Realized History</div>
+              <div className="u-label">Closed trades (history)</div>
               <div className="u-caption-2 mt-1">
                 {closed.length > 0
-                  ? "Most recent closed trades"
+                  ? "Most recent closed paper trades from the strategy log"
                   : "No closed trades yet"}
               </div>
             </div>
@@ -388,12 +420,12 @@ export default function PortfolioTerminal() {
             <div className="u-card-tight"
                  style={{ background: "var(--sunken)" }}>
               <div className="u-body-fg font-medium mb-2">
-                No realized history yet
+                No closed trades yet
               </div>
               <div className="u-caption">
-                Engine A holds 10 bars; Engine B holds 1 bar. Closed trades
-                will populate here with realized returns, slippage, and
-                regime attribution.
+                Trades close once the strategy hits its take-profit,
+                stop-loss, or time-limit rule. Engine A holds for up
+                to 10 trading days; Engine B holds for 1.
               </div>
             </div>
           ) : (
