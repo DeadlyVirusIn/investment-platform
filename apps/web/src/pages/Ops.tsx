@@ -1,9 +1,20 @@
 // PAGE 5 — Ops
+//
+// UX-1 Commit I — page-level framing layer added on top.
+// PageGuide carries the visible title; Start-here focus card +
+// calm-state interpretation card sit between the page header
+// and the existing engineering content. NO existing card was
+// removed or moved; every diagnostic stays exactly where it
+// was. The new framing only labels the page so a beginner
+// reads "is the system healthy? do I need to do anything?"
+// before they encounter the operational telemetry.
 
 import { useSystemHealth, useAnomalies } from "@/lib/operator/hooks";
 import {
-  Card, Label, Pill, SectionHeader, EmptyState, Divider,
+  Card, Pill, SectionHeader, EmptyState, Divider,
 } from "@/components/ui/primitives";
+import { PageGuide } from "@/components/novice";
+import type { SystemHealth } from "@/lib/operator/types";
 import MLResearchCard from "@/components/ops/MLResearchCard";
 import HistoricalReplayCard from "@/components/ops/HistoricalReplayCard";
 import ReplayTrainingReadinessCard from "@/components/ops/ReplayTrainingReadinessCard";
@@ -27,15 +38,89 @@ export default function Ops() {
 
   const dataIssues = (dataAnom ?? []).filter(a => a.category === "data");
 
+  const calm = deriveOpsCalm(health);
+
   return (
     <div className="max-w-[1440px] mx-auto px-8 py-8 space-y-6">
-      <header>
-        <Label>Operations</Label>
-        <h1 className="u-title mt-1">System Ops</h1>
-        <p className="u-caption mt-1">
-          Pipeline health, data freshness, schedulers, settings.
+      {/* UX-1 Commit I — plain-English page header. The visible    */}
+      {/* title is now "System status" so a beginner does not read  */}
+      {/* "Ops" as something they might have broken. Eyebrow keeps  */}
+      {/* the engineering name for continuity.                       */}
+      <PageGuide
+        eyebrow="Pro view"
+        title="System status"
+        subtitle={
+          "Behind-the-scenes view of pipelines, data freshness, "
+          + "schedulers, and infrastructure. Most users do not need "
+          + "to read this page — it exists for transparency."
+        }
+        firstLook={
+          <>
+            Look at the <strong>System status</strong> chip below
+            first. If it reads "Operating normally", everything is
+            running as expected.
+          </>
+        }
+      />
+
+      {/* UX-1 Commit I — Start-here focus card. Calm framing for    */}
+      {/* a page that previously read like an engineering console.   */}
+      <section
+        className="u-card-tight"
+        data-test="ops-start-here"
+        style={{ padding: "12px 16px" }}
+      >
+        <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
+          Focus today
+        </div>
+        <ol className="u-body text-fg space-y-1 list-decimal pl-5">
+          <li>
+            <strong>System health</strong> — the chip below tells
+            you if anything is wrong.
+          </li>
+          <li>
+            <strong>Daily loop</strong> — whether the daily market
+            update finished cleanly.
+          </li>
+          <li>
+            Everything else is optional engineering detail.
+          </li>
+        </ol>
+        <p className="u-caption-2 text-fg-3 mt-2">
+          Safe to ignore for now: ML pipelines, scheduler config,
+          replay readiness, and shadow strategy diagnostics.
+          They're useful for advanced users — none require action
+          from a beginner.
         </p>
-      </header>
+      </section>
+
+      {/* UX-1 Commit I — calm operational interpretation card.     */}
+      {/* Answers "should I worry?" in plain English before the     */}
+      {/* engineering telemetry below.                              */}
+      <section
+        className="u-card-tight"
+        data-test="ops-calm-state"
+        style={{ padding: "14px 18px" }}
+      >
+        <div className="flex items-center gap-3 mb-1">
+          <span className={`u-chip u-chip-${calm.chip}`}>
+            <span className={`u-dot u-dot-${calm.chip}`} />
+            {calm.tone}
+          </span>
+          <span
+            className="u-body font-semibold text-fg"
+            data-test="ops-calm-headline"
+          >
+            {calm.headline}
+          </span>
+        </div>
+        <p
+          className="u-caption text-fg-2 max-w-3xl"
+          data-test="ops-calm-body"
+        >
+          {calm.body}
+        </p>
+      </section>
 
       {/* Phase 3 anchor nav — sticky 3-section jump nav */}
       <OpsAnchorNav />
@@ -238,4 +323,91 @@ function Row({ k, v }: { k: string; v: string }) {
       <span className="u-mono">{v}</span>
     </div>
   );
+}
+
+
+// UX-1 Commit I — derive a calm operational interpretation from
+// the existing /system/health payload. NO new endpoint, NO new
+// hook. Pure function. Branches in priority order:
+//   1. data not loaded → "Loading"
+//   2. overall === "failed" → "Worth a closer look"
+//   3. overall === "degraded" → "Some services slower than usual"
+//   4. items contain any error → "Some checks reporting errors"
+//   5. items contain any warn → "Most checks passing"
+//   6. otherwise → "Operating normally"
+//
+// Truth-preserving: every branch points the operator at the
+// underlying engineering surface below if action is needed,
+// rather than substituting a fake healthy claim.
+function deriveOpsCalm(
+  health: SystemHealth | undefined,
+): {
+  tone: string;
+  chip: "success" | "warning" | "danger" | "neutral";
+  headline: string;
+  body: string;
+} {
+  if (!health) {
+    return {
+      tone: "Loading",
+      chip: "neutral",
+      headline: "System status is loading.",
+      body:
+        "The health snapshot is still being fetched. The next "
+        + "market update will populate this view automatically.",
+    };
+  }
+  const errors = health.items.filter(i => i.severity === "error");
+  const warns = health.items.filter(i => i.severity === "warn");
+
+  if (health.overall === "failed") {
+    return {
+      tone: "Worth a closer look",
+      chip: "danger",
+      headline: "One or more services aren't reporting normally.",
+      body:
+        "Existing paper-trade data and account values remain "
+        + "safe — only the underlying telemetry is degraded. The "
+        + "engineering detail below explains which service is "
+        + "affected. Trading activity may pause until the next "
+        + "successful update.",
+    };
+  }
+  if (health.overall === "degraded" || errors.length > 0) {
+    return {
+      tone: "Worth a closer look",
+      chip: "warning",
+      headline:
+        errors.length > 0
+          ? `${errors.length} check${errors.length === 1 ? "" : "s"} reporting an error.`
+          : "Some services are slower than usual.",
+      body:
+        "Existing data remains available. The system continues to "
+        + "operate; today's market update is still processing or a "
+        + "single service is taking longer than usual. The "
+        + "engineering detail below shows which check is affected.",
+    };
+  }
+  if (warns.length > 0) {
+    return {
+      tone: "Most checks passing",
+      chip: "neutral",
+      headline:
+        `Most services healthy, ${warns.length} `
+        + `signalling caution.`,
+      body:
+        "Paper trading and market-data ingestion are operating "
+        + "normally. The flagged checks are advisory — none require "
+        + "action right now.",
+    };
+  }
+  return {
+    tone: "Operating normally",
+    chip: "success",
+    headline: "Operating normally.",
+    body:
+      "Paper trading and market-data ingestion are functioning. "
+      + "The next market update will refresh account values "
+      + "automatically. No action is needed right now.",
+  };
 }
