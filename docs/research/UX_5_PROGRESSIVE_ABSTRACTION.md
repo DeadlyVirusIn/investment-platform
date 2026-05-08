@@ -509,36 +509,117 @@ page that has the right *content*, not just the right *typography*.
 
 ---
 
-## 12. Open questions for the human
+## 12. Locked architectural decisions
 
-1. **Nav retraction** — is "Today / Holdings / Ideas / Watch" the
-   right 4? Should "Watch" be its own page or absorbed into
-   "Today"?
-2. **`/risks` Layer-1 page** — does this exist? Or is risk a
-   contextual line that surfaces only when triggered, with no
-   dedicated route?
-3. **Options L1** — should options ideas live on the Today page
-   alongside stock ideas (one combined "Today's ideas" list) or
-   on their own `/options` page?
-4. **Operator handoff** — should we ship a separate operator login
-   that pins to `/ops` by default, so retail users never *reach*
-   the Working layer except via *See the working* clicks?
-5. **Featured selection rule (UX-4 leftover)** — does Featured
-   exist on quiet days when no position has notable movement?
-6. **Holding period framing** — is "Day 4" the right temporal cue
-   for retail, or is "4 days held" / "4 days in" warmer?
-7. **Layer 3 attribution** — every Working link reads "See the
-   working → ". Should there be any descriptive variant
-   ("See the working: position math →") or is consistency
-   absolute?
-8. **Anti-AI-theater extension** — the lint script currently
-   scopes to `lib/copilot/` + `components/copilot/`. UX-5 needs
-   it to scope to *every* L1/L2 surface. Is the current isolation
-   between copilot/ and the rest of `apps/web/src/` worth
-   maintaining, or do we collapse it once UX-5 lands?
+Approved 2026-05-08. These eight decisions + four strategic locks
+are now load-bearing for every UX-5 phase. No future plan may
+contradict them without explicit re-review.
 
-These are the architectural decisions the human owns. UX-5 cannot
-proceed past UX-5A without answers to (1), (2), (3).
+### Decision 1 — primary nav = **Today / Holdings / Ideas / Working**
+
+Four items, in that order. **Watch is NOT a top-level item** —
+watchfulness appears contextually inside Today / Holdings /
+Ideas. Working is a visible top-level route, intentionally
+honest: it is *the transparent systems layer*, not a hidden admin
+panel.
+
+### Decision 2 — no standalone `/risks` Layer-1 page
+
+Risk surfaces only contextually inside Today / Holdings / Ideas
+("Markets remain unstable today.", "Technology exposure increased
+this week."). Advanced risk surfaces stay in Working. Optional
+future: a small "Risk outlook" *block* inside Today, not a
+dedicated route.
+
+### Decision 3 — options merge into Today + Ideas
+
+No separate Layer-1 options destination. If an options idea
+survives the daily filter, it surfaces inside Today / Ideas
+labelled as a higher-risk opportunity. Full options
+infrastructure (chain, observatory, decisions, framing,
+diagnostics, replay) stays in Working.
+
+### Decision 4 — Working remains visible top-level, no operator login
+
+No separate operator login or PIN. Working is reachable from the
+primary nav. Visually + semantically it must feel *secondary,
+advanced, system-oriented* — never the default flow's destination.
+
+### Decision 5 — Featured slot exists on quiet days, but rephrases
+
+The Featured anchor stays even when no position is notably
+moving. Quiet-day Featured surfaces market context, portfolio
+observation, watchfulness, or stability summary — never forced
+excitement.
+
+Examples:
+* "Markets stayed cautious today."
+* "No major portfolio changes today."
+* "Most positions remained near recent ranges."
+
+Removing the Featured slot entirely on quiet days makes the page
+feel empty + structurally unstable. Keep the structure; vary the
+content rule.
+
+### Decision 6 — temporal cue language locked: **"Day N"**
+
+Not "4 days held" / "4 days in" / "4d" / "Day 4 of 10". Just
+**"Day 4"**. Lighter, calmer, more editorial, less
+trade-heavy, compresses better visually.
+
+### Decision 7 — "See the working" is the *only* working-link copy
+
+Locked globally. No variants:
+* ❌ "View analysis"
+* ❌ "See details"
+* ❌ "Open diagnostics"
+* ❌ "Read rationale"
+* ❌ "See the working: position math"
+
+This phrase is now a core product identity concept. It
+communicates transparency / humility / non-magical AI / layered
+complexity without sounding technical / AI-theatrical /
+hedge-fund-like.
+
+### Decision 8 — lint scope expands to all Layer-1 + Layer-2 surfaces
+
+The anti-AI-theater + abstraction lint extends beyond
+`lib/copilot/` + `components/copilot/` to every Layer-1 / Layer-2
+file. Working surfaces (`apps/web/src/pages/PortfolioTerminal.tsx`,
+`/decisions`, `/risk`, `/options/*`, `/ops`, `/research`,
+`/ml-lab`, `/agents`, all components used only by those pages)
+remain **exempt** — they intentionally preserve precise operator
+vocabulary.
+
+### Strategic lock A — Today page principle
+
+Today answers ONLY: what changed · what matters · do I need to
+care · what opportunities exist · what risks matter · what should
+I watch. **Nothing else.** Six blocks max.
+
+### Strategic lock B — Working page principle
+
+Working is the transparent systems layer, not a hidden admin
+panel. Advanced users should feel the intelligence is
+inspectable. Operator vocabulary preserved.
+
+### Strategic lock C — no charts above the fold
+
+Default Layer-1 experience never opens with a chart. No
+exceptions. Editorial / calm / guided / human-readable wins over
+dashboard density.
+
+### Strategic lock D — never delete the current system
+
+Every existing page stays reachable. UX-5 is a *layering*
+problem, not a *replacement* problem. The current system is
+valuable; it simply belongs deeper.
+
+---
+
+_Note: UX-5A + UX-5B are unblocked by the eight locks above.
+UX-5B is the highest-leverage transformation. Plan-only review
+still required before each phase implements._
 
 ---
 
