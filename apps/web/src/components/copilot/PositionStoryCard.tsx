@@ -66,16 +66,21 @@ export default function PositionStoryCard(
           <span
             data-source={story.dataSource}
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 12,
+              // flex-wrap so 390px phones wrap the bought-clause and
+              // recovered chip onto a second line instead of clipping
+              // horizontally. Row-gap keeps a calm vertical rhythm.
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "baseline",
+              columnGap: 10,
+              rowGap: 4,
               fontSize: "var(--copilot-type-15)",
               fontWeight: 500,
             }}
           >
             <span
               data-test="copilot-position-symbol"
-              style={{ minWidth: 56 }}
+              style={{ flexShrink: 0 }}
             >
               {story.symbol}
             </span>
@@ -92,7 +97,7 @@ export default function PositionStoryCard(
                   border: "1px solid var(--copilot-dot-waiting)",
                   borderRadius: 4,
                   padding: "1px 6px",
-                  marginLeft: 4,
+                  flexShrink: 0,
                 }}
               >
                 {HOLDINGS_COPY.recoveredChip}
@@ -133,8 +138,11 @@ export default function PositionStoryCard(
             <LifecycleRibbon nodes={nodes} />
             <div
               style={{
+                // Wrap on 390px — three links overflow inline.
                 display: "flex",
-                gap: 16,
+                flexWrap: "wrap",
+                columnGap: 16,
+                rowGap: 6,
                 fontSize: "var(--copilot-type-13)",
                 opacity: 0.7,
               }}
