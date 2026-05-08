@@ -60,3 +60,4 @@ logs/
 .claude-octopus/
 apps/web/.claude-octopus/
 artifacts/
+.debate/
