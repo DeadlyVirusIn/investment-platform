@@ -485,6 +485,154 @@ UX-5B fails if:
 
 ---
 
+## 14b. Locked refinements (applied 2026-05-08 after approval)
+
+These refinements were approved alongside the six asks. They
+override anything earlier in this document.
+
+### R-A — Block 3 stays observational ALWAYS
+
+The "Today's ideas" block carries the highest emotional risk.
+Banned absolutely — even with deterministic derivation:
+
+* scores (numeric or letter)
+* rankings ("top pick", "best idea", "ranked #1")
+* confidence percentages
+* "high-confidence", "strong setup", "high-conviction"
+* urgency language ("act now", "today only", "limited window")
+* superlatives ("strongest", "biggest", "hottest")
+
+Allowed observational templates (chart-context, not directive):
+* "Energy stocks continued strengthening."
+* "Healthcare remained stable during today's weakness."
+* "Pullback into support held."
+* "Building a base near the {N}-day average."
+* "Momentum easing into earnings later this week."
+* "Recently moved."
+
+### R-B — Quiet days are first-class (NOT an edge case)
+
+Quiet-day behavior may become the defining emotional trait of
+the product. Most investing products feel anxious, performative,
+desperate for activity. This product should feel **comfortable
+being quiet**.
+
+Implementation contract:
+- Quiet day output is NOT a fallback. It is a first-class
+  rendering path with its own deterministic templates.
+- The quiet-day greeting + sentence varies by date (cadence
+  rotation per UX-3D pattern) so a returning user does not see
+  the same exact line two days running.
+- The page width, spacing, and footer still feel intentional —
+  not "loading", not "empty state", not "skeleton".
+
+### R-C — Block 4 stays tiny
+
+What-changed renders 1–3 sentences max. Each sentence ≤ 80
+characters. Banned in this block:
+- changelog format ("Added X. Removed Y. Updated Z.")
+- analytics summaries ("Realized vol fell 12%, breadth widened
+  to 64%, …")
+- commentary paragraphs
+
+Allowed style:
+* "Technology exposure increased slightly."
+* "Two positions closed this week."
+* "Most holdings stayed near recent ranges."
+
+### R-D — Block 6 translates events to watchfulness
+
+NEVER expose:
+- raw earnings calendar entries
+- macro event codes (CPI, FOMC, NFP)
+- economic schedule infrastructure
+
+Translation map (lives in `overview_copy.ts`):
+
+| Event code | Watchfulness phrase |
+|------------|---------------------|
+| CPI | "Inflation data arrives {Day}." |
+| FOMC | "The Fed meets {Day}." |
+| NFP | "Jobs data lands {Day}." |
+| ECI | "Wage data updates {Day}." |
+| GDP | "Growth figures publish {Day}." |
+| Earnings ({SYM}) | "{SYM} reports {Day}." |
+| ECB | "The European central bank meets {Day}." |
+| BOJ | "The Japanese central bank meets {Day}." |
+
+Anything not in the map omits silently. NEVER fall back to the
+raw event code.
+
+### R-E — Empty blocks collapse, never render placeholder
+
+If a block has nothing truthful to render, it does not render.
+Specifically forbidden:
+- empty card with header + "Nothing to show"
+- skeleton loader after data resolves to nothing
+- "No ideas yet" / "Check back later" copy
+- divider + empty space
+
+Acceptable:
+- block + content gone entirely; subsequent block moves up
+- on a fully-quiet day, the page collapses to just greeting +
+  one sentence + footer (per R-B)
+
+Implementation contract: every block component returns `null`
+when its data is empty. The parent page composes via
+conditional fragments, NOT via constant headers + variable bodies.
+
+### R-F — 30-second scan target
+
+The Today page should feel:
+* fast to scan
+* emotionally light
+* low-pressure
+* low-anxiety
+* low-fatigue
+
+Specific implications:
+- Total reading length on a normal day: ≤ 200 words above the
+  fold, ≤ 350 total.
+- Block 3 (ideas) caps at 3 cards, each ≤ 60 chars observation.
+- Block 4 caps at 3 sentences.
+- Block 6 caps at 3 watchfulness lines.
+- No nested expansion within Today (all detail lives via the
+  links to Holdings / Ideas / See the working).
+
+### R-G — Cadence variation (deterministic, sparse, subtle)
+
+Deterministic does NOT mean emotionally repetitive. Each
+template family has 2–4 variants. The variant index is a pure
+function of the local date so a returning user sees subtle day-
+to-day variation. Same pattern as UX-3D §3 quiet-hero variants.
+
+Variation rules:
+- ROTATES: greeting alternates per day (`Good morning.` /
+  `Morning.` — 2 variants)
+- ROTATES: today-line for each regime has 2 variants
+- ROTATES: quiet-day sentence has 3 variants
+- DOES NOT ROTATE: idea observations (each idea picks the one
+  template matching its data; rotation across days would feel
+  random)
+- DOES NOT ROTATE: what-changed deltas (deterministic from data,
+  variation comes from the data itself)
+
+### R-H — Temporal cue locked: "Today" for ideas, "Day N" for held
+
+Per Decision 6 + the post-review refinement:
+
+| Context | Cue |
+|---------|-----|
+| Held position, opened today | "Opened today" |
+| Held position, N days held | "Day N" |
+| Fresh idea on Today page | "Today" |
+| Fresh idea, no temporal context computable | (omit) |
+
+"Day 0" is BANNED — too mechanical for ideas that haven't yet
+become commitments. The lint adds it to the banned list.
+
+---
+
 ## 15. Awaiting approval
 
 This is a plan-only review. No code changes have been made.
