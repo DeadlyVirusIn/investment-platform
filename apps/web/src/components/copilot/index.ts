@@ -24,3 +24,25 @@ export type { SituationalHeroProps } from "./SituationalHero";
 
 export { default as PositionStoryCard } from "./PositionStoryCard";
 export type { PositionStoryCardProps } from "./PositionStoryCard";
+
+// UX-5B Phase B-2 — Today (Overview) block primitives.
+export { default as TodayLine } from "./TodayLine";
+export type { TodayLineProps } from "./TodayLine";
+
+export { default as HoldingsSummary } from "./HoldingsSummary";
+export type { HoldingsSummaryProps } from "./HoldingsSummary";
+
+export { default as IdeaCard } from "./IdeaCard";
+export type { IdeaCardProps } from "./IdeaCard";
+
+export { default as TodaysIdeas } from "./TodaysIdeas";
+export type { TodaysIdeasProps } from "./TodaysIdeas";
+
+export { default as WhatChangedBlock } from "./WhatChangedBlock";
+export type { WhatChangedBlockProps } from "./WhatChangedBlock";
+
+export { default as RiskLine } from "./RiskLine";
+export type { RiskLineProps } from "./RiskLine";
+
+export { default as WatchThisWeek } from "./WatchThisWeek";
+export type { WatchThisWeekProps } from "./WatchThisWeek";
