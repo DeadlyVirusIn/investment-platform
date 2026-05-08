@@ -4,8 +4,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Shell from '@/components/shell/Shell';
 
-// NEW product pages
-import Overview from '@/pages/Overview';
+// NEW product pages.
+// UX-5B Phase B-3 — /overview now flips through OverviewRouteSwitch:
+// default → Layer-1 editorial CopilotOverview;
+// ?view=working → existing Overview (Elite Terminal preserved).
+import OverviewRouteSwitch from '@/pages/copilot/OverviewRouteSwitch';
 // UX-2 Phase B — /portfolio brief↔working route switch wraps
 // PortfolioTerminal; no longer imported directly here.
 import PortfolioRouteSwitch from '@/pages/copilot/PortfolioRouteSwitch';
@@ -66,7 +69,7 @@ export default function App() {
 
       <Route element={<Shell />}>
         {/* --- NEW 5-area product --- */}
-        <Route path="/overview"   element={<Overview />} />
+        <Route path="/overview"   element={<OverviewRouteSwitch />} />
         <Route path="/portfolio"  element={<PortfolioRouteSwitch />} />
         <Route path="/decisions"  element={<Decisions />} />
         <Route path="/research"   element={<ResearchLab />} />
