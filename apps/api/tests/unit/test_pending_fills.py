@@ -68,8 +68,14 @@ def test_endpoint_does_no_writes():
 def test_endpoint_pins_status_vocabulary():
     src = ROUTER.read_text(encoding="utf-8")
     # These literals are the contract the UI / Discord formatter
-    # depend on; do not drift.
+    # depend on; do not drift. The vocabulary is tri-state:
+    #   pending_next_bar  — still genuinely guard-blocked
+    #   ready_for_replay  — bar after submitted_at exists; awaiting
+    #                       post-ingest paper cycle (operator action)
+    #   unknown_no_bar    — no price_bar visible at all (data gap)
     assert '"pending_next_bar"' in src
+    assert '"ready_for_replay"' in src
+    assert '"unknown_no_bar"' in src
     assert '"next_bar"' in src
     assert '"waiting for price_bar after submitted_at"' in src
 
@@ -115,20 +121,44 @@ def test_endpoint_returns_pinned_field_set(client):
     body = r.json()
     assert "count" in body
     assert "items" in body
+    # ready_for_replay_count is a new top-level key (UX-trust fix);
+    # may legitimately be 0 on a clean system.
+    assert "ready_for_replay_count" in body
+    valid_statuses = {
+        "pending_next_bar", "ready_for_replay", "unknown_no_bar",
+    }
+    valid_blockers = {
+        "next_bar_guard", "operator_action_needed", "data_gap",
+    }
     for item in body["items"]:
         for k in (
             "symbol", "asset_id", "action",
             "submitted_at", "as_of_date",
             "portfolio_id", "portfolio_name",
             "expected_fill_rule", "current_status",
-            "reason", "latest_price_bar_ts",
+            "blocker", "reason", "latest_price_bar_ts",
             "next_expected_bar_date",
         ):
             assert k in item, f"pending-fill row missing {k}"
         assert item["expected_fill_rule"] == "next_bar"
-        assert item["current_status"] == "pending_next_bar"
+        assert item["current_status"] in valid_statuses, (
+            f"unexpected current_status {item['current_status']!r}"
+        )
+        assert item["blocker"] in valid_blockers, (
+            f"unexpected blocker {item['blocker']!r}"
+        )
         assert item["action"] == "Buy"
-        assert "waiting for price_bar" in item["reason"]
+        # Each status has its own reason wording — verify the
+        # mapping is internally consistent.
+        if item["current_status"] == "pending_next_bar":
+            assert "waiting for price_bar" in item["reason"]
+            assert item["blocker"] == "next_bar_guard"
+        elif item["current_status"] == "ready_for_replay":
+            assert "next bar available" in item["reason"]
+            assert item["blocker"] == "operator_action_needed"
+        elif item["current_status"] == "unknown_no_bar":
+            assert "no price_bar visible" in item["reason"]
+            assert item["blocker"] == "data_gap"
 
 
 def test_endpoint_next_expected_bar_is_weekday(client):
@@ -153,6 +183,46 @@ def test_endpoint_rejects_bad_date_format(client):
     r = client.get("/api/performance/paper/pending-fills?as_of=not-a-date")
     body = r.json()
     assert "error" in body
+
+
+# ---------------------------------------------------------------------------
+# UX-trust regression — current_status flips to ready_for_replay when
+# the latest_price_bar_ts > submitted_at. This test exercises the
+# classifier directly via the live endpoint (which reads the real
+# JSONL + DB) and asserts the contract holds for whichever bucket
+# each item falls into.
+# ---------------------------------------------------------------------------
+def test_endpoint_status_consistent_with_bar_availability(client):
+    r = client.get("/api/performance/paper/pending-fills")
+    body = r.json()
+    for item in body["items"]:
+        latest = item.get("latest_price_bar_ts")
+        submitted = item.get("submitted_at")
+        if latest is None:
+            assert item["current_status"] == "unknown_no_bar"
+            continue
+        # Compare ISO strings — both produced by datetime.isoformat()
+        # with timezone, lexicographic order matches chronological.
+        latest_dt = dt.datetime.fromisoformat(latest)
+        submitted_dt = dt.datetime.fromisoformat(submitted)
+        if latest_dt > submitted_dt:
+            assert item["current_status"] == "ready_for_replay", (
+                f"latest_ts {latest} > submitted {submitted} but "
+                f"current_status is {item['current_status']!r}"
+            )
+            assert item["blocker"] == "operator_action_needed"
+        else:
+            assert item["current_status"] == "pending_next_bar"
+            assert item["blocker"] == "next_bar_guard"
+
+
+def test_endpoint_top_notice_mentions_replay_when_ready(client):
+    r = client.get("/api/performance/paper/pending-fills")
+    body = r.json()
+    if body.get("ready_for_replay_count", 0) > 0:
+        assert "READY for post-ingest replay" in body["notice"], (
+            f"notice {body['notice']!r} should call out replay readiness"
+        )
 
 
 # ---------------------------------------------------------------------------

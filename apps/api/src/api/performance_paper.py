@@ -1004,6 +1004,7 @@ def pending_fills(
         return {
             "as_of_date": None,
             "count": 0,
+            "ready_for_replay_count": 0,
             "items": [],
             "notice": (
                 "No paper_trading_skips file found. Run "
@@ -1016,6 +1017,7 @@ def pending_fills(
         return {
             "as_of_date": target_date.isoformat(),
             "count": 0,
+            "ready_for_replay_count": 0,
             "items": [],
         }
 
@@ -1039,6 +1041,7 @@ def pending_fills(
         return {
             "as_of_date": target_date.isoformat(),
             "count": 0,
+            "ready_for_replay_count": 0,
             "items": [],
         }
 
@@ -1072,29 +1075,78 @@ def pending_fills(
 
     next_bar_date = _next_trading_day(target_date)
 
+    # Default submitted_at fallback used when the JSONL row predates
+    # the field. as_of_date 21:00 UTC ≈ US close anchor used elsewhere.
+    _default_submitted_at = dt.datetime.combine(
+        target_date, dt.time(21, 0), tzinfo=dt.timezone.utc,
+    )
+
     items: list[dict[str, Any]] = []
+    ready_count = 0
     for r in raw_rows:
         aid = r.get("asset_id")
         latest_ts = latest_ts_by_asset.get(aid)
+        # Parse submitted_at as a tz-aware datetime so we can compare
+        # against the latest_ts. The JSONL stores either an ISO string
+        # or nothing; tolerate both. Falling back to the default keeps
+        # the code path safe — comparison against latest_ts is then
+        # against the as_of close anchor.
+        submitted_raw = r.get("submitted_at")
+        try:
+            submitted_dt = (
+                dt.datetime.fromisoformat(submitted_raw)
+                if isinstance(submitted_raw, str) and submitted_raw
+                else _default_submitted_at
+            )
+        except ValueError:
+            submitted_dt = _default_submitted_at
+        if submitted_dt.tzinfo is None:
+            submitted_dt = submitted_dt.replace(tzinfo=dt.timezone.utc)
+
+        # Distinguish historical-rejection state from current-readiness
+        # state. The next-bar guard remains strictly enforced inside
+        # auto_trader; this status flip is purely a TRUTH classifier
+        # for the surface layer. Three buckets:
+        #   * ready_for_replay      — bar exists strictly after
+        #                              submitted_at; awaiting the
+        #                              post-ingest paper cycle.
+        #   * pending_next_bar      — no bar yet after submitted_at;
+        #                              still genuinely guard-blocked.
+        #   * unknown_no_bar        — no price_bar visible at all for
+        #                              this asset (data gap, not a
+        #                              guard issue).
+        if latest_ts is None:
+            current_status = "unknown_no_bar"
+            reason = "no price_bar visible for this asset"
+            blocker = "data_gap"
+        elif latest_ts > submitted_dt:
+            current_status = "ready_for_replay"
+            reason = (
+                "next bar available; awaiting post-ingest paper cycle"
+            )
+            blocker = "operator_action_needed"
+            ready_count += 1
+        else:
+            current_status = "pending_next_bar"
+            reason = "waiting for price_bar after submitted_at"
+            blocker = "next_bar_guard"
+
         items.append({
             "symbol": sym_by_id.get(aid, "?"),
             "asset_id": aid,
             "action": "Buy",
-            "submitted_at": r.get("submitted_at") or (
-                # Skip JSONL doesn't capture submitted_at directly;
-                # default to as_of_date 21:00 UTC ≈ US close anchor
-                # used elsewhere in the codebase.
-                dt.datetime.combine(
-                    target_date, dt.time(21, 0),
-                    tzinfo=dt.timezone.utc,
-                ).isoformat()
+            "submitted_at": (
+                submitted_raw
+                if isinstance(submitted_raw, str) and submitted_raw
+                else _default_submitted_at.isoformat()
             ),
             "as_of_date": target_date.isoformat(),
             "portfolio_id": r.get("portfolio_id"),
             "portfolio_name": pf_by_id.get(r.get("portfolio_id")),
             "expected_fill_rule": "next_bar",
-            "current_status": "pending_next_bar",
-            "reason": "waiting for price_bar after submitted_at",
+            "current_status": current_status,
+            "blocker": blocker,
+            "reason": reason,
             "latest_price_bar_ts": (
                 latest_ts.isoformat() if latest_ts else None
             ),
@@ -1104,16 +1156,30 @@ def pending_fills(
             ),
         })
 
+    # Top-level notice mirrors the most-actionable state. If any
+    # items are ready_for_replay the operator should run the post-
+    # ingest paper cycle; if none, the historical wording still
+    # applies.
+    if ready_count > 0:
+        top_notice = (
+            f"{ready_count} of {len(items)} fill(s) READY for "
+            "post-ingest replay — bar after submitted_at exists. "
+            "Run the post-ingest paper cycle to process them."
+        )
+    else:
+        top_notice = (
+            "Pending next-bar fills. NOT executed trades. "
+            "These will fill once a price_bar is ingested with "
+            "ts > submitted_at."
+        )
+
     return {
         "as_of_date": target_date.isoformat(),
         "next_expected_bar_date": next_bar_date.isoformat(),
         "count": len(items),
+        "ready_for_replay_count": ready_count,
         "items": items,
-        "notice": (
-            "Pending next-bar fills. NOT executed trades. "
-            "These will fill once a price_bar is ingested with "
-            "ts > submitted_at."
-        ),
+        "notice": top_notice,
     }
 
 

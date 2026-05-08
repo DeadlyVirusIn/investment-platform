@@ -124,6 +124,15 @@ services:
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      # 2026-05-08 trust fix — paper-trading skip JSONLs written by
+      # run_paper_trading must persist on host so post-ingest cycle
+      # (in worker-cron) and read-only API surface (in api) all see
+      # the same artifacts. Without this mount, writes go to ephemeral
+      # container fs and disappear on recreate, leaving a stale host
+      # JSONL as the only visible record. Mount is RW: this container
+      # is the writer.
+      - ../../artifacts:/app/artifacts
     depends_on:
       db:
         condition: service_healthy
@@ -172,6 +181,11 @@ services:
     volumes:
       # Persist /tmp health markers so API + host can read them
       - worker_cron_tmp:/tmp
+      # 2026-05-08 trust fix — sibling mount to worker-tickloop so
+      # run_post_ingest_paper_cycle can read existing skip JSONLs and
+      # write `.replayed.jsonl` markers. RW because the cycle is the
+      # one process that mutates marker state.
+      - ../../artifacts:/app/artifacts
     depends_on:
       db:
         condition: service_healthy
