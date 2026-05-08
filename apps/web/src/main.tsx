@@ -11,6 +11,26 @@ import { GuardrailsToggleProvider } from '@/lib/options/guardrailsToggle';
 // Apply theme attribute before first render to avoid flash.
 bootstrapTheme();
 
+// Self-destruct service worker bootstrap.
+//
+// The current build ships no SW, but earlier builds did, and some
+// browsers still carry a stale registration that intercepts fetches
+// and hides new code. We register /sw.js (which immediately
+// unregisters itself + clears caches + reloads the page) ONLY when
+// a stale registration is detected. Once cleaned, getRegistrations()
+// returns empty and we never register again.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then((regs) => {
+    if (regs.length > 0) {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // best-effort — failure is silent; user can still hard-refresh
+      });
+    }
+  }).catch(() => {
+    // best-effort
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
