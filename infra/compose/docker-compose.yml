@@ -33,6 +33,12 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 11W follow-up — run_engine_pipeline.py calls
+      # backfill_macro_features which requires FRED_API_KEY. Without
+      # this propagation the daily loop's macro_backfill stage exits
+      # rc=2, downstream stages skip, and context_daily / regime /
+      # factor / candidate stay stuck behind price_bar.
+      FRED_API_KEY: ${FRED_API_KEY}
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -109,6 +115,12 @@ services:
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 11W follow-up — run_engine_pipeline.py calls
+      # backfill_macro_features which requires FRED_API_KEY. Without
+      # this propagation the daily loop's macro_backfill stage exits
+      # rc=2, downstream stages skip, and context_daily / regime /
+      # factor / candidate stay stuck behind price_bar.
+      FRED_API_KEY: ${FRED_API_KEY}
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
@@ -129,6 +141,12 @@ services:
       TZ: ${TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 11W follow-up — run_engine_pipeline.py calls
+      # backfill_macro_features which requires FRED_API_KEY. Without
+      # this propagation the daily loop's macro_backfill stage exits
+      # rc=2, downstream stages skip, and context_daily / regime /
+      # factor / candidate stay stuck behind price_bar.
+      FRED_API_KEY: ${FRED_API_KEY}
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}

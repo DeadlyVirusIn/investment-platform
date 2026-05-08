@@ -97,6 +97,18 @@ def attach_labels(
     bars = bars.copy()
     bars[cfg.date_col] = pd.to_datetime(bars[cfg.date_col]).dt.normalize()
 
+    # Coerce numeric bar columns to float64 once at the boundary.
+    # Postgres NUMERIC columns surface as `decimal.Decimal` objects,
+    # which do not interoperate with `float` in arithmetic
+    # (`Decimal('1') - 1.0` raises TypeError). All downstream label
+    # math (forward-return, MAE/MFE, triple-barrier vol, pct_change)
+    # assumes float64. Fixing the type once here eliminates the bug
+    # class for every helper instead of casting at each arithmetic
+    # site. `pd.to_numeric` accepts Decimal cleanly and emits NaN for
+    # non-coercible cells. ML labels do not require Decimal precision.
+    for _col in (cfg.close_col, cfg.high_col, cfg.low_col):
+        bars[_col] = pd.to_numeric(bars[_col], errors="coerce")
+
     # Build per-symbol sorted index once
     bars = bars.sort_values([cfg.symbol_col, cfg.date_col])
 
@@ -147,6 +159,13 @@ def attach_labels(
     if paper_trades is not None and not paper_trades.empty:
         pt = paper_trades.copy()
         pt["entry_date"] = pd.to_datetime(pt["entry_date"]).dt.normalize()
+        # Same Decimal-boundary coercion as bars above. paper_trade_log
+        # stores returns + days_held as NUMERIC, which would otherwise
+        # collide with float comparators downstream
+        # (`label_win_realized` does Series.gt(0.0) on this column).
+        for _col in ("net_ret_pct", "gross_ret_pct", "days_held"):
+            if _col in pt.columns:
+                pt[_col] = pd.to_numeric(pt[_col], errors="coerce")
         # Keep only closed trades for outcome labels
         closed = pt[pt["status"].eq("closed")]
         merge_cols = ["entry_date", "symbol"]
@@ -229,6 +248,12 @@ def _forward_close_return(
         entry_price = future[cfg.close_col].iloc[0]
         exit_price  = future[cfg.close_col].iloc[horizon_days]
         if entry_price is None or entry_price == 0 or pd.isna(entry_price):
+            continue
+        # Symmetric guard — exit_price could be NaN when bars have a
+        # gap; without this the float arithmetic below would still
+        # work (NaN propagates) but pd.to_numeric coercion guarantees
+        # NaN here rather than None, so make the intent explicit.
+        if pd.isna(exit_price):
             continue
         out.at[idx] = (exit_price / entry_price) - 1.0
     return out

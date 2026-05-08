@@ -97,6 +97,17 @@ def _labels_for_decision(
         for h in horizons:
             out.append(_empty_row(decision_id, h))
         return out
+    # Boundary coercion: entry_bar.close arrives as Decimal from the
+    # price_bar NUMERIC column. The arithmetic below mixes it with
+    # float exit_close / float lows / float highs which raises
+    # TypeError("unsupported operand type(s) for -: 'Decimal' and
+    # 'float'"). Coerce here and reuse the float for both the
+    # arithmetic and the OutcomeRow.entry_price field.
+    entry_close_f = _float(entry_bar.close)
+    if entry_close_f is None or entry_close_f == 0:
+        for h in horizons:
+            out.append(_empty_row(decision_id, h, entry_price=entry_bar.close))
+        return out
     max_h = max(horizons)
     forward = pit.get_forward_bars(
         symbol, after=as_of, horizon_days=max_h,
@@ -108,15 +119,15 @@ def _labels_for_decision(
         window = forward.iloc[:h]
         exit_close = _float(window["close"].iloc[-1])
         fwd_ret = (
-            (exit_close / entry_bar.close) - 1.0
-            if exit_close and entry_bar.close else None
+            (exit_close / entry_close_f) - 1.0
+            if exit_close else None
         )
         lows = pd.to_numeric(window["low"], errors="coerce").dropna()
         highs = pd.to_numeric(window["high"], errors="coerce").dropna()
-        mae = ((lows.min() / entry_bar.close) - 1.0
-               if not lows.empty and entry_bar.close else None)
-        mfe = ((highs.max() / entry_bar.close) - 1.0
-               if not highs.empty and entry_bar.close else None)
+        mae = ((float(lows.min()) / entry_close_f) - 1.0
+               if not lows.empty else None)
+        mfe = ((float(highs.max()) / entry_close_f) - 1.0
+               if not highs.empty else None)
         out.append(OutcomeRow(
             replay_decision_id=decision_id,
             label_horizon=h,
