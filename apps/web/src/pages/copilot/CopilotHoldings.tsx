@@ -21,11 +21,25 @@ import { hasSeen, markSeen } from "@/lib/copilot/onboarding";
 import { useExecutedPositions } from "@/lib/operator/hooks";
 
 
+/** YYYY-MM-DD for the user's local clock. Computed once at module
+ *  load so render is deterministic during a session. CopilotHoldings
+ *  re-mounts on route change, so this naturally refreshes per visit
+ *  rather than per re-render. */
+function _todayYMD(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${dd}`;
+}
+
+
 export default function CopilotHoldings() {
   // Default false (existing-user behaviour): never include replay.
   // Working view exposes the toggle. Brief view stays clean.
   const positionsQ = useExecutedPositions(false, true);
   const positions = positionsQ.data?.positions ?? [];
+  const today = _todayYMD();
 
   // First-position onboarding clause — fires once via localStorage.
   // Resolved after mount so the value is correct in SSR/SSG paths.
@@ -141,7 +155,7 @@ export default function CopilotHoldings() {
                 avg_cost: p.avg_cost,
                 opened_at: p.opened_at,
                 source: p.source,
-              })}
+              }, today)}
               defaultOpen={idx === 0 && showOnboarding}
             />
           ))}

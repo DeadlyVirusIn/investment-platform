@@ -255,12 +255,29 @@ export const HOLDINGS_COPY = {
   detailMarkUnavailable:
     "Current price not available. Showing what we last saw.",
   detailExitsNotComputed:
-    "Exit levels not yet computed for this position. See Decisions "
-    + "for the raw inputs.",
-  detailLinkDecisions: "Read the full reasoning",
-  detailLinkAlphaLab: "Trade review",
-  detailLinkWorking: "See the working",
+    "Exit levels not yet computed for this position. "
+    + "See the working for the raw inputs.",
+  // UX-4 lock 1 — every working-detail link consolidated to a single
+  // "See the working →" affordance. Banned phrasings intentionally
+  // removed: "Read the full reasoning", "Trade review", and any
+  // AI-rationale wording. The lint enforces this.
+  detailLinkSeeWorking: "See the working",
   recoveredChip: "recovered",
   recoveredTooltip:
     "Recovered from backup data — not live trading activity.",
+} as const;
+
+
+// ---------------------------------------------------------------------
+// 11. Temporal cues (Phase C-1 — UX-4 lock 5)
+// ---------------------------------------------------------------------
+//
+// Tiny + sparse. ≤ 3 words each. Render only when truthfully derivable
+// from existing data. Mark-dependent cues ("Cooling slightly", "Near
+// target", "Recently moved", "Unchanged") wait until pricing is wired
+// — until then we ship date-derivable cues only.
+
+export const TEMPORAL_CUES = {
+  openedToday: "Opened today",
+  day: "Day {n}",  // n = days since opened_at, 1-indexed
 } as const;

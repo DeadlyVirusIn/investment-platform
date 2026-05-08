@@ -9,7 +9,9 @@
 // `data-source` attribute; this file is the only legitimate place
 // to mint those strings.
 
-import { CONFIDENCE_LABELS, HERO_TEMPLATES, HOLDINGS_COPY } from "./copy";
+import {
+  CONFIDENCE_LABELS, HERO_TEMPLATES, HOLDINGS_COPY, TEMPORAL_CUES,
+} from "./copy";
 import type {
   ConfidenceBand,
   HeroCopy,
@@ -198,6 +200,9 @@ export interface PositionStory {
   isRecovered: boolean;
   /** Provenance string for data-source attribute. */
   dataSource: string;
+  /** UX-4 lock 5 temporal cue — "Opened today", "Day N", or null when
+   *  nothing truthful can be rendered. */
+  temporal: string | null;
 }
 
 
@@ -232,24 +237,76 @@ function _fmtQty(q: number | null): string {
 }
 
 
-export function derivePositionStory(p: PositionInput): PositionStory {
+/** UX-4 lock 5 — tiny temporal cue for a position. ≤ 3 words.
+ *  Returns null when nothing truthful can be said (omission >
+ *  placeholder). Phase C-1 ships date-derivable cues only:
+ *
+ *    * opened_at == today  →  "Opened today"
+ *    * 0 < days < 1000     →  "Day N"   (N = days since opened, 1-indexed)
+ *    * otherwise           →  null
+ *
+ *  `today` is injected so tests + render are deterministic. Pass an
+ *  ISO date (YYYY-MM-DD) — the time portion is ignored.
+ *  Mark-dependent cues ("Near target", "Recently moved", etc.) wait
+ *  until pricing is wired and live in a separate function. */
+export function derivePositionTemporal(
+  p: Pick<PositionInput, "opened_at">,
+  today: string,
+): string | null {
+  if (!p.opened_at) return null;
+  const opened = p.opened_at.length >= 10 ? p.opened_at.slice(0, 10) : p.opened_at;
+  const tdy = today.length >= 10 ? today.slice(0, 10) : today;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(opened)) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(tdy)) return null;
+  if (opened === tdy) return TEMPORAL_CUES.openedToday;
+  // UTC-based day arithmetic — avoids local-timezone DST edge cases
+  // that would shift "Day N" by 1 around midnight.
+  const o = Date.UTC(
+    Number(opened.slice(0, 4)),
+    Number(opened.slice(5, 7)) - 1,
+    Number(opened.slice(8, 10)),
+  );
+  const t = Date.UTC(
+    Number(tdy.slice(0, 4)),
+    Number(tdy.slice(5, 7)) - 1,
+    Number(tdy.slice(8, 10)),
+  );
+  const days = Math.floor((t - o) / 86_400_000);
+  if (days <= 0 || days >= 1000) return null;
+  return TEMPORAL_CUES.day.replace("{n}", String(days + 1));
+}
+
+
+/** Derive a PositionStory.
+ *
+ *  `today` is optional (ISO YYYY-MM-DD). When omitted, the temporal
+ *  cue is null — call sites that don't track a session date stay
+ *  truthful by rendering nothing rather than computing against the
+ *  user's local clock at render time. CopilotHoldings injects today
+ *  explicitly so SSR + tests stay deterministic. */
+export function derivePositionStory(
+  p: PositionInput,
+  today?: string,
+): PositionStory {
   const date = formatHumanDate(p.opened_at);
   const price = _fmtPrice(p.avg_cost);
   const qty = _fmtQty(p.quantity);
   const sharesNoun = p.quantity === 1 ? "share" : "shares";
 
-  // Glance line: "5 shares · bought May 2, 2026 at $182.40"
   const glance = `${qty} ${sharesNoun} · `
     + HOLDINGS_COPY.glanceBoughtAt
         .replace("{date}", date)
         .replace("{price}", price);
 
-  // Detail body — single sentence, observational.
   const detail = HOLDINGS_COPY.detailBoughtSentence
     .replace("{date}", date)
     .replace("{price}", price)
     .replace("{n}", qty)
     .replace("{sharesNoun}", sharesNoun);
+
+  const temporal = today
+    ? derivePositionTemporal({ opened_at: p.opened_at }, today)
+    : null;
 
   return {
     symbol: p.symbol,
@@ -261,6 +318,7 @@ export function derivePositionStory(p: PositionInput): PositionStory {
       "paper_position:symbol,paper_position:quantity,"
       + "paper_position:avg_cost,paper_position:opened_at,"
       + "paper_position:source",
+    temporal,
   };
 }
 

@@ -70,6 +70,15 @@ const BANNED_TOKENS = [
   // ---- Personalisation theatre ----------------------------------
   "personalised for you",
   "tailored to your profile",
+  // ---- AI-rationale theatre (UX-4 lock 1) -----------------------
+  // The only working-link copy is "See the working". Every other
+  // phrasing implies hidden AI intelligence / authored rationale.
+  "Read the full reasoning",
+  "Read the reasoning",
+  "Read the rationale",
+  "View the analysis",
+  "Open the rationale",
+  "the full reasoning",
   // ---- Causation (in synthesis) ---------------------------------
   // These are scope-broad but copilot prose forbids them. Engineering
   // identifiers / SQL / comments may legitimately use them — that's

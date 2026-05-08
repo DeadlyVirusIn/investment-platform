@@ -85,6 +85,18 @@ export default function PositionStoryCard(
               {story.symbol}
             </span>
             <span style={{ opacity: 0.85 }}>{story.glance}</span>
+            {story.temporal && (
+              <span
+                data-test="copilot-position-temporal"
+                style={{
+                  fontSize: "var(--copilot-type-13)",
+                  opacity: 0.7,
+                  flexShrink: 0,
+                }}
+              >
+                · {story.temporal}
+              </span>
+            )}
             {story.isRecovered && (
               <span
                 title={HOLDINGS_COPY.recoveredTooltip}
@@ -136,37 +148,21 @@ export default function PositionStoryCard(
               {HOLDINGS_COPY.detailExitsNotComputed}
             </p>
             <LifecycleRibbon nodes={nodes} />
+            {/* UX-4 lock 1 — single "See the working" affordance. */}
+            {/* The previous Decisions / Trade review links implied  */}
+            {/* hidden AI rationale and were removed.                 */}
             <div
               style={{
-                // Wrap on 390px — three links overflow inline.
-                display: "flex",
-                flexWrap: "wrap",
-                columnGap: 16,
-                rowGap: 6,
                 fontSize: "var(--copilot-type-13)",
                 opacity: 0.7,
               }}
             >
               <a
-                href="/decisions"
-                style={{ color: "inherit", textDecoration: "underline" }}
-                data-test="copilot-position-link-decisions"
-              >
-                {HOLDINGS_COPY.detailLinkDecisions} →
-              </a>
-              <a
-                href="/alpha-lab"
-                style={{ color: "inherit", textDecoration: "underline" }}
-                data-test="copilot-position-link-alpha-lab"
-              >
-                {HOLDINGS_COPY.detailLinkAlphaLab} →
-              </a>
-              <a
                 href="/portfolio?view=working"
                 style={{ color: "inherit", textDecoration: "underline" }}
                 data-test="copilot-position-link-working"
               >
-                {HOLDINGS_COPY.detailLinkWorking} →
+                {HOLDINGS_COPY.detailLinkSeeWorking} →
               </a>
             </div>
           </div>

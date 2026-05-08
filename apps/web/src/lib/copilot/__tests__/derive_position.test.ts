@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  derivePositionStory, formatHumanDate,
+  derivePositionStory, derivePositionTemporal, formatHumanDate,
 } from "@/lib/copilot/derive";
 
 
@@ -102,5 +102,79 @@ describe("derivePositionStory", () => {
       ...baseInput, quantity: 2.5,
     });
     expect(story.glance).toContain("2.5 shares");
+  });
+
+  it("temporal is null when today is not provided", () => {
+    const story = derivePositionStory(baseInput);
+    expect(story.temporal).toBeNull();
+  });
+
+  it("temporal renders 'Opened today' when opened_at == today", () => {
+    const story = derivePositionStory(baseInput, "2026-05-02");
+    expect(story.temporal).toBe("Opened today");
+  });
+
+  it("temporal renders 'Day N' for prior opens", () => {
+    const story = derivePositionStory(baseInput, "2026-05-05");
+    // 3 days elapsed → Day 4
+    expect(story.temporal).toBe("Day 4");
+  });
+});
+
+
+describe("derivePositionTemporal", () => {
+  it("returns null when opened_at is missing", () => {
+    expect(derivePositionTemporal({ opened_at: null }, "2026-05-08"))
+      .toBeNull();
+    expect(derivePositionTemporal({ opened_at: undefined as never }, "2026-05-08"))
+      .toBeNull();
+  });
+
+  it("returns null when opened_at is malformed", () => {
+    expect(derivePositionTemporal({ opened_at: "garbage" }, "2026-05-08"))
+      .toBeNull();
+    expect(derivePositionTemporal({ opened_at: "2026/05/02" }, "2026-05-08"))
+      .toBeNull();
+  });
+
+  it("matches Opened today for same-day opens", () => {
+    expect(
+      derivePositionTemporal({ opened_at: "2026-05-08" }, "2026-05-08"),
+    ).toBe("Opened today");
+  });
+
+  it("returns Day 2 for an open one day ago", () => {
+    expect(
+      derivePositionTemporal({ opened_at: "2026-05-07" }, "2026-05-08"),
+    ).toBe("Day 2");
+  });
+
+  it("returns Day N for arbitrary positive day counts", () => {
+    expect(
+      derivePositionTemporal({ opened_at: "2026-04-29" }, "2026-05-08"),
+    ).toBe("Day 10");
+  });
+
+  it("tolerates ISO timestamps in opened_at", () => {
+    expect(
+      derivePositionTemporal(
+        { opened_at: "2026-05-07T18:30:00Z" }, "2026-05-08",
+      ),
+    ).toBe("Day 2");
+  });
+
+  it("returns null on negative day counts (clock skew defensiveness)", () => {
+    // opened_at is in the future relative to today. We refuse to
+    // render rather than say "Day -1". This protects against client
+    // clock skew or stale fixtures.
+    expect(
+      derivePositionTemporal({ opened_at: "2026-05-10" }, "2026-05-08"),
+    ).toBeNull();
+  });
+
+  it("returns null beyond the 1000-day guard", () => {
+    expect(
+      derivePositionTemporal({ opened_at: "2020-01-01" }, "2026-05-08"),
+    ).toBeNull();
   });
 });
