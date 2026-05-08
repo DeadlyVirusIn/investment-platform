@@ -21,3 +21,6 @@ export type { QuietDayProps } from "./QuietDay";
 
 export { default as SituationalHero } from "./SituationalHero";
 export type { SituationalHeroProps } from "./SituationalHero";
+
+export { default as PositionStoryCard } from "./PositionStoryCard";
+export type { PositionStoryCardProps } from "./PositionStoryCard";

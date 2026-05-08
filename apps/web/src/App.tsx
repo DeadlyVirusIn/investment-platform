@@ -6,7 +6,9 @@ import Shell from '@/components/shell/Shell';
 
 // NEW product pages
 import Overview from '@/pages/Overview';
-import PortfolioTerminal from '@/pages/PortfolioTerminal';
+// UX-2 Phase B — /portfolio brief↔working route switch wraps
+// PortfolioTerminal; no longer imported directly here.
+import PortfolioRouteSwitch from '@/pages/copilot/PortfolioRouteSwitch';
 import Decisions from '@/pages/Decisions';
 import ResearchLab from '@/pages/ResearchLab';
 import AlphaLab from '@/pages/AlphaLab';
@@ -65,7 +67,7 @@ export default function App() {
       <Route element={<Shell />}>
         {/* --- NEW 5-area product --- */}
         <Route path="/overview"   element={<Overview />} />
-        <Route path="/portfolio"  element={<PortfolioTerminal />} />
+        <Route path="/portfolio"  element={<PortfolioRouteSwitch />} />
         <Route path="/decisions"  element={<Decisions />} />
         <Route path="/research"   element={<ResearchLab />} />
         <Route path="/alpha-lab"  element={<AlphaLab />} />

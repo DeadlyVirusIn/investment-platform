@@ -9,7 +9,7 @@
 // `data-source` attribute; this file is the only legitimate place
 // to mint those strings.
 
-import { CONFIDENCE_LABELS, HERO_TEMPLATES } from "./copy";
+import { CONFIDENCE_LABELS, HERO_TEMPLATES, HOLDINGS_COPY } from "./copy";
 import type {
   ConfidenceBand,
   HeroCopy,
@@ -167,6 +167,103 @@ export function variantIndexFromDate(date?: string): number {
 // ---------------------------------------------------------------------
 // 3. Compose the full HeroCopy envelope
 // ---------------------------------------------------------------------
+
+// ---------------------------------------------------------------------
+// 4. Position storytelling derivations (Phase B)
+// ---------------------------------------------------------------------
+
+/** Inputs needed to render a single position story. Field names map
+ *  to the existing ExecutedPosition shape so callers can destructure
+ *  directly without a transformer. */
+export interface PositionInput {
+  symbol: string;
+  quantity: number | null;
+  avg_cost: number | null;
+  opened_at: string | null;
+  source: "live" | "dev" | "replay" | "test";
+}
+
+
+/** Output of storytelling derivation. Plain strings + flags so
+ *  PositionStoryCard renders without re-deriving anything itself. */
+export interface PositionStory {
+  symbol: string;
+  /** Glance line — short, scannable. */
+  glance: string;
+  /** Detail body — 1-2 sentences. */
+  detail: string;
+  /** Date string for the lifecycle ribbon "Bought" node, or "—". */
+  boughtOnLabel: string;
+  /** True when source === "replay". Renders the recovered chip. */
+  isRecovered: boolean;
+  /** Provenance string for data-source attribute. */
+  dataSource: string;
+}
+
+
+/** Format a YYYY-MM-DD or ISO timestamp into "MMM D, YYYY". Returns
+ *  the input unchanged if parsing fails. */
+export function formatHumanDate(input: string | null | undefined): string {
+  if (!input) return "—";
+  const trimmed = input.length >= 10 ? input.slice(0, 10) : input;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (!m) return trimmed;
+  const months = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const month = months[Number(m[2]) - 1] ?? m[2];
+  const day = String(Number(m[3]));
+  return `${month} ${day}, ${m[1]}`;
+}
+
+
+/** Format a numeric price safely. */
+function _fmtPrice(p: number | null): string {
+  if (p === null || p === undefined || !Number.isFinite(p)) return "—";
+  return p.toFixed(2);
+}
+
+
+function _fmtQty(q: number | null): string {
+  if (q === null || q === undefined || !Number.isFinite(q)) return "—";
+  // Strip trailing zeros, keep up to 4dp.
+  return parseFloat(q.toFixed(4)).toString();
+}
+
+
+export function derivePositionStory(p: PositionInput): PositionStory {
+  const date = formatHumanDate(p.opened_at);
+  const price = _fmtPrice(p.avg_cost);
+  const qty = _fmtQty(p.quantity);
+  const sharesNoun = p.quantity === 1 ? "share" : "shares";
+
+  // Glance line: "5 shares · bought May 2, 2026 at $182.40"
+  const glance = `${qty} ${sharesNoun} · `
+    + HOLDINGS_COPY.glanceBoughtAt
+        .replace("{date}", date)
+        .replace("{price}", price);
+
+  // Detail body — single sentence, observational.
+  const detail = HOLDINGS_COPY.detailBoughtSentence
+    .replace("{date}", date)
+    .replace("{price}", price)
+    .replace("{n}", qty)
+    .replace("{sharesNoun}", sharesNoun);
+
+  return {
+    symbol: p.symbol,
+    glance,
+    detail,
+    boughtOnLabel: date,
+    isRecovered: p.source === "replay",
+    dataSource:
+      "paper_position:symbol,paper_position:quantity,"
+      + "paper_position:avg_cost,paper_position:opened_at,"
+      + "paper_position:source",
+  };
+}
+
 
 export function deriveHero(state: HeroEngineState): HeroCopy {
   const { pattern, vars, dataSource } = selectHeroPattern(state);

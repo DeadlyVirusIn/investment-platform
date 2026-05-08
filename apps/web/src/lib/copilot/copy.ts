@@ -223,3 +223,44 @@ export const TONE_LABELS: Record<ToneKind, string> = {
   attention: "needs attention",
   insight: "read-only insight",
 };
+
+
+// ---------------------------------------------------------------------
+// 10. Holdings Brief view copy (Phase B)
+// ---------------------------------------------------------------------
+//
+// Used by CopilotHoldings + PositionStoryCard. Every string here is
+// observed (not authored). Engineering identifiers belong in
+// Working view.
+
+export const HOLDINGS_COPY = {
+  pageTitle: "My Holdings",
+  pageSubtitle:
+    "Every position the system is currently holding for you, told as "
+    + "a short story. All trades are simulated.",
+  workingViewLink: "Switch to Working view",
+  emptyHeadline: "Nothing open right now.",
+  emptyBody:
+    "The paper account is sitting in cash. New holdings will appear "
+    + "here once a paper trade fills.",
+  glanceBoughtAt:
+    // Used as "Bought {date} at ${price}".
+    "Bought {date} at ${price}",
+  glanceShares:
+    // Used as "{n} shares" or "{n} share" depending on count.
+    "{n} shares",
+  glanceShareOne: "1 share",
+  detailBoughtSentence:
+    "Bought on {date} at ${price} — {n} {sharesNoun}.",
+  detailMarkUnavailable:
+    "Current price not available. Showing what we last saw.",
+  detailExitsNotComputed:
+    "Exit levels not yet computed for this position. See Decisions "
+    + "for the raw inputs.",
+  detailLinkDecisions: "Read the full reasoning",
+  detailLinkAlphaLab: "Trade review",
+  detailLinkWorking: "See the working",
+  recoveredChip: "recovered",
+  recoveredTooltip:
+    "Recovered from backup data — not live trading activity.",
+} as const;
