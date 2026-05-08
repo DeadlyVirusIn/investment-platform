@@ -177,6 +177,72 @@ masked by replay rows for an unknown duration.
 
 ---
 
+## H9 — Auto-trigger post-ingest paper cycle
+
+**Symptom (2026-05-08 trust incident)**: pending fills sat
+unreplayed for 3 days because `scripts/run_post_ingest_paper_cycle`
+is operator-triggered only. No cron step picks up the JSONL
+backlog after fresh price bars + factor/regime snapshots land.
+
+**Action**:
+
+1. Add a `pending_replay` step to `run_daily_loop.sh` between
+   `engine_pipeline` and `paper_daily`. Or add a tickloop job
+   that fires after `ingest_prices_daily` succeeds.
+2. Idempotent — pending_replay already writes `.replayed.jsonl`
+   markers and re-runs are no-ops.
+3. Optional: surface a "last replay run" timestamp in the
+   scheduler-health endpoint.
+
+**Risk**: low. The runner already enforces every safety
+invariant (next-bar guard, dedup, paper-only). Auto-triggering
+the call doesn't relax anything.
+
+---
+
+## H10 — Orchestration-state observability
+
+**Goal**: explicitly distinguish orchestration states across
+fills / replay / lifecycle / scheduler / copilot surfaces. Multiple
+hidden states currently collapse into "pending" and produce trust
+failures (the 2026-05-08 incident is the canonical example —
+"held by next-bar guard" was conflating four different states).
+
+The surface vocabulary to support:
+
+| State | Meaning |
+|-------|---------|
+| `waiting_for_market_data` | Price bars / factor snapshots not yet ingested for the relevant date |
+| `waiting_for_next_bar` | A bar after `submitted_at` is genuinely not yet available |
+| `ready_for_replay` | Bar exists; awaiting operator (or H9 auto-trigger) |
+| `waiting_for_operator` | Generic operator-action-needed state |
+| `waiting_for_scheduler` | Cron has not fired the relevant step yet |
+| `replay_in_progress` | Replay cycle is currently running |
+| `replay_completed` | `.replayed.jsonl` marker present; no further action |
+
+**Action**:
+
+1. Pick one canonical orchestration-state enum and propagate
+   through:
+   - `/api/performance/paper/pending-fills` (partial — H10 starts
+     here; the May-8 trust fix shipped a 3-of-7 subset)
+   - `/api/scheduler/health`
+   - WebUI Brief view "what changed" surface
+   - Discord formatter
+   - paper_run_log.summary
+2. Document the state-machine transitions and their truth
+   sources (DB column, file marker, lock file, computed at
+   read time).
+3. Ban "pending" as a free-form string anywhere in the
+   surface layer; require an explicit state.
+
+**Why this matters**: the May-8 incident was caused by
+`historical rejection state` masquerading as `current readiness
+state`. Without an explicit enum, future status surfaces will
+keep drifting back into the same failure mode.
+
+---
+
 ## H8 — Pipeline freshness monitoring
 
 **Goal**: a single dashboard panel showing, for each pipeline
@@ -212,9 +278,15 @@ last, after the lower-level pieces.
 | 6 | **H6** | Required before ML promotion can be considered |
 | 7 | **H7** | Replay transparency for operator audit |
 | 8 | **H8** | Unifies H1–H6 into a single dashboard view |
+| 9 | **H9** | Auto-trigger post-ingest paper cycle from daily loop or post-ingest tickloop step |
+| 10 | **H10** | Canonical orchestration-state enum across fills / replay / scheduler / copilot |
 
 H2 + H5 are quick wins (≤ 1 day each). H3, H4, H6 are
 multi-day. H8 is a small UI on top of H1–H6 once they're done.
+H9 is a small one-line cron addition once the volume mounts in
+the 2026-05-08 trust fix have been validated through a few
+cycles. H10 is a multi-touch refactor — schedule after H3 + H6
+since both write into the new enum.
 
 ---
 
