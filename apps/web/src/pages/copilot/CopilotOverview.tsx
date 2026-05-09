@@ -21,10 +21,11 @@
 // greeting + a calm one-sentence body + footer. This is the
 // first-class "quiet" rendering, NOT a fallback empty-state.
 
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 
 import {
-  HoldingsSummary, RiskLine, TodayLine, TodaysIdeas,
+  ConditionBlock, HoldingsSummary, RiskLine, TodayLine, TodaysIdeas,
   WatchThisWeek, WhatChangedBlock,
 } from "@/components/copilot";
 import {
@@ -33,6 +34,12 @@ import {
   deriveWhatChanged,
 } from "@/lib/copilot/overview_derive";
 import { TODAY_FOOTER } from "@/lib/copilot/overview_copy";
+// UX-8B Phase 8B-1 — proof state. Hardcoded PRESSURED hero with
+// the locked sample sentence. Real wiring lands in Phase 8B-2.
+import {
+  PROOF_PRESSURED_INPUTS, PROOF_PRESSURED_SENTENCE,
+  deriveCondition,
+} from "@/lib/copilot/condition";
 import { usePaperSummary } from "@/lib/operator/hooks";
 
 
@@ -129,7 +136,37 @@ export default function CopilotOverview() {
     ? deriveQuietDay({ todayYMD, localHour })
     : null;
 
+  // UX-8B Phase 8B-1 — Portfolio Weather Room hero state.
+  // Phase 8B-1 ships ONLY the PRESSURED proof. Real engine
+  // inputs wire in Phase 8B-2; for now we hardcode the proof
+  // input set so the hero renders with deterministic copy.
+  const condition = deriveCondition(PROOF_PRESSURED_INPUTS);
+
+  // Set body[data-condition] so the radial gradient + accent
+  // tokens apply across the whole viewport. Cleared on unmount
+  // so leaving Today doesn't leak the atmosphere into other
+  // routes.
+  useEffect(() => {
+    document.body.dataset.condition = condition;
+    return () => { delete document.body.dataset.condition; };
+  }, [condition]);
+
+  // Display date in the hero masthead. Caller-localised; matches
+  // "MAY 8" tracked-uppercase style in the spec.
+  const heroDate = new Date(`${todayYMD}T00:00:00`)
+    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    .toUpperCase();
+
   return (
+    <>
+      {/* UX-8B Phase 8B-1 — full-bleed Portfolio Weather Room
+          hero. Sits above the existing 720px editorial column. */}
+      <ConditionBlock
+        date={heroDate}
+        condition={condition}
+        sentence={PROOF_PRESSURED_SENTENCE}
+      />
+
     <article
       data-test="copilot-overview"
       style={{
@@ -218,6 +255,7 @@ export default function CopilotOverview() {
         </>
       )}
     </article>
+    </>
   );
 }
 

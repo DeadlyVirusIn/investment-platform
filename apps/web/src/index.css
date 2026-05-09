@@ -6,6 +6,7 @@
  * Must precede @tailwind directives per CSS @import ordering.
  */
 @import "./lib/copilot/tokens.css";
+@import "./lib/copilot/condition.css";
 
 @tailwind base;
 @tailwind components;

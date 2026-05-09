@@ -1,0 +1,258 @@
+/*
+ * UX-8B Phase 8B-1 — Portfolio Weather Room atmosphere CSS.
+ *
+ * Locks:
+ *   * Two bold moves: (1) full-bleed body radial gradient,
+ *     (2) 2px sentence accent bar with scaleY entrance.
+ *   * Three condition states: STABLE / PRESSURED / OPPORTUNISTIC.
+ *   * Reduced-motion strips atmosphere + transitions.
+ *   * High-contrast promotes the bar to currentColor.
+ *
+ * Imported from index.css after the existing token sheet so
+ * UX-8B variables override where conflicting.
+ */
+
+
+/* ===================================================================
+ * Base tokens
+ * =================================================================== */
+
+:root {
+  /* Geometry */
+  --ux8-hero-height-desktop: 380px;
+  --ux8-hero-height-mobile:  280px;
+  --ux8-hero-padding:        32px 40px;
+  --ux8-hero-padding-mobile: 24px 20px;
+
+  /* Base background — slightly darker than UX-7 #121212 so the
+   * radial gradient breathes. */
+  --ux8-bg-base:             #0F0F0F;
+
+  /* Type tokens for the hero */
+  --ux8-hero-date-size:        12px;
+  --ux8-hero-date-tracking:    0.06em;
+  --ux8-hero-date-color:       #888;
+  --ux8-hero-condition-size:     11px;
+  --ux8-hero-condition-tracking: 0.12em;
+  --ux8-hero-sentence-size:    32px;
+  --ux8-hero-sentence-leading: 1.32;
+  --ux8-hero-sentence-color:   #F0EDE8;
+  --ux8-hero-sentence-family:
+    "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+  --ux8-hero-sentence-tracking: -0.005em;
+
+  /* State-driven tokens — defaults match STABLE. */
+  --ux8-condition-accent:      rgba(255, 255, 255, 0.20);
+  --ux8-condition-band-color:  transparent;
+  --ux8-condition-band-alpha:  0;
+  --ux8-hero-sentence-weight:  400;
+
+  /* Motion */
+  --ux8-motion-fast:    100ms;
+  --ux8-motion-text:    200ms;
+  --ux8-ease:           cubic-bezier(0.2, 0.7, 0.1, 1);
+}
+
+
+/* ===================================================================
+ * Body — full-bleed radial gradient (Sonnet R5 bold move)
+ * =================================================================== */
+
+body[data-condition] {
+  background: var(--ux8-bg-base);
+}
+
+body[data-condition="PRESSURED"] {
+  background:
+    radial-gradient(
+      ellipse 120% 40% at 50% 0%,
+      rgba(74, 38, 24, 0.22) 0%,
+      transparent 70%
+    ),
+    var(--ux8-bg-base);
+  --ux8-condition-accent:        #c47a59;   /* warm rust */
+  --ux8-condition-band-color:    #4a2618;
+  --ux8-condition-band-alpha:    0.08;
+  --ux8-hero-sentence-weight:    450;       /* half-step heavier */
+}
+
+body[data-condition="OPPORTUNISTIC"] {
+  background:
+    radial-gradient(
+      ellipse 120% 40% at 50% 0%,
+      rgba(28, 74, 53, 0.18) 0%,
+      transparent 70%
+    ),
+    var(--ux8-bg-base);
+  --ux8-condition-accent:        #6db89a;   /* muted sage */
+  --ux8-condition-band-color:    #1c4a35;
+  --ux8-condition-band-alpha:    0.05;
+  --ux8-hero-sentence-weight:    400;
+}
+
+body[data-condition="STABLE"] {
+  /* defaults already set above */
+}
+
+
+/* ===================================================================
+ * Condition Block — full-bleed hero
+ * =================================================================== */
+
+.ux8-condition-block {
+  position: relative;
+  width: 100%;
+  height: var(--ux8-hero-height-desktop);
+  background: #161616;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Subtle inner-top hairline — just a 1px highlight along the
+ * top edge of the block. Adds depth without becoming a glow. */
+.ux8-condition-block::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.06) 0%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* Pressure-band overlay — bottom 40% of the block carries the
+ * condition's color. STABLE renders transparent. */
+.ux8-condition-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    transparent 60%,
+    var(--ux8-condition-band-color) 100%
+  );
+  opacity: var(--ux8-condition-band-alpha);
+  pointer-events: none;
+}
+
+/* Editorial column inside the bleed */
+.ux8-condition-column {
+  width: 100%;
+  max-width: 720px;
+  padding: 0 40px;
+  position: relative;
+  z-index: 1;
+}
+
+
+/* ===================================================================
+ * Typography — date + label + sentence
+ * =================================================================== */
+
+.ux8-condition-date {
+  font-size: var(--ux8-hero-date-size);
+  letter-spacing: var(--ux8-hero-date-tracking);
+  text-transform: uppercase;
+  color: var(--ux8-hero-date-color);
+  margin: 0;
+  font-weight: 500;
+}
+
+.ux8-condition-label {
+  margin: 16px 0 0;
+  font-size: var(--ux8-hero-condition-size);
+  letter-spacing: var(--ux8-hero-condition-tracking);
+  text-transform: uppercase;
+  color: var(--ux8-condition-accent);
+  font-weight: 500;
+}
+
+.ux8-condition-sentence {
+  position: relative;
+  margin: 28px 0 0;
+  padding-left: 16px;
+  font-family: var(--ux8-hero-sentence-family);
+  font-size: var(--ux8-hero-sentence-size);
+  font-weight: var(--ux8-hero-sentence-weight);
+  line-height: var(--ux8-hero-sentence-leading);
+  color: var(--ux8-hero-sentence-color);
+  letter-spacing: var(--ux8-hero-sentence-tracking);
+  max-width: 56ch;
+}
+
+
+/* ===================================================================
+ * 2px accent bar — Opus R5 bold move
+ *
+ * scaleY 0 -> 1 anchored top, triggered by .is-revealed parent
+ * class added ~440ms after first paint. The bar is the single
+ * most-saturated element on the page and the AI's signature.
+ * =================================================================== */
+
+.ux8-condition-sentence::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.25em;
+  bottom: 0.25em;
+  width: 2px;
+  background: var(--ux8-condition-accent);
+  transform-origin: top center;
+  transform: scaleY(0);
+  transition: transform var(--ux8-motion-fast) var(--ux8-ease);
+}
+
+.ux8-condition-block.is-revealed .ux8-condition-sentence::before {
+  transform: scaleY(1);
+}
+
+
+/* ===================================================================
+ * Mobile breakpoint — < 720px shrinks the hero
+ * =================================================================== */
+
+@media (max-width: 720px) {
+  .ux8-condition-block {
+    height: var(--ux8-hero-height-mobile);
+  }
+  .ux8-condition-column {
+    padding: 0 20px;
+  }
+  .ux8-condition-sentence {
+    font-size: 24px;
+  }
+}
+
+
+/* ===================================================================
+ * Accessibility — reduced motion + high contrast
+ * =================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-condition] {
+    background: var(--ux8-bg-base) !important;
+  }
+  .ux8-condition-block::after {
+    display: none;
+  }
+  .ux8-condition-sentence::before {
+    transform: scaleY(1) !important;
+    transition: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  body[data-condition] {
+    background: #000000 !important;
+  }
+  .ux8-condition-sentence::before {
+    background: currentColor;
+    width: 3px;
+  }
+}

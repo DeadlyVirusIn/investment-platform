@@ -46,3 +46,7 @@ export type { RiskLineProps } from "./RiskLine";
 
 export { default as WatchThisWeek } from "./WatchThisWeek";
 export type { WatchThisWeekProps } from "./WatchThisWeek";
+
+// UX-8B Phase 8B-1 — Portfolio Weather Room hero.
+export { default as ConditionBlock } from "./ConditionBlock";
+export type { ConditionBlockProps } from "./ConditionBlock";
