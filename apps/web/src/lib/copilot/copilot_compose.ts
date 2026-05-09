@@ -178,11 +178,21 @@ export function composeCopilotPage(inp: ComposeInputs = {}): CopilotPageData {
     };
   }
 
-  const heroText = composeHeroFromGrammar({
-    stanceVerb: "is becoming more selective",
-    qualifier: "after this week's rally",
-    consequence: "Add only where earnings durability offsets valuation risk",
-  });
+  // Wrap voice composition so a lint failure in fixtures does NOT
+  // blank-page the route. Real engine wiring (11G) will mean a
+  // composer-side throw, not a UI-side throw — but during fixture
+  // iteration, fail-safe to the locked quiet-day copy.
+  let heroText: string;
+  try {
+    heroText = composeHeroFromGrammar({
+      stanceVerb: "is becoming more selective",
+      qualifier: "after this rally",
+      consequence: "Add only where earnings durability offsets valuation risk",
+    });
+  } catch (e) {
+    console.warn("[ux11] hero composition failed; falling back to quiet copy", e);
+    heroText = QUIET_DAY_HERO;
+  }
 
   return {
     date,
