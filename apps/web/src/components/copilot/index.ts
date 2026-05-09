@@ -63,3 +63,22 @@ export type {
 } from "./IntelligenceGrid";
 
 export { default as Sparkline } from "./Sparkline";
+
+// UX-10 Phase 10A/10B/10C — Conviction Engine primitives.
+export { default as VerbPill } from "./VerbPill";
+export type { VerbPillProps } from "./VerbPill";
+
+export { default as TierGlyph } from "./TierGlyph";
+export type { TierGlyphProps } from "./TierGlyph";
+
+export { default as FreshnessChip } from "./FreshnessChip";
+export type { FreshnessChipProps } from "./FreshnessChip";
+
+export { default as ActionCard } from "./ActionCard";
+export type { ActionCardProps } from "./ActionCard";
+
+export { default as OptionsStructureCard } from "./OptionsStructureCard";
+export type { OptionsStructureData, OptionsIntent } from "./OptionsStructureCard";
+
+export { default as ConvictionHero } from "./ConvictionHero";
+export type { ConvictionHeroProps } from "./ConvictionHero";

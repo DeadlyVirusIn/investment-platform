@@ -1,0 +1,452 @@
+/*
+ * UX-10 — Conviction Engine tokens.
+ *
+ * Scoped to .ux10-conviction root so default /overview (UX-8B
+ * PRESSURED proof), /overview?view=working, and /overview?view=stream
+ * (UX-9) are unaffected. Tokens here ONLY apply inside the
+ * Conviction view.
+ *
+ * Imported from index.css after ux9_tokens.css.
+ *
+ * Source of truth: docs/research/UX_10_CONVICTION_ENGINE.md
+ *   Section 11.1 (locked tokens)
+ */
+
+
+.ux10-conviction {
+  /* === Layout === */
+  --ux10-page-max:           1080px;
+  --ux10-page-pad-x:         32px;
+  --ux10-page-pad-x-mobile:  20px;
+  --ux10-page-pad-y:         48px;
+  --ux10-block-gap:          32px;
+
+  /* === Backgrounds (3 depth levels) === */
+  --ux10-bg-page:            #0B0D10;
+  --ux10-bg-card:            #0F1115;
+  --ux10-bg-elev:            #13161B;
+
+  /* === Text (3 levels) === */
+  --ux10-fg-primary:         #F4F5F7;
+  --ux10-fg-secondary:       #9CA3AF;
+  --ux10-fg-tertiary:        #6B7280;
+
+  /* === Borders === */
+  --ux10-border-card:        #1F2329;
+  --ux10-border-strong:      #2A2F37;
+
+  /* === Conviction tint (the only "color" on conviction cards) ===
+     8% opacity, 50% saturation. Applied as 1px left border on
+     Confirmed+ cards only. NEVER as background fill. */
+  --ux10-conviction-tint:    hsla(228, 50%, 70%, 0.08);
+  --ux10-conviction-strong:  hsla(228, 50%, 70%, 0.18);
+
+  /* === Risk colors === */
+  --ux10-risk:               #C24A4A;  /* desaturated brick */
+  --ux10-amber:              #B88A2A;  /* options risk-dot only */
+
+  /* === Type sizes (4 only — locked) === */
+  --ux10-fs-h1:              24px;
+  --ux10-fs-h2:              16px;
+  --ux10-fs-body:            14px;
+  --ux10-fs-meta:            11px;
+  --ux10-fs-decision:        18px;
+
+  /* === Type families === */
+  --ux10-font-sans:          "Inter", system-ui, -apple-system, sans-serif;
+  --ux10-font-mono:          "iA Writer Mono S", "SF Mono", Menlo, monospace;
+
+  /* === Card geometry === */
+  --ux10-card-pad:           24px;
+  --ux10-card-pad-compact:   20px;
+  --ux10-card-min-w:         480px;
+  --ux10-card-stream-w:      720px;
+  --ux10-card-radius:        4px;            /* sharp, not soft */
+
+  /* === Verb pill geometry === */
+  --ux10-pill-pad:           4px 8px;
+  --ux10-pill-radius:        2px;            /* sharp */
+  --ux10-pill-track:         0.08em;
+
+  /* === Motion budget (locked) ===
+     No motion > 240ms or > 8px translation. */
+  --ux10-anim-fast:          120ms;
+  --ux10-anim-base:          200ms;
+  --ux10-anim-slow:          240ms;
+  --ux10-ease:               cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* === Background + text === */
+  background: var(--ux10-bg-page);
+  color: var(--ux10-fg-primary);
+  font-family: var(--ux10-font-sans);
+  min-height: 100vh;
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * VerbPill
+ * 11px uppercase, monochrome, sharp corners.
+ * Verb is a label of state, never a button.
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux10-conviction .ux10-verb {
+  display: inline-block;
+  padding: var(--ux10-pill-pad);
+  font-family: var(--ux10-font-sans);
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: var(--ux10-pill-track);
+  text-transform: uppercase;
+  color: var(--ux10-fg-secondary);
+  background: transparent;
+  border: 1px solid var(--ux10-border-card);
+  border-radius: var(--ux10-pill-radius);
+  white-space: nowrap;
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * TierGlyph
+ * Dot row ●○○○ → ●●●●. No animation on the glyph itself.
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux10-conviction .ux10-tier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-secondary);
+  font-family: var(--ux10-font-sans);
+  letter-spacing: 0.04em;
+}
+
+.ux10-conviction .ux10-tier-dots {
+  display: inline-flex;
+  gap: 2px;
+  letter-spacing: 0.05em;
+  font-family: var(--ux10-font-mono);
+}
+
+.ux10-conviction .ux10-tier-dots span {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ux10-fg-tertiary);
+}
+
+.ux10-conviction .ux10-tier-dots span[data-on="true"] {
+  background: var(--ux10-fg-primary);
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * FreshnessChip
+ * Tiny meta line — Fresh / Aging / Stale / Expired.
+ * Stale also dims the parent card via [data-stale="true"] below.
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux10-conviction .ux10-fresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-tertiary);
+  font-family: var(--ux10-font-mono);
+}
+
+.ux10-conviction .ux10-fresh[data-state="Fresh"]   { color: var(--ux10-fg-tertiary); }
+.ux10-conviction .ux10-fresh[data-state="Aging"]   { color: var(--ux10-fg-tertiary); }
+.ux10-conviction .ux10-fresh[data-state="Stale"]   { color: var(--ux10-amber); }
+.ux10-conviction .ux10-fresh[data-state="Expired"] { color: var(--ux10-risk); }
+
+
+/* ───────────────────────────────────────────────────────────────
+ * ActionCard
+ * Sharp-cornered card, single 1px border, no gradients, no shadow.
+ * Confirmed+ tier gets 1px left-border conviction tint.
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux10-conviction .ux10-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--ux10-card-stream-w);
+  background: var(--ux10-bg-card);
+  border: 1px solid var(--ux10-border-card);
+  border-radius: var(--ux10-card-radius);
+  padding: var(--ux10-card-pad);
+  font-family: var(--ux10-font-sans);
+  color: var(--ux10-fg-primary);
+  transition: opacity var(--ux10-anim-base) var(--ux10-ease),
+              filter var(--ux10-anim-base) var(--ux10-ease);
+}
+
+.ux10-conviction .ux10-card[data-tier="Confirmed"],
+.ux10-conviction .ux10-card[data-tier="Conviction"] {
+  border-left: 1px solid var(--ux10-conviction-strong);
+}
+
+.ux10-conviction .ux10-card[data-stale="true"] {
+  opacity: 0.85;
+  filter: saturate(0.6);
+}
+
+.ux10-conviction .ux10-card[data-expired="true"] {
+  opacity: 0.6;
+  filter: saturate(0.3);
+}
+
+/* === Card header row === */
+.ux10-conviction .ux10-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.ux10-conviction .ux10-card-title {
+  margin: 0;
+  font-size: var(--ux10-fs-body);
+  font-weight: 500;
+  color: var(--ux10-fg-secondary);
+  letter-spacing: 0.01em;
+}
+
+.ux10-conviction .ux10-card-meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-tertiary);
+  font-family: var(--ux10-font-mono);
+}
+
+/* === Decision sentence — the largest visual element === */
+.ux10-conviction .ux10-card-decision {
+  margin: 0;
+  font-size: var(--ux10-fs-decision);
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ux10-fg-primary);
+  letter-spacing: -0.005em;
+}
+
+/* === Section headers (INVALIDATION / DRIVER · COUNTER · CATALYST) === */
+.ux10-conviction .ux10-card-section-label {
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ux10-fg-tertiary);
+  margin: 0 0 6px 0;
+}
+
+/* === Invalidation block (always above target) === */
+.ux10-conviction .ux10-invalidation {
+  border-left: 2px solid var(--ux10-risk);
+  padding: 6px 0 6px 12px;
+  background: rgba(194, 74, 74, 0.04);
+}
+
+.ux10-conviction .ux10-invalidation p {
+  margin: 0;
+  font-size: var(--ux10-fs-body);
+  color: var(--ux10-fg-primary);
+  line-height: 1.5;
+}
+
+/* === Thesis triplet (Driver / Counter / Catalyst) === */
+.ux10-conviction .ux10-thesis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.ux10-conviction .ux10-thesis-side h4 {
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ux10-fg-tertiary);
+  margin: 0 0 6px 0;
+}
+
+.ux10-conviction .ux10-thesis-side p {
+  margin: 0;
+  font-size: var(--ux10-fs-body);
+  line-height: 1.55;
+  color: var(--ux10-fg-primary);
+}
+
+.ux10-conviction .ux10-catalyst {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ux10-border-card);
+  font-size: var(--ux10-fs-body);
+  color: var(--ux10-fg-secondary);
+  font-style: normal;
+}
+
+.ux10-conviction .ux10-catalyst::before {
+  content: "Catalyst — ";
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ux10-fg-tertiary);
+}
+
+@media (max-width: 720px) {
+  .ux10-conviction .ux10-thesis { grid-template-columns: 1fr; }
+}
+
+/* === Levels footer (target/horizon — always LAST) === */
+.ux10-conviction .ux10-levels {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: var(--ux10-fs-body);
+  color: var(--ux10-fg-secondary);
+  font-family: var(--ux10-font-mono);
+  border-top: 1px solid var(--ux10-border-card);
+  padding-top: 12px;
+}
+
+/* === Card actions (Reasoning · Bear · Snooze) === */
+.ux10-conviction .ux10-card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-tertiary);
+  border-top: 1px solid var(--ux10-border-card);
+  padding-top: 12px;
+}
+
+.ux10-conviction .ux10-card-actions button {
+  background: transparent;
+  border: 1px solid var(--ux10-border-card);
+  color: var(--ux10-fg-secondary);
+  padding: 4px 10px;
+  font-size: var(--ux10-fs-meta);
+  font-family: var(--ux10-font-sans);
+  letter-spacing: 0.04em;
+  border-radius: var(--ux10-pill-radius);
+  cursor: pointer;
+  transition: color var(--ux10-anim-fast) var(--ux10-ease),
+              border-color var(--ux10-anim-fast) var(--ux10-ease);
+}
+
+.ux10-conviction .ux10-card-actions button:hover {
+  color: var(--ux10-fg-primary);
+  border-color: var(--ux10-border-strong);
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * ConvictionHero — 3-section hero
+ * regime ribbon + Active positions + Promotions
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux10-conviction .ux10-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ux10-block-gap);
+}
+
+.ux10-conviction .ux10-regime {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--ux10-border-card);
+}
+
+.ux10-conviction .ux10-regime-label {
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ux10-fg-tertiary);
+}
+
+.ux10-conviction .ux10-regime-stance {
+  font-size: var(--ux10-fs-h2);
+  color: var(--ux10-fg-primary);
+  font-weight: 500;
+}
+
+.ux10-conviction .ux10-regime-clause {
+  font-size: var(--ux10-fs-body);
+  color: var(--ux10-fg-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.ux10-conviction .ux10-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ux10-conviction .ux10-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ux10-conviction .ux10-section-title {
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ux10-fg-tertiary);
+  margin: 0;
+}
+
+.ux10-conviction .ux10-section-count {
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-tertiary);
+  font-family: var(--ux10-font-mono);
+}
+
+.ux10-conviction .ux10-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* === Quiet day state === */
+.ux10-conviction .ux10-quiet {
+  border: 1px dashed var(--ux10-border-strong);
+  border-radius: var(--ux10-card-radius);
+  padding: 32px var(--ux10-card-pad);
+  text-align: left;
+  color: var(--ux10-fg-secondary);
+  font-size: var(--ux10-fs-body);
+  line-height: 1.6;
+  background: transparent;
+}
+
+.ux10-conviction .ux10-quiet strong {
+  color: var(--ux10-fg-primary);
+  font-weight: 500;
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * Reduced motion — strip everything
+ * ─────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ux10-conviction *,
+  .ux10-conviction *::before,
+  .ux10-conviction *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

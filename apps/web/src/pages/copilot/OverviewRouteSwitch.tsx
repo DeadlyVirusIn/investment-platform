@@ -15,6 +15,10 @@ import CopilotOverview from "@/pages/copilot/CopilotOverview";
 // UX-9 Phase 9D — parallel Stream view at /overview?view=stream.
 // Default and ?view=working are unchanged.
 import CopilotStreamView from "@/pages/copilot/CopilotStreamView";
+// UX-10 Phase 10D — parallel Conviction view at
+// /overview?view=conviction. Default, ?view=working, and
+// ?view=stream are all unchanged.
+import CopilotConvictionView from "@/pages/copilot/CopilotConvictionView";
 
 
 export default function OverviewRouteSwitch() {
@@ -23,5 +27,6 @@ export default function OverviewRouteSwitch() {
   const view = params.get("view");
   if (view === "working") return <Overview />;
   if (view === "stream") return <CopilotStreamView />;
+  if (view === "conviction") return <CopilotConvictionView />;
   return <CopilotOverview />;
 }
