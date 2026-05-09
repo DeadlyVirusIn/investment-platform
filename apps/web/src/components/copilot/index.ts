@@ -82,3 +82,13 @@ export type { OptionsStructureData, OptionsIntent } from "./OptionsStructureCard
 
 export { default as ConvictionHero } from "./ConvictionHero";
 export type { ConvictionHeroProps } from "./ConvictionHero";
+
+// UX-11 Phase 11A/11B/11C — Interactive AI Copilot Layer.
+export { default as ConvictionTile } from "./ConvictionTile";
+export type { ConvictionTileProps } from "./ConvictionTile";
+
+export { default as AIReadHero } from "./AIReadHero";
+export type { AIReadHeroProps } from "./AIReadHero";
+
+export { default as ReasoningDrawer } from "./ReasoningDrawer";
+export type { ReasoningDrawerProps } from "./ReasoningDrawer";

@@ -9,6 +9,7 @@
 @import "./lib/copilot/condition.css";
 @import "./lib/copilot/ux9_tokens.css";
 @import "./lib/copilot/ux10_tokens.css";
+@import "./lib/copilot/ux11_tokens.css";
 
 @tailwind base;
 @tailwind components;

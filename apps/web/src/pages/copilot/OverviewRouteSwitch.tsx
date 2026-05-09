@@ -19,6 +19,9 @@ import CopilotStreamView from "@/pages/copilot/CopilotStreamView";
 // /overview?view=conviction. Default, ?view=working, and
 // ?view=stream are all unchanged.
 import CopilotConvictionView from "@/pages/copilot/CopilotConvictionView";
+// UX-11 Phase 11D — parallel Interactive Copilot view at
+// /overview?view=copilot. Default and other views unchanged.
+import CopilotInteractiveView from "@/pages/copilot/CopilotInteractiveView";
 
 
 export default function OverviewRouteSwitch() {
@@ -28,5 +31,6 @@ export default function OverviewRouteSwitch() {
   if (view === "working") return <Overview />;
   if (view === "stream") return <CopilotStreamView />;
   if (view === "conviction") return <CopilotConvictionView />;
+  if (view === "copilot") return <CopilotInteractiveView />;
   return <CopilotOverview />;
 }

@@ -1,0 +1,419 @@
+/*
+ * UX-11 — Interactive AI Copilot Layer tokens.
+ *
+ * Scoped to .ux11-copilot so default /overview, ?view=working,
+ * ?view=stream, and ?view=conviction are all unaffected. UX-10
+ * tokens (--ux10-*) are inherited; UX-11 only adds component-
+ * level tokens for tile, hero, drawer, and motion.
+ *
+ * Imported from index.css after ux10_tokens.css.
+ *
+ * Source of truth: docs/research/UX_11_INTERACTIVE_COPILOT.md
+ */
+
+
+.ux11-copilot {
+  /* === Inherit UX-10 base, page background === */
+  background: var(--ux10-bg-page);
+  color: var(--ux10-fg-primary);
+  font-family: var(--ux10-font-sans);
+  min-height: 100vh;
+
+  /* === Layout === */
+  --ux11-page-max:           1080px;
+  --ux11-page-pad-x:         32px;
+  --ux11-page-pad-x-mobile:  20px;
+  --ux11-page-pad-y:         48px;
+
+  /* === Hero === */
+  --ux11-hero-fs:            18px;
+  --ux11-hero-leading:       1.5;
+  --ux11-hero-max-w:         780px;
+
+  /* === ConvictionTile geometry (LOCKED) === */
+  --ux11-tile-w:             304px;
+  --ux11-tile-w-min:         280px;
+  --ux11-tile-w-max:         320px;
+  --ux11-tile-h:             184px;
+  --ux11-tile-pad-x:         16px;
+  --ux11-tile-pad-y:         14px;
+  --ux11-tile-radius:        4px;
+  --ux11-tile-gap:           16px;
+
+  /* === Depth tokens (locked) === */
+  --ux11-depth-1:            0 8px 24px rgba(0, 0, 0, 0.18);
+  --ux11-depth-2:            0 18px 50px rgba(0, 0, 0, 0.28);
+
+  /* === Drawer === */
+  --ux11-drawer-h:           88vh;
+  --ux11-drawer-h-mobile:    92vh;
+  --ux11-drawer-radius:      12px;
+  --ux11-drawer-bg:          var(--ux10-bg-elev);
+  --ux11-drawer-backdrop:    rgba(11, 13, 16, 0.6);
+
+  /* === Motion budget (locked) === */
+  --ux11-anim-tile-hover:    120ms;
+  --ux11-anim-backdrop:      160ms;
+  --ux11-anim-sheet-in:      220ms;
+  --ux11-anim-sheet-out:     200ms;
+  --ux11-anim-cross-fade:    120ms;
+  --ux11-ease-ios:           cubic-bezier(0.32, 0.72, 0, 1);
+  --ux11-ease-out:           cubic-bezier(0.2, 0.6, 0.2, 1);
+
+  /* === Background depth — single static radial vignette === */
+  background-image: radial-gradient(
+    ellipse 60% 40% at 50% 0%,
+    hsla(228, 30%, 22%, 0.05) 0%,
+    transparent 70%
+  );
+  background-attachment: fixed;
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * AIReadHero
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux11-copilot .ux11-airead-block {
+  margin-bottom: 32px;
+  max-width: var(--ux11-hero-max-w);
+}
+
+.ux11-copilot .ux11-airead-label {
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ux10-fg-tertiary);
+  margin: 0 0 8px 0;
+}
+
+.ux11-copilot .ux11-airead-text {
+  margin: 0;
+  font-size: var(--ux11-hero-fs);
+  font-weight: 500;
+  line-height: var(--ux11-hero-leading);
+  color: var(--ux10-fg-primary);
+  letter-spacing: -0.005em;
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * ConvictionTile rail
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux11-copilot .ux11-tile-rail {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--ux11-tile-gap);
+  margin-bottom: 32px;
+}
+
+@media (max-width: 1080px) {
+  .ux11-copilot .ux11-tile-rail {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .ux11-copilot .ux11-tile-rail {
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 8px;
+  }
+  .ux11-copilot .ux11-tile-rail::-webkit-scrollbar { display: none; }
+  .ux11-copilot .ux11-tile {
+    flex: 0 0 82vw;
+    min-width: var(--ux11-tile-w-min);
+    max-width: var(--ux11-tile-w-max);
+    scroll-snap-align: start;
+  }
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * ConvictionTile component
+ * Background, border, click target. Sharp corners, no gradient,
+ * monochrome verb pill, depth-2 shadow on near-black renders as
+ * imperceptible elevation.
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux11-copilot .ux11-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: var(--ux11-tile-w);
+  height: var(--ux11-tile-h);
+  padding: var(--ux11-tile-pad-y) var(--ux11-tile-pad-x);
+  background: var(--ux10-bg-card);
+  border: 1px solid var(--ux10-border-card);
+  border-radius: var(--ux11-tile-radius);
+  box-shadow: var(--ux11-depth-2);
+  font-family: var(--ux10-font-sans);
+  color: var(--ux10-fg-primary);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color var(--ux11-anim-tile-hover) var(--ux11-ease-out),
+              transform var(--ux11-anim-tile-hover) var(--ux11-ease-out),
+              opacity var(--ux11-anim-tile-hover) var(--ux11-ease-out);
+}
+
+.ux11-copilot .ux11-tile:hover {
+  border-color: var(--ux10-border-strong);
+  transform: translateY(-1px);
+}
+
+.ux11-copilot .ux11-tile:focus-visible {
+  outline: 2px solid hsla(228, 50%, 70%, 0.5);
+  outline-offset: 2px;
+}
+
+.ux11-copilot .ux11-tile[data-tier="Confirmed"],
+.ux11-copilot .ux11-tile[data-tier="Conviction"] {
+  border-left: 1px solid var(--ux10-conviction-strong);
+}
+
+.ux11-copilot .ux11-tile[data-stale="true"] {
+  opacity: 0.85;
+  filter: saturate(0.6);
+}
+
+.ux11-copilot .ux11-tile[data-active="true"] {
+  border-color: var(--ux10-border-strong);
+}
+
+.ux11-copilot .ux11-tile[data-dim="true"] {
+  opacity: 0.6;
+}
+
+/* === Tile rows === */
+
+.ux11-copilot .ux11-tile-row1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-tertiary);
+  font-family: var(--ux10-font-mono);
+  height: 24px;
+}
+
+.ux11-copilot .ux11-tile-row2 {
+  font-size: var(--ux10-fs-body);
+  color: var(--ux10-fg-secondary);
+  letter-spacing: 0.005em;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ux11-copilot .ux11-tile-row2 strong {
+  color: var(--ux10-fg-primary);
+  font-weight: 600;
+}
+
+.ux11-copilot .ux11-tile-row3 {
+  font-size: var(--ux10-fs-body);
+  color: var(--ux10-fg-primary);
+  line-height: 1.4;
+  height: 44px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ux11-copilot .ux11-tile-row4 {
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-secondary);
+  letter-spacing: 0.04em;
+  height: 32px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.45;
+}
+
+.ux11-copilot .ux11-tile-row4 .ux11-bullbear-label {
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ux10-fg-tertiary);
+}
+
+.ux11-copilot .ux11-tile-row5 {
+  margin-top: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: var(--ux10-fs-meta);
+  color: var(--ux10-fg-tertiary);
+  font-family: var(--ux10-font-mono);
+}
+
+.ux11-copilot .ux11-invalidation-distance {
+  color: var(--ux10-risk);
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * ReasoningDrawer (modal sheet)
+ * 88vh desktop / 92vh mobile, slide-up motion, single instance.
+ * ─────────────────────────────────────────────────────────────── */
+
+.ux11-copilot .ux11-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--ux11-drawer-backdrop);
+  opacity: 0;
+  z-index: 500;
+  transition: opacity var(--ux11-anim-backdrop) var(--ux11-ease-out);
+  pointer-events: none;
+}
+
+.ux11-copilot .ux11-drawer-backdrop[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.ux11-copilot .ux11-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  width: min(1040px, calc(100vw - 48px));
+  height: var(--ux11-drawer-h);
+  background: var(--ux11-drawer-bg);
+  border: 1px solid var(--ux10-border-card);
+  border-bottom: none;
+  border-radius: var(--ux11-drawer-radius) var(--ux11-drawer-radius) 0 0;
+  z-index: 501;
+  transform: translate(-50%, 100%);
+  transition: transform var(--ux11-anim-sheet-in) var(--ux11-ease-ios);
+  display: flex;
+  flex-direction: column;
+}
+
+.ux11-copilot .ux11-drawer[data-open="true"] {
+  transform: translate(-50%, 0);
+}
+
+@media (max-width: 720px) {
+  .ux11-copilot .ux11-drawer {
+    width: 100%;
+    left: 0;
+    transform: translateY(100%);
+    height: var(--ux11-drawer-h-mobile);
+  }
+  .ux11-copilot .ux11-drawer[data-open="true"] {
+    transform: translateY(0);
+  }
+}
+
+/* === Drawer chrome === */
+
+.ux11-copilot .ux11-drawer-handle {
+  width: 32px;
+  height: 4px;
+  background: var(--ux10-border-strong);
+  border-radius: 2px;
+  margin: 8px auto 0;
+  flex-shrink: 0;
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .ux11-copilot .ux11-drawer-handle { display: block; }
+}
+
+.ux11-copilot .ux11-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--ux10-border-card);
+  flex-shrink: 0;
+}
+
+.ux11-copilot .ux11-drawer-close {
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: 1px solid var(--ux10-border-card);
+  border-radius: var(--ux11-tile-radius);
+  color: var(--ux10-fg-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  transition: color var(--ux11-anim-tile-hover) var(--ux11-ease-out);
+}
+
+.ux11-copilot .ux11-drawer-close:hover {
+  color: var(--ux10-fg-primary);
+}
+
+.ux11-copilot .ux11-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  scroll-behavior: smooth;
+}
+
+.ux11-copilot .ux11-drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ux11-copilot .ux11-drawer-section h3 {
+  margin: 0 0 4px 0;
+  font-size: var(--ux10-fs-meta);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ux10-fg-tertiary);
+}
+
+.ux11-copilot .ux11-drawer-section p {
+  margin: 0;
+  font-size: var(--ux10-fs-body);
+  line-height: 1.6;
+  color: var(--ux10-fg-primary);
+}
+
+.ux11-copilot .ux11-drawer-thesis-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .ux11-copilot .ux11-drawer-thesis-grid { grid-template-columns: 1fr; }
+}
+
+
+/* ───────────────────────────────────────────────────────────────
+ * Reduced motion — strip everything
+ * ─────────────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .ux11-copilot *,
+  .ux11-copilot *::before,
+  .ux11-copilot *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+  .ux11-copilot .ux11-drawer {
+    transition: opacity 80ms ease-out !important;
+  }
+}
