@@ -50,3 +50,16 @@ export type { WatchThisWeekProps } from "./WatchThisWeek";
 // UX-8B Phase 8B-1 — Portfolio Weather Room hero.
 export { default as ConditionBlock } from "./ConditionBlock";
 export type { ConditionBlockProps } from "./ConditionBlock";
+
+// UX-9 Phase 9A/9B — AI Command Center primitives.
+export { default as HeroCard } from "./HeroCard";
+export type {
+  HeroCardProps, PositionWeight, PositionHue, HeroMiniObject,
+} from "./HeroCard";
+
+export { default as IntelligenceGrid, SLOT_ORDER } from "./IntelligenceGrid";
+export type {
+  IntelligenceGridProps, SlotData, SlotName,
+} from "./IntelligenceGrid";
+
+export { default as Sparkline } from "./Sparkline";

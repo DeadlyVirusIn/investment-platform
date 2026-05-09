@@ -1,0 +1,374 @@
+/*
+ * UX-9 — AI Command Center tokens.
+ *
+ * Scoped to .ux9-stream root so the existing /overview default
+ * page (UX-8B PRESSURED proof) is unaffected. Tokens here ONLY
+ * apply inside the Stream view.
+ *
+ * Imported from index.css after the other token sheets.
+ */
+
+
+.ux9-stream {
+  /* === Layout === */
+  --ux9-page-max:           1080px;
+  --ux9-page-pad-x:         32px;
+  --ux9-page-pad-x-mobile:  20px;
+  --ux9-page-pad-y:         48px;
+  --ux9-block-gap:          24px;
+
+  /* === Hero geometry === */
+  --ux9-hero-padding:        32px 40px;
+  --ux9-hero-padding-mobile: 24px 20px;
+  --ux9-hero-radius:         16px;
+  --ux9-hero-bg:             rgba(255, 255, 255, 0.03);
+  --ux9-hero-border:         1px solid rgba(255, 255, 255, 0.06);
+
+  /* === Bar geometry === */
+  --ux9-bar-track-height:    44px;
+  --ux9-bar-radius:          6px;
+  --ux9-bar-fill-duration:   300ms;
+  --ux9-bar-stagger-gap:     60ms;
+
+  /* === Card geometry === */
+  --ux9-card-padding:        20px 24px;
+  --ux9-card-radius:         12px;
+  --ux9-card-bg:             rgba(255, 255, 255, 0.03);
+  --ux9-card-border:         1px solid rgba(255, 255, 255, 0.06);
+  --ux9-card-min-height:     128px;
+
+  /* === Type === */
+  --ux9-type-header:         11px;
+  --ux9-type-header-track:   0.12em;
+  --ux9-type-delta:          17px;
+  --ux9-type-read:           17px;
+  --ux9-type-read-leading:   1.5;
+  --ux9-type-card-primary:   15px;
+  --ux9-type-card-ai:        13px;
+  --ux9-type-mini:           13px;
+  --ux9-type-bar-label:      11px;
+
+  /* === Color === */
+  --ux9-fg-primary:          rgba(255, 255, 255, 0.92);
+  --ux9-fg-secondary:        rgba(255, 255, 255, 0.74);
+  --ux9-fg-tertiary:         rgba(255, 255, 255, 0.55);
+  --ux9-fg-quaternary:       rgba(255, 255, 255, 0.38);
+  --ux9-bg-base:             #0F0F0F;
+  --ux9-emphasis-color:      rgba(255, 200, 160, 0.74);
+
+  /* === Position hue palette (muted, max 0.5 saturation) === */
+  --ux9-pos-1:    #7a8caf;
+  --ux9-pos-2:    #8fa8a3;
+  --ux9-pos-3:    #b39a82;
+  --ux9-pos-4:    #9c8aa8;
+  --ux9-pos-5:    #a39785;
+  --ux9-pos-6:    #6f8a9c;
+  --ux9-pos-7:    #b29a9a;
+  --ux9-pos-cash: rgba(255, 255, 255, 0.10);
+
+  /* === Motion === */
+  --ux9-ease:           cubic-bezier(0.2, 0.7, 0.1, 1);
+  --ux9-motion-fast:    100ms;
+  --ux9-motion-medium:  300ms;
+  --ux9-motion-text:    200ms;
+
+  /* page-level base */
+  background: var(--ux9-bg-base);
+  color: var(--ux9-fg-primary);
+  min-height: 100vh;
+}
+
+
+/* === HERO === */
+
+.ux9-hero {
+  position: relative;
+  background: var(--ux9-hero-bg);
+  border: var(--ux9-hero-border);
+  border-radius: var(--ux9-hero-radius);
+  padding: var(--ux9-hero-padding);
+}
+
+.ux9-hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.ux9-hero-header-label {
+  font-size: var(--ux9-type-header);
+  letter-spacing: var(--ux9-type-header-track);
+  text-transform: uppercase;
+  color: var(--ux9-fg-tertiary);
+  font-weight: 500;
+  margin: 0;
+}
+
+.ux9-hero-delta {
+  font-size: var(--ux9-type-delta);
+  color: var(--ux9-fg-primary);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.ux9-hero-bars {
+  display: flex;
+  width: 100%;
+  height: var(--ux9-bar-track-height);
+  margin-top: 28px;
+  border-radius: var(--ux9-bar-radius);
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ux9-hero-bar {
+  height: 100%;
+  background: var(--bar-color);
+  width: 0;
+  transition: width var(--ux9-bar-fill-duration) var(--ux9-ease);
+  transition-delay: calc(var(--bar-index) * var(--ux9-bar-stagger-gap));
+}
+
+.ux9-hero.is-revealed .ux9-hero-bar {
+  width: var(--bar-target-width);
+}
+
+.ux9-hero-bar-labels {
+  display: flex;
+  width: 100%;
+  margin-top: 10px;
+  font-size: var(--ux9-type-bar-label);
+  letter-spacing: 0.04em;
+  color: var(--ux9-fg-tertiary);
+  text-transform: uppercase;
+}
+
+.ux9-hero-bar-label {
+  width: var(--label-target-width);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+.ux9-hero-read {
+  margin: 28px 0 0;
+  font-size: var(--ux9-type-read);
+  line-height: var(--ux9-type-read-leading);
+  color: var(--ux9-fg-primary);
+  max-width: 60ch;
+}
+
+.ux9-hero-mini {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+
+.ux9-hero-mini-object {
+  flex: 1 1 0;
+  min-width: 140px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  font-size: var(--ux9-type-mini);
+  color: var(--ux9-fg-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ux9-hero-mini-label {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ux9-fg-quaternary);
+  font-weight: 500;
+}
+
+.ux9-hero-mini-value {
+  color: var(--ux9-fg-primary);
+}
+
+
+/* === INTELLIGENCE GRID === */
+
+.ux9-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: var(--ux9-block-gap);
+}
+
+@media (max-width: 720px) {
+  .ux9-grid { grid-template-columns: 1fr; }
+}
+
+.ux9-card {
+  position: relative;
+  padding: var(--ux9-card-padding);
+  background: var(--ux9-card-bg);
+  border: var(--ux9-card-border);
+  border-radius: var(--ux9-card-radius);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: var(--ux9-card-min-height);
+}
+
+.ux9-card-header {
+  font-size: var(--ux9-type-header);
+  letter-spacing: var(--ux9-type-header-track);
+  text-transform: uppercase;
+  color: var(--ux9-fg-tertiary);
+  font-weight: 500;
+  margin: 0;
+}
+
+.ux9-card-primary {
+  font-size: var(--ux9-type-card-primary);
+  color: var(--ux9-fg-primary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.ux9-card[data-quiet="true"] .ux9-card-primary {
+  color: var(--ux9-fg-tertiary);
+}
+
+.ux9-card-ai {
+  font-size: var(--ux9-type-card-ai);
+  color: var(--ux9-fg-secondary);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.ux9-card-sparkline {
+  display: block;
+  width: 100%;
+  max-width: 120px;
+  height: 32px;
+  align-self: flex-start;
+  opacity: 0.74;
+}
+
+/* state-change emphasis — left-edge bar */
+.ux9-card[data-changed="true"]::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 2px;
+  background: var(--ux9-emphasis-color);
+  transform-origin: top center;
+  animation: ux9-emphasis 300ms var(--ux9-ease) both;
+  border-radius: 0 2px 2px 0;
+}
+
+@keyframes ux9-emphasis {
+  from { opacity: 0; transform: scaleY(0); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+
+
+/* === SPARKLINE === */
+
+.ux9-sparkline-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: ux9-sparkline-draw 200ms var(--ux9-ease) forwards;
+  animation-delay: 1100ms;
+}
+
+@keyframes ux9-sparkline-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+
+/* === ADMIN TOOLTIP === */
+
+.ux9-admin-tooltip {
+  position: fixed;
+  z-index: 9999;
+  width: 360px;
+  padding: 16px 20px;
+  background: rgba(20, 20, 22, 0.96);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 8px;
+  font-family: ui-monospace, SF Mono, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ux9-fg-secondary);
+  pointer-events: none;
+}
+
+.ux9-admin-tooltip h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ux9-fg-primary);
+  font-weight: 500;
+}
+
+.ux9-admin-tooltip dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+}
+
+.ux9-admin-tooltip dt {
+  color: var(--ux9-fg-quaternary);
+  font-weight: 500;
+}
+
+.ux9-admin-tooltip dd {
+  margin: 0;
+  color: var(--ux9-fg-secondary);
+  word-break: break-word;
+}
+
+.ux9-admin-tooltip a {
+  color: var(--ux9-emphasis-color);
+  text-decoration: underline;
+  pointer-events: auto;
+}
+
+.ux9-admin-banner {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9998;
+  padding: 6px 10px;
+  background: rgba(255, 200, 160, 0.10);
+  border: 1px solid rgba(255, 200, 160, 0.40);
+  border-radius: 6px;
+  font-family: ui-monospace, SF Mono, Menlo, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ux9-emphasis-color);
+}
+
+
+/* === ACCESSIBILITY === */
+
+@media (prefers-reduced-motion: reduce) {
+  .ux9-hero-bar { transition: none; width: var(--bar-target-width); }
+  .ux9-card[data-changed="true"]::before {
+    animation: none; opacity: 1; transform: scaleY(1);
+  }
+  .ux9-sparkline-path {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}

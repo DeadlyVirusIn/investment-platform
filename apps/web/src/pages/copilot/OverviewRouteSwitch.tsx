@@ -12,6 +12,9 @@ import { useLocation } from "react-router-dom";
 
 import Overview from "@/pages/Overview";
 import CopilotOverview from "@/pages/copilot/CopilotOverview";
+// UX-9 Phase 9D — parallel Stream view at /overview?view=stream.
+// Default and ?view=working are unchanged.
+import CopilotStreamView from "@/pages/copilot/CopilotStreamView";
 
 
 export default function OverviewRouteSwitch() {
@@ -19,5 +22,6 @@ export default function OverviewRouteSwitch() {
   const params = new URLSearchParams(search);
   const view = params.get("view");
   if (view === "working") return <Overview />;
+  if (view === "stream") return <CopilotStreamView />;
   return <CopilotOverview />;
 }
