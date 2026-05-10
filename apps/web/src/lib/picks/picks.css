@@ -1,0 +1,447 @@
+/*
+ * Picks page styles — green BUY boxes + red SELL boxes + modal overlay.
+ *
+ * Scoped to .picks-root so other surfaces unaffected.
+ */
+
+
+.picks-root {
+  --picks-bg-page:        #0E0F12;
+  --picks-bg-card-buy:    #0E2818;     /* deep green wash */
+  --picks-bg-card-sell:   #2A1010;     /* deep red wash */
+  --picks-bg-card-hold:   #1A1B1E;     /* neutral */
+  --picks-bg-modal:       #14161A;
+  --picks-bg-overlay:     rgba(8, 10, 14, 0.78);
+
+  --picks-buy:            #2ECC71;     /* green */
+  --picks-buy-soft:       rgba(46, 204, 113, 0.18);
+  --picks-buy-border:     rgba(46, 204, 113, 0.55);
+
+  --picks-sell:           #E74C3C;     /* red */
+  --picks-sell-soft:      rgba(231, 76, 60, 0.18);
+  --picks-sell-border:    rgba(231, 76, 60, 0.55);
+
+  --picks-hold:           #95A5A6;
+  --picks-hold-soft:      rgba(149, 165, 166, 0.10);
+
+  --picks-ink-primary:    #F4F5F7;
+  --picks-ink-body:       #C3C7CC;
+  --picks-ink-meta:       #7A8088;
+  --picks-ink-recede:     #4F5460;
+
+  --picks-font-sans:      "Inter", system-ui, -apple-system, sans-serif;
+  --picks-font-mono:      ui-monospace, "SF Mono", Menlo, monospace;
+
+  background: var(--picks-bg-page);
+  color: var(--picks-ink-primary);
+  font-family: var(--picks-font-sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+
+/* ────────────────────────────────────────────────
+   Page frame
+   ──────────────────────────────────────────────── */
+
+.picks-root .picks-frame {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: clamp(32px, 5vw, 64px) clamp(16px, 4vw, 48px);
+}
+
+.picks-root .picks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.picks-root .picks-title {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--picks-ink-primary);
+}
+
+.picks-root .picks-subtitle {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--picks-ink-meta);
+}
+
+.picks-root .picks-archive-nav {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-family: var(--picks-font-mono);
+  font-size: 11px;
+  color: var(--picks-ink-recede);
+  align-items: baseline;
+}
+
+.picks-root .picks-archive-nav a {
+  color: var(--picks-ink-meta);
+  text-decoration: none;
+  transition: color 140ms ease-out;
+}
+
+.picks-root .picks-archive-nav a:hover { color: var(--picks-ink-primary); }
+
+
+/* ────────────────────────────────────────────────
+   Loading + error states
+   ──────────────────────────────────────────────── */
+
+.picks-root .picks-loading,
+.picks-root .picks-empty,
+.picks-root .picks-error {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--picks-ink-meta);
+  font-size: 15px;
+}
+
+.picks-root .picks-error {
+  color: var(--picks-sell);
+}
+
+
+/* ────────────────────────────────────────────────
+   Grid
+   ──────────────────────────────────────────────── */
+
+.picks-root .picks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+
+/* ────────────────────────────────────────────────
+   Pick box (green BUY / red SELL / neutral HOLD)
+   ──────────────────────────────────────────────── */
+
+.picks-root .pick-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--picks-bg-card-hold);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    transform 140ms ease-out,
+    border-color 140ms ease-out,
+    background 140ms ease-out;
+  font-family: inherit;
+  color: inherit;
+  min-height: 160px;
+}
+
+.picks-root .pick-box:hover {
+  transform: translateY(-2px);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.picks-root .pick-box:focus-visible {
+  outline: 2px solid var(--picks-ink-primary);
+  outline-offset: 2px;
+}
+
+.picks-root .pick-box[data-action="buy"] {
+  background: var(--picks-bg-card-buy);
+  border-color: var(--picks-buy-border);
+}
+
+.picks-root .pick-box[data-action="buy"]:hover {
+  border-color: var(--picks-buy);
+  background: #122F1D;
+}
+
+.picks-root .pick-box[data-action="sell"] {
+  background: var(--picks-bg-card-sell);
+  border-color: var(--picks-sell-border);
+}
+
+.picks-root .pick-box[data-action="sell"]:hover {
+  border-color: var(--picks-sell);
+  background: #341515;
+}
+
+.picks-root .pick-box[data-action="hold"] {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Box internal layout */
+.picks-root .pick-box-row1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--picks-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--picks-ink-meta);
+}
+
+.picks-root .pick-action {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.picks-root .pick-box[data-action="buy"]  .pick-action {
+  background: var(--picks-buy-soft);
+  color: var(--picks-buy);
+}
+
+.picks-root .pick-box[data-action="sell"] .pick-action {
+  background: var(--picks-sell-soft);
+  color: var(--picks-sell);
+}
+
+.picks-root .pick-box[data-action="hold"] .pick-action {
+  background: var(--picks-hold-soft);
+  color: var(--picks-hold);
+}
+
+.picks-root .pick-confidence {
+  font-family: var(--picks-font-mono);
+  color: var(--picks-ink-meta);
+  font-size: 11px;
+}
+
+.picks-root .pick-symbol {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--picks-ink-primary);
+  margin: 0;
+  font-family: var(--picks-font-sans);
+}
+
+.picks-root .pick-thesis {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--picks-ink-body);
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.picks-root .pick-meta {
+  margin-top: auto;
+  font-family: var(--picks-font-mono);
+  font-size: 11px;
+  color: var(--picks-ink-recede);
+  display: flex;
+  justify-content: space-between;
+  letter-spacing: 0.02em;
+}
+
+
+/* ────────────────────────────────────────────────
+   Modal overlay
+   ──────────────────────────────────────────────── */
+
+.picks-root .pick-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--picks-bg-overlay);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-out;
+}
+
+.picks-root .pick-overlay[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.picks-root .pick-modal {
+  background: var(--picks-bg-modal);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  width: min(560px, 100%);
+  max-height: min(80vh, 800px);
+  overflow-y: auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  transform: translateY(16px) scale(0.98);
+  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.picks-root .pick-overlay[data-open="true"] .pick-modal {
+  transform: translateY(0) scale(1);
+}
+
+.picks-root .pick-modal[data-action="buy"]  { border-top: 3px solid var(--picks-buy); }
+.picks-root .pick-modal[data-action="sell"] { border-top: 3px solid var(--picks-sell); }
+.picks-root .pick-modal[data-action="hold"] { border-top: 3px solid var(--picks-hold); }
+
+.picks-root .pick-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.picks-root .pick-modal-symbol {
+  font-size: 40px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.picks-root .pick-modal-symbol-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--picks-ink-meta);
+  font-family: var(--picks-font-mono);
+}
+
+.picks-root .pick-modal-close {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--picks-ink-meta);
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+  transition: all 140ms ease-out;
+}
+
+.picks-root .pick-modal-close:hover {
+  color: var(--picks-ink-primary);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.picks-root .pick-modal-action-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-family: var(--picks-font-mono);
+  font-size: 13px;
+  color: var(--picks-ink-meta);
+}
+
+.picks-root .pick-modal-action-badge {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.picks-root .pick-modal[data-action="buy"]  .pick-modal-action-badge {
+  background: var(--picks-buy-soft);
+  color: var(--picks-buy);
+}
+
+.picks-root .pick-modal[data-action="sell"] .pick-modal-action-badge {
+  background: var(--picks-sell-soft);
+  color: var(--picks-sell);
+}
+
+.picks-root .pick-modal[data-action="hold"] .pick-modal-action-badge {
+  background: var(--picks-hold-soft);
+  color: var(--picks-hold);
+}
+
+.picks-root .pick-modal-section h4 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--picks-ink-recede);
+  margin: 0 0 8px 0;
+}
+
+.picks-root .pick-modal-section p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--picks-ink-body);
+}
+
+.picks-root .pick-price-line {
+  font-family: var(--picks-font-mono);
+  font-size: 14px;
+  color: var(--picks-ink-primary);
+}
+
+.picks-root .pick-price-loading {
+  color: var(--picks-ink-recede);
+  font-style: italic;
+}
+
+.picks-root .pick-evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.picks-root .pick-evidence-item {
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  font-size: 14px;
+  color: var(--picks-ink-body);
+  line-height: 1.5;
+}
+
+.picks-root .pick-evidence-factor {
+  font-family: var(--picks-font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--picks-ink-meta);
+  margin-bottom: 4px;
+}
+
+.picks-root .pick-modal-footer {
+  font-family: var(--picks-font-mono);
+  font-size: 11px;
+  color: var(--picks-ink-recede);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 16px;
+  line-height: 1.5;
+}
+
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .picks-root .pick-box,
+  .picks-root .pick-overlay,
+  .picks-root .pick-modal,
+  .picks-root .pick-modal-close {
+    transition-duration: 0ms !important;
+  }
+}

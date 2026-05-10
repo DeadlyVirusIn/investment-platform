@@ -27,6 +27,10 @@ import CopilotInteractiveView from "@/pages/copilot/CopilotInteractiveView";
 // HYPOTHESIS for browser review — NOT final truth.
 import CopilotLivingView from "@/pages/copilot/CopilotLivingView";
 
+// Default landing — green BUY / red SELL picks grid.
+// All UX-9 through UX-13 surfaces archived behind ?view=*.
+import PicksPage from "@/pages/PicksPage";
+
 
 export default function OverviewRouteSwitch() {
   const { search } = useLocation();
@@ -37,5 +41,7 @@ export default function OverviewRouteSwitch() {
   if (view === "conviction") return <CopilotConvictionView />;
   if (view === "copilot") return <CopilotInteractiveView />;
   if (view === "living") return <CopilotLivingView />;
-  return <CopilotOverview />;
+  if (view === "legacy") return <CopilotOverview />;
+  // Default: AI suggestions grid (BUY/SELL boxes + click → modal)
+  return <PicksPage />;
 }

@@ -11,6 +11,7 @@
 @import "./lib/copilot/ux10_tokens.css";
 @import "./lib/copilot/ux11_tokens.css";
 @import "./lib/copilot/ux13_living_tokens.css";
+@import "./lib/picks/picks.css";
 
 @tailwind base;
 @tailwind components;
