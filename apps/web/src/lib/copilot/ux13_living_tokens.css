@@ -26,15 +26,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
 
+/* ────────────────────────────────────────────────────────────
+   OPERATIONAL ACCENTS — directional tones for activity events
+   Subtle. Below 50% saturation. NEVER applied to backgrounds.
+   ────────────────────────────────────────────────────────────
+   --tone-up:   warm light cast (conviction strengthening)
+   --tone-down: cool slate cast (conviction weakening)
+   --tone-neutral: ink-meta (catalyst, watchlist warm)
+*/
+
 .ux13-living {
+  --living-tone-up:   #C8A86E;   /* warm amber, conviction strengthening */
+  --living-tone-down: #9CA3AF;   /* cool slate, weakening */
+
   /* ════════════════════════════════════════════════════════════
      SUBSTRATE — warmer canvas, paper-warm text
      ════════════════════════════════════════════════════════════ */
 
-  /* === Canvas zones (warmer than UX-12, true warm-near-black) === */
-  --living-canvas-base:      #0F0E0C;   /* base — true warm-near-black, 5% red shift */
-  --living-canvas-stage:     #14110D;   /* stage zone, ~5% lighter and warmer */
-  --living-canvas-recess:    #0A0908;   /* recessed (deeper than base) for drawer scrim */
+  /* === Canvas zones — 4-tier tonal layering for foreground/mid/back === */
+  --living-canvas-fg:        #181410;   /* hero plane — slightly raised */
+  --living-canvas-base:      #0F0E0C;   /* default plane (sub blocks, body) */
+  --living-canvas-recess:    #0A0908;   /* recessed (activity stream, drawer scrim) */
+  --living-canvas-deep:      #060504;   /* deepest (footer, switcher) */
+  /* alias kept for backward compat */
+  --living-canvas-stage:     #14110D;
 
   /* === Ink — paper-warm off-white, NOT cold blue-gray === */
   --living-ink-hero:         #F2EDE6;   /* hero, posture sentence — paper-warm */
@@ -68,15 +83,15 @@
      TYPOGRAPHY — Exaggerated Minimalism scale
      ============================================================ */
 
-  /* Posture is now DRAMATIC — clamp() makes it scale with viewport */
-  --living-type-posture:     clamp(40px, 5vw, 72px);   /* WAS 36px — now editorial */
-  --living-type-posture-leading: 1.05;
-  --living-type-posture-tracking: -0.025em;
+  /* Posture — REDUCED from clamp(40-72). User: too "essay-page". */
+  --living-type-posture:     clamp(28px, 3vw, 44px);
+  --living-type-posture-leading: 1.15;
+  --living-type-posture-tracking: -0.018em;
 
-  /* Hero decision sentence — restored as PRIMARY focal */
-  --living-type-decision:    clamp(24px, 2.5vw, 32px); /* WAS 16px — focal */
-  --living-type-decision-leading: 1.25;
-  --living-type-decision-tracking: -0.015em;
+  /* Hero decision sentence — primary focal, slightly tighter than v1 */
+  --living-type-decision:    clamp(22px, 2.2vw, 28px);
+  --living-type-decision-leading: 1.3;
+  --living-type-decision-tracking: -0.012em;
 
   /* Body, metadata — quiet supporting layer */
   --living-type-body:        17px;
@@ -210,12 +225,12 @@
 .ux13-living .ux13-posture {
   font-family: var(--living-font-serif);
   font-size: var(--living-type-posture);
-  font-weight: 300;                         /* light weight = editorial gravitas */
+  font-weight: 400;                         /* slightly heavier — less essay-thin */
   line-height: var(--living-type-posture-leading);
   letter-spacing: var(--living-type-posture-tracking);
   color: var(--living-ink-hero);
-  max-width: 18ch;                          /* TIGHT measure forces line breaks */
-  margin: var(--living-space-md) 0 var(--living-space-xl) 0;
+  max-width: 32ch;                          /* WIDER — less line-break drama */
+  margin: var(--living-space-md) 0 var(--living-space-lg) 0;
 }
 
 .ux13-living .ux13-posture .ux13-posture-emph {
@@ -241,9 +256,21 @@
   display: flex;
   flex-direction: column;
   gap: var(--living-space-md);
-  margin-bottom: var(--living-space-xl);
+  margin-bottom: var(--living-space-lg);
+  padding: var(--living-space-md) var(--living-space-md) var(--living-space-md) calc(var(--living-space-md) + 4px);
   cursor: pointer;
-  /* NO border, NO background, NO box-shadow. Just space. */
+  /* Tonal layering: hero on raised plane, NO box-shadow */
+  background: var(--living-canvas-fg);
+  border-left: 2px solid var(--living-tone-up);  /* directional accent — conviction strengthening */
+  border-radius: 2px;
+  transition: background var(--living-anim-base) var(--living-ease-out);
+}
+
+/* Highlight when an activity event hover targets this hero's ticker */
+.ux13-living[data-active-ticker="NVDA"] .ux13-hero[data-ticker="NVDA"],
+.ux13-living[data-active-ticker="TSLA"] .ux13-hero[data-ticker="TSLA"],
+.ux13-living[data-active-ticker="MSFT"] .ux13-hero[data-ticker="MSFT"] {
+  background: #1F1A14;
 }
 
 .ux13-living .ux13-hero-eyebrow {
@@ -313,12 +340,32 @@
 .ux13-living .ux13-hero-meta .ux13-invalid {
   color: var(--living-risk);
   margin-right: var(--living-space-md);
+  transition: color var(--living-anim-fast) var(--living-ease-out);
 }
 
-/* Hero hover — subtle warmth shift, no scale, no shadow */
+/* Hero hover — invalidation distance pulses (operational sensitivity) */
+.ux13-living .ux13-hero:hover {
+  background: #1F1A14;
+}
 .ux13-living .ux13-hero:hover .ux13-hero-decision {
   color: #FAF7F2;
   transition: color var(--living-anim-base) var(--living-ease-out);
+}
+.ux13-living .ux13-hero:hover .ux13-hero-meta .ux13-invalid {
+  color: #D67373;   /* brief intensification */
+}
+
+/* Inline operational chips — % to target / days held */
+.ux13-living .ux13-hero-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  margin-right: var(--living-space-sm);
+  background: var(--living-canvas-recess);
+  color: var(--living-ink-body);
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  border-radius: 2px;
 }
 
 
@@ -382,6 +429,26 @@
   transition: color var(--living-anim-base) var(--living-ease-out);
 }
 
+/* Adjacent-dim Linear pattern: when ANY sub is hovered, others recede */
+.ux13-living .ux13-sub-row:has(.ux13-sub:hover) .ux13-sub:not(:hover) {
+  opacity: 0.55;
+  transition: opacity var(--living-anim-base) var(--living-ease-out);
+}
+
+/* Highlight via activity-event hover */
+.ux13-living[data-active-ticker="TSLA"] .ux13-sub[data-ticker="TSLA"],
+.ux13-living[data-active-ticker="MSFT"] .ux13-sub[data-ticker="MSFT"],
+.ux13-living[data-active-ticker="AAPL"] .ux13-sub[data-ticker="AAPL"],
+.ux13-living[data-active-ticker="AMZN"] .ux13-sub[data-ticker="AMZN"],
+.ux13-living[data-active-ticker="GOOG"] .ux13-sub[data-ticker="GOOG"],
+.ux13-living[data-active-ticker="META"] .ux13-sub[data-ticker="META"],
+.ux13-living[data-active-ticker="AVGO"] .ux13-sub[data-ticker="AVGO"] {
+  background: var(--living-canvas-fg);
+  padding: var(--living-space-sm);
+  border-radius: 2px;
+  margin: calc(-1 * var(--living-space-sm));
+}
+
 
 /* ════════════════════════════════════════════════════════════════
    WATCHLIST — INLINE prose (no column, no chrome, no sidebar)
@@ -440,6 +507,118 @@
 
 .ux13-living.ux13-room-field .ux13-field-list .ux13-sub:nth-child(3n) {
   padding-left: var(--living-space-md);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   ACTIVITY STREAM — operational layer, NOT editorial
+   Compact event list. Each row is a real AI action with tone +
+   relative time. Hover row → corresponding tile highlights.
+   Click row → opens drawer for that ticker.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-activity {
+  margin: var(--living-space-lg) 0;
+  padding: var(--living-space-md);
+  background: var(--living-canvas-recess);
+  border-radius: 2px;
+}
+
+.ux13-living .ux13-activity-label {
+  font-family: var(--living-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--living-ink-recede);
+  margin: 0 0 var(--living-space-sm) 0;
+}
+
+.ux13-living .ux13-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ux13-living .ux13-activity-event {
+  display: grid;
+  grid-template-columns: 16px 56px 1fr 36px;
+  gap: var(--living-space-sm);
+  align-items: baseline;
+  padding: 8px 8px 8px 4px;
+  margin: 0 -8px;
+  cursor: pointer;
+  border-radius: 2px;
+  font-family: var(--living-font-mono);
+  font-size: 13px;
+  color: var(--living-ink-body);
+  letter-spacing: 0.01em;
+  transition: background var(--living-anim-fast) var(--living-ease-out);
+}
+
+.ux13-living .ux13-activity-event:hover,
+.ux13-living .ux13-activity-event:focus-visible {
+  background: var(--living-canvas-base);
+  outline: none;
+}
+
+.ux13-living .ux13-activity-glyph {
+  font-family: var(--living-font-serif);
+  font-size: 14px;
+  text-align: center;
+  color: var(--living-ink-meta);
+}
+
+.ux13-living .ux13-activity-event[data-tone="up"] .ux13-activity-glyph {
+  color: var(--living-tone-up);
+}
+
+.ux13-living .ux13-activity-event[data-tone="down"] .ux13-activity-glyph {
+  color: var(--living-tone-down);
+}
+
+.ux13-living .ux13-activity-ticker {
+  font-family: var(--living-font-sans);
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--living-ink-hero);
+  letter-spacing: 0.04em;
+}
+
+.ux13-living .ux13-activity-text {
+  color: var(--living-ink-body);
+  font-family: var(--living-font-serif);
+  font-style: italic;
+  font-size: 14px;
+}
+
+.ux13-living .ux13-activity-time {
+  text-align: right;
+  font-size: 11px;
+  color: var(--living-ink-recede);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   TOTALS PILL — operational counters in header
+   "5 active · 12 watch · 3 new"
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-totals {
+  display: flex;
+  gap: var(--living-space-sm);
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  color: var(--living-ink-meta);
+  letter-spacing: 0.02em;
+  margin-top: 4px;
+}
+
+.ux13-living .ux13-totals span {
+  color: var(--living-ink-body);
 }
 
 

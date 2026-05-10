@@ -27,12 +27,38 @@ export interface LivingPageData {
   subordinateTiles: ConvictionTileData[];  // 0 in Solo, 1-2 in Duet, 4-6 in Field
   watchlistRows: WatchlistRow[];           // empty in Field; column in Duet; single line in Solo
   marketContextText: string;
+  /** Operational layer — events the AI generated since user's last visit. */
+  activity: ActivityEvent[];
+  /** Operational meta cluster — "5 active · 12 watch · 3 new" */
+  totals: { active: number; watch: number; newToday: number };
 }
 
 
 export interface WatchlistRow {
   ticker: string;
   status: string;
+}
+
+
+/** AI activity event — proves AI was working while user was away. */
+export interface ActivityEvent {
+  /** Stable ID for React keys */
+  id: string;
+  /** Ticker the event is about (clickable → opens drawer) */
+  ticker: string;
+  /** Event type — drives icon glyph + color emphasis */
+  type:
+    | "conviction-up"     // tier promoted
+    | "conviction-down"   // tier demoted
+    | "thesis-strengthen" // bull case strengthened
+    | "thesis-weaken"     // bear case strengthened
+    | "catalyst-approach" // event in N days
+    | "watchlist-warm"    // watchlist item warming
+    | "review-stale";     // freshness aged
+  /** Hours ago this happened (for relative time display) */
+  hoursAgo: number;
+  /** Compact one-line description */
+  text: string;
 }
 
 
@@ -182,12 +208,18 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
         ambientTime,
         pageStateText: "1 to look at",
         postureText:
-          "One thesis stands alone today. The conviction is concentrated in semiconductors as data-center margins continue to widen.",
+          "One thesis stands alone today.",
         sinceYouLeftText,
         heroTile: PROOF_HERO_NVDA,
         subordinateTiles: [],
-        watchlistRows: [],   // Solo: single line, not column
+        watchlistRows: [],
         marketContextText: "Risk-on tape; semis leading the market into the close.",
+        activity: [
+          { id: "a1", ticker: "NVDA", type: "conviction-up", hoursAgo: 14, text: "Conviction +0.3 → 0.82" },
+          { id: "a2", ticker: "NVDA", type: "thesis-strengthen", hoursAgo: 11, text: "Bull case deepened on capex revisions" },
+          { id: "a3", ticker: "NVDA", type: "catalyst-approach", hoursAgo: 0, text: "Earnings in 12 days" },
+        ],
+        totals: { active: 1, watch: 4, newToday: 1 },
       };
 
     case "duet":
@@ -197,7 +229,7 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
         ambientTime,
         pageStateText: "3 to look at",
         postureText:
-          "Two theses, one challenger. The market is narrow today; conviction is concentrated in two names.",
+          "Two theses, one challenger.",
         sinceYouLeftText,
         heroTile: PROOF_HERO_NVDA,
         subordinateTiles: [PROOF_SUB_TSLA, PROOF_SUB_MSFT],
@@ -207,6 +239,14 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
           { ticker: "COST", status: "slowing" },
         ],
         marketContextText: "Risk-on tape; semis leading. VIX 14, oil firm. Fed Wed.",
+        activity: [
+          { id: "a1", ticker: "NVDA", type: "conviction-up", hoursAgo: 14, text: "Conviction +0.3 → 0.82" },
+          { id: "a2", ticker: "TSLA", type: "thesis-weaken", hoursAgo: 8, text: "Bear case deepened — China BYD share loss" },
+          { id: "a3", ticker: "COST", type: "conviction-up", hoursAgo: 6, text: "Tier promoted to Confirmed" },
+          { id: "a4", ticker: "TSM", type: "watchlist-warm", hoursAgo: 4, text: "Approaching entry zone" },
+          { id: "a5", ticker: "MSFT", type: "catalyst-approach", hoursAgo: 0, text: "FY Q4 earnings in 8 days" },
+        ],
+        totals: { active: 3, watch: 12, newToday: 2 },
       };
 
     case "field":
@@ -220,8 +260,16 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
         sinceYouLeftText: "Since you left: nothing changed.",
         heroTile: null,
         subordinateTiles: PROOF_FIELD_TILES,
-        watchlistRows: [],   // Field: no watchlist
+        watchlistRows: [],
         marketContextText: "Range-bound tape; conviction thin. Watching for resolution into earnings season.",
+        activity: [
+          { id: "a1", ticker: "AAPL", type: "review-stale", hoursAgo: 28, text: "Last review aging" },
+          { id: "a2", ticker: "AMZN", type: "watchlist-warm", hoursAgo: 12, text: "AWS reaccel data point" },
+          { id: "a3", ticker: "GOOG", type: "thesis-strengthen", hoursAgo: 8, text: "Cloud margin trajectory improving" },
+          { id: "a4", ticker: "META", type: "thesis-weaken", hoursAgo: 18, text: "Capex discipline unclear" },
+          { id: "a5", ticker: "AVGO", type: "watchlist-warm", hoursAgo: 6, text: "Custom silicon ramp signal" },
+        ],
+        totals: { active: 0, watch: 18, newToday: 5 },
       };
   }
 }

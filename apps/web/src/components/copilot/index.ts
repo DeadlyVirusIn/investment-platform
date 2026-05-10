@@ -115,3 +115,7 @@ export type { HeroBlockProps } from "./HeroBlock";
 
 export { default as SubBlock } from "./SubBlock";
 export type { SubBlockProps } from "./SubBlock";
+
+// UX-13 operational pass — activity stream.
+export { default as ActivityStream } from "./ActivityStream";
+export type { ActivityStreamProps } from "./ActivityStream";

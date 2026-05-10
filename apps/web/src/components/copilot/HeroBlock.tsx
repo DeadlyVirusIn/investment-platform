@@ -1,8 +1,8 @@
-// UX-13 — HeroBlock (transformation pass).
+// UX-13 — HeroBlock (operational pass).
 //
-// Replaces the bordered ConvictionTile chrome with typographic
-// blocks. No card, no border, no shadow — text + numbers in space.
-// Click anywhere → drawer opens.
+// Tile schema unchanged. Adds inline operational chips above
+// decision sentence: "Day 7", "+12% since OPEN", "−4% to invalid".
+// Tonal layering applied via CSS (raised plane).
 
 import { freshnessTimestamp } from "@/lib/copilot/conviction_card_schema";
 import type { ConvictionTileData } from "@/lib/copilot/tile_schema";
@@ -11,10 +11,25 @@ import type { ConvictionTileData } from "@/lib/copilot/tile_schema";
 export interface HeroBlockProps {
   tile: ConvictionTileData;
   onClick: (ticker: string) => void;
+  /** Operational stats (fixture for now; Phase 13G+ from real data). */
+  daysHeld?: number;
+  pctSinceOpen?: number;
+  pctToInvalidation?: number;
 }
 
 
-export default function HeroBlock({ tile, onClick }: HeroBlockProps) {
+function fmtPct(n: number): string {
+  const sign = n >= 0 ? "+" : "−";
+  return `${sign}${Math.abs(n).toFixed(1)}%`;
+}
+
+
+export default function HeroBlock({
+  tile, onClick,
+  daysHeld = 7,
+  pctSinceOpen = 12.3,
+  pctToInvalidation = -4.1,
+}: HeroBlockProps) {
   return (
     <div
       className="ux13-hero"
@@ -39,6 +54,17 @@ export default function HeroBlock({ tile, onClick }: HeroBlockProps) {
         <span className="ux13-hero-thesis-name">{tile.thesisName}</span>
         <span>·</span>
         <span>{freshnessTimestamp(tile.lastReviewedAt)}</span>
+      </div>
+
+      {/* Operational chips — restore action density */}
+      <div>
+        <span className="ux13-hero-chip" data-test="ux13-chip-day">Day {daysHeld}</span>
+        <span className="ux13-hero-chip" data-test="ux13-chip-since-open">
+          {fmtPct(pctSinceOpen)} since OPEN
+        </span>
+        <span className="ux13-hero-chip" data-test="ux13-chip-invalid">
+          {fmtPct(pctToInvalidation)} to invalid
+        </span>
       </div>
 
       <p className="ux13-hero-decision">{tile.decisionSentence}</p>

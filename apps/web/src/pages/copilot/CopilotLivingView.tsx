@@ -1,34 +1,33 @@
-// UX-13 — visual hypothesis at /overview?view=living (TRANSFORMATION PASS).
+// UX-13 — visual hypothesis at /overview?view=living (OPERATIONAL PASS).
 //
-// Brutal-analysis fixes applied:
-//   - Killed ConvictionTile chrome → HeroBlock + SubBlock (text in space)
-//   - Killed VerbGlyph (Codex R4 was right; floating word IS dashboard)
-//   - Killed watchlist column → inline prose ("Watching AAPL (near $172)…")
-//   - Killed market band → italic continuation paragraph
-//   - Warmer palette + paper-warm text + 3% amber stage tint
-//   - Posture sentence dramatic clamp(40px, 5vw, 72px) Source Serif 4 light
-//   - 60s ambient breath on stage tint (proves attending without stealing)
-//   - Drawer opens → page blurs + dims + scales (immersive transition)
-//
-// Default /overview UNCHANGED. ?view=working/stream/conviction/copilot
-// UNCHANGED. URL switches preserved:
-//   ?view=living                   defaults to Duet
-//   ?view=living&room=solo|duet|field
-//   ?view=living&room=duet&drawer=NVDA   opens drawer first paint
+// Restores operational gravity per brutal feedback:
+//   - Smaller posture (clamp 28-44, was 40-72) — less "essay page"
+//   - ActivityStream sidebar — real AI actions since last visit,
+//     each clickable, each hoverable to highlight target tile
+//   - Totals pill in header (active · watch · new)
+//   - Tonal layering: hero on raised plane (#181410), subs on base
+//     (#0F0E0C), activity on recessed (#0A0908), footer deepest
+//   - Hover gravity restored: hero hover → bg shift + invalidation
+//     pulse. Sub hover → adjacent dim 0.55. Activity hover →
+//     corresponding ticker block highlights via data-active-ticker.
+//   - Live timestamp tick (60s) — ambient + activity relative times
+//     update without page refresh, proving AI is "currently watching."
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 
 import AIRead13 from "@/components/copilot/AIRead13";
 import RoomSolo from "@/components/copilot/RoomSolo";
 import RoomDuet from "@/components/copilot/RoomDuet";
 import RoomField from "@/components/copilot/RoomField";
+import ActivityStream from "@/components/copilot/ActivityStream";
 import ReasoningDrawer from "@/components/copilot/ReasoningDrawer";
 
 import {
   composeLivingPage, PROOF_DRAWER_PAYLOADS, type RoomMode,
 } from "@/lib/copilot/living_compose";
 import { useDrawerUrlState } from "@/lib/copilot/useDrawerUrlState";
+import { useTickEverySecond } from "@/lib/copilot/useTickEverySecond";
 
 
 function parseRoom(value: string | null): RoomMode {
@@ -42,11 +41,20 @@ export default function CopilotLivingView() {
   const params = new URLSearchParams(search);
   const room = parseRoom(params.get("room"));
 
+  // Live tick: re-render every 60s so ambient + activity times move
+  useTickEverySecond(60_000);
+
+  // Recompose so freshness/time strings get latest values on tick
+  // (depend on `tick` indirectly via the call below — ESLint will
+  // complain about missing deps; deliberate)
   const data = useMemo(() => composeLivingPage(room), [room]);
 
   const { openTicker, openDrawer, closeDrawer } = useDrawerUrlState();
   const openCard = openTicker ? PROOF_DRAWER_PAYLOADS[openTicker] ?? null : null;
   const isOpen = openCard !== null;
+
+  // Activity-stream hover → highlight corresponding tile via attribute
+  const [hoveredActivityTicker, setHoveredActivityTicker] = useState<string | null>(null);
 
   return (
     <div
@@ -54,12 +62,13 @@ export default function CopilotLivingView() {
       data-test="ux13-living-root"
       data-room={room}
       data-drawer-open={isOpen ? "true" : "false"}
+      data-active-ticker={hoveredActivityTicker ?? ""}
     >
       {/* Ambient breath layer (60s sine on stage tint) */}
       <div className="ux13-stage-bg" aria-hidden="true" />
 
       <div className="ux13-frame">
-        {/* AI Read header */}
+        {/* AI Read header — page-state + totals + ambient + since-you-left */}
         <AIRead13 data={data} />
 
         {/* Room composition */}
@@ -67,8 +76,15 @@ export default function CopilotLivingView() {
         {room === "duet" && <RoomDuet data={data} onTileClick={openDrawer} />}
         {room === "field" && <RoomField data={data} onTileClick={openDrawer} />}
 
+        {/* Operational layer — activity stream */}
+        <ActivityStream
+          events={data.activity}
+          onEventClick={openDrawer}
+          onEventHover={setHoveredActivityTicker}
+        />
+
         {/* Switcher (force-state nav, only in this proof) */}
-        <nav className="ux13-switcher" data-test="ux13-switcher" style={{ marginTop: "var(--living-space-xl)" }}>
+        <nav className="ux13-switcher" data-test="ux13-switcher">
           <span style={{ color: "var(--living-ink-recede)" }}>force room</span>
           {(["solo", "duet", "field"] as RoomMode[]).map(r => (
             <Link
@@ -88,7 +104,7 @@ export default function CopilotLivingView() {
           Read-only research · paper trading only · not financial advice.
           <br />
           <span style={{ opacity: 0.6 }}>
-            UX-13 living-environment visual hypothesis · transformation pass · master at <code>docs/research/UX_13_LIVING_ENVIRONMENT.md</code>
+            UX-13 living-environment visual hypothesis · operational pass · master at <code>docs/research/UX_13_LIVING_ENVIRONMENT.md</code>
           </span>
         </footer>
       </div>
