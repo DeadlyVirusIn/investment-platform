@@ -24,8 +24,10 @@ export default function Shell() {
         {/* Phase 11K.1 — persistent global guardrail footer */}
         <footer className="border-t border-b1 px-4 py-2 text-[11px] text-fg-3
                             bg-ink/95 backdrop-blur">
-          This system provides observational analytics only. It does
-          not generate recommendations, signals, or execution guidance.
+          This system provides AI-generated research, signals, and
+          paper-trading guidance for educational and analytical use only.
+          It does not provide personalized financial advice, investment
+          advisory services, guaranteed outcomes, or live trade execution.
         </footer>
       </div>
     </div>

@@ -85,8 +85,8 @@ export default function PageGuide({
           className="u-caption-2 mt-2 text-zinc-500"
         >
           <span aria-hidden="true">🛡️ </span>
-          Read-only research — paper trading only. Nothing on this
-          page places orders. Not financial advice.
+          AI-generated research and paper-trading guidance · educational
+          use only · nothing on this page places live orders · not financial advice.
         </p>
       )}
     </header>

@@ -127,8 +127,8 @@ export default function CopilotConvictionView() {
             lineHeight: 1.6,
           }}
         >
-          Read-only research — paper trading only. Nothing on this
-          page places orders. Not financial advice.
+          AI-generated research and paper-trading guidance · educational
+          use only · nothing on this page places live orders · not financial advice.
           <br />
           <span style={{ opacity: 0.6 }}>
             UX-10 Conviction · Phase 10D parallel route · master at

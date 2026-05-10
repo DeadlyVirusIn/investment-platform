@@ -39,7 +39,7 @@ export default function OptionsLayout() {
       <header className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Options paper trading</h1>
         <span className="text-xs text-zinc-500">
-          Read-only research · simulated only · no real money
+          Paper-trading guidance · simulated only · no live execution
         </span>
         <span className="ml-auto">
           <GuardrailsToggleButton />

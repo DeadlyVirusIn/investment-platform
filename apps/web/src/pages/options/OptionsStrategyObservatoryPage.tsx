@@ -41,8 +41,8 @@ export default function OptionsStrategyObservatoryPage() {
         <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
           Catalogue of options strategy templates the engine can
           evaluate (long calls, verticals, etc.) and recent
-          observations. Read-only research — never recommends or
-          executes trades.
+          observations. AI-generated research signal · educational
+          use only · paper trading guidance · no live execution.
         </p>
       </header>
 

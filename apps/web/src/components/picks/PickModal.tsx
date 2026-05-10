@@ -421,7 +421,7 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
 
           {/* Footer */}
           <footer className="pick-modal-footer">
-            Read-only research — paper trading only. Not financial advice.
+            AI-generated research signal · paper trading only · educational use only · not financial advice.
           </footer>
         </div>
       )}

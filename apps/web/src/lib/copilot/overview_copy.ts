@@ -223,7 +223,7 @@ export const QUIET_DAY_VARIANTS: ReadonlyArray<string> = [
 
 export const TODAY_FOOTER = {
   readOnly:
-    "Read-only research — paper trading only. "
-    + "Nothing on this page places orders. Not financial advice.",
+    "AI-generated research and paper-trading guidance · educational use only · "
+    + "nothing on this page places live orders · not financial advice.",
   workingLink: "See the working",
 } as const;

@@ -42,7 +42,7 @@ export default function OptionsChainPage() {
         </h2>
         <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
           Raw options chain for the selected symbol and expiry.
-          Read-only research surface — most users never need this.
+          AI-generated research surface — educational use only · no live execution.
         </p>
       </header>
 

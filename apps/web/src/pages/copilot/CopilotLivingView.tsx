@@ -95,7 +95,7 @@ export default function CopilotLivingView() {
 
         {/* Footer */}
         <footer className="ux13-footer">
-          Read-only research · paper trading only · not financial advice.
+          AI-generated research and paper-trading guidance · educational use only · not financial advice · no live execution.
           <br />
           <span style={{ opacity: 0.6 }}>
             UX-13 living-environment visual hypothesis · cinematic + heat pass · master at <code>docs/research/UX_13_LIVING_ENVIRONMENT.md</code>

@@ -33,8 +33,8 @@ export const COPILOT_BRAND = {
   seeTheWorkingIntro:
     "Where every claim above comes from. Open as much as you want.",
   readOnlyFooter:
-    "Read-only research — paper trading only. Nothing on this page "
-    + "places orders. Not financial advice.",
+    "AI-generated research and paper-trading guidance · educational use only · "
+    + "nothing on this page places live orders · not financial advice.",
 } as const;
 
 
