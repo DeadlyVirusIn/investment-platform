@@ -1,7 +1,4 @@
-// UX-13 — Solo room (transformation pass).
-//
-// 1 hero typographic block. No subordinates. Single watchlist
-// prose line. Market context as inline italic prose.
+// UX-13 — Solo room (cinematic + heat pass).
 
 import type { LivingPageData } from "@/lib/copilot/living_compose";
 
@@ -19,7 +16,12 @@ export default function RoomSolo({ data, onTileClick }: RoomSoloProps) {
 
   return (
     <>
-      <HeroBlock tile={data.heroTile} onClick={onTileClick} />
+      <HeroBlock
+        tile={data.heroTile}
+        onClick={onTileClick}
+        conviction={data.conviction[data.heroTile.ticker]}
+        pressure={data.pressure[data.heroTile.ticker] ?? "stable"}
+      />
 
       <p className="ux13-watchlist-prose" data-test="ux13-solo-watchlist">
         Four watch items unchanged. Last reviewed 11 hours ago.

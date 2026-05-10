@@ -1,17 +1,23 @@
-// UX-13 — HeroBlock (operational pass).
+// UX-13 — HeroBlock (cinematic + heat pass).
 //
-// Tile schema unchanged. Adds inline operational chips above
-// decision sentence: "Day 7", "+12% since OPEN", "−4% to invalid".
-// Tonal layering applied via CSS (raised plane).
+// Adds inline conviction sparkline + pressure glyph to the eyebrow.
+// Operational chips below. Visual conviction without casino energy.
 
 import { freshnessTimestamp } from "@/lib/copilot/conviction_card_schema";
 import type { ConvictionTileData } from "@/lib/copilot/tile_schema";
+import type {
+  ConvictionSeries, PressureDirection,
+} from "@/lib/copilot/living_compose";
+
+import ConvictionSparkline from "./ConvictionSparkline";
+import PressureGlyph from "./PressureGlyph";
 
 
 export interface HeroBlockProps {
   tile: ConvictionTileData;
   onClick: (ticker: string) => void;
-  /** Operational stats (fixture for now; Phase 13G+ from real data). */
+  conviction?: ConvictionSeries;
+  pressure?: PressureDirection;
   daysHeld?: number;
   pctSinceOpen?: number;
   pctToInvalidation?: number;
@@ -26,6 +32,7 @@ function fmtPct(n: number): string {
 
 export default function HeroBlock({
   tile, onClick,
+  conviction, pressure = "stable",
   daysHeld = 7,
   pctSinceOpen = 12.3,
   pctToInvalidation = -4.1,
@@ -35,6 +42,7 @@ export default function HeroBlock({
       className="ux13-hero"
       data-test="ux13-hero-block"
       data-ticker={tile.ticker}
+      data-pressure={pressure}
       role="button"
       tabIndex={0}
       onClick={() => onClick(tile.ticker)}
@@ -44,19 +52,22 @@ export default function HeroBlock({
           onClick(tile.ticker);
         }
       }}
-      aria-label={`${tile.verb} ${tile.ticker}: ${tile.thesisName}. Open reasoning.`}
+      aria-label={`${tile.verb} ${tile.ticker}: ${tile.thesisName}. Conviction ${pressure}. Open reasoning.`}
     >
       <div className="ux13-hero-eyebrow">
         <span>{tile.verb.toLowerCase()}</span>
         <span>·</span>
         <span className="ux13-hero-ticker">{tile.ticker}</span>
+        <PressureGlyph pressure={pressure} />
+        {conviction && conviction.length > 1 && (
+          <ConvictionSparkline series={conviction} pressure={pressure} width={64} height={14} />
+        )}
         <span>·</span>
         <span className="ux13-hero-thesis-name">{tile.thesisName}</span>
         <span>·</span>
         <span>{freshnessTimestamp(tile.lastReviewedAt)}</span>
       </div>
 
-      {/* Operational chips — restore action density */}
       <div>
         <span className="ux13-hero-chip" data-test="ux13-chip-day">Day {daysHeld}</span>
         <span className="ux13-hero-chip" data-test="ux13-chip-since-open">

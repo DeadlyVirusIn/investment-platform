@@ -119,3 +119,16 @@ export type { SubBlockProps } from "./SubBlock";
 // UX-13 operational pass — activity stream.
 export { default as ActivityStream } from "./ActivityStream";
 export type { ActivityStreamProps } from "./ActivityStream";
+
+// UX-13 cinematic + heat pass — sparkline, pressure, catalysts, market pulse.
+export { default as ConvictionSparkline } from "./ConvictionSparkline";
+export type { ConvictionSparklineProps } from "./ConvictionSparkline";
+
+export { default as PressureGlyph } from "./PressureGlyph";
+export type { PressureGlyphProps } from "./PressureGlyph";
+
+export { default as CatalystStrip } from "./CatalystStrip";
+export type { CatalystStripProps } from "./CatalystStrip";
+
+export { default as MarketPulseBar } from "./MarketPulseBar";
+export type { MarketPulseBarProps } from "./MarketPulseBar";

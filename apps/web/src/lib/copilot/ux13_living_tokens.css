@@ -511,6 +511,117 @@
 
 
 /* ════════════════════════════════════════════════════════════════
+   PRESSURE GLYPH — directional momentum micro-character
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-pressure {
+  display: inline-block;
+  font-family: var(--living-font-mono);
+  font-size: 14px;
+  margin: 0 4px;
+  vertical-align: baseline;
+}
+
+.ux13-living .ux13-pressure-strengthening { color: var(--living-tone-up); }
+.ux13-living .ux13-pressure-weakening     { color: var(--living-tone-down); }
+.ux13-living .ux13-pressure-stable        { color: var(--living-ink-recede); }
+
+
+/* ════════════════════════════════════════════════════════════════
+   MARKET PULSE BAR — 1px line at very top of stage
+   Static color encoded by state. Quiet inline label below.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-pulse-bar {
+  margin: 0 0 var(--living-space-md) 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ux13-living .ux13-pulse-line {
+  height: 1px;
+  width: 100%;
+  background: var(--living-ink-recede);
+  transition: background var(--living-anim-base) var(--living-ease-out);
+}
+
+.ux13-living .ux13-pulse-bar[data-state="risk-on"]   .ux13-pulse-line { background: var(--living-tone-up); }
+.ux13-living .ux13-pulse-bar[data-state="defensive"] .ux13-pulse-line { background: var(--living-tone-down); }
+.ux13-living .ux13-pulse-bar[data-state="stressed"]  .ux13-pulse-line { background: var(--living-risk); }
+
+.ux13-living .ux13-pulse-label {
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--living-ink-meta);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   CATALYST STRIP — horizontal pills with countdown
+   Compact operational density without dashboard chrome.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-catalysts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--living-space-sm);
+  align-items: center;
+  margin-bottom: var(--living-space-lg);
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+}
+
+.ux13-living .ux13-catalysts-label {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--living-ink-recede);
+  margin-right: 4px;
+}
+
+.ux13-living .ux13-catalyst-pill {
+  display: inline-flex;
+  gap: 6px;
+  align-items: baseline;
+  padding: 4px 10px;
+  background: var(--living-canvas-recess);
+  border: none;
+  border-radius: 2px;
+  color: var(--living-ink-body);
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--living-anim-fast) var(--living-ease-out);
+}
+
+.ux13-living .ux13-catalyst-pill:hover {
+  background: var(--living-canvas-fg);
+}
+
+.ux13-living .ux13-catalyst-pill[data-imminent="true"] {
+  border-left: 2px solid var(--living-amber);
+  padding-left: 8px;
+}
+
+.ux13-living .ux13-catalyst-ticker {
+  font-weight: 600;
+  color: var(--living-ink-hero);
+  letter-spacing: 0.04em;
+  min-width: 32px;
+}
+
+.ux13-living .ux13-catalyst-label {
+  color: var(--living-ink-body);
+}
+
+.ux13-living .ux13-catalyst-time {
+  color: var(--living-ink-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
    ACTIVITY STREAM — operational layer, NOT editorial
    Compact event list. Each row is a real AI action with tone +
    relative time. Hover row → corresponding tile highlights.

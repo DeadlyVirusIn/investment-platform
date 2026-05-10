@@ -31,12 +31,45 @@ export interface LivingPageData {
   activity: ActivityEvent[];
   /** Operational meta cluster — "5 active · 12 watch · 3 new" */
   totals: { active: number; watch: number; newToday: number };
+  /** Conviction trajectory keyed by ticker (drives sparklines). */
+  conviction: Record<string, ConvictionSeries>;
+  /** Pressure direction keyed by ticker. */
+  pressure: Record<string, PressureDirection>;
+  /** Upcoming catalysts (already filtered to relevance for this room). */
+  catalysts: Catalyst[];
+  /** Current market pulse. */
+  marketPulse: MarketPulse;
 }
 
 
 export interface WatchlistRow {
   ticker: string;
   status: string;
+}
+
+
+/** Conviction trajectory — last N snapshots, normalized 0-1.
+ *  Drives the inline sparkline. */
+export type ConvictionSeries = number[];   // 7-12 points typically
+
+
+/** Pressure direction — directional momentum since last review. */
+export type PressureDirection = "strengthening" | "weakening" | "stable";
+
+
+/** Catalyst — upcoming event affecting a thesis. */
+export interface Catalyst {
+  ticker: string;
+  label: string;        // "Q4 earnings", "Fed minutes", "FOMC"
+  daysAway: number;     // 0 = today
+  hoursAway?: number;   // optional finer grain
+}
+
+
+/** Market pulse — single state of the broad tape. */
+export interface MarketPulse {
+  state: "risk-on" | "neutral" | "defensive" | "stressed";
+  label: string;        // "Risk-on tape · semis leading"
 }
 
 
@@ -207,8 +240,7 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
         date: dateNow(),
         ambientTime,
         pageStateText: "1 to look at",
-        postureText:
-          "One thesis stands alone today.",
+        postureText: "One thesis stands alone today.",
         sinceYouLeftText,
         heroTile: PROOF_HERO_NVDA,
         subordinateTiles: [],
@@ -220,6 +252,14 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
           { id: "a3", ticker: "NVDA", type: "catalyst-approach", hoursAgo: 0, text: "Earnings in 12 days" },
         ],
         totals: { active: 1, watch: 4, newToday: 1 },
+        conviction: {
+          NVDA: [0.45, 0.50, 0.55, 0.62, 0.70, 0.78, 0.82],
+        },
+        pressure: { NVDA: "strengthening" },
+        catalysts: [
+          { ticker: "NVDA", label: "Q1 earnings", daysAway: 12, hoursAway: 6 },
+        ],
+        marketPulse: { state: "risk-on", label: "Risk-on tape · semis leading" },
       };
 
     case "duet":
@@ -228,8 +268,7 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
         date: dateNow(),
         ambientTime,
         pageStateText: "3 to look at",
-        postureText:
-          "Two theses, one challenger.",
+        postureText: "Two theses, one challenger.",
         sinceYouLeftText,
         heroTile: PROOF_HERO_NVDA,
         subordinateTiles: [PROOF_SUB_TSLA, PROOF_SUB_MSFT],
@@ -247,6 +286,22 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
           { id: "a5", ticker: "MSFT", type: "catalyst-approach", hoursAgo: 0, text: "FY Q4 earnings in 8 days" },
         ],
         totals: { active: 3, watch: 12, newToday: 2 },
+        conviction: {
+          NVDA: [0.45, 0.50, 0.55, 0.62, 0.70, 0.78, 0.82],
+          TSLA: [0.78, 0.76, 0.72, 0.70, 0.66, 0.62, 0.55],
+          MSFT: [0.65, 0.66, 0.68, 0.69, 0.70, 0.71, 0.72],
+        },
+        pressure: {
+          NVDA: "strengthening",
+          TSLA: "weakening",
+          MSFT: "stable",
+        },
+        catalysts: [
+          { ticker: "MSFT", label: "FY Q4 earnings", daysAway: 8, hoursAway: 14 },
+          { ticker: "TSLA", label: "Q2 deliveries", daysAway: 24, hoursAway: 6 },
+          { ticker: "MARKET", label: "Fed minutes", daysAway: 1, hoursAway: 4 },
+        ],
+        marketPulse: { state: "risk-on", label: "Risk-on tape · semis leading" },
       };
 
     case "field":
@@ -255,8 +310,7 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
         date: dateNow(),
         ambientTime,
         pageStateText: "Five forming",
-        postureText:
-          "Five theses forming. None resolved.",
+        postureText: "Five theses forming. None resolved.",
         sinceYouLeftText: "Since you left: nothing changed.",
         heroTile: null,
         subordinateTiles: PROOF_FIELD_TILES,
@@ -270,6 +324,25 @@ export function composeLivingPage(forcedRoom: RoomMode): LivingPageData {
           { id: "a5", ticker: "AVGO", type: "watchlist-warm", hoursAgo: 6, text: "Custom silicon ramp signal" },
         ],
         totals: { active: 0, watch: 18, newToday: 5 },
+        conviction: {
+          AAPL: [0.55, 0.55, 0.54, 0.54, 0.53, 0.52, 0.52],
+          AMZN: [0.48, 0.50, 0.51, 0.52, 0.54, 0.55, 0.57],
+          GOOG: [0.46, 0.48, 0.50, 0.52, 0.54, 0.56, 0.58],
+          META: [0.65, 0.62, 0.60, 0.58, 0.55, 0.52, 0.50],
+          AVGO: [0.42, 0.44, 0.46, 0.48, 0.50, 0.52, 0.54],
+        },
+        pressure: {
+          AAPL: "stable",
+          AMZN: "strengthening",
+          GOOG: "strengthening",
+          META: "weakening",
+          AVGO: "strengthening",
+        },
+        catalysts: [
+          { ticker: "MARKET", label: "CPI release", daysAway: 5, hoursAway: 12 },
+          { ticker: "MARKET", label: "Earnings season opens", daysAway: 14, hoursAway: 0 },
+        ],
+        marketPulse: { state: "neutral", label: "Range-bound · waiting for resolution" },
       };
   }
 }

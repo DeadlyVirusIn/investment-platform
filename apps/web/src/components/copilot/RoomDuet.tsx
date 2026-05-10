@@ -1,8 +1,4 @@
-// UX-13 — Duet room (transformation pass).
-//
-// 1 hero typographic block + 2 subordinate blocks below in a wide
-// 2-col row separated by hairline. Watchlist becomes inline prose
-// (NOT a column). Market context as italic continuation.
+// UX-13 — Duet room (cinematic + heat pass).
 
 import type { LivingPageData } from "@/lib/copilot/living_compose";
 
@@ -19,7 +15,6 @@ export interface RoomDuetProps {
 export default function RoomDuet({ data, onTileClick }: RoomDuetProps) {
   if (!data.heroTile) return null;
 
-  // Build watchlist as natural prose continuation
   const watchlistProse = data.watchlistRows.length > 0 ? (
     <p className="ux13-watchlist-prose" data-test="ux13-duet-watchlist">
       Watching{" "}
@@ -34,14 +29,25 @@ export default function RoomDuet({ data, onTileClick }: RoomDuetProps) {
 
   return (
     <>
-      <HeroBlock tile={data.heroTile} onClick={onTileClick} />
+      <HeroBlock
+        tile={data.heroTile}
+        onClick={onTileClick}
+        conviction={data.conviction[data.heroTile.ticker]}
+        pressure={data.pressure[data.heroTile.ticker] ?? "stable"}
+      />
 
       {watchlistProse}
 
       {data.subordinateTiles.length > 0 && (
         <div className="ux13-sub-row" data-test="ux13-duet-subs">
           {data.subordinateTiles.map(tile => (
-            <SubBlock key={tile.ticker} tile={tile} onClick={onTileClick} />
+            <SubBlock
+              key={tile.ticker}
+              tile={tile}
+              onClick={onTileClick}
+              conviction={data.conviction[tile.ticker]}
+              pressure={data.pressure[tile.ticker] ?? "stable"}
+            />
           ))}
         </div>
       )}
