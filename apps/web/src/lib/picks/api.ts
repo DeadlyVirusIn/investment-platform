@@ -236,10 +236,10 @@ export function confidenceFraction(conf: string | null): number | null {
 /** Human-readable per-action title shown in card + modal. */
 export function actionTitle(action: PickAction): string {
   switch (action) {
-    case "buy":  return "Potential opportunity";
-    case "sell": return "Avoid or exit";
-    case "trim": return "Consider reducing";
-    case "hold": return "Keep watching";
+    case "buy":  return "Upside setup improving";
+    case "sell": return "Risk elevated";
+    case "trim": return "Momentum weakening";
+    case "hold": return "No edge yet";
   }
 }
 
@@ -247,9 +247,9 @@ export function actionTitle(action: PickAction): string {
 /** Plain-English "what to do" sentence per action. */
 export function actionGuidance(action: PickAction): string {
   switch (action) {
-    case "buy":  return "AI sees an entry opportunity. Review the thesis before acting.";
-    case "sell": return "AI suggests exiting. Risk outweighs reward.";
-    case "trim": return "AI suggests reducing exposure. Take some profit or de-risk.";
-    case "hold": return "Keep watching but don't add more yet.";
+    case "buy":  return "Upside setup is improving.";
+    case "sell": return "Risk is elevated. Exit or avoid.";
+    case "trim": return "Momentum has weakened. Consider reducing exposure.";
+    case "hold": return "Not a buy yet. Wait for a better setup.";
   }
 }

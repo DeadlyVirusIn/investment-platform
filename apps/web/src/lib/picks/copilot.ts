@@ -228,6 +228,147 @@ export const FILTER_LABELS: Record<PicksFilter, string> = {
 };
 
 
+// ============================================================
+// Priority action — single most-important pick of the day
+// ============================================================
+
+export interface PriorityResult {
+  pick: Pick;
+  reason: string;          // why this matters
+  ctaSecondary: string;    // "Review all trims" / "Review all sells" / null
+  ctaSecondaryFilter: PicksFilter | null;
+}
+
+
+export function derivePriority(picks: Pick[]): PriorityResult | null {
+  if (picks.length === 0) return null;
+
+  const score = (p: Pick): number => {
+    const action = p.adjusted_action ?? p.action;
+    const c = parseFloat(p.adjusted_confidence ?? p.confidence ?? "0");
+    const pct = c > 1 ? c : c * 100;
+    // Sell > Trim > Buy > Hold (urgency)
+    const actionWeight: Record<PickAction, number> = {
+      sell: 100, trim: 70, buy: 60, hold: 20,
+    };
+    let s = (actionWeight[action] ?? 0) + pct * 0.5;
+    if (p.stale_data) s -= 20;
+    if (!p.enough_data) s -= 15;
+    return s;
+  };
+
+  const sorted = [...picks].sort((a, b) => score(b) - score(a));
+  const top = sorted[0];
+  const action = top.adjusted_action ?? top.action;
+
+  let reason: string;
+  let ctaSecondary = "";
+  let ctaSecondaryFilter: PicksFilter | null = null;
+
+  switch (action) {
+    case "sell":
+      reason = "Risk is elevated and AI sees no remaining upside. Address this before reviewing other ideas.";
+      ctaSecondary = "Review all sell signals";
+      ctaSecondaryFilter = "sell";
+      break;
+    case "trim":
+      reason = "Momentum has weakened. Reducing exposure now protects gains and frees capital for cleaner setups.";
+      ctaSecondary = "Review all trims";
+      ctaSecondaryFilter = "trim";
+      break;
+    case "buy":
+      reason = "Strongest entry setup of the day. Risk/reward looks favorable — review thesis before acting.";
+      ctaSecondary = "Review all buy ideas";
+      ctaSecondaryFilter = "buy";
+      break;
+    case "hold":
+      reason = "No urgent action — but this is the highest-conviction watchlist name today.";
+      ctaSecondary = "Review watchlist";
+      ctaSecondaryFilter = "hold";
+      break;
+  }
+
+  return { pick: top, reason, ctaSecondary, ctaSecondaryFilter };
+}
+
+
+// ============================================================
+// Pick tags — small chips per card (Momentum weak, Risk rising, etc.)
+// ============================================================
+
+export interface PickTag {
+  text: string;
+  tone: "warn" | "info" | "good" | "danger";
+}
+
+
+export function pickTags(pick: Pick): PickTag[] {
+  const tags: PickTag[] = [];
+  const action = pick.adjusted_action ?? pick.action;
+  const conf = parseFloat(pick.adjusted_confidence ?? pick.confidence ?? "0");
+  const pct = conf > 1 ? conf : conf * 100;
+
+  if (pick.stale_data) tags.push({ text: "Stale signal", tone: "warn" });
+  if (!pick.enough_data) tags.push({ text: "Thin data", tone: "warn" });
+
+  if (action === "trim") tags.push({ text: "Momentum weak", tone: "warn" });
+  if (action === "sell") tags.push({ text: "Risk rising", tone: "danger" });
+  if (action === "buy") tags.push({ text: "Setup forming", tone: "good" });
+  if (action === "hold" && pct >= 70) tags.push({ text: "Strong hold", tone: "info" });
+  else if (action === "hold") tags.push({ text: "Watchlist", tone: "info" });
+
+  // Recency
+  if (pick.generated_at) {
+    const hoursOld = (Date.now() - Date.parse(pick.generated_at)) / 3_600_000;
+    if (hoursOld < 2) tags.push({ text: "Fresh", tone: "good" });
+  }
+
+  return tags.slice(0, 3);
+}
+
+
+// ============================================================
+// Empty-state triggers — what conditions would change the picture
+// ============================================================
+
+export function emptyStateTriggers(action: PickAction): { title: string; question: string; conditions: string[] } {
+  switch (action) {
+    case "buy":
+      return {
+        title: "No Buy signals today",
+        question: "What would create a Buy?",
+        conditions: [
+          "Stronger upward momentum",
+          "Better risk/reward setup",
+          "Fresher catalyst or earnings beat",
+        ],
+      };
+    case "sell":
+      return {
+        title: "No urgent Sell signals today",
+        question: "What would trigger a Sell?",
+        conditions: [
+          "Trend breaks below key support",
+          "Volatility rises sharply",
+          "Downside risk outweighs upside",
+        ],
+      };
+    case "trim":
+      return {
+        title: "No Trim signals",
+        question: "What would suggest trimming?",
+        conditions: ["Momentum weakening", "Risk metrics rising"],
+      };
+    case "hold":
+      return {
+        title: "No Hold signals",
+        question: "What would suggest holding?",
+        conditions: ["Mixed signals across factors", "Below conviction threshold"],
+      };
+  }
+}
+
+
 export function applyFilter(picks: Pick[], filter: PicksFilter): Pick[] {
   if (filter === "all") return picks;
   if (filter === "buy" || filter === "hold" || filter === "trim" || filter === "sell") {

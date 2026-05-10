@@ -1,6 +1,5 @@
 // PicksPage — premium copilot landing.
-// Hero briefing + filter bar + grid (with empty Buy/Sell cards) +
-// right sidebar (desktop) + modal.
+// Hero briefing + priority action + filter bar + grid + sidebar + modal.
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,11 +10,13 @@ import Briefing from "@/components/picks/Briefing";
 import FilterBar from "@/components/picks/FilterBar";
 import Sidebar from "@/components/picks/Sidebar";
 import EmptyStateCard from "@/components/picks/EmptyStateCard";
+import PriorityAction from "@/components/picks/PriorityAction";
 import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
 } from "@/lib/picks/api";
 import {
-  buildBriefing, applyFilter, rankingLabel, type PicksFilter,
+  buildBriefing, applyFilter, rankingLabel, derivePriority,
+  type PicksFilter,
 } from "@/lib/picks/copilot";
 
 
@@ -78,13 +79,18 @@ export default function PicksPage() {
   }, [picks]);
 
   const briefing = useMemo(() => buildBriefing(sortedPicks), [sortedPicks]);
-  const filteredPicks = useMemo(
-    () => applyFilter(sortedPicks, filter),
-    [sortedPicks, filter],
-  );
+  const priority = useMemo(() => derivePriority(sortedPicks), [sortedPicks]);
+
+  const gridPicks = useMemo(() => {
+    // Exclude priority pick from the grid to avoid duplication
+    const base = priority ? sortedPicks.filter(p => p.id !== priority.pick.id) : sortedPicks;
+    return applyFilter(base, filter);
+  }, [sortedPicks, filter, priority]);
 
   const buyCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "buy").length;
   const sellCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
+
+  const priorityPrice = priority?.pick.symbol ? priceMap[priority.pick.symbol] ?? null : null;
 
   return (
     <div className="picks-root" data-test="picks-root">
@@ -129,6 +135,16 @@ export default function PicksPage() {
         {!loading && !error && sortedPicks.length > 0 && (
           <>
             <Briefing briefing={briefing} onFilterChange={setFilter} />
+
+            {priority && (
+              <PriorityAction
+                priority={priority}
+                price={priorityPrice}
+                onOpenCockpit={setOpenPickId}
+                onFilterChange={setFilter}
+              />
+            )}
+
             <FilterBar picks={sortedPicks} active={filter} onChange={setFilter} />
 
             <div className="picks-layout">
@@ -137,7 +153,7 @@ export default function PicksPage() {
                   {filter === "all" && buyCount === 0 && <EmptyStateCard action="buy" />}
                   {filter === "all" && sellCount === 0 && <EmptyStateCard action="sell" />}
 
-                  {filteredPicks.map(pick => (
+                  {gridPicks.map(pick => (
                     <PickBox
                       key={pick.id}
                       pick={pick}
@@ -147,7 +163,7 @@ export default function PicksPage() {
                     />
                   ))}
 
-                  {filteredPicks.length === 0 && filter !== "all" && (
+                  {gridPicks.length === 0 && filter !== "all" && (
                     <div className="picks-filter-empty">No picks match this filter.</div>
                   )}
                 </div>

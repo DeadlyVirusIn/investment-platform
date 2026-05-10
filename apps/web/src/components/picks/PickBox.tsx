@@ -1,14 +1,11 @@
-// PickBox — color-loud BUY / SELL / TRIM / HOLD card.
-//
-// Plain-English title + plain explanation + "what to do" line.
-// Optional ranking label pill.
+// PickBox — compact, scannable card with action color, tags, plain text.
 
 import type { Pick, LatestPrice } from "@/lib/picks/api";
 import {
-  confidenceLabel, fmtConfidencePct, confidenceFraction,
-  actionTitle, actionGuidance,
+  fmtConfidencePct, confidenceFraction,
+  actionGuidance,
 } from "@/lib/picks/api";
-import { plainExplain } from "@/lib/picks/copilot";
+import { plainExplain, pickTags } from "@/lib/picks/copilot";
 
 import ConfidenceMeter from "./ConfidenceMeter";
 
@@ -38,40 +35,40 @@ function fmtPrice(p: number | null): string {
 }
 
 
+function isFresh(iso: string | null): boolean {
+  if (!iso) return false;
+  return (Date.now() - Date.parse(iso)) < 2 * 3_600_000;
+}
+
+
 export default function PickBox({ pick, price, rankingLabel, onClick }: PickBoxProps) {
   const action = pick.adjusted_action ?? pick.action;
   const confidence = pick.adjusted_confidence ?? pick.confidence;
   const confFrac = confidenceFraction(confidence);
+  const tags = pickTags(pick);
+  const fresh = isFresh(pick.generated_at);
 
   return (
     <button
       type="button"
       className="pick-box"
       data-action={action}
+      data-fresh={fresh ? "true" : "false"}
       data-test="pick-box"
       data-symbol={pick.symbol ?? ""}
       onClick={() => onClick(pick.id)}
       aria-label={`${action.toUpperCase()} ${pick.symbol ?? "asset"}, confidence ${fmtConfidencePct(confidence)}. Open details.`}
     >
-      <div className="pick-box-row1">
+      <div className="pick-box-top">
         <span className="pick-action">{action}</span>
-        <span className="pick-confidence-cluster">
-          <span>{confidenceLabel(confidence)}</span>
-          <ConfidenceMeter fraction={confFrac} action={action} width={56} height={4} />
-          <strong>{fmtConfidencePct(confidence)}</strong>
-        </span>
+        {fresh && <span className="pick-fresh-pulse" aria-label="Fresh signal" />}
+        <span className="pick-conf-pct">{fmtConfidencePct(confidence)}</span>
       </div>
 
-      {rankingLabel && (
-        <span className="pick-rank-pill" data-action={action}>{rankingLabel}</span>
-      )}
-
-      <h4 className="pick-title-line">{actionTitle(action)}</h4>
-
-      <div className="pick-box-row2">
+      <div className="pick-box-symrow">
         <h3 className="pick-symbol">{pick.symbol ?? "—"}</h3>
-        {price === undefined && <span className="pick-price-loading">loading…</span>}
-        {price === null && <span className="pick-price-loading">no quote</span>}
+        {price === undefined && <span className="pick-price-loading">…</span>}
+        {price === null && <span className="pick-price-loading">—</span>}
         {price && (
           <span className="pick-price" title={new Date(price.ts).toLocaleString()}>
             {fmtPrice(price.close)}
@@ -80,16 +77,24 @@ export default function PickBox({ pick, price, rankingLabel, onClick }: PickBoxP
       </div>
 
       <p className="pick-explain">{plainExplain(pick)}</p>
-      <p className="pick-todo">{actionGuidance(action)}</p>
 
-      <div className="pick-meta">
-        <span>{fmtRelTime(pick.generated_at)}</span>
-        <span>
-          {pick.stale_data && <span className="pick-meta-warn">stale</span>}
-          {!pick.enough_data && <span className="pick-meta-warn">thin data</span>}
-          {!pick.stale_data && pick.enough_data && <span>—</span>}
-        </span>
+      {tags.length > 0 && (
+        <div className="pick-tags">
+          {tags.map((t, i) => (
+            <span key={i} className="pick-tag" data-tone={t.tone}>{t.text}</span>
+          ))}
+        </div>
+      )}
+
+      <div className="pick-box-bottom">
+        <ConfidenceMeter fraction={confFrac} action={action} width={64} height={3} />
+        <span className="pick-meta-time">{fmtRelTime(pick.generated_at)}</span>
+        {rankingLabel && (
+          <span className="pick-rank-pill" data-action={action}>{rankingLabel}</span>
+        )}
       </div>
+
+      <p className="pick-todo-hint">{actionGuidance(action)}</p>
     </button>
   );
 }

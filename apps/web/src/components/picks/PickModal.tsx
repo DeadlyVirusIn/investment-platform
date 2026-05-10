@@ -179,6 +179,7 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
           {/* Header */}
           <header className="pick-modal-header">
             <div>
+              <span className="pick-modal-eyebrow">AI Research Cockpit</span>
               <h2 id="pick-modal-symbol" className="pick-modal-symbol">
                 {pick.symbol ?? "—"}
               </h2>
@@ -198,9 +199,9 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
             </button>
           </header>
 
-          {/* AI Recommendation — big colored badge */}
+          {/* Recommendation — big colored badge */}
           <section className="pick-modal-section" data-test="pick-modal-recommendation">
-            <h4>AI Recommendation</h4>
+            <h4>Recommendation</h4>
             <div className="pick-modal-action-row">
               <span className="pick-modal-action-badge">{action}</span>
               <span><strong>{actionTitle(action)}</strong></span>
@@ -208,7 +209,7 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
             </div>
           </section>
 
-          {/* What this means — beginner-friendly */}
+          {/* What this means */}
           <section className="pick-modal-section" data-test="pick-modal-meaning">
             <h4>What this means</h4>
             <div className="pick-modal-callout">
@@ -216,9 +217,9 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
             </div>
           </section>
 
-          {/* Why the AI thinks this */}
+          {/* Plain-English thesis */}
           <section className="pick-modal-section" data-test="pick-modal-thesis">
-            <h4>Why the AI thinks this</h4>
+            <h4>Plain-English thesis</h4>
             <p>{buildPlainThesis(pick)}</p>
           </section>
 
@@ -267,9 +268,9 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
             <p>{pick.risk.what_changed_text ?? plainWhatCouldChange(action)}</p>
           </section>
 
-          {/* Risk level */}
+          {/* Risk / invalidation */}
           <section className="pick-modal-section" data-test="pick-modal-risk-level">
-            <h4>Risk level</h4>
+            <h4>Risk / invalidation</h4>
             <div className="pick-modal-risk-level">
               <span className="pick-modal-risk-dot" data-level={risk} />
               <span>{riskLevelText(risk)}</span>
@@ -290,7 +291,7 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
                 onClick={() => setTechOpen(o => !o)}
                 aria-expanded={techOpen}
               >
-                <span>Show technical details</span>
+                <span>Technical details</span>
                 <span>{techOpen ? "−" : "+"}</span>
               </button>
 
