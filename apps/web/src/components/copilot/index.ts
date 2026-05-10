@@ -92,3 +92,19 @@ export type { AIReadHeroProps } from "./AIReadHero";
 
 export { default as ReasoningDrawer } from "./ReasoningDrawer";
 export type { ReasoningDrawerProps } from "./ReasoningDrawer";
+
+// UX-13 living environment visual hypothesis.
+export { default as AIRead13 } from "./AIRead13";
+export type { AIRead13Props } from "./AIRead13";
+
+export { default as VerbGlyph } from "./VerbGlyph";
+export type { VerbGlyphProps } from "./VerbGlyph";
+
+export { default as RoomSolo } from "./RoomSolo";
+export type { RoomSoloProps } from "./RoomSolo";
+
+export { default as RoomDuet } from "./RoomDuet";
+export type { RoomDuetProps } from "./RoomDuet";
+
+export { default as RoomField } from "./RoomField";
+export type { RoomFieldProps } from "./RoomField";

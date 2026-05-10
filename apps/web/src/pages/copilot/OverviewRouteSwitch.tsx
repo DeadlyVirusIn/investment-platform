@@ -22,6 +22,10 @@ import CopilotConvictionView from "@/pages/copilot/CopilotConvictionView";
 // UX-11 Phase 11D — parallel Interactive Copilot view at
 // /overview?view=copilot. Default and other views unchanged.
 import CopilotInteractiveView from "@/pages/copilot/CopilotInteractiveView";
+// UX-13 visual hypothesis at /overview?view=living.
+// Default and all other views unchanged. Treats as VISUAL
+// HYPOTHESIS for browser review — NOT final truth.
+import CopilotLivingView from "@/pages/copilot/CopilotLivingView";
 
 
 export default function OverviewRouteSwitch() {
@@ -32,5 +36,6 @@ export default function OverviewRouteSwitch() {
   if (view === "stream") return <CopilotStreamView />;
   if (view === "conviction") return <CopilotConvictionView />;
   if (view === "copilot") return <CopilotInteractiveView />;
+  if (view === "living") return <CopilotLivingView />;
   return <CopilotOverview />;
 }
