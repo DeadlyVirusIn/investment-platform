@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import MarketEvents from "@/components/portfolio/MarketEvents";
 import { fetchPicks, type Pick } from "@/lib/picks/api";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
+import PageChapter from "@/components/shell/PageChapter";
+import NextStepCard from "@/components/shell/NextStepCard";
 
 
 export default function EventsResearchPage() {
@@ -37,7 +39,25 @@ export default function EventsResearchPage() {
           </div>
         </header>
 
+        <PageChapter
+          pathname="/events"
+          now={
+            symbols.length === 0
+              ? undefined
+              : `Tracking catalysts for ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} from the active recommendation set.`
+          }
+        />
+
         <MarketEvents symbols={symbols} />
+
+        <NextStepCard
+          pathname="/events"
+          rationale={
+            symbols.length > 0
+              ? `See how these catalysts map to the ${symbols.length} live AI signal${symbols.length === 1 ? "" : "s"}.`
+              : undefined
+          }
+        />
 
         <footer className="picks-disclaimer">{RESEARCH_NOTE}</footer>
       </div>

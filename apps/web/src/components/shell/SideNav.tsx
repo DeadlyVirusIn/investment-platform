@@ -1,21 +1,13 @@
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/cn";
+import { FLOW, SECTIONS, nextStep } from "@/lib/ui/page_flow";
 
-const NAV = [
-  { to: "/overview",     label: "Overview",      hot: "O" },
-  { to: "/action-queue", label: "Action Queue",  hot: "Q" },
-  { to: "/portfolio",    label: "Portfolio",     hot: "P" },
-  { to: "/events",       label: "Events",        hot: "E" },
-  { to: "/strategies",   label: "Strategies",    hot: "T" },
-  { to: "/signal-lab",   label: "Signal Lab",    hot: "L" },
-  { to: "/decisions",    label: "Decisions",     hot: "D" },
-  { to: "/research",     label: "Alpha Lab",     hot: "A" },
-  { to: "/risk",         label: "Risk",          hot: "R" },
-  { to: "/ops",          label: "Ops",           hot: "S" },
-  { to: "/options",      label: "Options",       hot: "X" },
-];
 
 export default function SideNav() {
+  const { pathname } = useLocation();
+  const nxt = nextStep(pathname);
+  const nextTo = nxt?.to;
+
   return (
     <aside className="w-[220px] shrink-0 bg-ink border-r border-b1
                       flex flex-col">
@@ -25,39 +17,63 @@ export default function SideNav() {
                            justify-center text-[11px] font-bold text-white
                            tabular-nums">Q</div>
           <div>
-            <div className="u-caption text-fg font-semibold">Quant Ops</div>
+            <div className="u-caption text-fg font-semibold">AI Investing OS</div>
             <div className="u-caption-2 font-mono">v1.0.0</div>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 py-3 px-2">
-        {NAV.map(n => (
-          <NavLink key={n.to} to={n.to}
-            className={({ isActive }) => cn(
-              "group flex items-center justify-between px-3 py-2 rounded-md",
-              "text-[13px] transition-colors duration-150",
-              isActive
-                ? "bg-accent-subtle text-fg font-medium"
-                : "text-fg-2 hover:text-fg hover:bg-elev",
-            )}>
-            {({ isActive }) => (
-              <>
-                <span className="flex items-center gap-2.5">
-                  <span className={cn(
-                    "w-0.5 h-4 rounded-full",
-                    isActive ? "bg-accent" : "bg-transparent",
-                  )} />
-                  {n.label}
-                </span>
-                <kbd className="text-[9px] uppercase tracking-wider
-                                 text-fg-4 font-mono">
-                  {n.hot}
-                </kbd>
-              </>
-            )}
-          </NavLink>
-        ))}
+      <nav className="flex-1 py-3 px-2 overflow-y-auto">
+        {SECTIONS.map(sec => {
+          const items = FLOW.filter(f => f.section === sec.key);
+          if (items.length === 0) return null;
+          return (
+            <div key={sec.key} className="mb-3">
+              <div className="px-3 mt-2 mb-1 text-[10px] font-semibold
+                              tracking-[0.16em] text-fg-4">
+                {sec.label}
+              </div>
+              {items.map(n => (
+                <NavLink key={n.to} to={n.to}
+                  className={({ isActive }) => cn(
+                    "group flex items-center justify-between px-3 py-1.5 rounded-md",
+                    "text-[13px] transition-colors duration-150",
+                    isActive
+                      ? "bg-accent-subtle text-fg font-medium"
+                      : nextTo === n.to
+                        ? "text-fg hover:bg-elev"
+                        : "text-fg-2 hover:text-fg hover:bg-elev",
+                  )}>
+                  {({ isActive }) => (
+                    <>
+                      <span className="flex items-center gap-2.5">
+                        <span className={cn(
+                          "w-0.5 h-4 rounded-full",
+                          isActive
+                            ? "bg-accent"
+                            : nextTo === n.to
+                              ? "bg-accent/40"
+                              : "bg-transparent",
+                        )} />
+                        {n.label}
+                        {nextTo === n.to && !isActive && (
+                          <span className="text-[9px] uppercase tracking-wider
+                                           text-accent/80 font-mono ml-1">
+                            next
+                          </span>
+                        )}
+                      </span>
+                      <kbd className="text-[9px] uppercase tracking-wider
+                                       text-fg-4 font-mono">
+                        {n.hot}
+                      </kbd>
+                    </>
+                  )}
+                </NavLink>
+              ))}
+            </div>
+          );
+        })}
       </nav>
 
       <div className="border-t border-b1 px-5 py-4">

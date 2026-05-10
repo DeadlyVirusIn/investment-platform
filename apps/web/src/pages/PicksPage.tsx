@@ -13,6 +13,8 @@ import TodayPanel from "@/components/portfolio/TodayPanel";
 import DensityToggle, {
   readInitialDensity, type Density,
 } from "@/components/portfolio/DensityToggle";
+import PageChapter from "@/components/shell/PageChapter";
+import NextStepCard from "@/components/shell/NextStepCard";
 
 import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
@@ -114,6 +116,15 @@ export default function PicksPage() {
           <DensityToggle value={density} onChange={setDensity} />
         </header>
 
+        <PageChapter
+          pathname="/overview"
+          now={
+            sortedPicks.length === 0
+              ? undefined
+              : `Engine sees ${buyCount} buy · ${sellCount} sell · ${trimCount} trim · ${watchlistCount} hold across ${sortedPicks.length} symbols. Posture: ${briefing.postureLabel.toLowerCase()}.`
+          }
+        />
+
         <PortfolioSnapshot />
 
         {!loading && sortedPicks.length > 0 && (
@@ -176,6 +187,15 @@ export default function PicksPage() {
             No AI suggestions available right now. Check back shortly.
           </div>
         )}
+
+        <NextStepCard
+          pathname="/overview"
+          rationale={
+            riskCount > 0
+              ? `${riskCount} signal${riskCount === 1 ? "" : "s"} flagged for risk — see what changed in catalysts first.`
+              : undefined
+          }
+        />
 
         <footer className="picks-disclaimer">{RESEARCH_NOTE}</footer>
       </div>

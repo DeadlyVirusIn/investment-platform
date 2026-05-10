@@ -4003,3 +4003,175 @@
   color: #a5b4fc;
   border-color: rgba(99, 102, 241, 0.28);
 }
+
+
+/* ====================================================================
+   PHASE 11 — Narrative OS flow
+   PageChapter rail (NOW / WHY / NEXT) + NextStepCard CTA + strategy-edu
+   ==================================================================== */
+
+.picks-root .page-chapter {
+  margin: 14px 0 18px;
+  padding: 14px 18px;
+  border: 1px solid var(--pi-border);
+  border-radius: 14px;
+  background: linear-gradient(140deg, var(--pi-bg-card) 0%, var(--pi-bg-card-2) 100%);
+  box-shadow: var(--pi-shadow-card);
+}
+.picks-root .page-chapter-crumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pi-ink-muted);
+  margin-bottom: 10px;
+}
+.picks-root .page-chapter-section { font-weight: 700; color: var(--pi-ink-tertiary); }
+.picks-root .page-chapter-sep { opacity: 0.4; }
+.picks-root .page-chapter-page { color: var(--pi-ink-primary); font-weight: 600; }
+
+.picks-root .page-chapter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+.picks-root .page-chapter-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+.picks-root .page-chapter-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pi-ink-muted);
+}
+.picks-root .page-chapter-text {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pi-ink-secondary);
+  margin: 0;
+}
+.picks-root .page-chapter-sub {
+  color: var(--pi-ink-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.picks-root .page-chapter-next {
+  background: var(--pi-bg-mute);
+  border: 1px solid var(--pi-border-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.picks-root .page-chapter-next:hover {
+  background: var(--pi-bg-hover);
+  border-color: var(--pi-border-strong);
+  transform: translateY(-1px);
+}
+.picks-root .page-chapter-next .page-chapter-text {
+  color: var(--pi-ink-primary);
+  font-weight: 600;
+}
+.picks-root .page-chapter-cta {
+  font-size: 11px;
+  color: var(--pi-ink-tertiary);
+  line-height: 1.45;
+}
+
+
+/* NextStepCard — bottom CTA */
+.picks-root .next-step-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 24px 0 12px;
+  padding: 16px 20px;
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(99, 102, 241, 0.06), rgba(168, 85, 247, 0.04));
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  text-decoration: none;
+  color: inherit;
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+.picks-root .next-step-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.32);
+  box-shadow: 0 12px 28px -10px rgba(99, 102, 241, 0.25);
+}
+.picks-root .next-step-text { display: flex; flex-direction: column; gap: 2px; }
+.picks-root .next-step-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pi-ink-muted);
+}
+.picks-root .next-step-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--pi-ink-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.picks-root .next-step-body {
+  font-size: 13px;
+  color: var(--pi-ink-tertiary);
+  margin: 0;
+  line-height: 1.5;
+}
+.picks-root .next-step-arrow {
+  font-size: 24px;
+  color: #a5b4fc;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+
+/* Strategy education list */
+.picks-root .strategy-edu {
+  margin: 18px 0;
+  padding: 18px 22px;
+  border: 1px solid var(--pi-border);
+  border-radius: 14px;
+  background: var(--pi-bg-mute);
+}
+.picks-root .strategy-edu-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pi-ink-primary);
+  margin: 0 0 10px;
+  letter-spacing: -0.005em;
+}
+.picks-root .strategy-edu-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.picks-root .strategy-edu-list li {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--pi-ink-tertiary);
+  padding-left: 14px;
+  position: relative;
+}
+.picks-root .strategy-edu-list li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--pi-ink-faint);
+}
+.picks-root .strategy-edu-list strong {
+  color: var(--pi-ink-primary);
+  font-weight: 600;
+}

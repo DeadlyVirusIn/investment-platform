@@ -21,6 +21,8 @@ import {
   fetchMarketEvents, type EventsState, type SymbolEvents,
 } from "@/lib/portfolio/events";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
+import PageChapter from "@/components/shell/PageChapter";
+import NextStepCard from "@/components/shell/NextStepCard";
 
 
 export default function ActionQueuePage() {
@@ -85,6 +87,15 @@ export default function ActionQueuePage() {
           <DensityToggle value={density} onChange={setDensity} />
         </header>
 
+        <PageChapter
+          pathname="/action-queue"
+          now={
+            sortedPicks.length === 0
+              ? undefined
+              : `Today the AI favors ${briefing.postureLabel.toLowerCase()} — ${sortedPicks.length} live signals across Buy / Trim / Hold / Sell.`
+          }
+        />
+
         {loading && <div className="picks-loading">Loading AI suggestions…</div>}
 
         {!loading && sortedPicks.length > 0 && (
@@ -110,6 +121,15 @@ export default function ActionQueuePage() {
             </div>
           </section>
         )}
+
+        <NextStepCard
+          pathname="/action-queue"
+          rationale={
+            sortedPicks.length === 0
+              ? undefined
+              : `Validate model quality before acting on ${sortedPicks.length} live signals.`
+          }
+        />
 
         <footer className="picks-disclaimer">{RESEARCH_NOTE}</footer>
       </div>

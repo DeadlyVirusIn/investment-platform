@@ -8,6 +8,8 @@ import HealthRail from "@/components/portfolio/HealthRail";
 import { fetchPicks, type Pick } from "@/lib/picks/api";
 import { buildBriefing } from "@/lib/picks/copilot";
 import { PAPER_ONLY_NOTE } from "@/lib/ui/disclaimers";
+import PageChapter from "@/components/shell/PageChapter";
+import NextStepCard from "@/components/shell/NextStepCard";
 
 
 export default function PortfolioIntelligencePage() {
@@ -38,6 +40,15 @@ export default function PortfolioIntelligencePage() {
           </div>
         </header>
 
+        <PageChapter
+          pathname="/portfolio"
+          now={
+            picks.length === 0
+              ? undefined
+              : `${riskCount} signal${riskCount === 1 ? "" : "s"} flagged for risk · ${watchlistCount} hold candidate${watchlistCount === 1 ? "" : "s"} on watchlist · posture ${briefing.postureLabel.toLowerCase()}.`
+          }
+        />
+
         <PortfolioSnapshot />
 
         <div className="queue-layout">
@@ -51,6 +62,15 @@ export default function PortfolioIntelligencePage() {
             posture={briefing.postureLabel}
           />
         </div>
+
+        <NextStepCard
+          pathname="/portfolio"
+          rationale={
+            riskCount > 0
+              ? `${riskCount} risk-flagged position${riskCount === 1 ? "" : "s"} need posture review.`
+              : undefined
+          }
+        />
 
         <footer className="picks-disclaimer">{PAPER_ONLY_NOTE}</footer>
       </div>

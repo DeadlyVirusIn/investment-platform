@@ -8,6 +8,8 @@ import {
   fetchEventFeatures, type EventFeaturesResponse,
 } from "@/lib/portfolio/event_features";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
+import PageChapter from "@/components/shell/PageChapter";
+import NextStepCard from "@/components/shell/NextStepCard";
 
 
 function actionDistribution(picks: Pick[]): Record<string, number> {
@@ -87,6 +89,15 @@ export default function SignalLabPage() {
           </div>
         </header>
 
+        <PageChapter
+          pathname="/signal-lab"
+          now={
+            picks.length === 0
+              ? undefined
+              : `Readiness ${readiness}/100 · ${fresh.fresh + fresh.recent} fresh / ${fresh.stale} stale · event coverage ${featAvail}/${totalSyms || picks.length}.`
+          }
+        />
+
         {loading && <div className="picks-loading">Loading…</div>}
 
         {!loading && (
@@ -147,6 +158,8 @@ export default function SignalLabPage() {
             </section>
           </>
         )}
+
+        <NextStepCard pathname="/signal-lab" />
 
         <footer className="picks-disclaimer">{RESEARCH_NOTE}</footer>
       </div>
