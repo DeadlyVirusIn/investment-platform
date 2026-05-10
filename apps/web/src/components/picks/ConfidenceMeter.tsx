@@ -1,11 +1,11 @@
 // ConfidenceMeter — small horizontal bar showing confidence 0-1.
-// Color matches action tone (green BUY / red SELL / neutral HOLD).
+// Color matches action tone (BUY green / SELL red / TRIM orange / HOLD amber).
 
 import type { PickAction } from "@/lib/picks/api";
 
 
 export interface ConfidenceMeterProps {
-  fraction: number | null;       // 0-1, null if unknown
+  fraction: number | null;
   action: PickAction;
   width?: number;
   height?: number;
@@ -16,6 +16,7 @@ function trackColor(action: PickAction): string {
   switch (action) {
     case "buy":  return "var(--picks-buy)";
     case "sell": return "var(--picks-sell)";
+    case "trim": return "var(--picks-trim)";
     case "hold": return "var(--picks-hold)";
   }
 }

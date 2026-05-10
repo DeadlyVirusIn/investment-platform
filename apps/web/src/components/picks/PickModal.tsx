@@ -1,27 +1,19 @@
-// PickModal — research cockpit overlay.
+// PickModal — copilot-style research view.
 //
-// Sections (rendered conditionally; missing data hides cleanly):
-//   - Header: symbol + ACTION badge + close
-//   - Action summary (confidence + freshness + engine)
-//   - Reference price strip (latest close + entry/target/stop if present)
-//   - AI thesis
-//   - Risk / invalidation (callout if present)
-//   - Supporting factors (top 4 from evidence with narratives)
-//   - What changed (if rationale provides it)
-//   - Next thing to watch (if rationale provides it)
-//   - Paper trading disclaimer + generated_at
+// Beginner-friendly sections in plain English. Technical details
+// hidden behind "Show technical details" toggle.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { Pick, LatestPrice } from "@/lib/picks/api";
+import type { Pick, LatestPrice, PickAction } from "@/lib/picks/api";
 import {
   confidenceLabel, fmtConfidencePct, fetchLatestPrice,
+  actionTitle,
 } from "@/lib/picks/api";
 
 
 export interface PickModalProps {
   pick: Pick | null;
-  /** Optional cached price from the grid (avoids re-fetch). */
   priceCache?: LatestPrice | null;
   onClose: () => void;
 }
@@ -44,16 +36,79 @@ function fmtRelTime(iso: string | null): string {
 }
 
 
+function plainWhatThisMeans(action: PickAction): string {
+  switch (action) {
+    case "buy":  return "AI sees an opportunity to enter or add to this position. Strength is building.";
+    case "sell": return "AI suggests exiting this position. The downside risk is greater than the remaining upside.";
+    case "trim": return "AI suggests reducing exposure but not fully exiting. Some upside may remain but risk has grown.";
+    case "hold": return "Keep watching this name but don't take new action yet. The signals aren't strong enough either way.";
+  }
+}
+
+
+function plainWhatCouldChange(action: PickAction): string {
+  switch (action) {
+    case "buy":  return "If price breaks key support or momentum reverses, the AI may downgrade to Hold or Trim.";
+    case "sell": return "If price stabilizes above invalidation or fundamentals improve, the AI may upgrade to Hold.";
+    case "trim": return "If momentum re-strengthens or risk metrics improve, the AI may move back to Hold or Buy.";
+    case "hold": return "A clear breakout, flow signal, or earnings catalyst could shift the AI toward Buy or Trim.";
+  }
+}
+
+
+function riskLevel(pick: Pick): "low" | "medium" | "high" {
+  const conf = pick.adjusted_confidence ?? pick.confidence;
+  const n = parseFloat(conf ?? "0");
+  const pct = n > 1 ? n : n * 100;
+  if (pick.stale_data || !pick.enough_data) return "high";
+  if (pct < 50) return "high";
+  if (pct < 70) return "medium";
+  return "low";
+}
+
+
+function riskLevelText(level: "low" | "medium" | "high"): string {
+  switch (level) {
+    case "low":    return "Low — signals are clean and recent.";
+    case "medium": return "Medium — partial signal strength or some uncertainty.";
+    case "high":   return "High — thin data, stale signals, or low confidence.";
+  }
+}
+
+
+function buildPlainThesis(pick: Pick): string {
+  // Start with raw thesis, but drop "composite score" / "score:" jargon if present
+  const t = pick.thesis ?? "";
+  const cleaned = t
+    .replace(/composite\s+score\s+[\-+]?[\d.]+\s*[→\-]+\s*\w+\.?\s*/gi, "")
+    .replace(/(trend|momentum|volatility|risk|valuation|growth)\/?\w*\s+score[: ]\s*[\-+]?[\d.]+\s*\.?/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (cleaned.length > 12) return cleaned;
+
+  // Fallback if thesis was almost entirely jargon
+  const action = pick.adjusted_action ?? pick.action;
+  switch (action) {
+    case "buy":  return "Multiple factors point to upside; entry conditions look favorable.";
+    case "sell": return "Risk metrics dominate; the AI's models suggest exiting.";
+    case "trim": return "Momentum has weakened relative to entry conditions; AI suggests scaling back.";
+    case "hold": return "Signals are mixed across momentum, valuation, and trend — no clear edge.";
+  }
+}
+
+
 export default function PickModal({ pick, priceCache, onClose }: PickModalProps) {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [price, setPrice] = useState<LatestPrice | null | undefined>(undefined);
+  const [techOpen, setTechOpen] = useState(false);
 
-  // Use cached price if provided; otherwise lazy-fetch on open
   useEffect(() => {
     if (!pick?.symbol) {
       setPrice(undefined);
+      setTechOpen(false);
       return;
     }
+    setTechOpen(false);
     if (priceCache !== undefined) {
       setPrice(priceCache);
       return;
@@ -66,7 +121,6 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
     return () => { cancelled = true; };
   }, [pick?.symbol, pick?.id, priceCache]);
 
-  // ESC dismiss + body scroll lock + focus trap
   useEffect(() => {
     if (!pick) return;
     const previousOverflow = document.body.style.overflow;
@@ -87,17 +141,17 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
   }, [pick, onClose]);
 
   const isOpen = pick !== null;
-  const action = pick ? (pick.adjusted_action ?? pick.action) as "buy" | "sell" | "hold" : "hold";
+  const action = pick ? (pick.adjusted_action ?? pick.action) : "hold";
   const confidence = pick ? (pick.adjusted_confidence ?? pick.confidence) : null;
+  const risk = pick ? riskLevel(pick) : "medium";
 
   // Top 4 evidence items with narratives
-  const topEvidence = pick?.evidence
-    ?.filter(e => e.narrative && e.narrative.length > 0)
-    .slice(0, 4) ?? [];
+  const topEvidence = useMemo(
+    () => pick?.evidence?.filter(e => e.narrative && e.narrative.length > 0).slice(0, 4) ?? [],
+    [pick],
+  );
 
-  // Conditional risk fields
-  const hasRiskCallout = pick && (pick.risk.invalidation_text || pick.risk.risk_text);
-  const hasPrices = pick && (
+  const hasPriceStrip = pick && (
     pick.risk.entry_price != null ||
     pick.risk.target_price != null ||
     pick.risk.stop_loss != null ||
@@ -144,110 +198,168 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
             </button>
           </header>
 
-          {/* Action summary */}
-          <div className="pick-modal-action-row">
-            <span className="pick-modal-action-badge">{action}</span>
-            <span><strong>{confidenceLabel(confidence)}</strong> confidence · {fmtConfidencePct(confidence)}</span>
-            {pick.stale_data && <span style={{ color: "var(--picks-sell)" }}>· stale data</span>}
-            {!pick.enough_data && <span style={{ color: "var(--picks-sell)" }}>· thin data</span>}
-          </div>
+          {/* AI Recommendation — big colored badge */}
+          <section className="pick-modal-section" data-test="pick-modal-recommendation">
+            <h4>AI Recommendation</h4>
+            <div className="pick-modal-action-row">
+              <span className="pick-modal-action-badge">{action}</span>
+              <span><strong>{actionTitle(action)}</strong></span>
+              <span>· {confidenceLabel(confidence)} confidence ({fmtConfidencePct(confidence)})</span>
+            </div>
+          </section>
 
-          {/* Reference price strip — shown if any price field present */}
-          {hasPrices && (
-            <div className="pick-modal-prices" data-test="pick-modal-prices">
-              {price !== undefined && (
-                <div className="pick-modal-price-cell">
-                  <span className="pick-modal-price-label">Latest close</span>
-                  <span className="pick-modal-price-value">
-                    {price ? fmtPrice(price.close) : "—"}
-                  </span>
-                </div>
-              )}
-              {pick.risk.entry_price != null && (
-                <div className="pick-modal-price-cell">
-                  <span className="pick-modal-price-label">Entry</span>
-                  <span className="pick-modal-price-value">
-                    {fmtPrice(pick.risk.entry_price)}
-                  </span>
-                </div>
-              )}
-              {pick.risk.target_price != null && (
-                <div className="pick-modal-price-cell">
-                  <span className="pick-modal-price-label">Target</span>
-                  <span className="pick-modal-price-value pick-modal-price-value-target">
-                    {fmtPrice(pick.risk.target_price)}
-                  </span>
-                </div>
-              )}
-              {pick.risk.stop_loss != null && (
-                <div className="pick-modal-price-cell">
-                  <span className="pick-modal-price-label">Stop loss</span>
-                  <span className="pick-modal-price-value pick-modal-price-value-stop">
-                    {fmtPrice(pick.risk.stop_loss)}
-                  </span>
+          {/* What this means — beginner-friendly */}
+          <section className="pick-modal-section" data-test="pick-modal-meaning">
+            <h4>What this means</h4>
+            <div className="pick-modal-callout">
+              {plainWhatThisMeans(action)}
+            </div>
+          </section>
+
+          {/* Why the AI thinks this */}
+          <section className="pick-modal-section" data-test="pick-modal-thesis">
+            <h4>Why the AI thinks this</h4>
+            <p>{buildPlainThesis(pick)}</p>
+          </section>
+
+          {/* Reference price */}
+          {hasPriceStrip && (
+            <section className="pick-modal-section" data-test="pick-modal-prices">
+              <h4>Reference price</h4>
+              <div className="pick-modal-prices">
+                {price !== undefined && (
+                  <div className="pick-modal-price-cell">
+                    <span className="pick-modal-price-label">Latest close</span>
+                    <span className="pick-modal-price-value">
+                      {price ? fmtPrice(price.close) : "—"}
+                    </span>
+                  </div>
+                )}
+                {pick.risk.entry_price != null && (
+                  <div className="pick-modal-price-cell">
+                    <span className="pick-modal-price-label">Entry</span>
+                    <span className="pick-modal-price-value">{fmtPrice(pick.risk.entry_price)}</span>
+                  </div>
+                )}
+                {pick.risk.target_price != null && (
+                  <div className="pick-modal-price-cell">
+                    <span className="pick-modal-price-label">Target</span>
+                    <span className="pick-modal-price-value pick-modal-price-value-target">
+                      {fmtPrice(pick.risk.target_price)}
+                    </span>
+                  </div>
+                )}
+                {pick.risk.stop_loss != null && (
+                  <div className="pick-modal-price-cell">
+                    <span className="pick-modal-price-label">Stop loss</span>
+                    <span className="pick-modal-price-value pick-modal-price-value-stop">
+                      {fmtPrice(pick.risk.stop_loss)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* What could change the view */}
+          <section className="pick-modal-section" data-test="pick-modal-could-change">
+            <h4>What could change the view</h4>
+            <p>{pick.risk.what_changed_text ?? plainWhatCouldChange(action)}</p>
+          </section>
+
+          {/* Risk level */}
+          <section className="pick-modal-section" data-test="pick-modal-risk-level">
+            <h4>Risk level</h4>
+            <div className="pick-modal-risk-level">
+              <span className="pick-modal-risk-dot" data-level={risk} />
+              <span>{riskLevelText(risk)}</span>
+            </div>
+            {pick.risk.invalidation_text && (
+              <p style={{ marginTop: 12 }}>
+                <strong>Invalidation:</strong> {pick.risk.invalidation_text}
+              </p>
+            )}
+          </section>
+
+          {/* Technical details — collapsed */}
+          <section className="pick-modal-section" data-test="pick-modal-technical">
+            <div className="pick-modal-tech">
+              <button
+                type="button"
+                className="pick-modal-tech-toggle"
+                onClick={() => setTechOpen(o => !o)}
+                aria-expanded={techOpen}
+              >
+                <span>Show technical details</span>
+                <span>{techOpen ? "−" : "+"}</span>
+              </button>
+
+              {techOpen && (
+                <div className="pick-modal-tech-body">
+                  <dl>
+                    <dt>Raw action</dt>
+                    <dd>{pick.raw_action || "—"}</dd>
+                    {pick.raw_adjusted_action && (
+                      <>
+                        <dt>Adjusted action</dt>
+                        <dd>{pick.raw_adjusted_action}</dd>
+                      </>
+                    )}
+                    <dt>Confidence</dt>
+                    <dd>{pick.confidence ?? "—"}</dd>
+                    {pick.composite_score != null && (
+                      <>
+                        <dt>Composite score</dt>
+                        <dd>{String(pick.composite_score)}</dd>
+                      </>
+                    )}
+                    {pick.engine_version && (
+                      <>
+                        <dt>Engine version</dt>
+                        <dd>{pick.engine_version}</dd>
+                      </>
+                    )}
+                    {pick.generated_at && (
+                      <>
+                        <dt>Generated at</dt>
+                        <dd>{new Date(pick.generated_at).toLocaleString()}</dd>
+                      </>
+                    )}
+                    {Object.keys(pick.family_scores ?? {}).length > 0 && (
+                      <>
+                        <dt>Family scores</dt>
+                        <dd>
+                          {Object.entries(pick.family_scores).map(([k, v]) => (
+                            <div key={k}>{k}: {String(v)}</div>
+                          ))}
+                        </dd>
+                      </>
+                    )}
+                  </dl>
+
+                  {topEvidence.length > 0 && (
+                    <>
+                      <h4 style={{ marginTop: 16 }}>Supporting factors</h4>
+                      <ul className="pick-evidence-list" style={{ marginTop: 8 }}>
+                        {topEvidence.map((ev, i) => (
+                          <li key={`${ev.factor_key}-${i}`} className="pick-evidence-item">
+                            <div className="pick-evidence-factor">
+                              {ev.family ? `${ev.family} · ` : ""}{ev.factor_key}
+                            </div>
+                            {ev.narrative}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </div>
               )}
             </div>
-          )}
-
-          {/* AI thesis */}
-          {pick.thesis && (
-            <section className="pick-modal-section" data-test="pick-modal-thesis">
-              <h4>AI thesis</h4>
-              <p>{pick.thesis}</p>
-            </section>
-          )}
-
-          {/* Risk / invalidation callout */}
-          {hasRiskCallout && (
-            <section className="pick-modal-section pick-modal-section-risk" data-test="pick-modal-risk">
-              <h4>Risk · invalidation</h4>
-              {pick.risk.invalidation_text && <p>{pick.risk.invalidation_text}</p>}
-              {pick.risk.risk_text && pick.risk.risk_text !== pick.risk.invalidation_text && (
-                <p style={{ marginTop: 8 }}>{pick.risk.risk_text}</p>
-              )}
-            </section>
-          )}
-
-          {/* Supporting factors */}
-          {topEvidence.length > 0 && (
-            <section className="pick-modal-section" data-test="pick-modal-factors">
-              <h4>Supporting factors</h4>
-              <ul className="pick-evidence-list">
-                {topEvidence.map((ev, i) => (
-                  <li key={`${ev.factor_key}-${i}`} className="pick-evidence-item">
-                    <div className="pick-evidence-factor">
-                      {ev.family ? `${ev.family} · ` : ""}{ev.factor_key}
-                    </div>
-                    {ev.narrative}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/* What changed */}
-          {pick.risk.what_changed_text && (
-            <section className="pick-modal-section" data-test="pick-modal-changed">
-              <h4>What changed</h4>
-              <p>{pick.risk.what_changed_text}</p>
-            </section>
-          )}
-
-          {/* Next watch */}
-          {pick.risk.next_watch_text && (
-            <section className="pick-modal-section" data-test="pick-modal-next">
-              <h4>Next thing to watch</h4>
-              <p>{pick.risk.next_watch_text}</p>
-            </section>
-          )}
+          </section>
 
           {/* Footer */}
           <footer className="pick-modal-footer">
-            Read-only research — paper trading. Not financial advice.
-            {pick.generated_at && (
-              <> Generated {new Date(pick.generated_at).toLocaleString()}.</>
-            )}
+            Read-only research — paper trading only. Not financial advice.
           </footer>
         </div>
       )}

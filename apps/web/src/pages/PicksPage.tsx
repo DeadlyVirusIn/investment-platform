@@ -1,9 +1,7 @@
-// PicksPage — main landing page (default /overview).
+// PicksPage — main landing.
 //
-// Renders a grid of green BUY / red SELL / neutral HOLD boxes
-// from /api/recommendations sorted by confidence desc.
-// Pre-fetches latest price for all visible symbols in parallel
-// so cards show price on first paint (no per-card flash).
+// Header shows full breakdown across all 4 actions + a beginner-
+// friendly status line.
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,8 +9,28 @@ import { Link } from "react-router-dom";
 import PickBox from "@/components/picks/PickBox";
 import PickModal from "@/components/picks/PickModal";
 import {
-  fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
+  fetchPicks, fetchLatestPrices, type Pick, type LatestPrice, type PickAction,
 } from "@/lib/picks/api";
+
+
+function buildStatusLine(counts: Record<PickAction, number>): string {
+  const total = counts.buy + counts.sell + counts.trim + counts.hold;
+  if (total === 0) {
+    return "No suggestions available right now.";
+  }
+  if (counts.buy === 0 && counts.sell === 0) {
+    return `No new Buy or Sell ideas today. AI is mostly saying ${
+      counts.trim > counts.hold ? "Trim — risk has grown on existing positions" : "Hold — keep watching, don't add yet"
+    }.`;
+  }
+  if (counts.buy > 0 && counts.sell === 0) {
+    return `${counts.buy} new Buy ${counts.buy === 1 ? "idea" : "ideas"} today. ${counts.trim + counts.hold} positions to keep watching.`;
+  }
+  if (counts.sell > 0 && counts.buy === 0) {
+    return `${counts.sell} Sell ${counts.sell === 1 ? "signal" : "signals"} today. AI sees risk increasing.`;
+  }
+  return `${counts.buy} Buy · ${counts.sell} Sell · ${counts.trim} Trim · ${counts.hold} Hold — sorted by confidence.`;
+}
 
 
 export default function PicksPage() {
@@ -22,7 +40,6 @@ export default function PicksPage() {
   const [error, setError] = useState<string | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
 
-  // Initial fetch
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -33,7 +50,6 @@ export default function PicksPage() {
         setPicks(rows);
         setLoading(false);
 
-        // Mark all symbols as "loading" (undefined) then batch-fetch
         const symbols = rows.map(r => r.symbol).filter((s): s is string => !!s);
         const initialMap: Record<string, undefined> = {};
         symbols.forEach(s => { initialMap[s] = undefined; });
@@ -60,12 +76,12 @@ export default function PicksPage() {
 
   const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;
 
-  // Sort: BUY + SELL ahead of HOLD, then confidence desc
+  // Sort: BUY → SELL → TRIM → HOLD, then confidence desc within
   const visiblePicks = useMemo(() => {
-    const actionOrder: Record<string, number> = { buy: 0, sell: 1, hold: 2 };
+    const actionOrder: Record<PickAction, number> = { buy: 0, sell: 1, trim: 2, hold: 3 };
     return [...picks].sort((a, b) => {
-      const ao = (a.adjusted_action ?? a.action) as "buy" | "sell" | "hold";
-      const bo = (b.adjusted_action ?? b.action) as "buy" | "sell" | "hold";
+      const ao = a.adjusted_action ?? a.action;
+      const bo = b.adjusted_action ?? b.action;
       const orderA = actionOrder[ao] ?? 9;
       const orderB = actionOrder[bo] ?? 9;
       if (orderA !== orderB) return orderA - orderB;
@@ -75,9 +91,16 @@ export default function PicksPage() {
     });
   }, [picks]);
 
-  const buyCount = visiblePicks.filter(p => (p.adjusted_action ?? p.action) === "buy").length;
-  const sellCount = visiblePicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
-  const holdCount = visiblePicks.filter(p => (p.adjusted_action ?? p.action) === "hold").length;
+  const counts = useMemo(() => {
+    const c: Record<PickAction, number> = { buy: 0, sell: 0, trim: 0, hold: 0 };
+    for (const p of visiblePicks) {
+      const a = p.adjusted_action ?? p.action;
+      c[a] = (c[a] ?? 0) + 1;
+    }
+    return c;
+  }, [visiblePicks]);
+
+  const statusLine = buildStatusLine(counts);
 
   return (
     <div className="picks-root" data-test="picks-root">
@@ -86,11 +109,24 @@ export default function PicksPage() {
           <div>
             <h1 className="picks-title">AI suggestions</h1>
             <p className="picks-subtitle">
-              {loading
-                ? "Loading…"
-                : `${buyCount} buy · ${sellCount} sell${holdCount > 0 ? ` · ${holdCount} hold` : ""} · sorted by confidence`
-              }
+              {loading ? "Loading…" : `${visiblePicks.length} ${visiblePicks.length === 1 ? "suggestion" : "suggestions"} from your AI engine`}
             </p>
+            {!loading && visiblePicks.length > 0 && (
+              <div className="picks-counts" data-test="picks-counts">
+                <span className="picks-count-pill" data-action="buy">
+                  <strong>{counts.buy}</strong> Buy
+                </span>
+                <span className="picks-count-pill" data-action="hold">
+                  <strong>{counts.hold}</strong> Hold
+                </span>
+                <span className="picks-count-pill" data-action="trim">
+                  <strong>{counts.trim}</strong> Trim
+                </span>
+                <span className="picks-count-pill" data-action="sell">
+                  <strong>{counts.sell}</strong> Sell
+                </span>
+              </div>
+            )}
           </div>
           <nav className="picks-archive-nav" data-test="picks-archive-nav">
             <span style={{ color: "var(--picks-ink-recede)" }}>archive</span>
@@ -102,6 +138,12 @@ export default function PicksPage() {
             <Link to="/overview?view=legacy">legacy</Link>
           </nav>
         </header>
+
+        {!loading && visiblePicks.length > 0 && (
+          <div className="picks-status" data-test="picks-status">
+            {statusLine}
+          </div>
+        )}
 
         {loading && (
           <div className="picks-loading" data-test="picks-loading">
@@ -118,7 +160,7 @@ export default function PicksPage() {
         {!loading && !error && visiblePicks.length === 0 && (
           <div className="picks-empty" data-test="picks-empty">
             No AI suggestions available right now. The recommendation engine may
-            still be running. Check back shortly or browse the archive views above.
+            still be running. Check back shortly.
           </div>
         )}
 
