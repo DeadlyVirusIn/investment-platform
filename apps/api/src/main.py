@@ -58,6 +58,7 @@ from apps.api.src.api.scorecard import router as scorecard_router
 from apps.api.src.api.alerts import router as alerts_router
 from apps.api.src.api.asset import router as asset_router
 from apps.api.src.api.assets import router as assets_router
+from apps.api.src.api.market_events import router as market_events_router
 from apps.api.src.api.backtest import router as backtest_router
 from apps.api.src.api.briefing import router as briefing_router
 from apps.api.src.api.briefing_narrative import router as briefing_narrative_router
@@ -162,6 +163,7 @@ for _router in (
     watchlist_router,
     asset_router,
     assets_router,
+    market_events_router,
     recommendations_router,
     briefing_router,
     alerts_router,
