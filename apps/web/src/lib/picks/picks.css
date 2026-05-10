@@ -2350,9 +2350,68 @@
   --pi-shadow-section: 0 16px 40px -20px rgba(0, 0, 0, 0.5);
 }
 
-/* LIGHT mode override — only when user prefers light AND not forced dark */
+/* LIGHT mode override — driven by [data-theme="light"] on <html>
+   (set by lib/ui/theme.ts toggle in TopStrip).
+   Falls back to OS prefers-color-scheme when no explicit toggle is set. */
+:root[data-theme="light"] .picks-root,
+.picks-root[data-theme="light"] {
+  --pi-bg-page: #f7f9fc;
+  --pi-bg-card: rgba(255, 255, 255, 0.95);
+  --pi-bg-card-2: rgba(248, 250, 252, 0.95);
+  --pi-bg-section: rgba(255, 255, 255, 0.95);
+  --pi-bg-section-2: rgba(248, 250, 252, 0.85);
+  --pi-bg-mute: rgba(15, 23, 42, 0.02);
+  --pi-bg-hover: rgba(15, 23, 42, 0.04);
+  --pi-border: rgba(15, 23, 42, 0.1);
+  --pi-border-strong: rgba(15, 23, 42, 0.2);
+  --pi-border-soft: rgba(15, 23, 42, 0.06);
+  --pi-ink-primary: #0f172a;
+  --pi-ink-secondary: #1e293b;
+  --pi-ink-tertiary: #475569;
+  --pi-ink-muted: #64748b;
+  --pi-ink-faint: #94a3b8;
+  --pi-good: #059669;
+  --pi-good-soft: #047857;
+  --pi-bad: #dc2626;
+  --pi-bad-soft: #b91c1c;
+  --pi-warn: #ea580c;
+  --pi-warn-soft: #c2410c;
+  --pi-info: #d97706;
+  --pi-info-soft: #b45309;
+  --pi-shadow-card: 0 4px 14px -4px rgba(15, 23, 42, 0.08);
+  --pi-shadow-section: 0 16px 40px -20px rgba(15, 23, 42, 0.1);
+}
+
+:root[data-theme="light"] .picks-root,
+.picks-root[data-theme="light"] {
+  /* Override legacy Phase-1 tokens too */
+  --picks-bg-page:        #f7f9fc;
+  --picks-bg-modal:       #ffffff;
+  --picks-bg-overlay:     rgba(15, 23, 42, 0.45);
+  --picks-ink-primary:    #0f172a;
+  --picks-ink-body:       #1e293b;
+  --picks-ink-meta:       #475569;
+  --picks-ink-recede:     #94a3b8;
+  --picks-border:         rgba(15, 23, 42, 0.08);
+  --picks-border-strong:  rgba(15, 23, 42, 0.18);
+  --picks-shadow-card:    0 1px 0 rgba(15,23,42,0.02) inset, 0 4px 14px -4px rgba(15,23,42,0.08);
+  --picks-shadow-hover:   0 1px 0 rgba(15,23,42,0.04) inset, 0 12px 28px -8px rgba(15,23,42,0.14);
+  /* Soften action wash backgrounds for light mode */
+  --picks-buy-bg:         rgba(16, 185, 129, 0.06);
+  --picks-sell-bg:        rgba(239, 68, 68, 0.06);
+  --picks-trim-bg:        rgba(251, 146, 60, 0.06);
+  --picks-hold-bg:        rgba(251, 191, 36, 0.06);
+
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.08), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 90% 100%, rgba(139, 92, 246, 0.05), transparent 60%),
+    linear-gradient(180deg, #fdfdff 0%, #f3f5fa 100%);
+  color: var(--picks-ink-primary);
+}
+
+/* OS preference fallback when no explicit toggle is set */
 @media (prefers-color-scheme: light) {
-  .picks-root:not([data-force-dark="true"]) {
+  :root:not([data-theme="dark"]):not([data-theme="light"]) .picks-root {
     --pi-bg-page: #f7f9fc;
     --pi-bg-card: rgba(255, 255, 255, 0.95);
     --pi-bg-card-2: rgba(248, 250, 252, 0.95);
@@ -2378,12 +2437,6 @@
     --pi-info-soft: #b45309;
     --pi-shadow-card: 0 4px 14px -4px rgba(15, 23, 42, 0.08);
     --pi-shadow-section: 0 16px 40px -20px rgba(15, 23, 42, 0.1);
-  }
-  .picks-root:not([data-force-dark="true"]) {
-    background:
-      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99, 102, 241, 0.08), transparent 60%),
-      radial-gradient(ellipse 60% 40% at 90% 100%, rgba(139, 92, 246, 0.05), transparent 60%),
-      linear-gradient(180deg, #fdfdff 0%, #f3f5fa 100%);
   }
 }
 
@@ -2940,3 +2993,207 @@
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+
+/* ====================================================================
+   Light-mode overrides for hard-coded Phase 5 gradients.
+   Without these, the toggle leaves several big blocks in dark gradient
+   while the rest of the page goes light.
+   ==================================================================== */
+
+:root[data-theme="light"] .picks-root .picks-priority,
+.picks-root[data-theme="light"] .picks-priority {
+  background: linear-gradient(140deg, #ffffff 0%, #f8fafc 100%);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 12px 40px -16px rgba(15, 23, 42, 0.12);
+}
+:root[data-theme="light"] .picks-root .picks-priority-eyebrow,
+.picks-root[data-theme="light"] .picks-priority-eyebrow,
+:root[data-theme="light"] .picks-root .picks-priority-conf-label,
+.picks-root[data-theme="light"] .picks-priority-conf-label {
+  color: #64748b;
+}
+:root[data-theme="light"] .picks-root .picks-priority-symbol,
+.picks-root[data-theme="light"] .picks-priority-symbol,
+:root[data-theme="light"] .picks-root .picks-priority-conf-pct,
+.picks-root[data-theme="light"] .picks-priority-conf-pct,
+:root[data-theme="light"] .picks-root .picks-priority-title,
+.picks-root[data-theme="light"] .picks-priority-title { color: #0f172a; }
+:root[data-theme="light"] .picks-root .picks-priority-why,
+.picks-root[data-theme="light"] .picks-priority-why,
+:root[data-theme="light"] .picks-root .picks-priority-price,
+.picks-root[data-theme="light"] .picks-priority-price { color: #475569; }
+:root[data-theme="light"] .picks-root .picks-priority-why strong,
+.picks-root[data-theme="light"] .picks-priority-why strong { color: #0f172a; }
+:root[data-theme="light"] .picks-root .picks-priority-cta-primary,
+.picks-root[data-theme="light"] .picks-priority-cta-primary {
+  background: linear-gradient(140deg, #0f172a 0%, #1e293b 100%);
+  color: #f8fafc;
+  box-shadow: 0 8px 24px -8px rgba(15, 23, 42, 0.3);
+}
+:root[data-theme="light"] .picks-root .picks-priority-cta-secondary,
+.picks-root[data-theme="light"] .picks-priority-cta-secondary {
+  background: rgba(15, 23, 42, 0.04);
+  color: #1e293b;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+/* PickBox cards in light mode */
+:root[data-theme="light"] .picks-root .pick-box,
+.picks-root[data-theme="light"] .pick-box {
+  background: linear-gradient(160deg, #ffffff 0%, #f8fafc 100%);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 2px 8px -2px rgba(15, 23, 42, 0.06);
+}
+:root[data-theme="light"] .picks-root .pick-box:hover,
+.picks-root[data-theme="light"] .pick-box:hover {
+  border-color: rgba(15, 23, 42, 0.22);
+  box-shadow: 0 12px 28px -8px rgba(15, 23, 42, 0.14);
+}
+:root[data-theme="light"] .picks-root .pick-box .pick-symbol,
+.picks-root[data-theme="light"] .pick-box .pick-symbol,
+:root[data-theme="light"] .picks-root .pick-box .pick-conf-pct,
+.picks-root[data-theme="light"] .pick-box .pick-conf-pct { color: #0f172a; }
+:root[data-theme="light"] .picks-root .pick-box .pick-explain,
+.picks-root[data-theme="light"] .pick-box .pick-explain,
+:root[data-theme="light"] .picks-root .pick-box .pick-price,
+.picks-root[data-theme="light"] .pick-box .pick-price { color: #475569; }
+:root[data-theme="light"] .picks-root .pick-box .pick-meta-time,
+.picks-root[data-theme="light"] .pick-box .pick-meta-time,
+:root[data-theme="light"] .picks-root .pick-box .pick-todo-hint,
+.picks-root[data-theme="light"] .pick-box .pick-todo-hint { color: #94a3b8; }
+:root[data-theme="light"] .picks-root .pick-tag,
+.picks-root[data-theme="light"] .pick-tag {
+  background: rgba(15, 23, 42, 0.04);
+  color: #1e293b;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+/* Sidebar (Copilot briefing) in light mode */
+:root[data-theme="light"] .picks-root .picks-sidebar,
+.picks-root[data-theme="light"] .picks-sidebar {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 28px -12px rgba(15, 23, 42, 0.1);
+}
+:root[data-theme="light"] .picks-root .picks-sidebar-header,
+.picks-root[data-theme="light"] .picks-sidebar-header {
+  background: rgba(15, 23, 42, 0.02);
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+:root[data-theme="light"] .picks-root .picks-sidebar-title,
+.picks-root[data-theme="light"] .picks-sidebar-title { color: #0f172a; }
+:root[data-theme="light"] .picks-root .picks-sidebar-sub,
+.picks-root[data-theme="light"] .picks-sidebar-sub,
+:root[data-theme="light"] .picks-root .picks-sidebar-h,
+.picks-root[data-theme="light"] .picks-sidebar-h { color: #64748b; }
+:root[data-theme="light"] .picks-root .picks-sidebar-section,
+.picks-root[data-theme="light"] .picks-sidebar-section {
+  border-bottom-color: rgba(15, 23, 42, 0.06);
+}
+:root[data-theme="light"] .picks-root .picks-sidebar-todo li,
+.picks-root[data-theme="light"] .picks-sidebar-todo li,
+:root[data-theme="light"] .picks-root .picks-sidebar-avoid li,
+.picks-root[data-theme="light"] .picks-sidebar-avoid li,
+:root[data-theme="light"] .picks-root .picks-sidebar-posture-text,
+.picks-root[data-theme="light"] .picks-sidebar-posture-text,
+:root[data-theme="light"] .picks-root .picks-sidebar-row,
+.picks-root[data-theme="light"] .picks-sidebar-row { color: #1e293b; }
+:root[data-theme="light"] .picks-root .picks-sidebar-icon,
+.picks-root[data-theme="light"] .picks-sidebar-icon {
+  background: rgba(15, 23, 42, 0.05);
+  color: #1e293b;
+}
+:root[data-theme="light"] .picks-root .picks-sidebar-empty,
+.picks-root[data-theme="light"] .picks-sidebar-empty,
+:root[data-theme="light"] .picks-root .picks-sidebar-time,
+.picks-root[data-theme="light"] .picks-sidebar-time,
+:root[data-theme="light"] .picks-root .picks-sidebar-reason,
+.picks-root[data-theme="light"] .picks-sidebar-reason,
+:root[data-theme="light"] .picks-root .picks-sidebar-symbol,
+.picks-root[data-theme="light"] .picks-sidebar-symbol { color: #475569; }
+:root[data-theme="light"] .picks-root .picks-sidebar-row:hover,
+.picks-root[data-theme="light"] .picks-sidebar-row:hover {
+  background: rgba(15, 23, 42, 0.04);
+}
+:root[data-theme="light"] .picks-root .picks-sidebar-posture-chip,
+.picks-root[data-theme="light"] .picks-sidebar-posture-chip {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #1e293b;
+}
+
+/* Briefing hero (Phase 4) in light mode */
+:root[data-theme="light"] .picks-root .picks-briefing,
+.picks-root[data-theme="light"] .picks-briefing {
+  background: linear-gradient(155deg, #ffffff 0%, #f8fafc 100%);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 12px 40px -16px rgba(15, 23, 42, 0.1);
+}
+:root[data-theme="light"] .picks-root .picks-briefing-eyebrow,
+.picks-root[data-theme="light"] .picks-briefing-eyebrow { color: #64748b; }
+:root[data-theme="light"] .picks-root .picks-briefing-headline,
+.picks-root[data-theme="light"] .picks-briefing-headline { color: #0f172a; }
+:root[data-theme="light"] .picks-root .picks-briefing-body,
+.picks-root[data-theme="light"] .picks-briefing-body { color: #475569; }
+:root[data-theme="light"] .picks-root .picks-briefing-posture,
+.picks-root[data-theme="light"] .picks-briefing-posture {
+  background: rgba(15, 23, 42, 0.04);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #1e293b;
+}
+:root[data-theme="light"] .picks-root .picks-briefing-chip,
+.picks-root[data-theme="light"] .picks-briefing-chip {
+  background: rgba(15, 23, 42, 0.04);
+  color: #1e293b;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+:root[data-theme="light"] .picks-root .picks-briefing-chip strong,
+.picks-root[data-theme="light"] .picks-briefing-chip strong { color: #0f172a; }
+:root[data-theme="light"] .picks-root .picks-briefing-cta-primary,
+.picks-root[data-theme="light"] .picks-briefing-cta-primary {
+  background: #0f172a;
+  color: #f8fafc;
+}
+:root[data-theme="light"] .picks-root .picks-briefing-cta-secondary,
+.picks-root[data-theme="light"] .picks-briefing-cta-secondary {
+  background: rgba(15, 23, 42, 0.04);
+  color: #1e293b;
+  border-color: rgba(15, 23, 42, 0.14);
+}
+
+/* FilterBar in light mode */
+:root[data-theme="light"] .picks-root .picks-filter-tab,
+.picks-root[data-theme="light"] .picks-filter-tab {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(15, 23, 42, 0.1);
+  color: #475569;
+}
+:root[data-theme="light"] .picks-root .picks-filter-tab:hover,
+.picks-root[data-theme="light"] .picks-filter-tab:hover {
+  background: #ffffff;
+  color: #0f172a;
+}
+:root[data-theme="light"] .picks-root .picks-filter-tab[data-active="true"],
+.picks-root[data-theme="light"] .picks-filter-tab[data-active="true"] {
+  background: #0f172a;
+  color: #f8fafc;
+  border-color: #0f172a;
+}
+
+/* Modal in light mode */
+:root[data-theme="light"] .picks-root .pick-modal,
+.picks-root[data-theme="light"] .pick-modal {
+  background: #ffffff;
+  color: #0f172a;
+}
+:root[data-theme="light"] .picks-root .pick-modal-symbol,
+.picks-root[data-theme="light"] .pick-modal-symbol,
+:root[data-theme="light"] .picks-root .pick-modal-section h4,
+.picks-root[data-theme="light"] .pick-modal-section h4 { color: #0f172a; }
+:root[data-theme="light"] .picks-root .pick-modal-symbol-sub,
+.picks-root[data-theme="light"] .pick-modal-symbol-sub,
+:root[data-theme="light"] .picks-root .pick-modal-eyebrow,
+.picks-root[data-theme="light"] .pick-modal-eyebrow { color: #64748b; }
+:root[data-theme="light"] .picks-root .pick-modal-section,
+.picks-root[data-theme="light"] .pick-modal-section { color: #1e293b; }
