@@ -1,21 +1,4 @@
 // PicksPage — AI Investing OS homepage (portfolio-first composition).
-//
-// Story:
-//   Header (+ density toggle)
-//     ↓
-//   Portfolio Snapshot (hero NAV + sparkline + asymmetric metrics)
-//     ↓
-//   Today panel (AI summary | Top action | mini cards)
-//     ↓
-//   Today's Action Queue  ←→  Portfolio Health rail (sticky right)
-//     ↓
-//   Trade Lifecycle
-//     ↓
-//   Premium Income (chart or empty state)
-//     ↓
-//   Strategy Workflows
-//     ↓
-//   Position Intelligence (full table)
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -30,7 +13,10 @@ import TradeLifecycle from "@/components/portfolio/TradeLifecycle";
 import PositionsTable from "@/components/portfolio/PositionsTable";
 import StrategyModules from "@/components/portfolio/StrategyModules";
 import PremiumIncome from "@/components/portfolio/PremiumIncome";
-import DensityToggle from "@/components/portfolio/DensityToggle";
+import MarketEvents from "@/components/portfolio/MarketEvents";
+import DensityToggle, {
+  readInitialDensity, type Density,
+} from "@/components/portfolio/DensityToggle";
 
 import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
@@ -39,6 +25,9 @@ import {
   buildBriefing, derivePriority, type PicksFilter,
 } from "@/lib/picks/copilot";
 import { fetchCommandBar } from "@/lib/portfolio/api";
+import {
+  fetchMarketEvents, type EventsState, type SymbolEvents,
+} from "@/lib/portfolio/events";
 
 
 export default function PicksPage() {
@@ -49,6 +38,8 @@ export default function PicksPage() {
   const [openPickId, setOpenPickId] = useState<string | null>(null);
   const [filter, setFilter] = useState<PicksFilter>("all");
   const [monthlyPremium, setMonthlyPremium] = useState<number | null>(null);
+  const [density, setDensity] = useState<Density>(() => readInitialDensity());
+  const [eventsState, setEventsState] = useState<EventsState>({ status: "loading" });
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +59,9 @@ export default function PicksPage() {
         if (symbols.length > 0) {
           fetchLatestPrices(symbols).then(map => {
             if (!cancelled) setPriceMap(map);
+          });
+          fetchMarketEvents(symbols).then(s => {
+            if (!cancelled) setEventsState(s);
           });
         }
       })
@@ -120,8 +114,20 @@ export default function PicksPage() {
 
   const priorityPrice = priority?.pick.symbol ? priceMap[priority.pick.symbol] ?? null : null;
 
+  const allSymbols = useMemo(
+    () => sortedPicks.map(p => p.symbol).filter((s): s is string => !!s),
+    [sortedPicks],
+  );
+
+  const eventsBySymbol: Record<string, SymbolEvents> | undefined =
+    eventsState.status === "ready" ? eventsState.data.symbols : undefined;
+
   return (
-    <div className="picks-root" data-test="picks-root" data-density="cozy">
+    <div
+      className="picks-root"
+      data-test="picks-root"
+      data-density={density}
+    >
       <div className="picks-frame">
         <header className="picks-header">
           <div>
@@ -132,7 +138,7 @@ export default function PicksPage() {
                 : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · paper portfolio`}
             </p>
           </div>
-          <DensityToggle />
+          <DensityToggle value={density} onChange={setDensity} />
         </header>
 
         <PortfolioSnapshot />
@@ -167,6 +173,8 @@ export default function PicksPage() {
               onFilterChange={setFilter}
             />
 
+            <MarketEvents symbols={allSymbols} />
+
             <section className="queue-section">
               <header className="pi-section-header">
                 <h3>Today's Action Queue</h3>
@@ -183,6 +191,7 @@ export default function PicksPage() {
                     allPicks={sortedPicks}
                     priceMap={priceMap}
                     filter={filter}
+                    eventsBySymbol={eventsBySymbol}
                     onPickClick={setOpenPickId}
                   />
                 </div>

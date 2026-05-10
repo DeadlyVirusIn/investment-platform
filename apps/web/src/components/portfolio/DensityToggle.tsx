@@ -1,8 +1,7 @@
-// DensityToggle — beginner / cozy / spacious density.
-// Sets [data-density] on the .picks-root container. Persisted in
-// localStorage["pi-density"]. CSS reads the attribute.
+// DensityToggle — controlled component. Parent owns state + applies
+// data-density to the root. localStorage persistence handled here.
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 
 
 export type Density = "compact" | "cozy" | "spacious";
@@ -11,7 +10,7 @@ export type Density = "compact" | "cozy" | "spacious";
 const KEY = "pi-density";
 
 
-function readInitial(): Density {
+export function readInitialDensity(): Density {
   if (typeof window === "undefined") return "cozy";
   try {
     const v = window.localStorage.getItem(KEY);
@@ -21,26 +20,17 @@ function readInitial(): Density {
 }
 
 
-function applyDensity(d: Density) {
-  if (typeof document === "undefined") return;
-  const root = document.querySelector(".picks-root");
-  if (root) (root as HTMLElement).setAttribute("data-density", d);
+export interface DensityToggleProps {
+  value: Density;
+  onChange: (next: Density) => void;
 }
 
 
-export default function DensityToggle() {
-  const [density, setDensity] = useState<Density>(() => readInitial());
-
+export default function DensityToggle({ value, onChange }: DensityToggleProps) {
+  // Persist whenever value changes
   useEffect(() => {
-    applyDensity(density);
-    try { window.localStorage.setItem(KEY, density); } catch { /* ignore */ }
-  }, [density]);
-
-  // Re-apply when .picks-root mounts (in case toggle renders before page)
-  useEffect(() => {
-    const id = window.setTimeout(() => applyDensity(density), 0);
-    return () => window.clearTimeout(id);
-  }, [density]);
+    try { window.localStorage.setItem(KEY, value); } catch { /* ignore */ }
+  }, [value]);
 
   return (
     <div className="density-toggle" role="group" aria-label="Density">
@@ -49,9 +39,9 @@ export default function DensityToggle() {
           key={d}
           type="button"
           className="density-toggle-btn"
-          data-active={density === d ? "true" : "false"}
-          onClick={() => setDensity(d)}
-          aria-pressed={density === d}
+          data-active={value === d ? "true" : "false"}
+          onClick={() => onChange(d)}
+          aria-pressed={value === d}
         >
           {d}
         </button>

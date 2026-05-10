@@ -14,6 +14,7 @@ export interface PickBoxProps {
   pick: Pick;
   price: LatestPrice | null | undefined;
   rankingLabel?: string | null;
+  eventBadge?: { text: string; tone: "good" | "warn" | "info" | "bad" } | null;
   onClick: (pickId: string) => void;
 }
 
@@ -41,7 +42,7 @@ function isFresh(iso: string | null): boolean {
 }
 
 
-export default function PickBox({ pick, price, rankingLabel, onClick }: PickBoxProps) {
+export default function PickBox({ pick, price, rankingLabel, eventBadge, onClick }: PickBoxProps) {
   const action = pick.adjusted_action ?? pick.action;
   const confidence = pick.adjusted_confidence ?? pick.confidence;
   const confFrac = confidenceFraction(confidence);
@@ -78,8 +79,11 @@ export default function PickBox({ pick, price, rankingLabel, onClick }: PickBoxP
 
       <p className="pick-explain">{plainExplain(pick)}</p>
 
-      {tags.length > 0 && (
+      {(tags.length > 0 || eventBadge) && (
         <div className="pick-tags">
+          {eventBadge && (
+            <span className="pick-tag pick-tag-event" data-tone={eventBadge.tone}>{eventBadge.text}</span>
+          )}
           {tags.map((t, i) => (
             <span key={i} className="pick-tag" data-tone={t.tone}>{t.text}</span>
           ))}

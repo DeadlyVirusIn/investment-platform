@@ -6,6 +6,8 @@
 import type { Pick, LatestPrice } from "@/lib/picks/api";
 import type { PicksFilter } from "@/lib/picks/copilot";
 import { rankingLabel, applyFilter } from "@/lib/picks/copilot";
+import type { SymbolEvents } from "@/lib/portfolio/events";
+import { deriveBadge } from "@/lib/portfolio/events";
 
 import PickBox from "./PickBox";
 
@@ -15,6 +17,7 @@ export interface ActionQueueProps {
   allPicks: Pick[];                               // for ranking context
   priceMap: Record<string, LatestPrice | null | undefined>;
   filter: PicksFilter;
+  eventsBySymbol?: Record<string, SymbolEvents>;
   onPickClick: (id: string) => void;
 }
 
@@ -39,9 +42,14 @@ const GROUPS: Group[] = [
 
 
 export default function ActionQueue({
-  picks, allPicks, priceMap, filter, onPickClick,
+  picks, allPicks, priceMap, filter, eventsBySymbol, onPickClick,
 }: ActionQueueProps) {
   const filtered = applyFilter(picks, filter);
+
+  function badgeFor(p: Pick) {
+    if (!eventsBySymbol || !p.symbol) return null;
+    return deriveBadge(eventsBySymbol[p.symbol]);
+  }
 
   // When a non-"all" filter is active, show a single flat list
   if (filter !== "all") {
@@ -54,6 +62,7 @@ export default function ActionQueue({
               pick={p}
               price={p.symbol ? priceMap[p.symbol] : null}
               rankingLabel={rankingLabel(p, allPicks)}
+              eventBadge={badgeFor(p)}
               onClick={onPickClick}
             />
           ))}
@@ -90,6 +99,7 @@ export default function ActionQueue({
                     pick={p}
                     price={p.symbol ? priceMap[p.symbol] : null}
                     rankingLabel={rankingLabel(p, allPicks)}
+                    eventBadge={badgeFor(p)}
                     onClick={onPickClick}
                   />
                 ))}

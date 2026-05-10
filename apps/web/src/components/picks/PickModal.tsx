@@ -10,6 +10,7 @@ import {
   confidenceLabel, fmtConfidencePct, fetchLatestPrice,
   actionTitle,
 } from "@/lib/picks/api";
+import { fetchSymbolEvents, type EventsState } from "@/lib/portfolio/events";
 
 
 export interface PickModalProps {
@@ -101,22 +102,30 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [price, setPrice] = useState<LatestPrice | null | undefined>(undefined);
   const [techOpen, setTechOpen] = useState(false);
+  const [events, setEvents] = useState<EventsState>({ status: "loading" });
 
   useEffect(() => {
     if (!pick?.symbol) {
       setPrice(undefined);
       setTechOpen(false);
+      setEvents({ status: "loading" });
       return;
     }
     setTechOpen(false);
     if (priceCache !== undefined) {
       setPrice(priceCache);
-      return;
+    } else {
+      setPrice(undefined);
     }
-    setPrice(undefined);
     let cancelled = false;
-    fetchLatestPrice(pick.symbol).then(p => {
-      if (!cancelled) setPrice(p);
+    if (priceCache === undefined) {
+      fetchLatestPrice(pick.symbol).then(p => {
+        if (!cancelled) setPrice(p);
+      });
+    }
+    setEvents({ status: "loading" });
+    fetchSymbolEvents(pick.symbol).then(s => {
+      if (!cancelled) setEvents(s);
     });
     return () => { cancelled = true; };
   }, [pick?.symbol, pick?.id, priceCache]);
@@ -280,6 +289,58 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
                 <strong>Invalidation:</strong> {pick.risk.invalidation_text}
               </p>
             )}
+          </section>
+
+          {/* Catalysts & filings */}
+          <section className="pick-modal-section" data-test="pick-modal-catalysts">
+            <h4>Catalysts &amp; filings</h4>
+            {events.status === "loading" && <p style={{ color: "var(--pi-ink-faint)" }}>Loading…</p>}
+            {events.status === "not-connected" && (
+              <p style={{ color: "var(--pi-ink-muted)" }}>
+                Catalyst feed not connected yet. Wire a Polygon, Benzinga, or
+                SEC EDGAR provider through <code>/api/asset/{pick.symbol}/events</code>.
+              </p>
+            )}
+            {events.status === "empty" && (
+              <p style={{ color: "var(--pi-ink-muted)" }}>No fresh catalysts for {pick.symbol}.</p>
+            )}
+            {events.status === "ready" && pick.symbol && (() => {
+              const ev = events.data.symbols[pick.symbol];
+              if (!ev) return <p style={{ color: "var(--pi-ink-muted)" }}>No catalysts for {pick.symbol}.</p>;
+              const earnUp = ev.earnings.find(e => e.status === "upcoming");
+              return (
+                <div>
+                  {earnUp && (
+                    <p><strong>Next earnings:</strong> {earnUp.date} ({earnUp.type})</p>
+                  )}
+                  {ev.filings.length > 0 && (
+                    <>
+                      <p style={{ marginTop: 12 }}><strong>Recent filings</strong></p>
+                      <ul>
+                        {ev.filings.slice(0, 3).map((f, i) => (
+                          <li key={i}>
+                            <a href={f.url} target="_blank" rel="noopener noreferrer">{f.form}</a> · {f.filed_at.slice(0, 10)}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {ev.news.length > 0 && (
+                    <>
+                      <p style={{ marginTop: 12 }}><strong>Recent news</strong></p>
+                      <ul>
+                        {ev.news.slice(0, 4).map((n, i) => (
+                          <li key={i}>
+                            <a href={n.url} target="_blank" rel="noopener noreferrer">{n.title}</a>
+                            <div style={{ fontSize: 11, color: "var(--pi-ink-faint)" }}>{n.source}</div>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </section>
 
           {/* Technical details — collapsed */}
