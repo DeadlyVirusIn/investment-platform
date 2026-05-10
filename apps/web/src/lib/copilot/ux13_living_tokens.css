@@ -1,161 +1,191 @@
 /*
- * UX-13 Living AI-Native Environment — visual hypothesis tokens.
+ * UX-13 Living AI-Native Environment — TRANSFORMATION PASS.
  *
- * Scoped to .ux13-living root. Default /overview and all other
- * ?view=* parallels unaffected. UX-13 INHERITS UX-12 substrate
- * tokens — both packaged here in one file because /overview?view=cockpit
- * (UX-12 standalone) is not currently shipped; living is the
- * combined substrate + composition route.
+ * Brutal analysis applied:
+ *   - Killed container chrome (no borders, no shadows, no fills).
+ *   - Warmer palette (paper-warm off-white text, true warm-near-black canvas).
+ *   - Oversized editorial typography (Exaggerated Minimalism per skill).
+ *   - Killed verb-glyph (Codex R4 was right; floating word IS dashboard chrome).
+ *   - Bleed surfaces — content overlaps zone boundaries.
+ *   - Ambient motion (60s breath on stage tint — proves AI is attending without
+ *     violating attention).
  *
- * Source of truth:
- *   docs/research/UX_12_AESTHETIC_PHILOSOPHY.md
- *   docs/research/UX_13_LIVING_ENVIRONMENT.md (with R4 resolutions)
+ * Scoped to .ux13-living. Default and other ?view=* parallels unaffected.
  *
- * Treat as VISUAL HYPOTHESIS, not final truth.
+ * Source skill: ui-ux-pro-max v2.5.0
+ *   Style: Exaggerated Minimalism — oversized type, massive whitespace, high contrast
+ *   Typography: Inter — dark, cinematic, technical, precision, premium
+ *   Pattern: Trust & Authority
  */
+
+
+/* ============================================================
+   FONT LOAD — Inter + Source Serif 4 (skill: typography)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Source+Serif+4:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
 
 
 .ux13-living {
   /* ════════════════════════════════════════════════════════════
-     UX-12 substrate (warm-near-black two-zone canvas)
+     SUBSTRATE — warmer canvas, paper-warm text
      ════════════════════════════════════════════════════════════ */
 
-  /* === Three-zone luminance ladder (UX-13 extends UX-12 by adding
-     the deep zone for below-fold) === */
-  --living-canvas-stage:     #13161B;   /* top 40vh, warm */
-  --living-canvas-shop:      #0F1115;   /* 40vh-100vh, cooler */
-  --living-canvas-deep:      #0B0D10;   /* below-fold, coolest */
-  --living-canvas-elev:      #131319;   /* drawer surface */
+  /* === Canvas zones (warmer than UX-12, true warm-near-black) === */
+  --living-canvas-base:      #0F0E0C;   /* base — true warm-near-black, 5% red shift */
+  --living-canvas-stage:     #14110D;   /* stage zone, ~5% lighter and warmer */
+  --living-canvas-recess:    #0A0908;   /* recessed (deeper than base) for drawer scrim */
 
-  /* === Hairlines === */
-  --living-hairline:         rgba(255, 255, 255, 0.04);
-  --living-hairline-strong:  rgba(255, 255, 255, 0.08);
+  /* === Ink — paper-warm off-white, NOT cold blue-gray === */
+  --living-ink-hero:         #F2EDE6;   /* hero, posture sentence — paper-warm */
+  --living-ink-body:         #C8BFB1;   /* body text — warm gray */
+  --living-ink-meta:         #8A8378;   /* metadata, ambient time */
+  --living-ink-recede:       #5A554C;   /* dimmed, recessed */
 
-  /* === Stage tint (2.5% static amber, NEVER state-mapped) === */
+  /* === Hairline (used only for stage/shop zone divider; NOT for cards) === */
+  --living-hairline:         rgba(242, 237, 230, 0.05);
+  --living-hairline-strong:  rgba(242, 237, 230, 0.10);
+
+  /* === Stage tint (3% amber radial — slightly warmer than UX-12) === */
   --living-stage-tint: radial-gradient(
-    ellipse 80% 50% at 50% 0%,
-    hsla(35, 60%, 50%, 0.025) 0%,
-    transparent 70%
+    ellipse 90% 60% at 50% 0%,
+    hsla(35, 50%, 55%, 0.035) 0%,
+    transparent 65%
   );
 
-  /* === Solo-only halo (4% amber, only inside .ux13-room-solo) === */
+  /* === Solo halo (4% amber, slightly larger ellipse for cinematic weight) === */
   --living-halo-solo: radial-gradient(
-    ellipse 60% 40% at 50% 30vh,
-    hsla(35, 60%, 50%, 0.04) 0%,
+    ellipse 70% 50% at 50% 35vh,
+    hsla(35, 60%, 55%, 0.05) 0%,
     transparent 70%
   );
 
-  /* === Ink levels === */
-  --living-ink-hero:         #F4F4F7;   /* hero, decision, ticker */
-  --living-ink-body:         #A8A8AF;   /* body, evidence */
-  --living-ink-meta:         #6B6B72;   /* metadata */
-  --living-ink-recede:       #48484E;   /* dimmed */
+  /* === Risk red (luminance contrast only, never bright) === */
+  --living-risk:             #B85C5C;
+  --living-amber:            #C8A053;
 
-  /* === Risk red (luminance contrast only — never bright) === */
-  --living-risk:             #C24A4A;
-  --living-amber:            #B88A2A;
+  /* ════════════════════════════════════════════════════════════
+     TYPOGRAPHY — Exaggerated Minimalism scale
+     ============================================================ */
 
-  /* === Type ramp (5 sizes — explicit amendment from UX-11 4-size) === */
-  --living-type-hero:        36px;     /* posture sentence — Source Serif 4 */
-  --living-type-section:     22px;     /* Field-mode focal posture */
-  --living-type-decision:    16px;     /* tile decision sentence */
-  --living-type-body:        14px;     /* tile body */
-  --living-type-meta:        11px;     /* metadata, ambient time */
-  --living-type-page-state:  12px;     /* "3 to look at" page-state line */
+  /* Posture is now DRAMATIC — clamp() makes it scale with viewport */
+  --living-type-posture:     clamp(40px, 5vw, 72px);   /* WAS 36px — now editorial */
+  --living-type-posture-leading: 1.05;
+  --living-type-posture-tracking: -0.025em;
+
+  /* Hero decision sentence — restored as PRIMARY focal */
+  --living-type-decision:    clamp(24px, 2.5vw, 32px); /* WAS 16px — focal */
+  --living-type-decision-leading: 1.25;
+  --living-type-decision-tracking: -0.015em;
+
+  /* Body, metadata — quiet supporting layer */
+  --living-type-body:        17px;
+  --living-type-body-leading: 1.55;
+  --living-type-meta:        13px;
+  --living-type-meta-leading: 1.4;
 
   /* === Type families === */
-  --living-font-serif:       "Source Serif 4", "Charter", "Georgia", serif;
+  --living-font-serif:       "Source Serif 4", "Charter", "Iowan Old Style", Georgia, serif;
   --living-font-sans:        "Inter", system-ui, -apple-system, sans-serif;
-  --living-font-mono:        "iA Writer Mono S", "SF Mono", Menlo, monospace;
+  --living-font-mono:        ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* === Spacing scale (Linear-class) === */
+  /* ════════════════════════════════════════════════════════════
+     SPACING — massive whitespace per skill recommendation
+     ============================================================ */
   --living-space-xs:         8px;
   --living-space-sm:         16px;
   --living-space-md:         32px;
   --living-space-lg:         64px;
-  --living-space-xl:         96px;
-  --living-space-xxl:        128px;
+  --living-space-xl:         128px;     /* WAS 96px — bigger air */
+  --living-space-xxl:        192px;     /* WAS 128px — magazine-grade */
 
   /* === Page geometry === */
-  --living-page-max:         1440px;
-  --living-page-pad-x:       80px;
-  --living-page-pad-x-mobile: 24px;
-  --living-page-pad-y:       96px;
+  --living-page-max:         1280px;     /* TIGHTER — was 1440px, encourages density */
+  --living-page-pad-x:       clamp(24px, 4vw, 96px);
+  --living-page-pad-y:       clamp(64px, 8vh, 128px);
 
   /* ════════════════════════════════════════════════════════════
-     UX-13 composition layer
-     ════════════════════════════════════════════════════════════ */
-
-  /* === Verb-glyph (R4 resolved as Phase 13C deliverable) === */
-  --living-verb-glyph-solo:  48px;
-  --living-verb-glyph-duet:  36px;
-  --living-verb-glyph-color: var(--living-ink-body);   /* body color, NOT red/green/amber */
-  --living-verb-glyph-font:  var(--living-font-serif);
-  --living-verb-glyph-weight: 400;
-
-  /* === Verb-anchor-point (fixed across rooms) === */
-  --living-verb-anchor-y:    calc(40vh + 32px);
-
-  /* === Aspect-ratio taxonomy === */
-  --living-ratio-hero:       1.65;     /* hero + sub */
-  --living-ratio-watchlist:  0.5;      /* narrow-tall */
-  --living-ratio-context:    6.0;      /* wide-short */
-
-  /* === Motion budget (UX-12 lock carry-forward; ZERO ambient motion) === */
+     MOTION — subtle ambient that proves life without stealing attention
+     ============================================================ */
   --living-anim-fast:        140ms;
   --living-anim-base:        220ms;
   --living-anim-slow:        340ms;
   --living-ease-ios:         cubic-bezier(0.32, 0.72, 0, 1);
   --living-ease-out:         cubic-bezier(0.2, 0.6, 0.2, 1);
 
-  /* === Apply substrate === */
-  background: var(--living-canvas-shop);
-  background-image: var(--living-stage-tint);
-  background-attachment: fixed;
+  /* ════════════════════════════════════════════════════════════
+     APPLY SUBSTRATE
+     ============================================================ */
+  background: var(--living-canvas-base);
   color: var(--living-ink-hero);
   font-family: var(--living-font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "ss01", "cv11";   /* Inter stylistic alternates */
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Stage / shop hard 1px cut at 40vh
- * The hairline is the "horizon" — the eye crosses it; the hero
- * envelope stays above (Sonnet R2 synthesis lock).
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   AMBIENT BREATH — 60s opacity oscillation on stage tint
+   This is the ONE motion that proves AI is attending. So slow
+   it's imperceptible at any moment but cumulatively the page
+   is alive. Below casino threshold (60s vs 4s in earlier
+   rejected proposal).
+   ════════════════════════════════════════════════════════════════ */
 
-.ux13-living .ux13-stage-zone {
+@keyframes ux13-stage-breath {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.92; }
+}
+
+.ux13-living .ux13-stage-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--living-stage-tint);
+  animation: ux13-stage-breath 60s ease-in-out infinite;
+  z-index: 0;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   PAGE FRAME
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-frame {
   position: relative;
-  min-height: 40vh;
-  padding-top: var(--living-page-pad-y);
-}
-
-.ux13-living .ux13-shop-zone {
-  position: relative;
-  border-top: 1px solid var(--living-hairline);
-  padding-top: var(--living-space-md);
+  max-width: var(--living-page-max);
+  margin: 0 auto;
+  padding: var(--living-page-pad-y) var(--living-page-pad-x);
+  z-index: 1;
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Page-state + ambient timestamp + since-you-left line
- * Top corners: page-state top-left, ambient top-right.
- * "Since you left" line below ambient, 11px mono.
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   PAGE HEADER — page-state + ambient + since-you-left
+   Tight cluster top-right. Page-state shifts to a subtle eyebrow
+   above posture (NOT competing with it).
+   ════════════════════════════════════════════════════════════════ */
 
 .ux13-living .ux13-page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: var(--living-space-md);
+  font-family: var(--living-font-mono);
+  font-size: var(--living-type-meta);
+  color: var(--living-ink-meta);
+  letter-spacing: 0.02em;
 }
 
 .ux13-living .ux13-page-state {
-  font-size: var(--living-type-page-state);
-  color: var(--living-ink-meta);
   font-family: var(--living-font-sans);
-  letter-spacing: 0.02em;
-  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--living-ink-recede);
 }
 
 .ux13-living .ux13-ambient-block {
@@ -165,270 +195,356 @@
   gap: 4px;
 }
 
-.ux13-living .ux13-ambient-time {
-  font-size: var(--living-type-meta);
-  color: var(--living-ink-meta);
-  font-family: var(--living-font-mono);
-  letter-spacing: 0.02em;
-}
-
 .ux13-living .ux13-since-line {
-  font-size: var(--living-type-meta);
-  color: var(--living-ink-recede);
-  font-family: var(--living-font-mono);
-  letter-spacing: 0;
+  color: var(--living-ink-body);          /* PROMOTED — was ink-recede */
+  font-style: italic;                      /* small editorial gesture */
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Hero posture sentence (36pt Source Serif)
- * The page's voice. Mode signature: "One thesis stands alone today"
- * / "Two theses, one challenger" / "Six theses forming."
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   POSTURE SENTENCE — the page's voice, oversized editorial
+   Skill: Exaggerated Minimalism — oversized typography, high
+   contrast, negative space.
+   ════════════════════════════════════════════════════════════════ */
 
 .ux13-living .ux13-posture {
   font-family: var(--living-font-serif);
-  font-size: var(--living-type-hero);
-  font-weight: 400;
-  line-height: 1.25;
-  letter-spacing: -0.012em;
+  font-size: var(--living-type-posture);
+  font-weight: 300;                         /* light weight = editorial gravitas */
+  line-height: var(--living-type-posture-leading);
+  letter-spacing: var(--living-type-posture-tracking);
   color: var(--living-ink-hero);
-  max-width: 760px;
-  margin: 0 0 var(--living-space-md) 0;
+  max-width: 18ch;                          /* TIGHT measure forces line breaks */
+  margin: var(--living-space-md) 0 var(--living-space-xl) 0;
+}
+
+.ux13-living .ux13-posture .ux13-posture-emph {
+  font-style: italic;                       /* italicize key noun */
+  font-weight: 400;
 }
 
 .ux13-living .ux13-posture-field {
-  /* Field mode: posture becomes 22pt section size, NOT 36pt hero */
-  font-size: var(--living-type-section);
+  font-size: clamp(28px, 3vw, 44px);
   text-align: center;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: 24ch;
+  margin: var(--living-space-xl) auto;
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * VerbGlyph (36-48pt page-chrome focal)
- * Anchored at fixed (x, y) just below 40vh cut.
- * Solo: 48pt. Duet: 36pt. Field: absent.
- * Body-text color (NOT red/green/amber) — anti-casino mitigation.
- * Kill-switch: ?glyph=off in URL.
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   HERO — borderless, blended, no card chrome
+   The hero is text + numbers in space, NOT a bordered region.
+   Bleed: hero text can extend beyond standard column.
+   ════════════════════════════════════════════════════════════════ */
 
-.ux13-living .ux13-verb-glyph {
-  position: absolute;
-  top: var(--living-verb-anchor-y);
-  left: 50%;
-  transform: translateX(-50%);
-  font-family: var(--living-verb-glyph-font);
-  font-weight: var(--living-verb-glyph-weight);
-  color: var(--living-verb-glyph-color);
+.ux13-living .ux13-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--living-space-md);
+  margin-bottom: var(--living-space-xl);
+  cursor: pointer;
+  /* NO border, NO background, NO box-shadow. Just space. */
+}
+
+.ux13-living .ux13-hero-eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--living-space-sm);
+  font-family: var(--living-font-mono);
+  font-size: var(--living-type-meta);
   letter-spacing: 0.04em;
+  color: var(--living-ink-meta);
+}
+
+.ux13-living .ux13-hero-ticker {
+  font-family: var(--living-font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--living-ink-hero);
+  letter-spacing: 0.02em;
+}
+
+.ux13-living .ux13-hero-thesis-name {
+  font-family: var(--living-font-serif);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--living-ink-body);
+}
+
+.ux13-living .ux13-hero-decision {
+  font-family: var(--living-font-serif);
+  font-size: var(--living-type-decision);
+  font-weight: 400;
+  line-height: var(--living-type-decision-leading);
+  letter-spacing: var(--living-type-decision-tracking);
+  color: var(--living-ink-hero);
+  max-width: 32ch;
+  margin: 0;
+}
+
+.ux13-living .ux13-hero-bull-bear {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--living-space-md);
+  max-width: 56ch;
+  font-family: var(--living-font-sans);
+  font-size: var(--living-type-body);
+  line-height: var(--living-type-body-leading);
+  color: var(--living-ink-body);
+}
+
+.ux13-living .ux13-hero-bull-bear-label {
+  font-family: var(--living-font-mono);
+  font-size: 11px;
   text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--living-ink-recede);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ux13-living .ux13-hero-meta {
+  font-family: var(--living-font-mono);
+  font-size: var(--living-type-meta);
+  color: var(--living-ink-meta);
+  letter-spacing: 0.02em;
+}
+
+.ux13-living .ux13-hero-meta .ux13-invalid {
+  color: var(--living-risk);
+  margin-right: var(--living-space-md);
+}
+
+/* Hero hover — subtle warmth shift, no scale, no shadow */
+.ux13-living .ux13-hero:hover .ux13-hero-decision {
+  color: #FAF7F2;
+  transition: color var(--living-anim-base) var(--living-ease-out);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   SUBORDINATE TILES — also borderless, also blended
+   Each is a typographic block with breathing room. No cards.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-sub-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--living-space-xl);              /* WIDE gap — emptiness as separator */
+  margin-bottom: var(--living-space-xl);
+  padding-top: var(--living-space-lg);
+  border-top: 1px solid var(--living-hairline);
+}
+
+.ux13-living .ux13-sub {
+  display: flex;
+  flex-direction: column;
+  gap: var(--living-space-sm);
+  cursor: pointer;
+}
+
+.ux13-living .ux13-sub-eyebrow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--living-space-sm);
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--living-ink-meta);
+}
+
+.ux13-living .ux13-sub-ticker {
+  font-family: var(--living-font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--living-ink-hero);
+  letter-spacing: 0.04em;
+}
+
+.ux13-living .ux13-sub-decision {
+  font-family: var(--living-font-serif);
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--living-ink-body);
+  margin: 0;
+}
+
+.ux13-living .ux13-sub-meta {
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  color: var(--living-ink-recede);
+  letter-spacing: 0.02em;
+}
+
+.ux13-living .ux13-sub:hover .ux13-sub-decision {
+  color: var(--living-ink-hero);
+  transition: color var(--living-anim-base) var(--living-ease-out);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   WATCHLIST — INLINE prose (no column, no chrome, no sidebar)
+   Becomes a short paragraph that reads as continuation, not a
+   separate UI region.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-watchlist-prose {
+  font-family: var(--living-font-serif);
+  font-style: italic;
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--living-ink-body);
+  max-width: 56ch;
+  margin: var(--living-space-lg) 0;
+}
+
+.ux13-living .ux13-watchlist-prose strong {
+  font-style: normal;
+  font-weight: 500;
+  color: var(--living-ink-hero);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   MARKET CONTEXT — single sentence in supporting voice
+   No band, no bordered region, no separator card.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-market {
+  font-family: var(--living-font-serif);
+  font-style: italic;
+  font-size: var(--living-type-body);
+  line-height: 1.6;
+  color: var(--living-ink-meta);
+  max-width: 56ch;
+  margin: var(--living-space-lg) 0;
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   FIELD MODE — staggered text-only thesis list (no tile chrome)
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living.ux13-room-field .ux13-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--living-space-lg);
+  margin: var(--living-space-xxl) 0;
+  max-width: 56ch;
+}
+
+.ux13-living.ux13-room-field .ux13-field-list .ux13-sub:nth-child(2n) {
+  padding-left: var(--living-space-lg);     /* slight stagger via padding, no card */
+}
+
+.ux13-living.ux13-room-field .ux13-field-list .ux13-sub:nth-child(3n) {
+  padding-left: var(--living-space-md);
+}
+
+
+/* ════════════════════════════════════════════════════════════════
+   IMMERSIVE DRAWER — page scales + blurs behind drawer
+   Cinematic transition into AI's reasoning space.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living[data-drawer-open="true"] .ux13-frame {
+  filter: blur(4px) brightness(0.4);
+  transform: scale(0.98);
+  transform-origin: center top;
+  transition:
+    filter var(--living-anim-slow) var(--living-ease-ios),
+    transform var(--living-anim-slow) var(--living-ease-ios);
   pointer-events: none;
-  user-select: none;
-  z-index: 1;
-}
-
-.ux13-living .ux13-verb-glyph[data-room="solo"] {
-  font-size: var(--living-verb-glyph-solo);
-}
-
-.ux13-living .ux13-verb-glyph[data-room="duet"] {
-  font-size: var(--living-verb-glyph-duet);
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Room: SOLO
- * Hero 1.5×, halo 4% amber, watchlist single line, no subs.
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   SOLO ROOM — halo applied to body when in Solo
+   ════════════════════════════════════════════════════════════════ */
 
-.ux13-living.ux13-room-solo .ux13-stage-zone {
+.ux13-living.ux13-room-solo .ux13-stage-bg {
   background-image: var(--living-halo-solo);
 }
 
-.ux13-living.ux13-room-solo .ux13-hero-area {
-  display: grid;
-  grid-template-columns: 1fr;
-  max-width: 800px;
-  margin: 0 auto;
-  padding-bottom: var(--living-space-lg);
-}
 
-.ux13-living.ux13-room-solo .ux13-watchlist-line {
-  text-align: center;
-  font-size: var(--living-type-meta);
-  color: var(--living-ink-meta);
+/* ════════════════════════════════════════════════════════════════
+   ROOM SWITCHER (force-state nav, only visible in this proof)
+   Quiet — ink-recede color, monospace, low priority.
+   ════════════════════════════════════════════════════════════════ */
+
+.ux13-living .ux13-switcher {
+  display: flex;
+  gap: var(--living-space-md);
   font-family: var(--living-font-mono);
-  margin-top: var(--living-space-md);
-}
-
-
-/* ───────────────────────────────────────────────────────────────
- * Room: DUET
- * Hero cols 1-7, watchlist column cols 10-12, 2 subs below.
- * ─────────────────────────────────────────────────────────────── */
-
-.ux13-living.ux13-room-duet .ux13-hero-area {
-  display: grid;
-  grid-template-columns: 7fr 5fr;
-  gap: var(--living-space-md);
-  align-items: start;
-  padding-bottom: var(--living-space-lg);
-}
-
-.ux13-living.ux13-room-duet .ux13-watchlist-column {
-  display: flex;
-  flex-direction: column;
-  gap: var(--living-space-xs);
-  padding: var(--living-space-sm);
-  border-left: 1px solid var(--living-hairline);
-}
-
-.ux13-living.ux13-room-duet .ux13-watchlist-column h4 {
   font-size: var(--living-type-meta);
+  color: var(--living-ink-recede);
+  align-items: baseline;
+}
+
+.ux13-living .ux13-switcher a {
   color: var(--living-ink-meta);
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  margin: 0 0 var(--living-space-xs) 0;
+  text-decoration: none;
+  transition: color var(--living-anim-fast) var(--living-ease-out);
 }
 
-.ux13-living.ux13-room-duet .ux13-watchlist-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--living-type-meta);
-  font-family: var(--living-font-mono);
-  color: var(--living-ink-body);
-  padding: 4px 0;
-}
-
-.ux13-living.ux13-room-duet .ux13-watchlist-row span:last-child {
-  color: var(--living-ink-meta);
-}
-
-.ux13-living.ux13-room-duet .ux13-subs-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: var(--living-space-md);
-  margin-top: var(--living-space-xl);
-  align-items: start;
+.ux13-living .ux13-switcher a:hover { color: var(--living-ink-hero); }
+.ux13-living .ux13-switcher a[data-active="true"] {
+  color: var(--living-ink-hero);
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Room: FIELD
- * No hero. Posture as 22pt focal. Staggered scan rows of 4-6 subs.
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   FOOTER — quiet, recessed
+   ════════════════════════════════════════════════════════════════ */
 
-.ux13-living.ux13-room-field .ux13-hero-area {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 30vh;
-  padding-bottom: var(--living-space-lg);
-}
-
-.ux13-living.ux13-room-field .ux13-field-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--living-space-md);
-  margin-top: var(--living-space-xl);
-}
-
-/* Staggered scan rows — alternate items get vertical offset */
-.ux13-living.ux13-room-field .ux13-field-grid > *:nth-child(even) {
-  margin-top: var(--living-space-md);
-}
-
-
-/* ───────────────────────────────────────────────────────────────
- * Tile treatment (UX-12 substrate applied to ConvictionTile)
- * No card chrome. Hairline border only. No shadows. No fills.
- * ─────────────────────────────────────────────────────────────── */
-
-.ux13-living .ux13-tile-host {
-  border: 1px solid var(--living-hairline);
-  background: transparent;
-  border-radius: 4px;
-}
-
-.ux13-living .ux13-tile-host[data-hero="true"] {
-  border-color: var(--living-hairline-strong);
-  padding: var(--living-space-md);
-}
-
-.ux13-living .ux13-tile-host[data-hero="false"] {
-  padding: var(--living-space-sm);
-}
-
-
-/* ───────────────────────────────────────────────────────────────
- * Market context band (6:1 wide-short horizon)
- * ─────────────────────────────────────────────────────────────── */
-
-.ux13-living .ux13-market-band {
-  margin-top: var(--living-space-xl);
-  padding: var(--living-space-md);
-  border-top: 1px solid var(--living-hairline);
-  border-bottom: 1px solid var(--living-hairline);
-  font-size: var(--living-type-body);
-  font-family: var(--living-font-serif);
-  font-style: italic;
-  color: var(--living-ink-body);
-  text-align: center;
-  line-height: 1.5;
-}
-
-
-/* ───────────────────────────────────────────────────────────────
- * Below-fold deep zone (research mode, deepest cool)
- * ─────────────────────────────────────────────────────────────── */
-
-.ux13-living .ux13-deep-zone {
+.ux13-living .ux13-footer {
   margin-top: var(--living-space-xxl);
-  padding: var(--living-space-lg) 0;
+  padding-top: var(--living-space-lg);
   border-top: 1px solid var(--living-hairline);
-  background: var(--living-canvas-deep);
-  font-size: var(--living-type-meta);
-  color: var(--living-ink-meta);
-  text-align: center;
+  font-family: var(--living-font-mono);
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--living-ink-recede);
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Reduced motion — strip all transitions
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   REDUCED MOTION — strip ambient breath, all transitions instant
+   ════════════════════════════════════════════════════════════════ */
 
 @media (prefers-reduced-motion: reduce) {
   .ux13-living *,
   .ux13-living *::before,
   .ux13-living *::after {
-    transition-duration: 0ms !important;
     animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+  .ux13-living .ux13-stage-bg {
+    animation: none !important;
+    opacity: 1 !important;
   }
 }
 
 
-/* ───────────────────────────────────────────────────────────────
- * Mobile: rooms collapse to single column
- * ─────────────────────────────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════
+   MOBILE — < 720px collapses to single column, scales down type
+   ════════════════════════════════════════════════════════════════ */
 
 @media (max-width: 720px) {
   .ux13-living {
-    --living-page-pad-x: var(--living-page-pad-x-mobile);
-    --living-page-pad-y: var(--living-space-lg);
-    --living-type-hero: 24px;
+    --living-type-posture: clamp(28px, 8vw, 40px);
+    --living-type-decision: clamp(20px, 5vw, 24px);
   }
 
-  .ux13-living.ux13-room-duet .ux13-hero-area,
-  .ux13-living.ux13-room-duet .ux13-subs-row,
-  .ux13-living.ux13-room-field .ux13-field-grid {
+  .ux13-living .ux13-sub-row {
     grid-template-columns: 1fr;
+    gap: var(--living-space-lg);
   }
 
-  .ux13-living .ux13-verb-glyph {
-    /* Mobile: verb-glyph reduces to fit */
-    font-size: 28px !important;
+  .ux13-living .ux13-hero-bull-bear {
+    grid-template-columns: 1fr;
   }
 }

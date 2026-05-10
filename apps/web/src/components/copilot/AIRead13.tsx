@@ -1,8 +1,7 @@
-// UX-13 — AIRead13 component (visual hypothesis).
+// UX-13 — AIRead13 (transformation pass).
 //
-// Renders the page-state line + ambient timestamp + posture sentence
-// + "since you left" delta. Source Serif 4 hero. Mode signature
-// implicit in posture text.
+// Header cluster: page-state eyebrow top-left, ambient + since-you-left
+// top-right. Posture sentence below — oversized editorial serif.
 
 import type { LivingPageData } from "@/lib/copilot/living_compose";
 
@@ -22,7 +21,7 @@ export default function AIRead13({ data }: AIRead13Props) {
           {data.pageStateText}
         </div>
         <div className="ux13-ambient-block" data-test="ux13-ambient">
-          <div className="ux13-ambient-time">{data.ambientTime}</div>
+          <div>{data.ambientTime}</div>
           {data.sinceYouLeftText && (
             <div className="ux13-since-line" data-test="ux13-since-line">
               {data.sinceYouLeftText}

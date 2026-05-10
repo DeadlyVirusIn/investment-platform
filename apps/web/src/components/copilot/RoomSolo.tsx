@@ -1,51 +1,33 @@
-// UX-13 — Solo room (rare ~15% of sessions).
+// UX-13 — Solo room (transformation pass).
 //
-// 1 Confirmed+ thesis. Hero 1.5×. Halo 4% amber (Solo-only lock).
-// 48pt verb-glyph. Watchlist single line. No subordinates.
+// 1 hero typographic block. No subordinates. Single watchlist
+// prose line. Market context as inline italic prose.
 
 import type { LivingPageData } from "@/lib/copilot/living_compose";
 
-import ConvictionTile from "./ConvictionTile";
+import HeroBlock from "./HeroBlock";
 
 
 export interface RoomSoloProps {
   data: LivingPageData;
   onTileClick: (ticker: string) => void;
-  openTicker: string | null;
 }
 
 
-export default function RoomSolo({ data, onTileClick, openTicker }: RoomSoloProps) {
+export default function RoomSolo({ data, onTileClick }: RoomSoloProps) {
   if (!data.heroTile) return null;
 
   return (
     <>
-      <div className="ux13-stage-zone">
-        <div className="ux13-hero-area">
-          <div
-            className="ux13-tile-host"
-            data-hero="true"
-            data-test="ux13-solo-hero"
-          >
-            <ConvictionTile
-              tile={data.heroTile}
-              onClick={onTileClick}
-              isActive={openTicker === data.heroTile.ticker}
-              isDimmed={false}
-            />
-          </div>
-        </div>
-      </div>
+      <HeroBlock tile={data.heroTile} onClick={onTileClick} />
 
-      <div className="ux13-shop-zone">
-        <div className="ux13-watchlist-line" data-test="ux13-solo-watchlist-line">
-          4 watch items unchanged · last reviewed 11h ago
-        </div>
+      <p className="ux13-watchlist-prose" data-test="ux13-solo-watchlist">
+        Four watch items unchanged. Last reviewed 11 hours ago.
+      </p>
 
-        <div className="ux13-market-band" data-test="ux13-market-band">
-          {data.marketContextText}
-        </div>
-      </div>
+      <p className="ux13-market" data-test="ux13-market">
+        {data.marketContextText}
+      </p>
     </>
   );
 }

@@ -108,3 +108,10 @@ export type { RoomDuetProps } from "./RoomDuet";
 
 export { default as RoomField } from "./RoomField";
 export type { RoomFieldProps } from "./RoomField";
+
+// UX-13 transformation pass — typographic blocks (replace ConvictionTile chrome).
+export { default as HeroBlock } from "./HeroBlock";
+export type { HeroBlockProps } from "./HeroBlock";
+
+export { default as SubBlock } from "./SubBlock";
+export type { SubBlockProps } from "./SubBlock";

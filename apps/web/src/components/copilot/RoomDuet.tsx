@@ -1,79 +1,54 @@
-// UX-13 — Duet room (default ~60% of sessions).
+// UX-13 — Duet room (transformation pass).
 //
-// 1 hero + 1-2 challengers. Hero cols 1-7, watchlist column cols
-// 10-12 with "since you left" delta. Subordinates below 40vh
-// staggered.
+// 1 hero typographic block + 2 subordinate blocks below in a wide
+// 2-col row separated by hairline. Watchlist becomes inline prose
+// (NOT a column). Market context as italic continuation.
 
 import type { LivingPageData } from "@/lib/copilot/living_compose";
 
-import ConvictionTile from "./ConvictionTile";
+import HeroBlock from "./HeroBlock";
+import SubBlock from "./SubBlock";
 
 
 export interface RoomDuetProps {
   data: LivingPageData;
   onTileClick: (ticker: string) => void;
-  openTicker: string | null;
 }
 
 
-export default function RoomDuet({ data, onTileClick, openTicker }: RoomDuetProps) {
+export default function RoomDuet({ data, onTileClick }: RoomDuetProps) {
   if (!data.heroTile) return null;
+
+  // Build watchlist as natural prose continuation
+  const watchlistProse = data.watchlistRows.length > 0 ? (
+    <p className="ux13-watchlist-prose" data-test="ux13-duet-watchlist">
+      Watching{" "}
+      {data.watchlistRows.map((row, i) => (
+        <span key={row.ticker}>
+          <strong>{row.ticker}</strong> ({row.status})
+          {i < data.watchlistRows.length - 1 ? (i === data.watchlistRows.length - 2 ? ", and " : ", ") : "."}
+        </span>
+      ))}
+    </p>
+  ) : null;
 
   return (
     <>
-      <div className="ux13-stage-zone">
-        <div className="ux13-hero-area">
-          <div
-            className="ux13-tile-host"
-            data-hero="true"
-            data-test="ux13-duet-hero"
-          >
-            <ConvictionTile
-              tile={data.heroTile}
-              onClick={onTileClick}
-              isActive={openTicker === data.heroTile.ticker}
-              isDimmed={openTicker !== null && openTicker !== data.heroTile.ticker}
-            />
-          </div>
+      <HeroBlock tile={data.heroTile} onClick={onTileClick} />
 
-          {data.watchlistRows.length > 0 && (
-            <aside className="ux13-watchlist-column" data-test="ux13-duet-watchlist">
-              <h4>Watchlist</h4>
-              {data.watchlistRows.map(row => (
-                <div key={row.ticker} className="ux13-watchlist-row">
-                  <span>{row.ticker}</span>
-                  <span>{row.status}</span>
-                </div>
-              ))}
-            </aside>
-          )}
+      {watchlistProse}
+
+      {data.subordinateTiles.length > 0 && (
+        <div className="ux13-sub-row" data-test="ux13-duet-subs">
+          {data.subordinateTiles.map(tile => (
+            <SubBlock key={tile.ticker} tile={tile} onClick={onTileClick} />
+          ))}
         </div>
-      </div>
+      )}
 
-      <div className="ux13-shop-zone">
-        {data.subordinateTiles.length > 0 && (
-          <div className="ux13-subs-row" data-test="ux13-duet-subs">
-            {data.subordinateTiles.map(tile => (
-              <div
-                key={tile.ticker}
-                className="ux13-tile-host"
-                data-hero="false"
-              >
-                <ConvictionTile
-                  tile={tile}
-                  onClick={onTileClick}
-                  isActive={openTicker === tile.ticker}
-                  isDimmed={openTicker !== null && openTicker !== tile.ticker}
-                />
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className="ux13-market-band" data-test="ux13-market-band">
-          {data.marketContextText}
-        </div>
-      </div>
+      <p className="ux13-market" data-test="ux13-market">
+        {data.marketContextText}
+      </p>
     </>
   );
 }
