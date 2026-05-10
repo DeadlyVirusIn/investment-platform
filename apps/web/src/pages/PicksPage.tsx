@@ -11,6 +11,10 @@ import FilterBar from "@/components/picks/FilterBar";
 import Sidebar from "@/components/picks/Sidebar";
 import EmptyStateCard from "@/components/picks/EmptyStateCard";
 import PriorityAction from "@/components/picks/PriorityAction";
+import CommandBar from "@/components/portfolio/CommandBar";
+import PositionsTable from "@/components/portfolio/PositionsTable";
+import StrategyModules from "@/components/portfolio/StrategyModules";
+import PremiumIncome from "@/components/portfolio/PremiumIncome";
 import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
 } from "@/lib/picks/api";
@@ -97,9 +101,9 @@ export default function PicksPage() {
       <div className="picks-frame">
         <header className="picks-header">
           <div>
-            <h1 className="picks-title">AI suggestions</h1>
+            <h1 className="picks-title">AI Investing OS</h1>
             <p className="picks-subtitle">
-              {loading ? "Loading…" : `${sortedPicks.length} ${sortedPicks.length === 1 ? "suggestion" : "suggestions"} from your AI engine`}
+              {loading ? "Loading…" : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · paper portfolio`}
             </p>
           </div>
           <nav className="picks-archive-nav" data-test="picks-archive-nav">
@@ -112,6 +116,8 @@ export default function PicksPage() {
             <Link to="/overview?view=legacy">legacy</Link>
           </nav>
         </header>
+
+        <CommandBar />
 
         {loading && (
           <div className="picks-loading" data-test="picks-loading">
@@ -171,6 +177,10 @@ export default function PicksPage() {
 
               <Sidebar picks={sortedPicks} briefing={briefing} onPickClick={setOpenPickId} />
             </div>
+
+            <PositionsTable />
+            <PremiumIncome />
+            <StrategyModules />
           </>
         )}
       </div>
