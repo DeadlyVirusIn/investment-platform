@@ -2,13 +2,17 @@ import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/cn";
 
 const NAV = [
-  { to: "/overview",   label: "Overview",    hot: "O" },
-  { to: "/portfolio",  label: "Portfolio",   hot: "P" },
-  { to: "/decisions",  label: "Decisions",   hot: "D" },
-  { to: "/research",   label: "Alpha Lab",   hot: "A" },
-  { to: "/risk",       label: "Risk",        hot: "R" },
-  { to: "/ops",        label: "Ops",         hot: "S" },
-  { to: "/options",    label: "Options",     hot: "X" },
+  { to: "/overview",     label: "Overview",      hot: "O" },
+  { to: "/action-queue", label: "Action Queue",  hot: "Q" },
+  { to: "/portfolio",    label: "Portfolio",     hot: "P" },
+  { to: "/events",       label: "Events",        hot: "E" },
+  { to: "/strategies",   label: "Strategies",    hot: "T" },
+  { to: "/signal-lab",   label: "Signal Lab",    hot: "L" },
+  { to: "/decisions",    label: "Decisions",     hot: "D" },
+  { to: "/research",     label: "Alpha Lab",     hot: "A" },
+  { to: "/risk",         label: "Risk",          hot: "R" },
+  { to: "/ops",          label: "Ops",           hot: "S" },
+  { to: "/options",      label: "Options",       hot: "X" },
 ];
 
 export default function SideNav() {

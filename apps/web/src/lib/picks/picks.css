@@ -3902,3 +3902,104 @@
   .picks-root .tl-table th,
   .picks-root .tl-table td { padding: 8px 10px; font-size: 12px; }
 }
+
+
+/* ====================================================================
+   PHASE 11A — Overview launcher cards + section disclaimer
+   ==================================================================== */
+
+.picks-root .launcher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin: 22px 0 24px;
+}
+.picks-root .launcher-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: linear-gradient(160deg, var(--pi-bg-card) 0%, var(--pi-bg-card-2) 100%);
+  border: 1px solid var(--pi-border);
+  text-decoration: none;
+  color: var(--pi-ink-secondary);
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  box-shadow: var(--pi-shadow-card);
+}
+.picks-root .launcher-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--pi-border-strong);
+  box-shadow: 0 16px 36px -16px rgba(0, 0, 0, 0.4);
+}
+.picks-root .launcher-card[data-tone="good"] { border-top: 2px solid var(--pi-good); }
+.picks-root .launcher-card[data-tone="warn"] { border-top: 2px solid var(--pi-warn); }
+.picks-root .launcher-card[data-tone="bad"]  { border-top: 2px solid var(--pi-bad); }
+
+.picks-root .launcher-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pi-ink-muted);
+}
+.picks-root .launcher-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 2px 0;
+}
+.picks-root .launcher-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pi-ink-primary);
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+.picks-root .launcher-metric {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pi-ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.picks-root .launcher-card[data-tone="good"] .launcher-metric { color: var(--pi-good-soft); }
+.picks-root .launcher-card[data-tone="warn"] .launcher-metric { color: var(--pi-warn-soft); }
+.picks-root .launcher-card[data-tone="bad"]  .launcher-metric { color: var(--pi-bad-soft); }
+
+.picks-root .launcher-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pi-ink-tertiary);
+  margin: 0;
+}
+.picks-root .launcher-cta {
+  margin-top: auto;
+  padding-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pi-ink-primary);
+  letter-spacing: -0.005em;
+}
+
+
+/* Per-page disclaimer footer */
+.picks-root .picks-disclaimer {
+  margin: 32px 0 20px;
+  padding: 14px 18px;
+  font-size: 11px;
+  color: var(--pi-ink-faint);
+  line-height: 1.55;
+  text-align: center;
+  border-top: 1px dashed var(--pi-border-soft);
+}
+
+
+/* Event-feature chip on PickBox (Phase 10) */
+.picks-root .pick-tag-event-feat {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  border-color: rgba(99, 102, 241, 0.28);
+}

@@ -62,6 +62,13 @@ import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFrami
 // Phase 11Q — Pending T+1 Decisions diagnostic (read-only)
 import PendingT1Page                  from '@/pages/diagnostics/PendingT1';
 
+// Phase 11A — split Investing OS pages
+import ActionQueuePage                from '@/pages/ActionQueuePage';
+import EventsResearchPage             from '@/pages/EventsResearchPage';
+import StrategiesPage                 from '@/pages/StrategiesPage';
+import SignalLabPage                  from '@/pages/SignalLabPage';
+import PortfolioIntelligencePage      from '@/pages/PortfolioIntelligencePage';
+
 export default function App() {
   return (
     <Routes>
@@ -69,8 +76,13 @@ export default function App() {
 
       <Route element={<Shell />}>
         {/* --- NEW 5-area product --- */}
-        <Route path="/overview"   element={<OverviewRouteSwitch />} />
-        <Route path="/portfolio"  element={<PortfolioRouteSwitch />} />
+        <Route path="/overview"      element={<OverviewRouteSwitch />} />
+        <Route path="/action-queue"  element={<ActionQueuePage />} />
+        <Route path="/portfolio"     element={<PortfolioRouteSwitch />} />
+        <Route path="/portfolio/intel" element={<PortfolioIntelligencePage />} />
+        <Route path="/events"        element={<EventsResearchPage />} />
+        <Route path="/strategies"    element={<StrategiesPage />} />
+        <Route path="/signal-lab"    element={<SignalLabPage />} />
         <Route path="/decisions"  element={<Decisions />} />
         <Route path="/research"   element={<ResearchLab />} />
         <Route path="/alpha-lab"  element={<AlphaLab />} />
