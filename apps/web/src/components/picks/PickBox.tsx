@@ -1,13 +1,14 @@
 // PickBox — color-loud BUY / SELL / TRIM / HOLD card.
 //
-// Shows: action badge + confidence meter, plain-English title,
-// symbol + price, 1-sentence explanation, "what to do" line, freshness.
+// Plain-English title + plain explanation + "what to do" line.
+// Optional ranking label pill.
 
 import type { Pick, LatestPrice } from "@/lib/picks/api";
 import {
   confidenceLabel, fmtConfidencePct, confidenceFraction,
   actionTitle, actionGuidance,
 } from "@/lib/picks/api";
+import { plainExplain } from "@/lib/picks/copilot";
 
 import ConfidenceMeter from "./ConfidenceMeter";
 
@@ -15,6 +16,7 @@ import ConfidenceMeter from "./ConfidenceMeter";
 export interface PickBoxProps {
   pick: Pick;
   price: LatestPrice | null | undefined;
+  rankingLabel?: string | null;
   onClick: (pickId: string) => void;
 }
 
@@ -36,27 +38,7 @@ function fmtPrice(p: number | null): string {
 }
 
 
-/** Plain-English 1-sentence explanation. Falls back to thesis. */
-function plainExplanation(pick: Pick): string {
-  const action = pick.adjusted_action ?? pick.action;
-  const thesis = pick.thesis;
-
-  // If thesis exists and reads naturally (>20 chars, contains a verb-ish word), use it
-  if (thesis && thesis.length > 20 && /\b(is|are|has|been|holds?|signals?|shows?|points?|trend|ramp|growth|risk|catalyst|earn|capex|margin|momentum|valuation)\b/i.test(thesis)) {
-    return thesis;
-  }
-
-  // Otherwise generate from action
-  switch (action) {
-    case "buy":  return "AI sees an entry opportunity here based on current signals.";
-    case "sell": return "AI suggests exiting — risk currently outweighs upside.";
-    case "trim": return "AI suggests reducing exposure — momentum has weakened.";
-    case "hold": return "Signals are mixed; AI prefers to wait.";
-  }
-}
-
-
-export default function PickBox({ pick, price, onClick }: PickBoxProps) {
+export default function PickBox({ pick, price, rankingLabel, onClick }: PickBoxProps) {
   const action = pick.adjusted_action ?? pick.action;
   const confidence = pick.adjusted_confidence ?? pick.confidence;
   const confFrac = confidenceFraction(confidence);
@@ -71,7 +53,6 @@ export default function PickBox({ pick, price, onClick }: PickBoxProps) {
       onClick={() => onClick(pick.id)}
       aria-label={`${action.toUpperCase()} ${pick.symbol ?? "asset"}, confidence ${fmtConfidencePct(confidence)}. Open details.`}
     >
-      {/* Row 1: action badge + confidence */}
       <div className="pick-box-row1">
         <span className="pick-action">{action}</span>
         <span className="pick-confidence-cluster">
@@ -81,10 +62,12 @@ export default function PickBox({ pick, price, onClick }: PickBoxProps) {
         </span>
       </div>
 
-      {/* Row 2: plain-English title */}
+      {rankingLabel && (
+        <span className="pick-rank-pill" data-action={action}>{rankingLabel}</span>
+      )}
+
       <h4 className="pick-title-line">{actionTitle(action)}</h4>
 
-      {/* Row 3: symbol + price */}
       <div className="pick-box-row2">
         <h3 className="pick-symbol">{pick.symbol ?? "—"}</h3>
         {price === undefined && <span className="pick-price-loading">loading…</span>}
@@ -96,13 +79,9 @@ export default function PickBox({ pick, price, onClick }: PickBoxProps) {
         )}
       </div>
 
-      {/* Row 4: explanation (1 sentence) */}
-      <p className="pick-explain">{plainExplanation(pick)}</p>
-
-      {/* Row 5: what to do (action guidance) */}
+      <p className="pick-explain">{plainExplain(pick)}</p>
       <p className="pick-todo">{actionGuidance(action)}</p>
 
-      {/* Footer */}
       <div className="pick-meta">
         <span>{fmtRelTime(pick.generated_at)}</span>
         <span>

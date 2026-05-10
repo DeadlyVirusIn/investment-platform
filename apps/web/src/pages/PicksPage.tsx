@@ -1,36 +1,22 @@
-// PicksPage — main landing.
-//
-// Header shows full breakdown across all 4 actions + a beginner-
-// friendly status line.
+// PicksPage — premium copilot landing.
+// Hero briefing + filter bar + grid (with empty Buy/Sell cards) +
+// right sidebar (desktop) + modal.
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import PickBox from "@/components/picks/PickBox";
 import PickModal from "@/components/picks/PickModal";
+import Briefing from "@/components/picks/Briefing";
+import FilterBar from "@/components/picks/FilterBar";
+import Sidebar from "@/components/picks/Sidebar";
+import EmptyStateCard from "@/components/picks/EmptyStateCard";
 import {
-  fetchPicks, fetchLatestPrices, type Pick, type LatestPrice, type PickAction,
+  fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
 } from "@/lib/picks/api";
-
-
-function buildStatusLine(counts: Record<PickAction, number>): string {
-  const total = counts.buy + counts.sell + counts.trim + counts.hold;
-  if (total === 0) {
-    return "No suggestions available right now.";
-  }
-  if (counts.buy === 0 && counts.sell === 0) {
-    return `No new Buy or Sell ideas today. AI is mostly saying ${
-      counts.trim > counts.hold ? "Trim — risk has grown on existing positions" : "Hold — keep watching, don't add yet"
-    }.`;
-  }
-  if (counts.buy > 0 && counts.sell === 0) {
-    return `${counts.buy} new Buy ${counts.buy === 1 ? "idea" : "ideas"} today. ${counts.trim + counts.hold} positions to keep watching.`;
-  }
-  if (counts.sell > 0 && counts.buy === 0) {
-    return `${counts.sell} Sell ${counts.sell === 1 ? "signal" : "signals"} today. AI sees risk increasing.`;
-  }
-  return `${counts.buy} Buy · ${counts.sell} Sell · ${counts.trim} Trim · ${counts.hold} Hold — sorted by confidence.`;
-}
+import {
+  buildBriefing, applyFilter, rankingLabel, type PicksFilter,
+} from "@/lib/picks/copilot";
 
 
 export default function PicksPage() {
@@ -39,6 +25,7 @@ export default function PicksPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<PicksFilter>("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -76,31 +63,28 @@ export default function PicksPage() {
 
   const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;
 
-  // Sort: BUY → SELL → TRIM → HOLD, then confidence desc within
-  const visiblePicks = useMemo(() => {
-    const actionOrder: Record<PickAction, number> = { buy: 0, sell: 1, trim: 2, hold: 3 };
+  const sortedPicks = useMemo(() => {
+    const order: Record<string, number> = { buy: 0, sell: 1, trim: 2, hold: 3 };
     return [...picks].sort((a, b) => {
       const ao = a.adjusted_action ?? a.action;
       const bo = b.adjusted_action ?? b.action;
-      const orderA = actionOrder[ao] ?? 9;
-      const orderB = actionOrder[bo] ?? 9;
-      if (orderA !== orderB) return orderA - orderB;
+      const oa = order[ao] ?? 9;
+      const ob = order[bo] ?? 9;
+      if (oa !== ob) return oa - ob;
       const ca = parseFloat(a.adjusted_confidence ?? a.confidence ?? "0");
       const cb = parseFloat(b.adjusted_confidence ?? b.confidence ?? "0");
       return cb - ca;
     });
   }, [picks]);
 
-  const counts = useMemo(() => {
-    const c: Record<PickAction, number> = { buy: 0, sell: 0, trim: 0, hold: 0 };
-    for (const p of visiblePicks) {
-      const a = p.adjusted_action ?? p.action;
-      c[a] = (c[a] ?? 0) + 1;
-    }
-    return c;
-  }, [visiblePicks]);
+  const briefing = useMemo(() => buildBriefing(sortedPicks), [sortedPicks]);
+  const filteredPicks = useMemo(
+    () => applyFilter(sortedPicks, filter),
+    [sortedPicks, filter],
+  );
 
-  const statusLine = buildStatusLine(counts);
+  const buyCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "buy").length;
+  const sellCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
 
   return (
     <div className="picks-root" data-test="picks-root">
@@ -109,24 +93,8 @@ export default function PicksPage() {
           <div>
             <h1 className="picks-title">AI suggestions</h1>
             <p className="picks-subtitle">
-              {loading ? "Loading…" : `${visiblePicks.length} ${visiblePicks.length === 1 ? "suggestion" : "suggestions"} from your AI engine`}
+              {loading ? "Loading…" : `${sortedPicks.length} ${sortedPicks.length === 1 ? "suggestion" : "suggestions"} from your AI engine`}
             </p>
-            {!loading && visiblePicks.length > 0 && (
-              <div className="picks-counts" data-test="picks-counts">
-                <span className="picks-count-pill" data-action="buy">
-                  <strong>{counts.buy}</strong> Buy
-                </span>
-                <span className="picks-count-pill" data-action="hold">
-                  <strong>{counts.hold}</strong> Hold
-                </span>
-                <span className="picks-count-pill" data-action="trim">
-                  <strong>{counts.trim}</strong> Trim
-                </span>
-                <span className="picks-count-pill" data-action="sell">
-                  <strong>{counts.sell}</strong> Sell
-                </span>
-              </div>
-            )}
           </div>
           <nav className="picks-archive-nav" data-test="picks-archive-nav">
             <span style={{ color: "var(--picks-ink-recede)" }}>archive</span>
@@ -138,12 +106,6 @@ export default function PicksPage() {
             <Link to="/overview?view=legacy">legacy</Link>
           </nav>
         </header>
-
-        {!loading && visiblePicks.length > 0 && (
-          <div className="picks-status" data-test="picks-status">
-            {statusLine}
-          </div>
-        )}
 
         {loading && (
           <div className="picks-loading" data-test="picks-loading">
@@ -157,32 +119,47 @@ export default function PicksPage() {
           </div>
         )}
 
-        {!loading && !error && visiblePicks.length === 0 && (
+        {!loading && !error && sortedPicks.length === 0 && (
           <div className="picks-empty" data-test="picks-empty">
             No AI suggestions available right now. The recommendation engine may
             still be running. Check back shortly.
           </div>
         )}
 
-        {!loading && !error && visiblePicks.length > 0 && (
-          <div className="picks-grid" data-test="picks-grid">
-            {visiblePicks.map(pick => (
-              <PickBox
-                key={pick.id}
-                pick={pick}
-                price={pick.symbol ? priceMap[pick.symbol] : null}
-                onClick={setOpenPickId}
-              />
-            ))}
-          </div>
+        {!loading && !error && sortedPicks.length > 0 && (
+          <>
+            <Briefing briefing={briefing} onFilterChange={setFilter} />
+            <FilterBar picks={sortedPicks} active={filter} onChange={setFilter} />
+
+            <div className="picks-layout">
+              <main className="picks-main">
+                <div className="picks-grid" data-test="picks-grid">
+                  {filter === "all" && buyCount === 0 && <EmptyStateCard action="buy" />}
+                  {filter === "all" && sellCount === 0 && <EmptyStateCard action="sell" />}
+
+                  {filteredPicks.map(pick => (
+                    <PickBox
+                      key={pick.id}
+                      pick={pick}
+                      price={pick.symbol ? priceMap[pick.symbol] : null}
+                      rankingLabel={rankingLabel(pick, sortedPicks)}
+                      onClick={setOpenPickId}
+                    />
+                  ))}
+
+                  {filteredPicks.length === 0 && filter !== "all" && (
+                    <div className="picks-filter-empty">No picks match this filter.</div>
+                  )}
+                </div>
+              </main>
+
+              <Sidebar picks={sortedPicks} briefing={briefing} onPickClick={setOpenPickId} />
+            </div>
+          </>
         )}
       </div>
 
-      <PickModal
-        pick={openPick}
-        priceCache={openPrice}
-        onClose={() => setOpenPickId(null)}
-      />
+      <PickModal pick={openPick} priceCache={openPrice} onClose={() => setOpenPickId(null)} />
     </div>
   );
 }

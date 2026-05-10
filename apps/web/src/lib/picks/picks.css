@@ -816,3 +816,548 @@
   .picks-root .pick-modal { padding: 24px 20px; }
   .picks-root .pick-modal-symbol { font-size: 32px; }
 }
+
+
+/* ────────────────────────────────────────────────
+   Phase 4 — Briefing / FilterBar / Sidebar / EmptyState / Ranking
+   ──────────────────────────────────────────────── */
+
+.picks-root .picks-briefing {
+  position: relative;
+  margin: 24px 0 16px;
+  padding: 28px 32px 24px;
+  border-radius: 18px;
+  background: linear-gradient(155deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  overflow: hidden;
+  box-shadow: 0 20px 40px -20px rgba(0, 0, 0, 0.4);
+}
+
+.picks-root .picks-briefing[data-posture="defensive"] {
+  background: linear-gradient(155deg, rgba(60, 22, 22, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: rgba(248, 113, 113, 0.25);
+}
+.picks-root .picks-briefing[data-posture="cautious"] {
+  background: linear-gradient(155deg, rgba(56, 36, 20, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: rgba(251, 146, 60, 0.22);
+}
+.picks-root .picks-briefing[data-posture="constructive"] {
+  background: linear-gradient(155deg, rgba(20, 50, 36, 0.9) 0%, rgba(15, 23, 42, 0.95) 100%);
+  border-color: rgba(52, 211, 153, 0.22);
+}
+
+.picks-root .picks-briefing-row1 {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.picks-root .picks-briefing-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.picks-root .picks-briefing-posture {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(148, 163, 184, 0.12);
+  color: rgba(226, 232, 240, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.picks-root .picks-briefing-posture-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #94a3b8;
+}
+.picks-root .picks-briefing[data-posture="defensive"] .picks-briefing-posture-dot { background: #f87171; }
+.picks-root .picks-briefing[data-posture="cautious"] .picks-briefing-posture-dot { background: #fb923c; }
+.picks-root .picks-briefing[data-posture="neutral"] .picks-briefing-posture-dot { background: #fbbf24; }
+.picks-root .picks-briefing[data-posture="constructive"] .picks-briefing-posture-dot { background: #34d399; }
+
+.picks-root .picks-briefing-headline {
+  font-size: clamp(22px, 3vw, 30px);
+  line-height: 1.2;
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: #f1f5f9;
+  letter-spacing: -0.01em;
+}
+
+.picks-root .picks-briefing-body {
+  font-size: 15px;
+  line-height: 1.55;
+  color: rgba(203, 213, 225, 0.92);
+  margin: 0 0 18px;
+  max-width: 720px;
+}
+
+.picks-root .picks-briefing-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.picks-root .picks-briefing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(148, 163, 184, 0.1);
+  color: rgba(226, 232, 240, 0.9);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+.picks-root .picks-briefing-chip strong { color: #fff; font-weight: 600; }
+.picks-root .picks-briefing-chip[data-tone="trim"] {
+  background: rgba(251, 146, 60, 0.12);
+  border-color: rgba(251, 146, 60, 0.3);
+  color: #fed7aa;
+}
+.picks-root .picks-briefing-chip[data-tone="hold"] {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fde68a;
+}
+.picks-root .picks-briefing-chip[data-tone="warn"] {
+  background: rgba(248, 113, 113, 0.1);
+  border-color: rgba(248, 113, 113, 0.25);
+  color: #fecaca;
+}
+.picks-root .picks-briefing-chip[data-tone="meta"] {
+  background: rgba(100, 116, 139, 0.12);
+  color: rgba(203, 213, 225, 0.85);
+}
+
+.picks-root .picks-briefing-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.picks-root .picks-briefing-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.picks-root .picks-briefing-cta-primary {
+  background: rgba(241, 245, 249, 0.95);
+  color: #0f172a;
+}
+.picks-root .picks-briefing-cta-primary:hover {
+  transform: translateY(-1px);
+  background: #fff;
+}
+
+.picks-root .picks-briefing-cta-secondary {
+  background: transparent;
+  color: rgba(226, 232, 240, 0.92);
+  border-color: rgba(148, 163, 184, 0.3);
+}
+.picks-root .picks-briefing-cta-secondary:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+
+/* FilterBar */
+.picks-root .picks-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 18px;
+}
+
+.picks-root .picks-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  color: rgba(203, 213, 225, 0.9);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.picks-root .picks-filter-tab:hover {
+  background: rgba(30, 41, 59, 0.65);
+  color: #f1f5f9;
+}
+.picks-root .picks-filter-tab[data-active="true"] {
+  background: rgba(241, 245, 249, 0.95);
+  color: #0f172a;
+  border-color: rgba(241, 245, 249, 0.95);
+}
+.picks-root .picks-filter-tab[data-active="true"][data-filter="buy"] {
+  background: #34d399; color: #052e16; border-color: #34d399;
+}
+.picks-root .picks-filter-tab[data-active="true"][data-filter="sell"] {
+  background: #f87171; color: #450a0a; border-color: #f87171;
+}
+.picks-root .picks-filter-tab[data-active="true"][data-filter="trim"] {
+  background: #fb923c; color: #431407; border-color: #fb923c;
+}
+.picks-root .picks-filter-tab[data-active="true"][data-filter="hold"] {
+  background: #fbbf24; color: #422006; border-color: #fbbf24;
+}
+.picks-root .picks-filter-tab-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  color: inherit;
+  opacity: 0.85;
+}
+.picks-root .picks-filter-tab[data-active="true"] .picks-filter-tab-count {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+
+/* Layout — main + sidebar */
+.picks-root .picks-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 24px;
+  align-items: start;
+}
+.picks-root .picks-main { min-width: 0; }
+
+
+/* Sidebar */
+.picks-root .picks-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 24px;
+}
+.picks-root .picks-sidebar-section {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+.picks-root .picks-sidebar-section h4 {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+.picks-root .picks-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.picks-root .picks-sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(226, 232, 240, 0.92);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  text-align: left;
+  width: 100%;
+  transition: background 120ms ease;
+}
+.picks-root .picks-sidebar-item:hover { background: rgba(148, 163, 184, 0.08); }
+
+.picks-root .picks-sidebar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.picks-root .picks-sidebar-dot[data-action="buy"] { background: #34d399; }
+.picks-root .picks-sidebar-dot[data-action="sell"] { background: #f87171; }
+.picks-root .picks-sidebar-dot[data-action="trim"] { background: #fb923c; }
+.picks-root .picks-sidebar-dot[data-action="hold"] { background: #fbbf24; }
+
+.picks-root .picks-sidebar-symbol {
+  font-weight: 600;
+  color: #f1f5f9;
+  margin-right: 4px;
+}
+.picks-root .picks-sidebar-meta {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.85);
+  margin-left: auto;
+}
+.picks-root .picks-sidebar-empty {
+  font-size: 12px;
+  color: rgba(148, 163, 184, 0.7);
+  font-style: italic;
+}
+
+
+/* Empty state cards (no Buy / no Sell) */
+.picks-root .picks-empty-card {
+  border: 2px dashed rgba(148, 163, 184, 0.25);
+  border-radius: 16px;
+  padding: 24px 22px;
+  background: rgba(15, 23, 42, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 180px;
+  justify-content: center;
+}
+.picks-root .picks-empty-card[data-action="buy"] {
+  border-color: rgba(52, 211, 153, 0.3);
+  background: rgba(20, 50, 36, 0.18);
+}
+.picks-root .picks-empty-card[data-action="sell"] {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(60, 22, 22, 0.18);
+}
+.picks-root .picks-empty-card-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+}
+.picks-root .picks-empty-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0;
+}
+.picks-root .picks-empty-card-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(203, 213, 225, 0.85);
+  margin: 0;
+}
+
+
+/* Ranking pill on PickBox */
+.picks-root .pick-rank-pill {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.15);
+  color: rgba(226, 232, 240, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  margin-top: -4px;
+}
+.picks-root .pick-rank-pill[data-action="buy"] {
+  background: rgba(52, 211, 153, 0.14);
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.3);
+}
+.picks-root .pick-rank-pill[data-action="sell"] {
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.3);
+}
+.picks-root .pick-rank-pill[data-action="trim"] {
+  background: rgba(251, 146, 60, 0.14);
+  color: #fed7aa;
+  border-color: rgba(251, 146, 60, 0.3);
+}
+.picks-root .pick-rank-pill[data-action="hold"] {
+  background: rgba(251, 191, 36, 0.14);
+  color: #fde68a;
+  border-color: rgba(251, 191, 36, 0.3);
+}
+
+
+.picks-root .picks-filter-empty {
+  grid-column: 1 / -1;
+  padding: 32px 20px;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.7);
+  font-size: 14px;
+  font-style: italic;
+}
+
+
+/* Mobile collapse — sidebar moves below grid */
+@media (max-width: 1100px) {
+  .picks-root .picks-layout {
+    grid-template-columns: 1fr;
+  }
+  .picks-root .picks-sidebar {
+    position: static;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .picks-root .picks-sidebar-section {
+    flex: 1 1 280px;
+  }
+}
+
+@media (max-width: 720px) {
+  .picks-root .picks-briefing { padding: 22px 20px; }
+  .picks-root .picks-briefing-headline { font-size: 22px; }
+  .picks-root .picks-briefing-body { font-size: 14px; }
+  .picks-root .picks-sidebar { flex-direction: column; }
+}
+
+
+/* Component class aliases — match what the actual JSX uses */
+.picks-root .picks-filter-tab .picks-filter-count {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.15);
+  color: inherit;
+  opacity: 0.85;
+}
+.picks-root .picks-filter-tab[data-active="true"] .picks-filter-count {
+  background: rgba(15, 23, 42, 0.18);
+}
+
+.picks-root .picks-sidebar-h {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.85);
+}
+
+.picks-root .picks-sidebar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: rgba(226, 232, 240, 0.92);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  text-align: left;
+  width: 100%;
+  transition: background 120ms ease;
+}
+.picks-root .picks-sidebar-row:hover { background: rgba(148, 163, 184, 0.08); }
+
+.picks-root .picks-sidebar-action {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.picks-root .picks-sidebar-action[data-action="buy"] {
+  background: rgba(52, 211, 153, 0.18);
+  color: #6ee7b7;
+}
+.picks-root .picks-sidebar-action[data-action="sell"] {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+.picks-root .picks-sidebar-action[data-action="trim"] {
+  background: rgba(251, 146, 60, 0.18);
+  color: #fed7aa;
+}
+.picks-root .picks-sidebar-action[data-action="hold"] {
+  background: rgba(251, 191, 36, 0.18);
+  color: #fde68a;
+}
+
+.picks-root .picks-sidebar-time,
+.picks-root .picks-sidebar-reason {
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.85);
+  margin-left: auto;
+}
+
+.picks-root .picks-sidebar-todo {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.picks-root .picks-sidebar-todo li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.92);
+}
+.picks-root .picks-sidebar-todo li::before {
+  content: "→";
+  position: absolute;
+  left: 0;
+  color: rgba(148, 163, 184, 0.7);
+}
+
+.picks-root .picks-empty-card .picks-empty-action {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.8);
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+}
+.picks-root .picks-empty-card[data-action="buy"] .picks-empty-action {
+  background: rgba(52, 211, 153, 0.18);
+  color: #6ee7b7;
+}
+.picks-root .picks-empty-card[data-action="sell"] .picks-empty-action {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+.picks-root .picks-empty-card .picks-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #f1f5f9;
+  margin: 0;
+}
+.picks-root .picks-empty-card .picks-empty-body {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(203, 213, 225, 0.85);
+  margin: 0;
+}
