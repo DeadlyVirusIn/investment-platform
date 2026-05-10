@@ -1,55 +1,72 @@
-// PickModal — overlay showing full pick details.
+// PickModal — research cockpit overlay.
 //
-// Sections:
-//   - Symbol + ACTION badge + confidence
-//   - Latest price (lazy-fetched on open)
-//   - AI reasoning (thesis + evidence narratives)
-//   - Generated metadata
-//
-// Dismiss: click overlay, ESC, close button.
+// Sections (rendered conditionally; missing data hides cleanly):
+//   - Header: symbol + ACTION badge + close
+//   - Action summary (confidence + freshness + engine)
+//   - Reference price strip (latest close + entry/target/stop if present)
+//   - AI thesis
+//   - Risk / invalidation (callout if present)
+//   - Supporting factors (top 4 from evidence with narratives)
+//   - What changed (if rationale provides it)
+//   - Next thing to watch (if rationale provides it)
+//   - Paper trading disclaimer + generated_at
 
 import { useEffect, useRef, useState } from "react";
 
 import type { Pick, LatestPrice } from "@/lib/picks/api";
-import { confidenceLabel, fmtConfidencePct, fetchLatestPrice } from "@/lib/picks/api";
+import {
+  confidenceLabel, fmtConfidencePct, fetchLatestPrice,
+} from "@/lib/picks/api";
 
 
 export interface PickModalProps {
   pick: Pick | null;
+  /** Optional cached price from the grid (avoids re-fetch). */
+  priceCache?: LatestPrice | null;
   onClose: () => void;
 }
 
 
 function fmtPrice(p: number | null): string {
   if (p == null) return "—";
+  if (p >= 1000) return `$${p.toFixed(0)}`;
   return `$${p.toFixed(2)}`;
 }
 
 
-export default function PickModal({ pick, onClose }: PickModalProps) {
-  const closeBtnRef = useRef<HTMLButtonElement>(null);
-  const [price, setPrice] = useState<LatestPrice | null>(null);
-  const [priceLoading, setPriceLoading] = useState(false);
+function fmtRelTime(iso: string | null): string {
+  if (!iso) return "—";
+  const ms = Date.now() - Date.parse(iso);
+  const hours = ms / 3_600_000;
+  if (hours < 1) return `${Math.max(1, Math.round(hours * 60))}m ago`;
+  if (hours < 24) return `${Math.round(hours)}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+}
 
-  // Fetch latest price when pick changes (modal opens for new symbol)
+
+export default function PickModal({ pick, priceCache, onClose }: PickModalProps) {
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const [price, setPrice] = useState<LatestPrice | null | undefined>(undefined);
+
+  // Use cached price if provided; otherwise lazy-fetch on open
   useEffect(() => {
     if (!pick?.symbol) {
-      setPrice(null);
+      setPrice(undefined);
       return;
     }
-    setPriceLoading(true);
-    setPrice(null);
+    if (priceCache !== undefined) {
+      setPrice(priceCache);
+      return;
+    }
+    setPrice(undefined);
     let cancelled = false;
     fetchLatestPrice(pick.symbol).then(p => {
-      if (!cancelled) {
-        setPrice(p);
-        setPriceLoading(false);
-      }
+      if (!cancelled) setPrice(p);
     });
     return () => { cancelled = true; };
-  }, [pick?.symbol, pick?.id]);
+  }, [pick?.symbol, pick?.id, priceCache]);
 
-  // ESC dismiss + body scroll lock + focus trap to close button
+  // ESC dismiss + body scroll lock + focus trap
   useEffect(() => {
     if (!pick) return;
     const previousOverflow = document.body.style.overflow;
@@ -73,10 +90,19 @@ export default function PickModal({ pick, onClose }: PickModalProps) {
   const action = pick ? (pick.adjusted_action ?? pick.action) as "buy" | "sell" | "hold" : "hold";
   const confidence = pick ? (pick.adjusted_confidence ?? pick.confidence) : null;
 
-  // Top 3 evidence items with narratives
+  // Top 4 evidence items with narratives
   const topEvidence = pick?.evidence
     ?.filter(e => e.narrative && e.narrative.length > 0)
     .slice(0, 4) ?? [];
+
+  // Conditional risk fields
+  const hasRiskCallout = pick && (pick.risk.invalidation_text || pick.risk.risk_text);
+  const hasPrices = pick && (
+    pick.risk.entry_price != null ||
+    pick.risk.target_price != null ||
+    pick.risk.stop_loss != null ||
+    price !== undefined
+  );
 
   return (
     <div
@@ -96,6 +122,7 @@ export default function PickModal({ pick, onClose }: PickModalProps) {
           aria-labelledby="pick-modal-symbol"
           onClick={(e) => e.stopPropagation()}
         >
+          {/* Header */}
           <header className="pick-modal-header">
             <div>
               <h2 id="pick-modal-symbol" className="pick-modal-symbol">
@@ -103,6 +130,7 @@ export default function PickModal({ pick, onClose }: PickModalProps) {
               </h2>
               <div className="pick-modal-symbol-sub">
                 {pick.engine_version ? `engine ${pick.engine_version}` : "AI suggestion"}
+                {pick.generated_at && ` · ${fmtRelTime(pick.generated_at)}`}
               </div>
             </div>
             <button
@@ -116,39 +144,74 @@ export default function PickModal({ pick, onClose }: PickModalProps) {
             </button>
           </header>
 
+          {/* Action summary */}
           <div className="pick-modal-action-row">
             <span className="pick-modal-action-badge">{action}</span>
-            <span>{confidenceLabel(confidence)} confidence · {fmtConfidencePct(confidence)}</span>
+            <span><strong>{confidenceLabel(confidence)}</strong> confidence · {fmtConfidencePct(confidence)}</span>
+            {pick.stale_data && <span style={{ color: "var(--picks-sell)" }}>· stale data</span>}
+            {!pick.enough_data && <span style={{ color: "var(--picks-sell)" }}>· thin data</span>}
           </div>
 
-          {/* Latest price — lazy-loaded */}
-          <section className="pick-modal-section">
-            <h4>{action === "buy" ? "Buy reference price" : action === "sell" ? "Sell reference price" : "Reference price"}</h4>
-            <div className="pick-price-line">
-              {priceLoading && <span className="pick-price-loading">Loading latest…</span>}
-              {!priceLoading && price && (
-                <>
-                  Latest close: {fmtPrice(price.close)}
-                  <span style={{ color: "var(--picks-ink-meta)", marginLeft: 8 }}>
-                    ({new Date(price.ts).toLocaleDateString()})
+          {/* Reference price strip — shown if any price field present */}
+          {hasPrices && (
+            <div className="pick-modal-prices" data-test="pick-modal-prices">
+              {price !== undefined && (
+                <div className="pick-modal-price-cell">
+                  <span className="pick-modal-price-label">Latest close</span>
+                  <span className="pick-modal-price-value">
+                    {price ? fmtPrice(price.close) : "—"}
                   </span>
-                </>
+                </div>
               )}
-              {!priceLoading && !price && (
-                <span className="pick-price-loading">Price unavailable for this symbol.</span>
+              {pick.risk.entry_price != null && (
+                <div className="pick-modal-price-cell">
+                  <span className="pick-modal-price-label">Entry</span>
+                  <span className="pick-modal-price-value">
+                    {fmtPrice(pick.risk.entry_price)}
+                  </span>
+                </div>
+              )}
+              {pick.risk.target_price != null && (
+                <div className="pick-modal-price-cell">
+                  <span className="pick-modal-price-label">Target</span>
+                  <span className="pick-modal-price-value pick-modal-price-value-target">
+                    {fmtPrice(pick.risk.target_price)}
+                  </span>
+                </div>
+              )}
+              {pick.risk.stop_loss != null && (
+                <div className="pick-modal-price-cell">
+                  <span className="pick-modal-price-label">Stop loss</span>
+                  <span className="pick-modal-price-value pick-modal-price-value-stop">
+                    {fmtPrice(pick.risk.stop_loss)}
+                  </span>
+                </div>
               )}
             </div>
-          </section>
+          )}
 
-          {/* AI reasoning — thesis */}
-          <section className="pick-modal-section">
-            <h4>Why the AI suggests this</h4>
-            <p>{pick.thesis ?? "No thesis returned by the engine. See evidence factors below."}</p>
-          </section>
+          {/* AI thesis */}
+          {pick.thesis && (
+            <section className="pick-modal-section" data-test="pick-modal-thesis">
+              <h4>AI thesis</h4>
+              <p>{pick.thesis}</p>
+            </section>
+          )}
 
-          {/* Evidence factors */}
+          {/* Risk / invalidation callout */}
+          {hasRiskCallout && (
+            <section className="pick-modal-section pick-modal-section-risk" data-test="pick-modal-risk">
+              <h4>Risk · invalidation</h4>
+              {pick.risk.invalidation_text && <p>{pick.risk.invalidation_text}</p>}
+              {pick.risk.risk_text && pick.risk.risk_text !== pick.risk.invalidation_text && (
+                <p style={{ marginTop: 8 }}>{pick.risk.risk_text}</p>
+              )}
+            </section>
+          )}
+
+          {/* Supporting factors */}
           {topEvidence.length > 0 && (
-            <section className="pick-modal-section">
+            <section className="pick-modal-section" data-test="pick-modal-factors">
               <h4>Supporting factors</h4>
               <ul className="pick-evidence-list">
                 {topEvidence.map((ev, i) => (
@@ -163,6 +226,23 @@ export default function PickModal({ pick, onClose }: PickModalProps) {
             </section>
           )}
 
+          {/* What changed */}
+          {pick.risk.what_changed_text && (
+            <section className="pick-modal-section" data-test="pick-modal-changed">
+              <h4>What changed</h4>
+              <p>{pick.risk.what_changed_text}</p>
+            </section>
+          )}
+
+          {/* Next watch */}
+          {pick.risk.next_watch_text && (
+            <section className="pick-modal-section" data-test="pick-modal-next">
+              <h4>Next thing to watch</h4>
+              <p>{pick.risk.next_watch_text}</p>
+            </section>
+          )}
+
+          {/* Footer */}
           <footer className="pick-modal-footer">
             Read-only research — paper trading. Not financial advice.
             {pick.generated_at && (

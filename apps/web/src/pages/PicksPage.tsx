@@ -1,19 +1,23 @@
 // PicksPage — main landing page (default /overview).
 //
 // Renders a grid of green BUY / red SELL / neutral HOLD boxes
-// from /api/recommendations sorted by confidence desc. Click box
-// → modal with target/reason details.
+// from /api/recommendations sorted by confidence desc.
+// Pre-fetches latest price for all visible symbols in parallel
+// so cards show price on first paint (no per-card flash).
 
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import PickBox from "@/components/picks/PickBox";
 import PickModal from "@/components/picks/PickModal";
-import { fetchPicks, type Pick } from "@/lib/picks/api";
+import {
+  fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
+} from "@/lib/picks/api";
 
 
 export default function PicksPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
+  const [priceMap, setPriceMap] = useState<Record<string, LatestPrice | null | undefined>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
@@ -28,6 +32,18 @@ export default function PicksPage() {
         if (cancelled) return;
         setPicks(rows);
         setLoading(false);
+
+        // Mark all symbols as "loading" (undefined) then batch-fetch
+        const symbols = rows.map(r => r.symbol).filter((s): s is string => !!s);
+        const initialMap: Record<string, undefined> = {};
+        symbols.forEach(s => { initialMap[s] = undefined; });
+        setPriceMap(initialMap);
+
+        if (symbols.length > 0) {
+          fetchLatestPrices(symbols).then(map => {
+            if (!cancelled) setPriceMap(map);
+          });
+        }
       })
       .catch(err => {
         if (cancelled) return;
@@ -42,17 +58,17 @@ export default function PicksPage() {
     [picks, openPickId],
   );
 
-  // Filter out hold (lowest priority) — show buy + sell first, fall back to hold if nothing else
+  const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;
+
+  // Sort: BUY + SELL ahead of HOLD, then confidence desc
   const visiblePicks = useMemo(() => {
     const actionOrder: Record<string, number> = { buy: 0, sell: 1, hold: 2 };
     return [...picks].sort((a, b) => {
       const ao = (a.adjusted_action ?? a.action) as "buy" | "sell" | "hold";
       const bo = (b.adjusted_action ?? b.action) as "buy" | "sell" | "hold";
-      // First: bring buy + sell ahead of hold
       const orderA = actionOrder[ao] ?? 9;
       const orderB = actionOrder[bo] ?? 9;
       if (orderA !== orderB) return orderA - orderB;
-      // Then: confidence desc
       const ca = parseFloat(a.adjusted_confidence ?? a.confidence ?? "0");
       const cb = parseFloat(b.adjusted_confidence ?? b.confidence ?? "0");
       return cb - ca;
@@ -61,6 +77,7 @@ export default function PicksPage() {
 
   const buyCount = visiblePicks.filter(p => (p.adjusted_action ?? p.action) === "buy").length;
   const sellCount = visiblePicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
+  const holdCount = visiblePicks.filter(p => (p.adjusted_action ?? p.action) === "hold").length;
 
   return (
     <div className="picks-root" data-test="picks-root">
@@ -69,7 +86,10 @@ export default function PicksPage() {
           <div>
             <h1 className="picks-title">AI suggestions</h1>
             <p className="picks-subtitle">
-              {loading ? "Loading…" : `${buyCount} buy · ${sellCount} sell · sorted by confidence`}
+              {loading
+                ? "Loading…"
+                : `${buyCount} buy · ${sellCount} sell${holdCount > 0 ? ` · ${holdCount} hold` : ""} · sorted by confidence`
+              }
             </p>
           </div>
           <nav className="picks-archive-nav" data-test="picks-archive-nav">
@@ -79,6 +99,7 @@ export default function PicksPage() {
             <Link to="/overview?view=copilot">copilot</Link>
             <Link to="/overview?view=living">living</Link>
             <Link to="/overview?view=stream">stream</Link>
+            <Link to="/overview?view=legacy">legacy</Link>
           </nav>
         </header>
 
@@ -96,7 +117,8 @@ export default function PicksPage() {
 
         {!loading && !error && visiblePicks.length === 0 && (
           <div className="picks-empty" data-test="picks-empty">
-            No AI suggestions available right now. Engine may be running.
+            No AI suggestions available right now. The recommendation engine may
+            still be running. Check back shortly or browse the archive views above.
           </div>
         )}
 
@@ -106,6 +128,7 @@ export default function PicksPage() {
               <PickBox
                 key={pick.id}
                 pick={pick}
+                price={pick.symbol ? priceMap[pick.symbol] : null}
                 onClick={setOpenPickId}
               />
             ))}
@@ -113,7 +136,11 @@ export default function PicksPage() {
         )}
       </div>
 
-      <PickModal pick={openPick} onClose={() => setOpenPickId(null)} />
+      <PickModal
+        pick={openPick}
+        priceCache={openPrice}
+        onClose={() => setOpenPickId(null)}
+      />
     </div>
   );
 }

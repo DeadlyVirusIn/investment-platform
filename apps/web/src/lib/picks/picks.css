@@ -1,42 +1,56 @@
 /*
- * Picks page styles — green BUY boxes + red SELL boxes + modal overlay.
+ * Picks page styles — Phase 2 polish.
  *
- * Scoped to .picks-root so other surfaces unaffected.
+ * Premium SaaS feel without losing the simple structure:
+ *   - colored top accent + left rail per action
+ *   - subtle inner gradient for depth
+ *   - hover lift with shadow
+ *   - confidence meter + factor list inline
+ *   - research-cockpit modal sections
  */
 
 
 .picks-root {
-  --picks-bg-page:        #0E0F12;
-  --picks-bg-card-buy:    #0E2818;     /* deep green wash */
-  --picks-bg-card-sell:   #2A1010;     /* deep red wash */
-  --picks-bg-card-hold:   #1A1B1E;     /* neutral */
-  --picks-bg-modal:       #14161A;
-  --picks-bg-overlay:     rgba(8, 10, 14, 0.78);
+  --picks-bg-page:        #0B0D11;
+  --picks-bg-card:        #14171C;
+  --picks-bg-card-hover:  #181C22;
+  --picks-bg-modal:       #14171C;
+  --picks-bg-overlay:     rgba(6, 8, 12, 0.78);
 
-  --picks-buy:            #2ECC71;     /* green */
-  --picks-buy-soft:       rgba(46, 204, 113, 0.18);
-  --picks-buy-border:     rgba(46, 204, 113, 0.55);
+  --picks-buy:            #34D399;     /* emerald 400 */
+  --picks-buy-soft:       rgba(52, 211, 153, 0.16);
+  --picks-buy-glow:       rgba(52, 211, 153, 0.22);
+  --picks-buy-rail:       linear-gradient(180deg, rgba(52,211,153,0.55) 0%, rgba(52,211,153,0.18) 100%);
 
-  --picks-sell:           #E74C3C;     /* red */
-  --picks-sell-soft:      rgba(231, 76, 60, 0.18);
-  --picks-sell-border:    rgba(231, 76, 60, 0.55);
+  --picks-sell:           #F87171;     /* red 400 */
+  --picks-sell-soft:      rgba(248, 113, 113, 0.16);
+  --picks-sell-glow:      rgba(248, 113, 113, 0.22);
+  --picks-sell-rail:      linear-gradient(180deg, rgba(248,113,113,0.55) 0%, rgba(248,113,113,0.18) 100%);
 
-  --picks-hold:           #95A5A6;
-  --picks-hold-soft:      rgba(149, 165, 166, 0.10);
+  --picks-hold:           #94A3B8;     /* slate 400 */
+  --picks-hold-soft:      rgba(148, 163, 184, 0.10);
+  --picks-hold-rail:      linear-gradient(180deg, rgba(148,163,184,0.32) 0%, rgba(148,163,184,0.08) 100%);
 
-  --picks-ink-primary:    #F4F5F7;
-  --picks-ink-body:       #C3C7CC;
-  --picks-ink-meta:       #7A8088;
-  --picks-ink-recede:     #4F5460;
+  --picks-ink-primary:    #F4F6FA;
+  --picks-ink-body:       #C0C5CE;
+  --picks-ink-meta:       #7C828D;
+  --picks-ink-recede:     #4D525C;
+
+  --picks-border:         rgba(255, 255, 255, 0.06);
+  --picks-border-strong:  rgba(255, 255, 255, 0.14);
+  --picks-shadow-card:    0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px rgba(0,0,0,0.35);
+  --picks-shadow-hover:   0 1px 0 rgba(255,255,255,0.06) inset, 0 18px 48px rgba(0,0,0,0.50);
 
   --picks-font-sans:      "Inter", system-ui, -apple-system, sans-serif;
   --picks-font-mono:      ui-monospace, "SF Mono", Menlo, monospace;
 
-  background: var(--picks-bg-page);
+  background: radial-gradient(ellipse 70% 60% at 50% 0%, rgba(255,255,255,0.025), transparent 60%), var(--picks-bg-page);
+  background-attachment: fixed;
   color: var(--picks-ink-primary);
   font-family: var(--picks-font-sans);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 
@@ -45,37 +59,40 @@
    ──────────────────────────────────────────────── */
 
 .picks-root .picks-frame {
-  max-width: 1280px;
+  max-width: 1320px;
   margin: 0 auto;
-  padding: clamp(32px, 5vw, 64px) clamp(16px, 4vw, 48px);
+  padding: clamp(40px, 6vw, 72px) clamp(20px, 4vw, 56px);
 }
 
 .picks-root .picks-header {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 32px;
+  align-items: flex-end;
+  margin-bottom: 36px;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 20px;
 }
 
 .picks-root .picks-title {
   margin: 0;
-  font-size: clamp(24px, 3vw, 32px);
+  font-size: clamp(28px, 3.4vw, 36px);
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+  line-height: 1.1;
   color: var(--picks-ink-primary);
 }
 
 .picks-root .picks-subtitle {
-  margin: 4px 0 0;
+  margin: 6px 0 0;
   font-size: 14px;
   color: var(--picks-ink-meta);
+  font-family: var(--picks-font-mono);
+  letter-spacing: 0.02em;
 }
 
 .picks-root .picks-archive-nav {
   display: flex;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
   font-family: var(--picks-font-mono);
   font-size: 11px;
@@ -93,13 +110,13 @@
 
 
 /* ────────────────────────────────────────────────
-   Loading + error states
+   Loading + error + empty
    ──────────────────────────────────────────────── */
 
 .picks-root .picks-loading,
 .picks-root .picks-empty,
 .picks-root .picks-error {
-  padding: 48px 16px;
+  padding: 64px 16px;
   text-align: center;
   color: var(--picks-ink-meta);
   font-size: 15px;
@@ -109,6 +126,21 @@
   color: var(--picks-sell);
 }
 
+.picks-root .picks-fallback-banner {
+  margin: 0 0 24px 0;
+  padding: 12px 16px;
+  background: var(--picks-hold-soft);
+  border-left: 3px solid var(--picks-hold);
+  color: var(--picks-ink-body);
+  font-size: 13px;
+  border-radius: 4px;
+  font-family: var(--picks-font-mono);
+}
+
+.picks-root .picks-fallback-banner strong {
+  color: var(--picks-ink-primary);
+}
+
 
 /* ────────────────────────────────────────────────
    Grid
@@ -116,37 +148,92 @@
 
 .picks-root .picks-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 18px;
 }
 
 
 /* ────────────────────────────────────────────────
-   Pick box (green BUY / red SELL / neutral HOLD)
+   Pick card — premium SaaS feel
    ──────────────────────────────────────────────── */
 
 .picks-root .pick-box {
+  position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 20px;
-  border-radius: 8px;
-  border: 1px solid transparent;
-  background: var(--picks-bg-card-hold);
+  gap: 14px;
+  padding: 22px 22px 18px 26px;
+  border-radius: 12px;
+  border: 1px solid var(--picks-border);
+  background: var(--picks-bg-card);
   cursor: pointer;
   text-align: left;
-  transition:
-    transform 140ms ease-out,
-    border-color 140ms ease-out,
-    background 140ms ease-out;
   font-family: inherit;
   color: inherit;
-  min-height: 160px;
+  min-height: 220px;
+  overflow: hidden;
+  box-shadow: var(--picks-shadow-card);
+  transition:
+    transform 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    border-color 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    background 180ms cubic-bezier(0.2, 0.6, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.2, 0.6, 0.2, 1);
 }
 
+/* Top glow + left rail per action */
+.picks-root .pick-box::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  pointer-events: none;
+  opacity: 0.55;
+  transition: opacity 220ms ease-out;
+}
+
+.picks-root .pick-box::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 3px;
+  pointer-events: none;
+  border-radius: 12px 0 0 12px;
+}
+
+.picks-root .pick-box[data-action="buy"]::before {
+  background: radial-gradient(ellipse at top, var(--picks-buy-glow), transparent 70%);
+}
+
+.picks-root .pick-box[data-action="buy"]::after {
+  background: var(--picks-buy-rail);
+}
+
+.picks-root .pick-box[data-action="sell"]::before {
+  background: radial-gradient(ellipse at top, var(--picks-sell-glow), transparent 70%);
+}
+
+.picks-root .pick-box[data-action="sell"]::after {
+  background: var(--picks-sell-rail);
+}
+
+.picks-root .pick-box[data-action="hold"]::after {
+  background: var(--picks-hold-rail);
+}
+
+/* Hover lift */
 .picks-root .pick-box:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.16);
+  transform: translateY(-3px);
+  border-color: var(--picks-border-strong);
+  background: var(--picks-bg-card-hover);
+  box-shadow: var(--picks-shadow-hover);
+}
+
+.picks-root .pick-box:hover::before {
+  opacity: 0.85;
 }
 
 .picks-root .pick-box:focus-visible {
@@ -154,49 +241,26 @@
   outline-offset: 2px;
 }
 
-.picks-root .pick-box[data-action="buy"] {
-  background: var(--picks-bg-card-buy);
-  border-color: var(--picks-buy-border);
-}
-
-.picks-root .pick-box[data-action="buy"]:hover {
-  border-color: var(--picks-buy);
-  background: #122F1D;
-}
-
-.picks-root .pick-box[data-action="sell"] {
-  background: var(--picks-bg-card-sell);
-  border-color: var(--picks-sell-border);
-}
-
-.picks-root .pick-box[data-action="sell"]:hover {
-  border-color: var(--picks-sell);
-  background: #341515;
-}
-
-.picks-root .pick-box[data-action="hold"] {
-  border-color: rgba(255, 255, 255, 0.08);
-}
-
-/* Box internal layout */
+/* Card row 1 — action + confidence meter */
 .picks-root .pick-box-row1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
   font-family: var(--picks-font-mono);
   font-size: 11px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--picks-ink-meta);
+  position: relative;     /* above ::before */
+  z-index: 1;
 }
 
 .picks-root .pick-action {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 4px 10px;
   border-radius: 4px;
   font-weight: 700;
   font-size: 11px;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
@@ -215,32 +279,103 @@
   color: var(--picks-hold);
 }
 
-.picks-root .pick-confidence {
-  font-family: var(--picks-font-mono);
+.picks-root .pick-confidence-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--picks-ink-meta);
-  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.picks-root .pick-confidence-cluster strong {
+  color: var(--picks-ink-primary);
+  font-weight: 600;
+}
+
+/* Card row 2 — symbol + price */
+.picks-root .pick-box-row2 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .picks-root .pick-symbol {
   font-size: 32px;
   font-weight: 700;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
   color: var(--picks-ink-primary);
   margin: 0;
-  font-family: var(--picks-font-sans);
+  line-height: 1;
 }
 
+.picks-root .pick-price {
+  font-family: var(--picks-font-mono);
+  font-size: 14px;
+  color: var(--picks-ink-body);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.picks-root .pick-price-loading {
+  color: var(--picks-ink-recede);
+  font-style: italic;
+  font-size: 11px;
+}
+
+/* Card row 3 — thesis */
 .picks-root .pick-thesis {
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--picks-ink-body);
   margin: 0;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+}
+
+/* Card row 4 — top 2 supporting factors */
+.picks-root .pick-factors {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: -4px;
+  position: relative;
+  z-index: 1;
+}
+
+.picks-root .pick-factor {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--picks-ink-meta);
+  font-family: var(--picks-font-mono);
+}
+
+.picks-root .pick-factor::before {
+  content: "→";
+  color: var(--picks-ink-recede);
+  font-size: 11px;
+}
+
+.picks-root .pick-factor-text {
+  color: var(--picks-ink-body);
+  font-family: var(--picks-font-sans);
+  font-size: 12px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+/* Card meta footer */
 .picks-root .pick-meta {
   margin-top: auto;
   font-family: var(--picks-font-mono);
@@ -249,17 +384,40 @@
   display: flex;
   justify-content: space-between;
   letter-spacing: 0.02em;
+  position: relative;
+  z-index: 1;
+}
+
+.picks-root .pick-meta-warn {
+  color: var(--picks-sell);
+}
+
+.picks-root .pick-risk {
+  font-family: var(--picks-font-mono);
+  font-size: 11px;
+  color: var(--picks-ink-meta);
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  margin-top: -4px;
+}
+
+.picks-root .pick-risk strong {
+  color: var(--picks-sell);
+  font-weight: 600;
 }
 
 
 /* ────────────────────────────────────────────────
-   Modal overlay
+   Modal overlay — research cockpit
    ──────────────────────────────────────────────── */
 
 .picks-root .pick-overlay {
   position: fixed;
   inset: 0;
   background: var(--picks-bg-overlay);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   z-index: 1000;
   display: flex;
   align-items: center;
@@ -267,7 +425,7 @@
   padding: 24px;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms ease-out;
+  transition: opacity 200ms ease-out, backdrop-filter 200ms ease-out;
 }
 
 .picks-root .pick-overlay[data-open="true"] {
@@ -276,28 +434,42 @@
 }
 
 .picks-root .pick-modal {
+  position: relative;
   background: var(--picks-bg-modal);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  width: min(560px, 100%);
-  max-height: min(80vh, 800px);
+  border: 1px solid var(--picks-border);
+  border-radius: 16px;
+  width: min(640px, 100%);
+  max-height: min(86vh, 880px);
   overflow-y: auto;
-  padding: 32px;
+  padding: 32px 36px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  transform: translateY(16px) scale(0.98);
-  transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+  gap: 28px;
+  transform: translateY(20px) scale(0.97);
+  transition: transform 240ms cubic-bezier(0.32, 0.72, 0, 1);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 64px rgba(0,0,0,0.55);
+  overflow-x: hidden;
 }
 
 .picks-root .pick-overlay[data-open="true"] .pick-modal {
   transform: translateY(0) scale(1);
 }
 
-.picks-root .pick-modal[data-action="buy"]  { border-top: 3px solid var(--picks-buy); }
-.picks-root .pick-modal[data-action="sell"] { border-top: 3px solid var(--picks-sell); }
-.picks-root .pick-modal[data-action="hold"] { border-top: 3px solid var(--picks-hold); }
+.picks-root .pick-modal::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 16px 16px 0 0;
+}
 
+.picks-root .pick-modal[data-action="buy"]::before  { background: var(--picks-buy); }
+.picks-root .pick-modal[data-action="sell"]::before { background: var(--picks-sell); }
+.picks-root .pick-modal[data-action="hold"]::before { background: var(--picks-hold); }
+
+/* Modal header */
 .picks-root .pick-modal-header {
   display: flex;
   justify-content: space-between;
@@ -314,46 +486,53 @@
 }
 
 .picks-root .pick-modal-symbol-sub {
-  margin-top: 6px;
-  font-size: 13px;
+  margin-top: 8px;
+  font-size: 12px;
   color: var(--picks-ink-meta);
   font-family: var(--picks-font-mono);
+  letter-spacing: 0.02em;
 }
 
 .picks-root .pick-modal-close {
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--picks-border);
   color: var(--picks-ink-meta);
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 16px;
+  font-size: 18px;
   flex-shrink: 0;
   transition: all 140ms ease-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .picks-root .pick-modal-close:hover {
   color: var(--picks-ink-primary);
-  border-color: rgba(255, 255, 255, 0.32);
+  border-color: var(--picks-border-strong);
+  background: rgba(255,255,255,0.04);
 }
 
+/* Modal action summary */
 .picks-root .pick-modal-action-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   flex-wrap: wrap;
   font-family: var(--picks-font-mono);
   font-size: 13px;
   color: var(--picks-ink-meta);
+  padding-bottom: 4px;
 }
 
 .picks-root .pick-modal-action-badge {
   padding: 6px 14px;
-  border-radius: 4px;
+  border-radius: 6px;
   font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.16em;
+  font-size: 13px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -372,76 +551,156 @@
   color: var(--picks-hold);
 }
 
+.picks-root .pick-modal-action-row strong {
+  color: var(--picks-ink-primary);
+}
+
+/* Modal price strip */
+.picks-root .pick-modal-prices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--picks-border);
+  border-radius: 10px;
+}
+
+.picks-root .pick-modal-price-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.picks-root .pick-modal-price-label {
+  font-family: var(--picks-font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--picks-ink-recede);
+}
+
+.picks-root .pick-modal-price-value {
+  font-family: var(--picks-font-mono);
+  font-size: 18px;
+  color: var(--picks-ink-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.picks-root .pick-modal-price-value-target {
+  color: var(--picks-buy);
+}
+
+.picks-root .pick-modal-price-value-stop {
+  color: var(--picks-sell);
+}
+
+/* Modal sections */
 .picks-root .pick-modal-section h4 {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.18em;
   color: var(--picks-ink-recede);
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
 }
 
 .picks-root .pick-modal-section p {
   margin: 0;
   font-size: 15px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--picks-ink-body);
 }
 
-.picks-root .pick-price-line {
-  font-family: var(--picks-font-mono);
-  font-size: 14px;
+.picks-root .pick-modal-section p strong {
   color: var(--picks-ink-primary);
+  font-weight: 600;
 }
 
-.picks-root .pick-price-loading {
-  color: var(--picks-ink-recede);
-  font-style: italic;
+/* Risk callout */
+.picks-root .pick-modal-section-risk {
+  padding: 14px 16px;
+  background: rgba(248, 113, 113, 0.06);
+  border-left: 3px solid var(--picks-sell);
+  border-radius: 4px;
 }
 
+.picks-root .pick-modal-section-risk h4 {
+  color: var(--picks-sell);
+}
+
+.picks-root .pick-modal-section-risk p {
+  color: var(--picks-ink-body);
+}
+
+/* Evidence list */
 .picks-root .pick-evidence-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .picks-root .pick-evidence-item {
-  padding: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 4px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.025);
+  border-radius: 8px;
   font-size: 14px;
   color: var(--picks-ink-body);
-  line-height: 1.5;
+  line-height: 1.55;
+  border-left: 2px solid var(--picks-border-strong);
 }
 
 .picks-root .pick-evidence-factor {
   font-family: var(--picks-font-mono);
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   color: var(--picks-ink-meta);
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
+/* Modal footer */
 .picks-root .pick-modal-footer {
   font-family: var(--picks-font-mono);
   font-size: 11px;
   color: var(--picks-ink-recede);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid var(--picks-border);
   padding-top: 16px;
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
 
-/* Reduced motion */
+/* ────────────────────────────────────────────────
+   Reduced motion — strip transitions
+   ──────────────────────────────────────────────── */
+
 @media (prefers-reduced-motion: reduce) {
   .picks-root .pick-box,
+  .picks-root .pick-box::before,
   .picks-root .pick-overlay,
   .picks-root .pick-modal,
-  .picks-root .pick-modal-close {
+  .picks-root .pick-modal-close,
+  .picks-root .confidence-meter > span {
     transition-duration: 0ms !important;
+  }
+}
+
+
+/* ────────────────────────────────────────────────
+   Mobile
+   ──────────────────────────────────────────────── */
+
+@media (max-width: 720px) {
+  .picks-root .picks-grid {
+    grid-template-columns: 1fr;
+  }
+  .picks-root .pick-modal {
+    padding: 24px 20px;
+  }
+  .picks-root .pick-modal-symbol {
+    font-size: 32px;
   }
 }
