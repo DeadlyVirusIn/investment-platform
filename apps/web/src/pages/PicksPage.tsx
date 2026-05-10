@@ -1,19 +1,37 @@
-// PicksPage — composed AI Investing OS homepage.
+// PicksPage — AI Investing OS homepage (portfolio-first composition).
+//
 // Story:
-//   Title → Command bar → Today panel → Action queue → Position
-//   intelligence → Premium income → Strategy workflows.
+//   Header (+ density toggle)
+//     ↓
+//   Portfolio Snapshot (hero NAV + sparkline + asymmetric metrics)
+//     ↓
+//   Today panel (AI summary | Top action | mini cards)
+//     ↓
+//   Today's Action Queue  ←→  Portfolio Health rail (sticky right)
+//     ↓
+//   Trade Lifecycle
+//     ↓
+//   Premium Income (chart or empty state)
+//     ↓
+//   Strategy Workflows
+//     ↓
+//   Position Intelligence (full table)
 
 import { useEffect, useMemo, useState } from "react";
 
 import PickModal from "@/components/picks/PickModal";
 import FilterBar from "@/components/picks/FilterBar";
-import Sidebar from "@/components/picks/Sidebar";
 import ActionQueue from "@/components/picks/ActionQueue";
-import CommandBar from "@/components/portfolio/CommandBar";
+
+import PortfolioSnapshot from "@/components/portfolio/PortfolioSnapshot";
 import TodayPanel from "@/components/portfolio/TodayPanel";
+import HealthRail from "@/components/portfolio/HealthRail";
+import TradeLifecycle from "@/components/portfolio/TradeLifecycle";
 import PositionsTable from "@/components/portfolio/PositionsTable";
 import StrategyModules from "@/components/portfolio/StrategyModules";
 import PremiumIncome from "@/components/portfolio/PremiumIncome";
+import DensityToggle from "@/components/portfolio/DensityToggle";
+
 import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
 } from "@/lib/picks/api";
@@ -98,11 +116,12 @@ export default function PicksPage() {
   const riskCount = sortedPicks.filter(p =>
     p.stale_data || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
   ).length;
+  const staleCount = sortedPicks.filter(p => p.stale_data).length;
 
   const priorityPrice = priority?.pick.symbol ? priceMap[priority.pick.symbol] ?? null : null;
 
   return (
-    <div className="picks-root" data-test="picks-root">
+    <div className="picks-root" data-test="picks-root" data-density="cozy">
       <div className="picks-frame">
         <header className="picks-header">
           <div>
@@ -113,9 +132,10 @@ export default function PicksPage() {
                 : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · paper portfolio`}
             </p>
           </div>
+          <DensityToggle />
         </header>
 
-        <CommandBar />
+        <PortfolioSnapshot />
 
         {loading && (
           <div className="picks-loading" data-test="picks-loading">
@@ -166,17 +186,19 @@ export default function PicksPage() {
                     onPickClick={setOpenPickId}
                   />
                 </div>
-                <Sidebar
-                  picks={sortedPicks}
-                  briefing={briefing}
-                  onPickClick={setOpenPickId}
+                <HealthRail
+                  staleCount={staleCount}
+                  watchlistCount={watchlistCount}
+                  riskCount={riskCount}
+                  posture={briefing.postureLabel}
                 />
               </div>
             </section>
 
-            <PositionsTable />
+            <TradeLifecycle />
             <PremiumIncome />
             <StrategyModules />
+            <PositionsTable />
           </>
         )}
       </div>

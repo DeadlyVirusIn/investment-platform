@@ -203,3 +203,175 @@ export function fmtSigned(n: number | null): string {
   const sign = n > 0 ? "+" : "";
   return `${sign}${fmtCurrency(n)}`;
 }
+
+
+// ============================================================
+// Equity curve — /api/performance/equity-curve
+// ============================================================
+
+export interface EquityPoint { date: string; equity: number; }
+
+export async function fetchEquityCurve(): Promise<EquityPoint[]> {
+  const data = await safeFetch<{ points?: Array<{ date: string; equity: string | number }> }>(
+    "/api/performance/equity-curve",
+  );
+  const pts = data?.points ?? [];
+  return pts
+    .map(p => ({ date: p.date, equity: typeof p.equity === "string" ? parseFloat(p.equity) : p.equity }))
+    .filter(p => !Number.isNaN(p.equity));
+}
+
+
+// ============================================================
+// Trade lifecycle — /api/options/paper-trades
+// Maps backend states into normalized lifecycle buckets.
+// ============================================================
+
+export type LifecycleState =
+  | "open" | "closed" | "assigned" | "expired"
+  | "rolled" | "exercised" | "pending";
+
+
+export interface LifecycleTrade {
+  trade_id: number;
+  underlying: string;
+  strategy_name: string | null;
+  contract: string | null;            // e.g. "170C 15 Jan 27"
+  side: string | null;                // bought / sold
+  state: LifecycleState;
+  raw_status: string;
+  opened_at: string | null;
+  closed_at: string | null;
+  premium_collected: number | null;
+  realized_pnl: number | null;
+  unrealized_pnl: number | null;
+  days_open: number | null;
+}
+
+
+function mapState(raw: unknown): LifecycleState {
+  const s = String(raw ?? "").toLowerCase().trim();
+  if (s.includes("assign")) return "assigned";
+  if (s.includes("expire")) return "expired";
+  if (s.includes("roll"))   return "rolled";
+  if (s.includes("exerc"))  return "exercised";
+  if (s.includes("pend") || s.includes("submit") || s.includes("queue")) return "pending";
+  if (s.includes("clos") || s.includes("settled") || s.includes("done")) return "closed";
+  return "open";
+}
+
+
+export async function fetchLifecycleTrades(): Promise<LifecycleTrade[]> {
+  const data = await safeFetch<{ trades?: Array<Record<string, unknown>> }>(
+    "/api/options/paper-trades?limit=200",
+  );
+  const rows = data?.trades ?? [];
+  return rows.map(r => {
+    const opened = (r.opened_at as string | null)
+      ?? (r.entry_ts as string | null)
+      ?? (r.created_at as string | null)
+      ?? null;
+    const closed = (r.closed_at as string | null)
+      ?? (r.exit_ts as string | null)
+      ?? null;
+    let daysOpen: number | null = null;
+    if (opened) {
+      const start = Date.parse(opened);
+      const end = closed ? Date.parse(closed) : Date.now();
+      if (!Number.isNaN(start) && !Number.isNaN(end)) {
+        daysOpen = Math.max(0, Math.round((end - start) / 86_400_000));
+      }
+    }
+    return {
+      trade_id: Number(r.trade_id ?? r.id ?? 0),
+      underlying: String(r.underlying ?? r.symbol ?? "—"),
+      strategy_name: (r.strategy_name as string | null)
+        ?? (r.strategy as string | null) ?? null,
+      contract: (r.contract as string | null)
+        ?? (r.option_symbol as string | null) ?? null,
+      side: (r.side as string | null) ?? null,
+      state: mapState(r.status ?? r.state ?? r.lifecycle),
+      raw_status: String(r.status ?? r.state ?? "open"),
+      opened_at: opened,
+      closed_at: closed,
+      premium_collected: asNum(r.premium_collected ?? r.premium ?? r.credit),
+      realized_pnl: asNum(r.realized_pnl ?? r.realized),
+      unrealized_pnl: asNum(r.unrealized_pnl ?? r.mark_pnl),
+      days_open: daysOpen,
+    };
+  });
+}
+
+
+// ============================================================
+// Health rail derivations from the position snapshot
+// ============================================================
+
+export interface HealthRailData {
+  largestWinner: { symbol: string; pnl: number } | null;
+  largestLoser:  { symbol: string; pnl: number } | null;
+  largestPosition: { symbol: string; mv: number } | null;
+  premiumToday: number | null;
+  staleCount: number;
+  totalOpen: number;
+}
+
+
+export function deriveHealthRail(positions: PositionRow[], lifecycle: LifecycleTrade[]): HealthRailData {
+  const withPnl = positions.filter(p => p.unrealized_pnl != null);
+  const sortedDesc = [...withPnl].sort((a, b) => (b.unrealized_pnl ?? 0) - (a.unrealized_pnl ?? 0));
+  const winner = sortedDesc[0]?.unrealized_pnl != null && sortedDesc[0].unrealized_pnl > 0
+    ? { symbol: sortedDesc[0].symbol, pnl: sortedDesc[0].unrealized_pnl }
+    : null;
+  const loser = sortedDesc[sortedDesc.length - 1]?.unrealized_pnl != null
+    && (sortedDesc[sortedDesc.length - 1].unrealized_pnl ?? 0) < 0
+    ? { symbol: sortedDesc[sortedDesc.length - 1].symbol, pnl: sortedDesc[sortedDesc.length - 1].unrealized_pnl ?? 0 }
+    : null;
+
+  const withMv = positions.filter(p => p.market_value != null);
+  const sortedMv = [...withMv].sort((a, b) => (b.market_value ?? 0) - (a.market_value ?? 0));
+  const largestPosition = sortedMv[0]?.market_value != null
+    ? { symbol: sortedMv[0].symbol, mv: sortedMv[0].market_value ?? 0 }
+    : null;
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+  const premiumToday = lifecycle
+    .filter(t => t.opened_at && Date.parse(t.opened_at) >= todayMs)
+    .reduce((sum, t) => sum + (t.premium_collected ?? 0), 0) || null;
+
+  return {
+    largestWinner: winner,
+    largestLoser: loser,
+    largestPosition,
+    premiumToday,
+    staleCount: 0,
+    totalOpen: positions.length,
+  };
+}
+
+
+// ============================================================
+// Provider seam — pluggable data providers (Phase 8 prep)
+// Future-ready hooks for Polygon / Tradier / Firecrawl / Benzinga.
+// All adapters MUST return a uniform shape so swap is transparent.
+// ============================================================
+
+export interface PriceProvider { name: string; fetchQuote(symbol: string): Promise<{ price: number } | null>; }
+export interface NewsProvider  { name: string; fetchNews(symbol: string): Promise<Array<{ title: string; url: string; ts: string }>>; }
+export interface CalendarProvider { name: string; fetchEarnings(window: number): Promise<Array<{ symbol: string; date: string; }>>; }
+
+
+// Default providers are NOT registered. Wire concrete implementations
+// (e.g. PolygonPriceProvider) later. Components should accept a
+// provider via prop or read from a future `providers` context — never
+// inline a vendor URL in a component.
+export const PROVIDER_REGISTRY: {
+  prices: PriceProvider | null;
+  news:   NewsProvider | null;
+  calendar: CalendarProvider | null;
+} = {
+  prices: null,
+  news:   null,
+  calendar: null,
+};
