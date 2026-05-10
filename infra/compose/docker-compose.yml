@@ -81,6 +81,12 @@ services:
       RESEARCH_GRACE_ENABLED: ${RESEARCH_GRACE_ENABLED:-false}
       OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
       SAFE_GATE_EVOLUTION_PILOT_EXECUTION: ${SAFE_GATE_EVOLUTION_PILOT_EXECUTION:-false}
+      # Market Events providers — empty defaults preserve graceful empty
+      # arrays when keys not set. SEC EDGAR is free; UA optional override.
+      SEC_EDGAR_USER_AGENT: ${SEC_EDGAR_USER_AGENT:-}
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
+      BENZINGA_API_KEY: ${BENZINGA_API_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
     volumes:
       - worker_cron_tmp:/var/scheduler_markers:ro
       # Read-only mount of paper-trading skip JSONL artifacts so the

@@ -93,6 +93,36 @@ docs/        Architecture, data providers, ledger model, onboarding
 
 ---
 
+## Market Events providers
+
+`/api/market/events` and `/api/asset/{symbol}/events` aggregate
+filings, news, earnings, and options expirations per ticker from
+multiple providers. Set the following in `.env` to activate
+each provider; missing keys gracefully return empty arrays.
+
+| Var | Required | Purpose |
+|-----|----------|---------|
+| `SEC_EDGAR_USER_AGENT` | optional | SEC EDGAR User-Agent (mandatory header per SEC; defaults to a generic value, override for production) |
+| `POLYGON_API_KEY`      | optional | Polygon.io news + earnings |
+| `BENZINGA_API_KEY`     | optional | Benzinga news + sentiment |
+| `FIRECRAWL_API_KEY`    | optional | Firecrawl URL summariser (never source of truth) |
+
+SEC EDGAR is free and works without any key — filings will populate
+out of the box once `SEC_EDGAR_USER_AGENT` is set.
+
+Smoke test the endpoint:
+
+```bash
+./scripts/smoke_market_events.sh                 # default AAPL,MSFT,NVDA
+./scripts/smoke_market_events.sh AAPL,TSLA       # custom symbols
+API_BASE=http://localhost:8000 ./scripts/smoke_market_events.sh
+```
+
+The script prints provider availability and per-symbol counts of
+filings / news / earnings / options_expirations.
+
+---
+
 ## License
 
 Personal use only — no license granted.
