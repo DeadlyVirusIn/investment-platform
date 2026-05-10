@@ -1,17 +1,16 @@
-// PicksPage — premium copilot landing.
-// Hero briefing + priority action + filter bar + grid + sidebar + modal.
+// PicksPage — composed AI Investing OS homepage.
+// Story:
+//   Title → Command bar → Today panel → Action queue → Position
+//   intelligence → Premium income → Strategy workflows.
 
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 
-import PickBox from "@/components/picks/PickBox";
 import PickModal from "@/components/picks/PickModal";
-import Briefing from "@/components/picks/Briefing";
 import FilterBar from "@/components/picks/FilterBar";
 import Sidebar from "@/components/picks/Sidebar";
-import EmptyStateCard from "@/components/picks/EmptyStateCard";
-import PriorityAction from "@/components/picks/PriorityAction";
+import ActionQueue from "@/components/picks/ActionQueue";
 import CommandBar from "@/components/portfolio/CommandBar";
+import TodayPanel from "@/components/portfolio/TodayPanel";
 import PositionsTable from "@/components/portfolio/PositionsTable";
 import StrategyModules from "@/components/portfolio/StrategyModules";
 import PremiumIncome from "@/components/portfolio/PremiumIncome";
@@ -19,9 +18,9 @@ import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
 } from "@/lib/picks/api";
 import {
-  buildBriefing, applyFilter, rankingLabel, derivePriority,
-  type PicksFilter,
+  buildBriefing, derivePriority, type PicksFilter,
 } from "@/lib/picks/copilot";
+import { fetchCommandBar } from "@/lib/portfolio/api";
 
 
 export default function PicksPage() {
@@ -31,6 +30,7 @@ export default function PicksPage() {
   const [error, setError] = useState<string | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
   const [filter, setFilter] = useState<PicksFilter>("all");
+  const [monthlyPremium, setMonthlyPremium] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +58,11 @@ export default function PicksPage() {
         setError(err?.message ?? "Failed to load suggestions.");
         setLoading(false);
       });
+
+    fetchCommandBar().then(d => {
+      if (!cancelled) setMonthlyPremium(d.monthlyPremium);
+    });
+
     return () => { cancelled = true; };
   }, []);
 
@@ -65,7 +70,6 @@ export default function PicksPage() {
     () => picks.find(p => p.id === openPickId) ?? null,
     [picks, openPickId],
   );
-
   const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;
 
   const sortedPicks = useMemo(() => {
@@ -85,14 +89,15 @@ export default function PicksPage() {
   const briefing = useMemo(() => buildBriefing(sortedPicks), [sortedPicks]);
   const priority = useMemo(() => derivePriority(sortedPicks), [sortedPicks]);
 
-  const gridPicks = useMemo(() => {
-    // Exclude priority pick from the grid to avoid duplication
-    const base = priority ? sortedPicks.filter(p => p.id !== priority.pick.id) : sortedPicks;
-    return applyFilter(base, filter);
-  }, [sortedPicks, filter, priority]);
+  const queuePicks = useMemo(
+    () => priority ? sortedPicks.filter(p => p.id !== priority.pick.id) : sortedPicks,
+    [sortedPicks, priority],
+  );
 
-  const buyCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "buy").length;
-  const sellCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
+  const watchlistCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "hold").length;
+  const riskCount = sortedPicks.filter(p =>
+    p.stale_data || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
+  ).length;
 
   const priorityPrice = priority?.pick.symbol ? priceMap[priority.pick.symbol] ?? null : null;
 
@@ -103,18 +108,11 @@ export default function PicksPage() {
           <div>
             <h1 className="picks-title">AI Investing OS</h1>
             <p className="picks-subtitle">
-              {loading ? "Loading…" : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · paper portfolio`}
+              {loading
+                ? "Loading…"
+                : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · paper portfolio`}
             </p>
           </div>
-          <nav className="picks-archive-nav" data-test="picks-archive-nav">
-            <span style={{ color: "var(--picks-ink-recede)" }}>archive</span>
-            <Link to="/overview?view=working">working</Link>
-            <Link to="/overview?view=conviction">conviction</Link>
-            <Link to="/overview?view=copilot">copilot</Link>
-            <Link to="/overview?view=living">living</Link>
-            <Link to="/overview?view=stream">stream</Link>
-            <Link to="/overview?view=legacy">legacy</Link>
-          </nav>
         </header>
 
         <CommandBar />
@@ -126,57 +124,55 @@ export default function PicksPage() {
         )}
 
         {error && (
-          <div className="picks-error" data-test="picks-error">
-            {error}
-          </div>
+          <div className="picks-error" data-test="picks-error">{error}</div>
         )}
 
         {!loading && !error && sortedPicks.length === 0 && (
           <div className="picks-empty" data-test="picks-empty">
-            No AI suggestions available right now. The recommendation engine may
-            still be running. Check back shortly.
+            No AI suggestions available right now. The recommendation engine
+            may still be running. Check back shortly.
           </div>
         )}
 
         {!loading && !error && sortedPicks.length > 0 && (
           <>
-            <Briefing briefing={briefing} onFilterChange={setFilter} />
+            <TodayPanel
+              briefing={briefing}
+              priority={priority}
+              priorityPrice={priorityPrice}
+              watchlistCount={watchlistCount}
+              riskCount={riskCount}
+              monthlyPremium={monthlyPremium}
+              onOpenCockpit={setOpenPickId}
+              onFilterChange={setFilter}
+            />
 
-            {priority && (
-              <PriorityAction
-                priority={priority}
-                price={priorityPrice}
-                onOpenCockpit={setOpenPickId}
-                onFilterChange={setFilter}
-              />
-            )}
+            <section className="queue-section">
+              <header className="pi-section-header">
+                <h3>Today's Action Queue</h3>
+                <span className="pi-section-sub">
+                  Grouped by recommendation · click any card for the research cockpit
+                </span>
+              </header>
+              <FilterBar picks={sortedPicks} active={filter} onChange={setFilter} />
 
-            <FilterBar picks={sortedPicks} active={filter} onChange={setFilter} />
-
-            <div className="picks-layout">
-              <main className="picks-main">
-                <div className="picks-grid" data-test="picks-grid">
-                  {filter === "all" && buyCount === 0 && <EmptyStateCard action="buy" />}
-                  {filter === "all" && sellCount === 0 && <EmptyStateCard action="sell" />}
-
-                  {gridPicks.map(pick => (
-                    <PickBox
-                      key={pick.id}
-                      pick={pick}
-                      price={pick.symbol ? priceMap[pick.symbol] : null}
-                      rankingLabel={rankingLabel(pick, sortedPicks)}
-                      onClick={setOpenPickId}
-                    />
-                  ))}
-
-                  {gridPicks.length === 0 && filter !== "all" && (
-                    <div className="picks-filter-empty">No picks match this filter.</div>
-                  )}
+              <div className="queue-layout">
+                <div className="queue-main">
+                  <ActionQueue
+                    picks={queuePicks}
+                    allPicks={sortedPicks}
+                    priceMap={priceMap}
+                    filter={filter}
+                    onPickClick={setOpenPickId}
+                  />
                 </div>
-              </main>
-
-              <Sidebar picks={sortedPicks} briefing={briefing} onPickClick={setOpenPickId} />
-            </div>
+                <Sidebar
+                  picks={sortedPicks}
+                  briefing={briefing}
+                  onPickClick={setOpenPickId}
+                />
+              </div>
+            </section>
 
             <PositionsTable />
             <PremiumIncome />

@@ -1,5 +1,5 @@
-// PositionsTable — modern position intelligence table.
-// Sourced from /api/paper/executed/positions. Shows real fields only.
+// PositionsTable — Position Intelligence.
+// Smart empty cells per row + outcome-oriented colors.
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -7,6 +7,34 @@ import { fetchOpenPositions, fmtCurrency, fmtPct, fmtSigned, type PositionRow } 
 
 
 type SortKey = "symbol" | "quantity" | "avg_cost" | "market_value" | "unrealized_pnl" | "return_pct";
+
+
+function strategyHint(portfolio: string | null): string {
+  if (!portfolio) return "Long";
+  const lo = portfolio.toLowerCase();
+  if (lo.includes("wheel")) return "Wheel";
+  if (lo.includes("leap")) return "LEAPS";
+  if (lo.includes("call")) return "Covered call";
+  if (lo.includes("put")) return "CSP";
+  if (lo.includes("spread")) return "Spread";
+  return "Long";
+}
+
+
+function nextStep(r: PositionRow): { text: string; tone: "good" | "warn" | "bad" | "info" } {
+  if (r.return_pct != null) {
+    if (r.return_pct >= 100) return { text: "Lock partial gains", tone: "warn" };
+    if (r.return_pct >= 25) return { text: "Hold and trail stop", tone: "good" };
+    if (r.return_pct <= -10) return { text: "Review thesis", tone: "bad" };
+    if (r.return_pct < 0) return { text: "Watch for reversal", tone: "warn" };
+    return { text: "Hold", tone: "good" };
+  }
+  if (r.unrealized_pnl != null) {
+    if (r.unrealized_pnl > 0) return { text: "Hold and monitor", tone: "good" };
+    if (r.unrealized_pnl < 0) return { text: "Review thesis", tone: "warn" };
+  }
+  return { text: "Needs price mark", tone: "info" };
+}
 
 
 export default function PositionsTable() {
@@ -56,9 +84,9 @@ export default function PositionsTable() {
   if (loading) {
     return (
       <section className="pi-positions" data-test="pi-positions-loading">
-        <header className="pi-positions-header">
+        <header className="pi-section-header">
           <h3>Position Intelligence</h3>
-          <span className="pi-positions-sub">Loading…</span>
+          <span className="pi-section-sub">Loading…</span>
         </header>
       </section>
     );
@@ -67,13 +95,17 @@ export default function PositionsTable() {
   if (rows.length === 0) {
     return (
       <section className="pi-positions" data-test="pi-positions-empty">
-        <header className="pi-positions-header">
+        <header className="pi-section-header">
           <h3>Position Intelligence</h3>
-          <span className="pi-positions-sub">No open positions yet</span>
+          <span className="pi-section-sub">Activate paper trading to see positions here</span>
         </header>
-        <div className="pi-positions-empty">
-          Once paper trades execute, your open positions will appear here with live P&L,
-          return %, and AI-suggested next actions.
+        <div className="pi-empty-state">
+          <h4>No open positions yet</h4>
+          <p>
+            Once paper trades execute, your open positions appear here with
+            real-time P&L, return %, premium income (where applicable), and
+            AI-suggested next steps for each name.
+          </p>
         </div>
       </section>
     );
@@ -81,36 +113,51 @@ export default function PositionsTable() {
 
   return (
     <section className="pi-positions" data-test="pi-positions">
-      <header className="pi-positions-header">
+      <header className="pi-section-header">
         <h3>Position Intelligence</h3>
-        <span className="pi-positions-sub">{rows.length} open · paper</span>
+        <span className="pi-section-sub">{rows.length} open · paper · sorted by {sortKey === "unrealized_pnl" ? "open P&L" : sortKey}</span>
       </header>
       <div className="pi-positions-tablewrap">
         <table className="pi-positions-table">
           <thead>
             <tr>
               {header("symbol", "Symbol", "left")}
-              <th data-align="left">Portfolio</th>
-              {header("quantity", "Qty")}
+              <th data-align="left">Strategy</th>
+              {header("quantity", "Position")}
               {header("avg_cost", "Avg Cost")}
               {header("market_value", "Market Value")}
               {header("unrealized_pnl", "Open P&L")}
               {header("return_pct", "Return")}
+              <th data-align="left">AI Next Step</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map(r => {
               const pnlTone = r.unrealized_pnl == null ? "" : r.unrealized_pnl > 0 ? "good" : r.unrealized_pnl < 0 ? "bad" : "";
-              const retTone = r.return_pct == null ? "" : r.return_pct > 0 ? "good" : r.return_pct < 0 ? "bad" : "";
+              const retTone = r.return_pct == null ? "" : r.return_pct > 100 ? "warn" : r.return_pct > 0 ? "good" : r.return_pct < 0 ? "bad" : "";
+              const next = nextStep(r);
               return (
                 <tr key={r.position_id}>
                   <td data-align="left"><span className="pi-pos-symbol">{r.symbol}</span></td>
-                  <td data-align="left" className="pi-pos-portfolio">{r.portfolio_name ?? "—"}</td>
+                  <td data-align="left">
+                    <span className="pi-pos-strategy">{strategyHint(r.portfolio_name)}</span>
+                  </td>
                   <td data-align="right">{r.quantity.toLocaleString()}</td>
-                  <td data-align="right">{fmtCurrency(r.avg_cost)}</td>
-                  <td data-align="right">{fmtCurrency(r.market_value)}</td>
-                  <td data-align="right" data-tone={pnlTone}>{fmtSigned(r.unrealized_pnl)}</td>
-                  <td data-align="right" data-tone={retTone}>{fmtPct(r.return_pct)}</td>
+                  <td data-align="right">
+                    {r.avg_cost != null ? fmtCurrency(r.avg_cost) : <span className="pi-pos-na">—</span>}
+                  </td>
+                  <td data-align="right">
+                    {r.market_value != null ? fmtCurrency(r.market_value) : <span className="pi-pos-na" title="Market value depends on a current price mark.">needs price mark</span>}
+                  </td>
+                  <td data-align="right" data-tone={pnlTone}>
+                    {r.unrealized_pnl != null ? fmtSigned(r.unrealized_pnl) : <span className="pi-pos-na">—</span>}
+                  </td>
+                  <td data-align="right" data-tone={retTone}>
+                    {r.return_pct != null ? fmtPct(r.return_pct) : <span className="pi-pos-na">—</span>}
+                  </td>
+                  <td data-align="left">
+                    <span className="pi-pos-next" data-tone={next.tone}>{next.text}</span>
+                  </td>
                 </tr>
               );
             })}

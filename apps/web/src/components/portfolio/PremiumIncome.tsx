@@ -1,6 +1,5 @@
-// PremiumIncome — bar chart of monthly options-premium income.
-// Sourced from /api/options/performance-summary `.monthly[]` if present.
-// Hides itself when no data is available — never fakes numbers.
+// PremiumIncome — monthly options-premium chart.
+// When no data, renders a tasteful empty state instead of hiding silently.
 
 import { useEffect, useState } from "react";
 
@@ -20,8 +19,34 @@ export default function PremiumIncome() {
     return () => { cancelled = true; };
   }, []);
 
-  if (loading || !points || points.length === 0) {
-    return null;
+  if (loading) {
+    return (
+      <section className="pi-premium" data-test="pi-premium-loading">
+        <header className="pi-section-header">
+          <h3>Premium Income</h3>
+          <span className="pi-section-sub">Loading…</span>
+        </header>
+      </section>
+    );
+  }
+
+  if (!points || points.length === 0) {
+    return (
+      <section className="pi-premium" data-test="pi-premium-empty">
+        <header className="pi-section-header">
+          <h3>Premium Income Tracker</h3>
+          <span className="pi-section-sub">Not active yet</span>
+        </header>
+        <div className="pi-empty-state">
+          <h4>Track covered calls, CSPs, and spreads here</h4>
+          <p>
+            Once option trades close, monthly premium income, win rate, and a
+            running 12-month total appear in this section. Inspired by your
+            "$85,000+ generated selling SP500 puts" tracker.
+          </p>
+        </div>
+      </section>
+    );
   }
 
   const max = Math.max(...points.map(p => p.amount), 0);
@@ -29,10 +54,10 @@ export default function PremiumIncome() {
 
   return (
     <section className="pi-premium" data-test="pi-premium">
-      <header className="pi-premium-header">
+      <header className="pi-section-header">
         <div>
           <h3>Premium Income</h3>
-          <span className="pi-premium-sub">{points.length} months · ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} total</span>
+          <span className="pi-section-sub">{points.length} months · ${total.toLocaleString(undefined, { maximumFractionDigits: 0 })} total</span>
         </div>
       </header>
       <div className="pi-premium-chart">
