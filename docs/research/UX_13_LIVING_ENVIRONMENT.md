@@ -53,10 +53,10 @@ Canonical justification (Gemini, locked verbatim):
 
 | Position | Models | Mechanism |
 |----------|--------|-----------|
-| **Verb-pill 11px lock holds; verb-glyph at 36-48pt is a separate page-chrome experiment in Solo+Duet** | Opus, Codex, Gemini — **MASTER DEFAULT** | UX-10/11/12 verb pill is locked at 11px monochrome. The 36-48pt verb-glyph is a NEW visual category that may sit as page chrome (separate from tile schema), but only as documented experiment, not baseline. |
-| Verb-glyph at 36pt (Duet) / 48pt (Solo) as primary visual gravity instrument | Sonnet R1 (defended through R3) | "The most important typographic move in any R1." Verb is the focal point. |
+| **Verb-pill 11px lock holds; verb-glyph at 36-48pt SHIPS as Phase 13C deliverable (monitored)** | Sonnet R4 + Opus R4 + Gemini R4 — **MASTER DEFAULT (updated R4)** | UX-10/11/12 verb pill is locked at 11px monochrome. The 36-48pt verb-glyph ships as a SEPARATE PAGE CHROME visual category. R4 mitigations + kill-trigger gate it against Codex's drift concern. See Section 12 D1 for details. |
+| Verb-glyph 36-48pt would create "trade verb as poster" / action-pressure casino drift | Codex R4 KILL position | Production drift named. Kill-trigger documented. |
 
-**Master locks the verb-pill at 11px (UX-10/11/12 carry-forward).** Sonnet's 36-48pt verb-glyph documented as "future experiment as page-chrome focal element distinct from tile schema verb-pill." Two visual categories.
+**R4 update (2026-05-10):** Master now SHIPS the verb-glyph as Phase 13C deliverable, NOT just documented experiment. Codex's drift concern → named kill-trigger at 13E acceptance gate. See Section 12 D1.
 
 ### D2 — Hero-anchor side (3-vs-1)
 
@@ -65,7 +65,7 @@ Canonical justification (Gemini, locked verbatim):
 | **Left-anchored (cols 1-7), negative well right** | Opus, Sonnet, Gemini — **MASTER DEFAULT** | Western F-pattern reading flow. Magazine spread pattern (FT, NYT, Stratechery). |
 | Right-anchored (upper-right optical center) | Codex R1 | Mass-on-right with reading flow left. |
 
-**Master locks left-anchored.** Codex right-anchored documented as future-experiment.
+**Master locks left-anchored.** ~~Codex right-anchored documented as future-experiment.~~ **R4 update:** Codex CONCEDED in R4 — "Western editorial reading patterns favor left mass with right-side negative well; less risky and more immediately legible." Right-anchored downgraded to "post-13X visual experiment after UX-13 room grammar is validated." 4-vs-0 left consensus. See Section 12 D3.
 
 ### D3 — Halo permitted (Solo-only) vs banned (3-vs-1)
 
@@ -351,6 +351,66 @@ Source files:
 - Specific local-storage schema for "since you left" delta (deferred to 13D).
 - Mobile breakpoint specifics for room compositions (Phase 13G+ refinement; mobile may flatten to single-column regardless of room).
 - Real-time mid-session re-room-selection (banned per L6; future user-research could re-evaluate).
+
+---
+
+## Section 12 — Round 4 Resolutions (focused dispute round)
+
+R4 added 2026-05-10 to resolve 3 disputes carrying minority dissent. Each model wrote a tight 800-1500 word focused position. Resolutions:
+
+### R4 Resolution D1 — Verb-glyph at 36-48pt: SHIPPED as monitored Phase 13C deliverable
+
+| Model | R4 position |
+|-------|-------------|
+| Sonnet | HOLD — promote from "future-experiment" to "locked Phase 13C deliverable" |
+| Opus | SPLIT — ship as page chrome separate from tile pill, A/B in 13E |
+| Gemini | SPLIT — ship as opt-in "Living View" experiment |
+| Codex | KILL — "trade verb as poster" risk; preserve verb-anchor as abstract anchor only |
+
+**Resolution:** Lock the verb-glyph as **Phase 13C deliverable** with the following constraints:
+- **Solo:** 48pt Source Serif 4, weight 400, color `--ux12-fg-secondary`.
+- **Duet:** 36pt same family, same weight, same color.
+- **Field:** absent (no anchor needed).
+- **Anchor:** fixed (x, y) at 50% viewport width, 40vh + 32px (just below stage/shop hairline).
+- **Visual category:** PAGE CHROME (separate object from tile schema verb-pill at 11px). Pill stays unchanged.
+- **Mitigations against Codex's "trade verb as poster" drift:**
+  - Color matches body text (NOT red/green/amber/saturated).
+  - Serif typeface (NOT block sans).
+  - Solo (rare ~15%) uses 48pt; Duet (default ~60%) uses smaller 36pt.
+  - Anti-pattern #62 prohibits any verb-glyph appearance outside hero zone (no nav/footer/chrome use).
+- **Acceptance gate at 13E:** if Codex-test ("user reads 4 tiles in 5s") fails OR user qualitative testing shows action-pressure vibe, KILL the verb-glyph and revert to abstract anchor only. Codex's drift concern is the kill-trigger.
+
+Codex's R4 dissent strengthens the existing dissent documentation: production drift is the named failure mode the kill-trigger guards against.
+
+### R4 Resolution D2 — Halo Solo-only at 4% amber: HELD
+
+| Model | R4 position |
+|-------|-------------|
+| Sonnet | HOLD lock as written |
+| Opus | HOLD Solo-only at 4% |
+| Gemini | HOLD majority position |
+| Codex | KILL entirely — production drift to "easiest knob to turn" |
+
+**Resolution:** Lock holds. 3-vs-1 toward keeping Solo-only halo at 4% amber. Codex's R4 dissent is sharper than R3 — names the **production drift mechanism** ("4% amber halo will become the easiest knob to turn when the page feels insufficiently alive"). Strengthens dissent documentation as a deployment-time guard. If 13A staging shows the halo being applied to Duet or Field by drift, kill the halo entirely. Anti-pattern #61 ("halo present in Duet or Field") is the explicit guard.
+
+### R4 Resolution D3 — Hero anchor: LEFT confirmed (4-vs-0, Codex conceded)
+
+| Model | R4 position |
+|-------|-------------|
+| Sonnet | HOLD LEFT, no experiment |
+| Opus | HOLD LEFT default, allow RIGHT in Solo-only experiment |
+| Gemini | HOLD LEFT, no experiment |
+| Codex | HOLD LEFT — **CONCEDED** in R4 |
+
+**Resolution:** 4-vs-0 LEFT. Codex's R4 conceded the right-anchor argument: *"I concede the other three are right that Western editorial reading patterns, especially premium magazine spreads, favor left mass with a right-side negative well; it is less risky and more immediately legible."* Right-anchored hero is **downgraded from "documented dissent" to "post-13X future experiment after UX-13 room grammar is validated."** No in-staging A/B. Master's Section 2 D2 dissent text updated.
+
+### R4 Convergence statistic
+
+R4 produced 1 strengthened lock (D1 verb-glyph with mitigations + kill-trigger), 1 unchanged lock (D2 halo, dissent sharpened), 1 dissent removal (D3 hero anchor → 4-way agreement).
+
+The verb-glyph going to Phase 13C as monitored deliverable is the single most consequential R4 outcome — it ships Sonnet's R1 contribution into the implementation roadmap with Codex's drift concern as the explicit guard. If implementation drift produces the casino energy Codex predicts, the kill-trigger reverts the master to "no page-chrome verb." The composition still works without the glyph (room asymmetry + verb-anchor as abstract composition rule); the glyph is added value, not load-bearing.
+
+R4 source files: `docs/research/debates/UX_13_environment/round4/{gemini,codex,sonnet,opus}_r4.md`. Word counts: Gemini 390, Codex ~720 (post-echo), Sonnet 1,061, Opus 586. ~3,000 words total of focused dispute resolution.
 
 ---
 
