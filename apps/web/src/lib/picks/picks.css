@@ -4840,3 +4840,36 @@
 .picks-root .picks-action-rail[data-action="hold"]::before { background: var(--ax-hold); }
 .picks-root .picks-action-rail[data-action="trim"]::before { background: var(--ax-trim); }
 .picks-root .picks-action-rail[data-action="sell"]::before { background: var(--ax-sell); }
+
+
+/* ====================================================================
+   PHASE 14b — Overview executive briefing — page-specific helper
+   ==================================================================== */
+
+/* "Today's read" line above launchers. Tiny eyebrow + body sentence,
+   never a card — sits between TodayPanel and launcher-grid as quiet
+   narrative. */
+.picks-root .picks-today-read {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 18px 0 -4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pi-ink-secondary);
+}
+.picks-root .picks-today-read-label {
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--pi-ink-muted);
+}
+@media (max-width: 640px) {
+  .picks-root .picks-today-read {
+    flex-direction: column;
+    gap: 4px;
+    margin: 14px 0 0;
+  }
+}

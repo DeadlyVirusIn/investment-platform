@@ -22,7 +22,10 @@ import {
 import {
   buildBriefing, derivePriority, type PicksFilter,
 } from "@/lib/picks/copilot";
-import { fetchCommandBar } from "@/lib/portfolio/api";
+import {
+  fetchCommandBar, fmtCurrency, fmtPct,
+  type CommandBarData,
+} from "@/lib/portfolio/api";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import FetchError from "@/components/shell/FetchError";
 
@@ -59,7 +62,7 @@ export default function PicksPage() {
   const [error, setError] = useState<Error | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
   const [_filter, setFilter] = useState<PicksFilter>("all");
-  const [monthlyPremium, setMonthlyPremium] = useState<number | null>(null);
+  const [commandBar, setCommandBar] = useState<CommandBarData | null>(null);
   const [density, setDensity] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
@@ -77,9 +80,13 @@ export default function PicksPage() {
       setError(e instanceof Error ? e : new Error(String(e)));
       setLoading(false);
     });
-    fetchCommandBar().then(d => { if (!cancelled) setMonthlyPremium(d.monthlyPremium); });
+    // Phase 14b — capture full command bar (post-13k canonical) for the
+    // executive-briefing subtitle and launcher metrics.
+    fetchCommandBar().then(d => { if (!cancelled) setCommandBar(d); });
     return () => { cancelled = true; };
   }, []);
+
+  const monthlyPremium = commandBar?.monthlyPremium ?? null;
 
   const sortedPicks = useMemo(() => {
     const order: Record<string, number> = { buy: 0, sell: 1, trim: 2, hold: 3 };
@@ -109,15 +116,39 @@ export default function PicksPage() {
   const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;
   const priorityPrice = priority?.pick.symbol ? priceMap[priority.pick.symbol] ?? null : null;
 
+  // Phase 14b — executive briefing subtitle. Composes from canonical
+  // command-bar fields (post-13k data-truth fix). Honest empty when
+  // command bar hasn't loaded yet — no fake values, no "—" filler.
+  const navText = commandBar?.totalNav != null
+    ? fmtCurrency(commandBar.totalNav, { compact: true })
+    : null;
+  const returnText = commandBar?.totalReturnPct != null
+    ? fmtPct(commandBar.totalReturnPct) + " return"
+    : null;
+  const postureText = sortedPicks.length > 0
+    ? briefing.postureLabel.toLowerCase() + " posture"
+    : null;
+  const subtitleParts = [navText, returnText, postureText].filter(Boolean);
+  const subtitle = loading
+    ? "Loading…"
+    : subtitleParts.length > 0
+      ? subtitleParts.join(" · ")
+      : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"}`;
+
+  // Phase 14b — last-evaluation timestamp for empty state.
+  const freshAtDate = briefing.freshestAtIso
+    ? new Date(briefing.freshestAtIso).toLocaleString(undefined, {
+        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+      })
+    : commandBar?.freshAt ?? null;
+
   return (
     <div className="picks-root" data-test="picks-root" data-density={density}>
       <div className="picks-frame">
         <header className="picks-header">
           <div>
             <h1 className="picks-title">Overview</h1>
-            <p className="picks-subtitle">
-              {loading ? "Loading…" : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · 5-second answer`}
-            </p>
+            <p className="picks-subtitle">{subtitle}</p>
           </div>
           <DensityToggle value={density} onChange={setDensity} />
         </header>
@@ -154,51 +185,79 @@ export default function PicksPage() {
               onFilterChange={setFilter}
             />
 
+            {/* Phase 14b — "Today's read" line. Honest derivation from
+                briefing.headline; never invented. */}
+            {briefing.headline && (
+              <p className="picks-today-read">
+                <span className="picks-today-read-label">Today's read</span>
+                {briefing.headline}
+              </p>
+            )}
+
+            {/* Phase 14b — 4-card launcher grid per Phase 14 spec.
+                Order matches an executive's reading flow:
+                signals -> catalysts -> strategies -> risk. Signal Lab
+                stays nav-reachable but is not surfaced on Overview. */}
             <section className="launcher-grid">
               <LauncherCard
                 to="/action-queue"
-                eyebrow="Action Queue"
-                title="All AI signals"
-                metric={`${buyCount}B · ${sellCount}S · ${trimCount}T · ${watchlistCount}H`}
-                body="Grouped Buy / Sell / Trim / Hold cards, filters, and the full research cockpit."
-              />
-              <LauncherCard
-                to="/portfolio"
-                eyebrow="Portfolio Intelligence"
-                title="Positions & exposure"
-                metric={`${riskCount} risk-flagged`}
-                body="Open positions, P&L, return %, sector + strategy exposure."
-                tone={riskCount > 0 ? "warn" : "default"}
+                eyebrow="Review AI Signals"
+                title="Today's recommendations"
+                metric={`${buyCount} buy · ${sellCount} sell · ${trimCount} trim · ${watchlistCount} hold`}
+                body="Grouped cards with plain-English thesis, confidence, and catalyst context for every active idea."
+                tone={buyCount > 0 ? "good" : sellCount > 0 ? "bad" : "default"}
               />
               <LauncherCard
                 to="/events"
-                eyebrow="Events & Research"
-                title="News, filings, earnings"
-                metric={`${sortedPicks.length} symbols tracked`}
-                body="SEC filings, news catalysts, earnings windows for every ticker."
+                eyebrow="Inspect Catalysts"
+                title="What's moving the market"
+                metric={`${sortedPicks.length} symbol${sortedPicks.length === 1 ? "" : "s"} tracked`}
+                body="SEC filings, news momentum, and earnings windows behind today's signal changes."
               />
               <LauncherCard
                 to="/strategies"
-                eyebrow="Strategies"
-                title="Options workflows"
-                metric={monthlyPremium && monthlyPremium > 0 ? `$${(monthlyPremium / 1000).toFixed(1)}k MTD` : "—"}
-                body="Wheel, covered calls, CSPs, LEAPS, spreads · trade lifecycle + premium income."
-                tone={monthlyPremium && monthlyPremium > 0 ? "good" : "default"}
+                eyebrow="Manage Strategies"
+                title="How to express each idea"
+                metric={
+                  monthlyPremium != null && monthlyPremium > 0
+                    ? `$${(monthlyPremium / 1000).toFixed(1)}k premium MTD`
+                    : "Wheel · CC · CSP · LEAPS"
+                }
+                body="Match each signal to the right options structure. Track premium income and trade lifecycle."
+                tone={monthlyPremium != null && monthlyPremium > 0 ? "good" : "default"}
               />
               <LauncherCard
-                to="/signal-lab"
-                eyebrow="Signal Lab"
-                title="Model quality"
-                metric="readiness score"
-                body="Action distribution, signal freshness, event-feature coverage, validation."
+                to="/portfolio"
+                eyebrow="Review Portfolio Risk"
+                title="Positions & exposure"
+                metric={
+                  riskCount > 0
+                    ? `${riskCount} risk-flagged`
+                    : "All clear"
+                }
+                body="Open positions, P&L, return %, sector and strategy exposure across every paper portfolio."
+                tone={riskCount > 0 ? "warn" : "good"}
               />
             </section>
           </>
         )}
 
         {!loading && sortedPicks.length === 0 && (
-          <div className="picks-empty">
-            No AI suggestions available right now. Check back shortly.
+          <div className="picks-empty-state" role="status">
+            <span className="picks-empty-state-icon" aria-hidden="true">◌</span>
+            <h2 className="picks-empty-state-title">
+              Engine has no live signals
+            </h2>
+            <p className="picks-empty-state-body">
+              The recommendation engine has not produced any results
+              recently. Signals reappear after the next evaluation cycle —
+              typically once per market session.
+            </p>
+            {freshAtDate && (
+              <span className="picks-empty-state-meta">
+                Last evaluation · {freshAtDate}
+              </span>
+            )}
           </div>
         )}
 
