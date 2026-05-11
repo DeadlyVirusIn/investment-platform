@@ -24,6 +24,7 @@ import {
 } from "@/lib/picks/copilot";
 import { fetchCommandBar } from "@/lib/portfolio/api";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
+import FetchError from "@/components/shell/FetchError";
 
 
 interface LauncherCardProps {
@@ -55,6 +56,7 @@ export default function PicksPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [priceMap, setPriceMap] = useState<Record<string, LatestPrice | null | undefined>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
   const [_filter, setFilter] = useState<PicksFilter>("all");
   const [monthlyPremium, setMonthlyPremium] = useState<number | null>(null);
@@ -70,7 +72,11 @@ export default function PicksPage() {
       if (symbols.length > 0) {
         fetchLatestPrices(symbols).then(map => { if (!cancelled) setPriceMap(map); });
       }
-    }).catch(() => { if (!cancelled) setLoading(false); });
+    }).catch((e: unknown) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setLoading(false);
+    });
     fetchCommandBar().then(d => { if (!cancelled) setMonthlyPremium(d.monthlyPremium); });
     return () => { cancelled = true; };
   }, []);
@@ -127,7 +133,15 @@ export default function PicksPage() {
 
         <PortfolioSnapshot />
 
-        {!loading && sortedPicks.length > 0 && (
+        {error && (
+          <FetchError
+            title="Could not load AI recommendations"
+            message={error.message}
+            onRetry={() => window.location.reload()}
+          />
+        )}
+
+        {!loading && !error && sortedPicks.length > 0 && (
           <>
             <TodayPanel
               briefing={briefing}

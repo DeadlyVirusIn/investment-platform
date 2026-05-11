@@ -10,6 +10,7 @@ import {
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
+import FetchError from "@/components/shell/FetchError";
 
 
 function actionDistribution(picks: Pick[]): Record<string, number> {
@@ -53,6 +54,7 @@ function readinessScore(picks: Pick[], featuresAvail: number, totalSyms: number)
 export default function SignalLabPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [features, setFeatures] = useState<EventFeaturesResponse | null>(null);
 
   useEffect(() => {
@@ -65,7 +67,11 @@ export default function SignalLabPage() {
       if (syms.length > 0) {
         fetchEventFeatures(syms).then(f => { if (!cancelled) setFeatures(f); });
       }
-    }).catch(() => { if (!cancelled) setLoading(false); });
+    }).catch((e: unknown) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setLoading(false);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -100,7 +106,15 @@ export default function SignalLabPage() {
 
         {loading && <div className="picks-loading">Loading…</div>}
 
-        {!loading && (
+        {error && (
+          <FetchError
+            title="Could not load Signal Lab data"
+            message={error.message}
+            onRetry={() => window.location.reload()}
+          />
+        )}
+
+        {!loading && !error && (
           <>
             <section className="ps-snapshot">
               <div className="ps-hero">

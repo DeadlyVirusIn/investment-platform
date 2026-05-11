@@ -23,12 +23,14 @@ import {
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
+import FetchError from "@/components/shell/FetchError";
 
 
 export default function ActionQueuePage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [priceMap, setPriceMap] = useState<Record<string, LatestPrice | null | undefined>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [openPickId, setOpenPickId] = useState<string | null>(null);
   const [filter, setFilter] = useState<PicksFilter>("all");
   const [density, setDensity] = useState<Density>(() => readInitialDensity());
@@ -45,7 +47,11 @@ export default function ActionQueuePage() {
         fetchLatestPrices(symbols).then(map => { if (!cancelled) setPriceMap(map); });
         fetchMarketEvents(symbols).then(s => { if (!cancelled) setEventsState(s); });
       }
-    }).catch(() => { if (!cancelled) setLoading(false); });
+    }).catch((e: unknown) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setLoading(false);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -98,7 +104,15 @@ export default function ActionQueuePage() {
 
         {loading && <div className="picks-loading">Loading AI suggestions…</div>}
 
-        {!loading && sortedPicks.length > 0 && (
+        {error && (
+          <FetchError
+            title="Could not load action queue"
+            message={error.message}
+            onRetry={() => window.location.reload()}
+          />
+        )}
+
+        {!loading && !error && sortedPicks.length > 0 && (
           <section className="queue-section">
             <FilterBar picks={sortedPicks} active={filter} onChange={setFilter} />
             <div className="queue-layout">

@@ -8,6 +8,7 @@ import StrategyModules from "@/components/portfolio/StrategyModules";
 import { PAPER_ONLY_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
+import FetchError from "@/components/shell/FetchError";
 import {
   fetchLifecycleTrades, fetchStrategies,
   type LifecycleTrade, type StrategyRow,
@@ -18,6 +19,7 @@ export default function StrategiesPage() {
   const [trades, setTrades] = useState<LifecycleTrade[]>([]);
   const [strategies, setStrategies] = useState<StrategyRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,7 +28,11 @@ export default function StrategiesPage() {
         if (cancelled) return;
         setTrades(t); setStrategies(s); setLoading(false);
       })
-      .catch(() => { if (!cancelled) setLoading(false); });
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e : new Error(String(e)));
+        setLoading(false);
+      });
     return () => { cancelled = true; };
   }, []);
 
@@ -61,6 +67,14 @@ export default function StrategiesPage() {
         </header>
 
         <PageChapter pathname="/strategies" now={nowText} />
+
+        {error && (
+          <FetchError
+            title="Could not load strategy lifecycle data"
+            message={error.message}
+            onRetry={() => window.location.reload()}
+          />
+        )}
 
         <section className="strategy-edu">
           <h3 className="strategy-edu-title">When each strategy fits</h3>
