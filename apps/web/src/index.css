@@ -1752,6 +1752,19 @@
   }
 }
 
+/* Phase 15b1 — Options tab nav single-row scroll on every viewport.
+   `flex-wrap` -> `overflow-x-auto` was the unanimous P1 mobile fix in
+   the Phase 15 audit. Hide the scrollbar visually but preserve scroll
+   behavior so the 12 tabs flow as one row on phones. */
+.options-tabnav-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+}
+.options-tabnav-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 
 /* =========================================================================
    PHASE 14f-F — Mobile sticky relax

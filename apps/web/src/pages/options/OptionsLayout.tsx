@@ -45,15 +45,22 @@ export default function OptionsLayout() {
           <GuardrailsToggleButton />
         </span>
       </header>
-      <nav className="flex gap-1 border-b border-b1 flex-wrap">
+      {/* Phase 15b1 — Mobile fix.
+          Earlier the 12 tabs used `flex-wrap` which wrapped to 4+ rows
+          of chips at 375px before any content was visible. Now they
+          live in a single overflow-x scroll row (CSS-only; routes
+          unchanged). Active state uses the app accent token so the
+          12-tab nav stops shouting amber on every other surface. */}
+      <nav className="flex gap-1 border-b border-b1 overflow-x-auto
+                       flex-nowrap options-tabnav-scroll">
         {TABS.map((t) => (
           <NavLink
             key={t.to}
             to={t.to}
             className={({ isActive }) =>
-              `px-3 py-1 text-sm ${
+              `flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm ${
                 isActive
-                  ? 'border-b-2 border-amber-400 text-fg'
+                  ? 'border-b-2 border-accent text-fg'
                   : 'text-fg-3 hover:text-fg'
               }`
             }
