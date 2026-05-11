@@ -4422,6 +4422,63 @@
 
 
 /* ====================================================================
+   PHASE 13g — Premium polish (focus-visible on sortable headers,
+   micro-interactions, button-press scale)
+   ==================================================================== */
+
+/* Sortable column header — keyboard focus + cursor */
+.picks-root .pi-positions-table th[aria-sort],
+.picks-root .tl-table th[aria-sort] {
+  cursor: pointer;
+  user-select: none;
+}
+.picks-root .pi-positions-table th[aria-sort]:focus-visible,
+.picks-root .tl-table th[aria-sort]:focus-visible {
+  outline: 2px solid var(--pi-ink-primary);
+  outline-offset: -2px;
+  border-radius: 4px;
+}
+.picks-root .pi-positions-table th[aria-sort="ascending"],
+.picks-root .pi-positions-table th[aria-sort="descending"],
+.picks-root .tl-table th[aria-sort="ascending"],
+.picks-root .tl-table th[aria-sort="descending"] {
+  color: var(--pi-ink-primary);
+}
+
+/* Subtle press-scale on actionable cards/buttons (≤100ms, opacity-safe) */
+.picks-root .launcher-card:active,
+.picks-root .next-step-card:active,
+.picks-root .page-chapter-next:active {
+  transform: translateY(0) scale(0.98);
+  transition: transform 100ms ease-out;
+}
+.picks-root .picks-filter-tab:active,
+.picks-root .density-toggle-btn:active,
+.picks-root .tl-tab:active,
+.picks-root .picks-priority-cta:active,
+.picks-root .today-cta:active,
+.picks-root .fetch-error-retry:active {
+  transform: scale(0.97);
+  transition: transform 80ms ease-out;
+}
+
+/* Respect prefers-reduced-motion — disable press-scale */
+@media (prefers-reduced-motion: reduce) {
+  .picks-root .launcher-card:active,
+  .picks-root .next-step-card:active,
+  .picks-root .page-chapter-next:active,
+  .picks-root .picks-filter-tab:active,
+  .picks-root .density-toggle-btn:active,
+  .picks-root .tl-tab:active,
+  .picks-root .picks-priority-cta:active,
+  .picks-root .today-cta:active,
+  .picks-root .fetch-error-retry:active {
+    transform: none;
+  }
+}
+
+
+/* ====================================================================
    PHASE 13b — FetchError component (visible failure state)
    ==================================================================== */
 

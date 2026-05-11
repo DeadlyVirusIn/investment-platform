@@ -480,6 +480,20 @@
     -webkit-overflow-scrolling: touch;
   }
   .u-table { width: 100%; border-collapse: collapse; }
+
+  /* Phase 13g — accessible visually-hidden helper for <caption> and
+     other elements that should reach screen readers but not paint. */
+  .u-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
   .u-table thead th {
     font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;
     color: var(--fg-3); font-weight: 700; padding: 10px 14px;

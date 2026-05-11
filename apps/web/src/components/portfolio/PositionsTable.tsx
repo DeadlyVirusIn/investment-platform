@@ -94,16 +94,31 @@ export default function PositionsTable() {
 
   function header(key: SortKey, label: string, align: "left" | "right" = "right") {
     const active = sortKey === key;
+    const ariaSort = active
+      ? (sortDir === "asc" ? "ascending" : "descending")
+      : "none";
+
+    function onActivate() {
+      if (active) setSortDir(d => d === "asc" ? "desc" : "asc");
+      else { setSortKey(key); setSortDir("desc"); }
+    }
+
     return (
       <th
         data-align={align}
         data-active={active ? "true" : "false"}
-        onClick={() => {
-          if (active) setSortDir(d => d === "asc" ? "desc" : "asc");
-          else { setSortKey(key); setSortDir("desc"); }
+        aria-sort={ariaSort}
+        onClick={onActivate}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onActivate();
+          }
         }}
+        tabIndex={0}
+        role="columnheader"
       >
-        {label}{active && <span className="pi-pos-sort">{sortDir === "asc" ? " ↑" : " ↓"}</span>}
+        {label}{active && <span className="pi-pos-sort" aria-hidden="true">{sortDir === "asc" ? " ↑" : " ↓"}</span>}
       </th>
     );
   }
@@ -146,6 +161,10 @@ export default function PositionsTable() {
       </header>
       <div className="pi-positions-tablewrap">
         <table className="pi-positions-table">
+          <caption className="u-sr-only">
+            Open paper-trading positions, sortable by symbol, quantity,
+            average cost, market value, open P&amp;L, and return percent.
+          </caption>
           <thead>
             <tr>
               {header("symbol", "Symbol", "left")}

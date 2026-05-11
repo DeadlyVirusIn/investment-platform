@@ -116,6 +116,11 @@ export default function TradeLifecycle() {
 
       <div className="tl-tablewrap">
         <table className="tl-table">
+          <caption className="u-sr-only">
+            Lifecycle of paper-trading option positions. Columns: state,
+            underlying, contract, strategy, premium collected, realized
+            P&amp;L, days held, opened date.
+          </caption>
           <thead>
             <tr>
               <th data-align="left">State</th>
