@@ -49,6 +49,16 @@ export default function RiskDashboard() {
       {/* replay toggle and "Generate explanation" button stay      */}
       {/* visible on a separate row so first-time readers see the   */}
       {/* page purpose before the controls.                         */}
+      {/* Phase 15c3 — Risk header compression.
+          Was: PageGuide carried eyebrow + title + subtitle + firstLook,
+          while the "Focus today" u-card-tight below carried the
+          identical "start with Account value → Percent invested →
+          Biggest drop from peak" reading order. Two surfaces, same
+          guidance. Dropped firstLook here so PageGuide is just the
+          page intro (eyebrow + title + subtitle); "Focus today"
+          remains the single place the reading-order list lives.
+          ~50-70px vertical saved before first risk number; novice
+          scaffolding preserved unchanged in "Focus today". */}
       <PageGuide
         eyebrow="Paper Account"
         title="Account risk view"
@@ -56,13 +66,6 @@ export default function RiskDashboard() {
           "How spread out your money is and how far you've drawn "
           + "down from a previous high. All numbers are simulated — "
           + "no real money is involved."
-        }
-        firstLook={
-          <>
-            Start with <strong>Account value</strong>, then{" "}
-            <strong>Percent invested</strong>, then{" "}
-            <strong>Biggest drop from peak</strong>.
-          </>
         }
       />
 

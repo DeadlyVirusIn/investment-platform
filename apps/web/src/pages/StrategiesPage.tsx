@@ -101,9 +101,17 @@ export default function StrategiesPage() {
           </ul>
         </ExpertDetails>
 
-        <TradeLifecycle />
-        <PremiumIncome />
-        <StrategyModules />
+        {/* Phase 15c3 — Strategies spacing rhythm.
+            Was: 3 components stacked back-to-back without inter-section
+            breathing — visual fatigue, hard to feel the narrative
+            (lifecycle -> income -> templates).
+            Now: explicit 32px gap (~ --picks-section-gap cozy default)
+            between each. No content change; pure pacing. */}
+        <div className="strategies-sections">
+          <TradeLifecycle />
+          <PremiumIncome />
+          <StrategyModules />
+        </div>
 
         <NextStepCard
           pathname="/strategies"

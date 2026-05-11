@@ -1877,6 +1877,23 @@
   padding: 0 16px 24px;
 }
 
+/* Phase 15c3 — Strategies inter-section breathing rhythm.
+   Stacked TradeLifecycle / PremiumIncome / StrategyModules now
+   share a 32px (cozy default) inter-section gap so the page reads
+   as: lifecycle -> income -> templates without abrupt section
+   collisions. Compact tightens; spacious opens; mobile <=640
+   tightens to 24px to prevent excess scroll. */
+.picks-root .strategies-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.picks-root[data-density="compact"] .strategies-sections { gap: 22px; }
+.picks-root[data-density="spacious"] .strategies-sections { gap: 44px; }
+@media (max-width: 640px) {
+  .picks-root .strategies-sections { gap: 24px; }
+}
+
 
 /* =========================================================================
    PHASE 14f-F — Mobile sticky relax

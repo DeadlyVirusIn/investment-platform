@@ -153,14 +153,16 @@ export default function PicksPage() {
           <DensityToggle value={density} onChange={setDensity} />
         </header>
 
-        <PageChapter
-          pathname="/overview"
-          now={
-            sortedPicks.length === 0
-              ? undefined
-              : `Engine sees ${buyCount} buy · ${sellCount} sell · ${trimCount} trim · ${watchlistCount} hold across ${sortedPicks.length} symbols. Posture: ${briefing.postureLabel.toLowerCase()}.`
-          }
-        />
+        {/* Phase 15c3 — Overview redundancy cleanup.
+            Was: PageChapter NOW carried "Engine sees N buy · M sell · ...
+            Posture: cautious." — exact same buy/sell/trim/hold count
+            already on the Action Queue launcher card metric (line ~206)
+            AND posture already on TodayPanel posture-row + executive-
+            briefing subtitle. Dropping NOW removes ~60-80px of
+            duplicated text without touching the FLOW spine — the
+            section breadcrumb + WHY + NEXT cells in PageChapter
+            still render (PageChapter.tsx:45 makes NOW conditional). */}
+        <PageChapter pathname="/overview" />
 
         <PortfolioSnapshot />
 
