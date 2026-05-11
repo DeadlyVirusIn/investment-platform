@@ -21,19 +21,46 @@ function strategyHint(portfolio: string | null): string {
 }
 
 
-function nextStep(r: PositionRow): { text: string; tone: "good" | "warn" | "bad" | "info" } {
+interface NextStep { text: string; tone: "good" | "warn" | "bad" | "info"; tooltip: string; }
+
+
+function nextStep(r: PositionRow): NextStep {
   if (r.return_pct != null) {
-    if (r.return_pct >= 100) return { text: "Lock partial gains", tone: "warn" };
-    if (r.return_pct >= 25) return { text: "Hold and trail stop", tone: "good" };
-    if (r.return_pct <= -10) return { text: "Review thesis", tone: "bad" };
-    if (r.return_pct < 0) return { text: "Watch for reversal", tone: "warn" };
-    return { text: "Hold", tone: "good" };
+    if (r.return_pct >= 100) return {
+      text: "Lock partial gains", tone: "warn",
+      tooltip: "Position has more than doubled. Consider selling part of the position to bank some profit.",
+    };
+    if (r.return_pct >= 25) return {
+      text: "Hold and trail stop", tone: "good",
+      tooltip: "Position is comfortably profitable. Move your stop-loss up as price rises so gains are protected.",
+    };
+    if (r.return_pct <= -10) return {
+      text: "Review thesis", tone: "bad",
+      tooltip: "Position is down more than 10%. Re-read the original reason you entered — does it still apply?",
+    };
+    if (r.return_pct < 0) return {
+      text: "Watch for reversal", tone: "warn",
+      tooltip: "Position is slightly underwater. Be ready to act if direction changes either way.",
+    };
+    return {
+      text: "Hold", tone: "good",
+      tooltip: "Position is roughly flat. Continue holding while the thesis remains intact.",
+    };
   }
   if (r.unrealized_pnl != null) {
-    if (r.unrealized_pnl > 0) return { text: "Hold and monitor", tone: "good" };
-    if (r.unrealized_pnl < 0) return { text: "Review thesis", tone: "warn" };
+    if (r.unrealized_pnl > 0) return {
+      text: "Hold and monitor", tone: "good",
+      tooltip: "Position is profitable. Keep watching but no immediate action required.",
+    };
+    if (r.unrealized_pnl < 0) return {
+      text: "Review thesis", tone: "warn",
+      tooltip: "Position is down. Re-read the original reason you entered — does it still apply?",
+    };
   }
-  return { text: "Needs price mark", tone: "info" };
+  return {
+    text: "Needs price mark", tone: "info",
+    tooltip: "A current price is not available, so P&L cannot be computed yet.",
+  };
 }
 
 
@@ -156,7 +183,7 @@ export default function PositionsTable() {
                     {r.return_pct != null ? fmtPct(r.return_pct) : <span className="pi-pos-na">—</span>}
                   </td>
                   <td data-align="left">
-                    <span className="pi-pos-next" data-tone={next.tone}>{next.text}</span>
+                    <span className="pi-pos-next" data-tone={next.tone} title={next.tooltip}>{next.text}</span>
                   </td>
                 </tr>
               );

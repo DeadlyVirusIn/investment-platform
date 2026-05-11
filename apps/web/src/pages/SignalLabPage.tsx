@@ -139,7 +139,7 @@ export default function SignalLabPage() {
                 <div className="ps-metric ps-metric-wide">
                   <span className="ps-metric-label">Action distribution</span>
                   <span className="ps-metric-value">
-                    {dist.buy}B · {dist.sell}S · {dist.trim}T · {dist.hold}H
+                    {dist.buy} buy · {dist.sell} sell · {dist.trim} trim · {dist.hold} hold
                   </span>
                 </div>
                 <div className="ps-metric" data-tone="good">

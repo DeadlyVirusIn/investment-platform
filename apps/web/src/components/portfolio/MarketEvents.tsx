@@ -128,10 +128,26 @@ export default function MarketEvents({ symbols }: MarketEventsProps) {
               <header className="me-card-header">
                 <h4 className="me-card-symbol">{sym}</h4>
                 <div className="me-card-counts">
-                  {totals.earnings > 0 && <span className="me-pill" data-tone="info">{totals.earnings}E</span>}
-                  {totals.news > 0     && <span className="me-pill" data-tone="default">{totals.news}N</span>}
-                  {totals.filings > 0  && <span className="me-pill" data-tone="info">{totals.filings}F</span>}
-                  {totals.expir > 0    && <span className="me-pill" data-tone="warn">{totals.expir}X</span>}
+                  {totals.earnings > 0 && (
+                    <span className="me-pill" data-tone="info" title="Upcoming + recent earnings events">
+                      {totals.earnings} earnings
+                    </span>
+                  )}
+                  {totals.news > 0 && (
+                    <span className="me-pill" data-tone="default" title="Recent news items">
+                      {totals.news} news
+                    </span>
+                  )}
+                  {totals.filings > 0 && (
+                    <span className="me-pill" data-tone="info" title="Recent SEC filings">
+                      {totals.filings} filings
+                    </span>
+                  )}
+                  {totals.expir > 0 && (
+                    <span className="me-pill" data-tone="warn" title="Upcoming options expirations">
+                      {totals.expir} expirations
+                    </span>
+                  )}
                 </div>
               </header>
 
