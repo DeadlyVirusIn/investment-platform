@@ -10,9 +10,9 @@ import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
 import FetchError from "@/components/shell/FetchError";
 import ExpertDetails from "@/components/shell/ExpertDetails";
-import DensityToggle, {
-  readInitialDensity, type Density,
-} from "@/components/portfolio/DensityToggle";
+// Phase 15b3 — DensityToggle hidden on this page; only readInitialDensity
+// + Density type still needed for the data-density cascade attr.
+import { readInitialDensity, type Density } from "@/components/portfolio/DensityToggle";
 import {
   fetchLifecycleTrades, fetchStrategies,
   type LifecycleTrade, type StrategyRow,
@@ -24,7 +24,7 @@ export default function StrategiesPage() {
   const [strategies, setStrategies] = useState<StrategyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [density, setDensity] = useState<Density>(() => readInitialDensity());
+  const [density] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
     let cancelled = false;
@@ -69,7 +69,8 @@ export default function StrategiesPage() {
               How a signal becomes a trade · paper trading guidance
             </p>
           </div>
-          <DensityToggle value={density} onChange={setDensity} />
+          {/* Phase 15b3 — DensityToggle hidden on Strategies (audit P1.10).
+              Inert here; state + data-density preserved for cascade. */}
         </header>
 
         <PageChapter pathname="/strategies" now={nowText} />

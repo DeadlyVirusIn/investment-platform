@@ -77,7 +77,14 @@ export default function Shell() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="sticky top-0 z-20">
           <TopStrip />
-          <MarketTicker />
+          {/* Phase 15b3 — MarketTicker hidden on /overview.
+              The Overview page's executive briefing (NAV / posture /
+              Today's read / launchers) is the page's biggest answer.
+              Ticker was the biggest motion source competing with that
+              answer. Per Phase 15 audit P1.9 (Opus's highest-leverage
+              emotional-read change). Ticker stays on every other
+              page where status context is wanted. */}
+          {pathname !== "/overview" && pathname !== "/" && <MarketTicker />}
           <StatusRail />
         </div>
         <main id="main-content" className="flex-1 overflow-auto">

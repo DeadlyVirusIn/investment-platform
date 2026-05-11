@@ -216,15 +216,19 @@ export type PicksFilter =
   | "high-confidence" | "freshest" | "highest-risk";
 
 
+// Phase 15b3 microcopy round 2 — Opus verbatim swaps for the three
+// non-action filters. "High confidence / Freshest / Highest risk" are
+// engineering descriptors; the new labels are the actual rules the
+// filters apply, so the user can predict what they'll see.
 export const FILTER_LABELS: Record<PicksFilter, string> = {
   "all":             "All",
   "buy":             "Buy",
   "hold":            "Hold",
   "trim":            "Trim",
   "sell":            "Sell",
-  "high-confidence": "High confidence",
-  "freshest":        "Freshest",
-  "highest-risk":    "Highest risk",
+  "high-confidence": "≥70% confidence",
+  "freshest":        "<6h old",
+  "highest-risk":    "Risk-flagged",
 };
 
 

@@ -17,6 +17,9 @@ import { Link, useLocation } from "react-router-dom";
 
 import PortfolioTerminal from "@/pages/PortfolioTerminal";
 import CopilotHoldings from "@/pages/copilot/CopilotHoldings";
+// Phase 15b3 — route-level NextStepCard so brief and working views
+// both inherit the FLOW chain's next-step nudge (audit P1.14).
+import NextStepCard from "@/components/shell/NextStepCard";
 
 
 export default function PortfolioRouteSwitch() {
@@ -29,6 +32,12 @@ export default function PortfolioRouteSwitch() {
     <div className="portfolio-shell">
       <PortfolioViewToggle isWorking={isWorking} />
       {isWorking ? <PortfolioTerminal /> : <CopilotHoldings />}
+      {/* Phase 15b3 — route-level NextStepCard. Sits below either view
+          so the page_flow chain (Portfolio -> Risk) terminates with a
+          consistent next-step affordance whichever lens the user is in. */}
+      <div className="portfolio-shell-footer">
+        <NextStepCard pathname="/portfolio" />
+      </div>
     </div>
   );
 }

@@ -38,8 +38,11 @@ export default function OptionsLayout() {
       <OptionsDataAvailabilityBanner />
       <header className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Options paper trading</h1>
+        {/* Phase 15b3 microcopy round 2 — Opus verbatim swap:
+              was "Paper-trading guidance · simulated only · no live execution"
+              now "Paper trading — nothing here places real orders" */}
         <span className="text-xs text-fg-3">
-          Paper-trading guidance · simulated only · no live execution
+          Paper trading — nothing here places real orders
         </span>
         <span className="ml-auto">
           <GuardrailsToggleButton />

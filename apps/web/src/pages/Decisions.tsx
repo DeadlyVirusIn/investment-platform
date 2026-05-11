@@ -203,7 +203,16 @@ export default function Decisions() {
         Decisions in detail
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)_420px]
+      {/* Phase 15b3 — Decisions 3-col breakpoint + column math fix
+          (audit P1.12). Earlier this used `xl:` (1280px) only, which
+          stranded 1024-1280px users (common laptop widths) on the
+          single-column linear stack. Now `lg:` (1024) gets the 3-col
+          with shrunk widths (280/360 vs 360/420 at xl), so the laptop
+          experience matches the design intent. Detail column (col 2)
+          remains the flex anchor in both. */}
+      <div className="grid grid-cols-1
+                        lg:grid-cols-[280px_minmax(0,1fr)_360px]
+                        xl:grid-cols-[360px_minmax(0,1fr)_420px]
                         gap-6 h-[calc(100vh-240px)] min-h-[680px]">
         {/* ============== COL 1: TIMELINE ============== */}
         <div className="flex flex-col min-h-0">

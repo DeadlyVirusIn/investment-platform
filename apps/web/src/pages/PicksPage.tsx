@@ -265,7 +265,10 @@ export default function PicksPage() {
           pathname="/overview"
           rationale={
             riskCount > 0
-              ? `${riskCount} signal${riskCount === 1 ? "" : "s"} flagged for risk — see what changed in catalysts first.`
+              // Phase 15b3 microcopy round 2 — Opus verbatim swap:
+              //   was "${N} signal(s) flagged for risk — see what changed in catalysts first"
+              //   now "${N} picks need a closer look — start with what changed today"
+              ? `${riskCount} pick${riskCount === 1 ? "" : "s"} need a closer look — start with what changed today.`
               : undefined
           }
         />

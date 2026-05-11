@@ -9,9 +9,9 @@ import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
 import FetchError from "@/components/shell/FetchError";
-import DensityToggle, {
-  readInitialDensity, type Density,
-} from "@/components/portfolio/DensityToggle";
+// Phase 15b3 — DensityToggle hidden on this page; only readInitialDensity
+// + Density type still needed for the data-density cascade attr.
+import { readInitialDensity, type Density } from "@/components/portfolio/DensityToggle";
 
 
 export default function EventsResearchPage() {
@@ -21,7 +21,7 @@ export default function EventsResearchPage() {
   // silently swallowed every fetch error, making a 500 indistinguishable
   // from a clean empty day. Surface a real FetchError instead.
   const [error, setError] = useState<Error | null>(null);
-  const [density, setDensity] = useState<Density>(() => readInitialDensity());
+  const [density] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
     let cancelled = false;
@@ -39,11 +39,15 @@ export default function EventsResearchPage() {
 
   const symbols = picks.map(p => p.symbol).filter((s): s is string => !!s);
 
+  // Phase 15b3 microcopy round 2 — strip operator vocabulary
+  // ("SEC EDGAR feed live · provider news where keys configured"
+  // is engineering disclosure that doesn't help the reader). Reframe
+  // around what the reader needs to know: which symbols + cadence.
   const nowText = loading
     ? undefined
     : symbols.length === 0
       ? undefined
-      : `${symbols.length} symbol${symbols.length === 1 ? "" : "s"} from active recommendations · SEC EDGAR feed live · provider news where keys configured.`;
+      : `Tracking ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} · filings update through the day`;
 
   return (
     <div className="picks-root" data-test="events-research-page" data-density={density}>
@@ -55,7 +59,11 @@ export default function EventsResearchPage() {
               SEC filings, news momentum, and earnings windows — the "why" behind signal changes
             </p>
           </div>
-          <DensityToggle value={density} onChange={setDensity} />
+          {/* Phase 15b3 — DensityToggle hidden on this page (audit P1.10).
+              Page has no tables/cards that respond to density modifiers,
+              so the toggle was a false affordance. Internal state +
+              data-density attr preserved so global density still
+              propagates from Overview / Action Queue. */}
         </header>
 
         <PageChapter pathname="/events" now={nowText} />

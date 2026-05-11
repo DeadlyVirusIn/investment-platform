@@ -1814,6 +1814,54 @@
   }
 }
 
+/* Phase 15b3 — Signal Lab readiness interpretation band.
+   Three honest tiers (caution/acceptable/strong) tied to the same
+   composite score. Same color palette as posture pills (success/
+   warning/danger) so users learn one color system. Inline pill;
+   never replaces the score number itself. */
+.readiness-band {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--pi-border);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--pi-bg-card);
+}
+.readiness-band[data-tier="strong"] {
+  color: var(--pi-good);
+  border-color: var(--ax-buy-border);
+  background: var(--ax-buy-bg);
+}
+.readiness-band[data-tier="acceptable"] {
+  color: var(--pi-warn);
+  border-color: var(--ax-trim-border);
+  background: var(--ax-trim-bg);
+}
+.readiness-band[data-tier="caution"] {
+  color: var(--pi-bad);
+  border-color: var(--ax-sell-border);
+  background: var(--ax-sell-bg);
+}
+.readiness-band-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Phase 15b3 — Portfolio shell footer (NextStepCard wrapper).
+   Adds breathing room below either Brief or Working view so the
+   route-level NextStepCard doesn't crash into the view content. */
+.portfolio-shell-footer {
+  margin-top: 24px;
+  padding: 0 16px 24px;
+}
+
 
 /* =========================================================================
    PHASE 14f-F — Mobile sticky relax

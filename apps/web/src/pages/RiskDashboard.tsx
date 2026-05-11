@@ -121,14 +121,19 @@ export default function RiskDashboard() {
           />
           <span>Show recovered history</span>
         </label>
+        {/* Phase 15b3 microcopy round 2 — Opus verbatim swap:
+              was "Generate explanation" (API verb, looked like a debug
+              control at 11px); now "Why?" (premium product affordance).
+              Bumped to 13px (text-sm) and 8px vertical padding so the
+              button reads as a primary action, not debug output. */}
         <button
           type="button"
           onClick={handleNarrative}
           disabled={!q.data}
           data-test="risk-dashboard-narrative-btn"
-          className="rounded border border-b1 px-2 py-1 text-[11px] text-fg-2 hover:bg-elev disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded border border-b1 px-3 py-2 text-sm text-fg-2 hover:bg-elev hover:text-fg disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Generate explanation
+          Why?
         </button>
       </div>
 

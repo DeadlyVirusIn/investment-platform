@@ -12,9 +12,9 @@ import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
 import FetchError from "@/components/shell/FetchError";
 import ExpertDetails from "@/components/shell/ExpertDetails";
-import DensityToggle, {
-  readInitialDensity, type Density,
-} from "@/components/portfolio/DensityToggle";
+// Phase 15b3 — DensityToggle hidden on this page; only readInitialDensity
+// + Density type still needed for the data-density cascade attr.
+import { readInitialDensity, type Density } from "@/components/portfolio/DensityToggle";
 
 
 function actionDistribution(picks: Pick[]): Record<string, number> {
@@ -60,7 +60,7 @@ export default function SignalLabPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [features, setFeatures] = useState<EventFeaturesResponse | null>(null);
-  const [density, setDensity] = useState<Density>(() => readInitialDensity());
+  const [density] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
     let cancelled = false;
@@ -98,7 +98,8 @@ export default function SignalLabPage() {
               Model quality, signal freshness, and event-feature coverage
             </p>
           </div>
-          <DensityToggle value={density} onChange={setDensity} />
+          {/* Phase 15b3 — DensityToggle hidden on Signal Lab (audit P1.10).
+              Inert here; state + data-density preserved for cascade. */}
         </header>
 
         <PageChapter
@@ -130,6 +131,11 @@ export default function SignalLabPage() {
                     <h2 className="ps-nav-value">{readiness}</h2>
                     <span className="ps-nav-delta-pct">/ 100</span>
                   </div>
+                  {/* Phase 15b3 — Readiness interpretation band (audit P1.13).
+                      A 0-100 score has no meaning without a band. Three
+                      tiers tied to the same composite number; honest
+                      derivation, no calibration faked. */}
+                  <ReadinessBand score={readiness} />
                   <ExpertDetails label="How readiness is computed">
                     <p style={{ margin: 0 }}>
                       Composite formula: <code>0.5 × avg_confidence + 0.3 × fresh_ratio × 100 + 0.2 × event_coverage × 100</code>.
@@ -190,6 +196,32 @@ export default function SignalLabPage() {
 
         <footer className="picks-disclaimer">{RESEARCH_NOTE}</footer>
       </div>
+    </div>
+  );
+}
+
+
+// Phase 15b3 — Readiness interpretation band.
+// 0-40   = data incomplete / use caution
+// 41-70  = acceptable / inspect signals
+// 71-100 = strong / safe to inspect
+// Honest tiering — same composite number, no calibration faked.
+function ReadinessBand({ score }: { score: number }) {
+  const tier = score >= 71 ? "strong" : score >= 41 ? "acceptable" : "caution";
+  const label = tier === "strong"
+    ? "Strong — safe to inspect signals"
+    : tier === "acceptable"
+      ? "Acceptable — inspect with care"
+      : "Caution — data incomplete this cycle";
+  return (
+    <div
+      className="readiness-band"
+      data-tier={tier}
+      role="note"
+      aria-label="Readiness interpretation"
+    >
+      <span className="readiness-band-dot" aria-hidden="true" />
+      <span className="readiness-band-label">{label}</span>
     </div>
   );
 }
