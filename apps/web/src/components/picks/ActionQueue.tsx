@@ -19,6 +19,9 @@ export interface ActionQueueProps {
   filter: PicksFilter;
   eventsBySymbol?: Record<string, SymbolEvents>;
   onPickClick: (id: string) => void;
+  // Phase 15f.3 — set of pick IDs already opened in PickModal during
+  // this/recent sessions. PickBox uses it to render data-visited.
+  visited?: Set<string>;
 }
 
 
@@ -42,7 +45,7 @@ const GROUPS: Group[] = [
 
 
 export default function ActionQueue({
-  picks, allPicks, priceMap, filter, eventsBySymbol, onPickClick,
+  picks, allPicks, priceMap, filter, eventsBySymbol, onPickClick, visited,
 }: ActionQueueProps) {
   const filtered = applyFilter(picks, filter);
 
@@ -64,6 +67,7 @@ export default function ActionQueue({
               rankingLabel={rankingLabel(p, allPicks)}
               eventBadge={badgeFor(p)}
               onClick={onPickClick}
+              visited={visited?.has(p.id)}
             />
           ))}
           {filtered.length === 0 && (
@@ -101,6 +105,7 @@ export default function ActionQueue({
                     rankingLabel={rankingLabel(p, allPicks)}
                     eventBadge={badgeFor(p)}
                     onClick={onPickClick}
+                    visited={visited?.has(p.id)}
                   />
                 ))}
               </div>

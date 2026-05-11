@@ -16,6 +16,9 @@ export interface PickBoxProps {
   rankingLabel?: string | null;
   eventBadge?: { text: string; tone: "good" | "warn" | "info" | "bad" } | null;
   onClick: (pickId: string) => void;
+  // Phase 15f.3 — visited state. When true, the card carries
+  // data-visited="true" which CSS uses to subtly fade the chrome.
+  visited?: boolean;
 }
 
 
@@ -42,7 +45,7 @@ function isFresh(iso: string | null): boolean {
 }
 
 
-export default function PickBox({ pick, price, rankingLabel, eventBadge, onClick }: PickBoxProps) {
+export default function PickBox({ pick, price, rankingLabel, eventBadge, onClick, visited }: PickBoxProps) {
   const action = pick.adjusted_action ?? pick.action;
   const confidence = pick.adjusted_confidence ?? pick.confidence;
   const confFrac = confidenceFraction(confidence);
@@ -55,10 +58,11 @@ export default function PickBox({ pick, price, rankingLabel, eventBadge, onClick
       className="pick-box"
       data-action={action}
       data-fresh={fresh ? "true" : "false"}
+      data-visited={visited ? "true" : "false"}
       data-test="pick-box"
       data-symbol={pick.symbol ?? ""}
       onClick={() => onClick(pick.id)}
-      aria-label={`${action.toUpperCase()} ${pick.symbol ?? "asset"}, confidence ${fmtConfidencePct(confidence)}. Open details.`}
+      aria-label={`${action.toUpperCase()} ${pick.symbol ?? "asset"}, confidence ${fmtConfidencePct(confidence)}${visited ? ", reviewed" : ""}. Open details.`}
     >
       <div className="pick-box-top">
         <span className="pick-action">{action}</span>

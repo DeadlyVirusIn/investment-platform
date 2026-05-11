@@ -15,11 +15,13 @@ import {
   fetchPicks, fetchLatestPrices, type Pick, type LatestPrice,
 } from "@/lib/picks/api";
 import {
-  buildBriefing, type PicksFilter,
+  buildBriefing, applyFilter, type PicksFilter,
 } from "@/lib/picks/copilot";
 import {
   fetchMarketEvents, type EventsState, type SymbolEvents,
 } from "@/lib/portfolio/events";
+// Phase 15f.3 — visited-pick memory
+import { useVisitedPicks } from "@/lib/picks/visited_memory";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
@@ -82,6 +84,26 @@ export default function ActionQueuePage() {
   const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;
   const eventsBySymbol: Record<string, SymbolEvents> | undefined =
     eventsState.status === "ready" ? eventsState.data.symbols : undefined;
+
+  // Phase 15f.1 — Traversal context. Walk the FILTERED queue (matches
+  // what the user is actually scanning). Position uses 1-based count.
+  const traversalList = useMemo(
+    () => applyFilter(sortedPicks, filter),
+    [sortedPicks, filter],
+  );
+  const openIdx = openPickId
+    ? traversalList.findIndex(p => p.id === openPickId)
+    : -1;
+  const prevPickId = openIdx > 0 ? traversalList[openIdx - 1].id : null;
+  const nextPickId = openIdx >= 0 && openIdx < traversalList.length - 1
+    ? traversalList[openIdx + 1].id
+    : null;
+
+  // Phase 15f.3 — visited memory. Mark current open pick as visited.
+  const { visited, mark: markVisited } = useVisitedPicks();
+  useEffect(() => {
+    if (openPickId) markVisited(openPickId);
+  }, [openPickId, markVisited]);
 
   return (
     <div className="picks-root" data-test="action-queue-page" data-density={density}>
@@ -178,6 +200,7 @@ export default function ActionQueuePage() {
                   filter={filter}
                   eventsBySymbol={eventsBySymbol}
                   onPickClick={setOpenPickId}
+                  visited={visited}
                 />
               </div>
               <HealthRail
@@ -217,7 +240,19 @@ export default function ActionQueuePage() {
         <footer className="picks-disclaimer">{RESEARCH_NOTE}</footer>
       </div>
 
-      <PickModal pick={openPick} priceCache={openPrice} onClose={() => setOpenPickId(null)} />
+      {/* Phase 15f.1 — modal traversal across the filtered queue.
+          j / k / arrow keys + footer prev/next walk continuously
+          through the same list the user is scanning. */}
+      <PickModal
+        pick={openPick}
+        priceCache={openPrice}
+        onClose={() => setOpenPickId(null)}
+        onPrev={prevPickId ? () => setOpenPickId(prevPickId) : undefined}
+        onNext={nextPickId ? () => setOpenPickId(nextPickId) : undefined}
+        position={openIdx >= 0
+          ? { current: openIdx + 1, total: traversalList.length }
+          : undefined}
+      />
     </div>
   );
 }

@@ -5159,6 +5159,127 @@
 
 
 /* ====================================================================
+   PHASE 15f.3 — PickBox visited state (subtle reviewed treatment)
+   ====================================================================
+   NOT an unread badge / notification dot pattern. The card stays
+   functional; only chrome calms slightly so the eye learns "I've
+   already read this one" during a long review session. Hover
+   restores full opacity so the user can still scan visited cards
+   for second-look context.
+   ==================================================================== */
+
+.picks-root .pick-box[data-visited="true"] {
+  opacity: 0.62;
+  /* Mute the action color rail subtly — not enough to lose
+     scannability, enough to recede in a list of 30. */
+  filter: saturate(0.85);
+}
+.picks-root .pick-box[data-visited="true"]:hover,
+.picks-root .pick-box[data-visited="true"]:focus-visible {
+  opacity: 1;
+  filter: none;
+}
+/* prefers-reduced-motion: irrelevant (no transition added; opacity
+   change happens on hover/focus naturally). */
+
+
+/* ====================================================================
+   PHASE 15f.1 — PickModal traversal nav (footer prev/next)
+   ====================================================================
+   Compact text-only affordance. Renders only when the parent passed
+   onPrev or onNext (ActionQueue list context). No large new UI;
+   no floating overlay; lives in the natural footer flow above the
+   disclaimer line.
+   ==================================================================== */
+
+.picks-root .pick-modal-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 22px;
+  border-top: 1px solid var(--pi-border);
+  background: var(--pi-bg-card);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+.picks-root .pick-modal-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 6px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pi-ink-secondary);
+  background: transparent;
+  border: 1px solid var(--pi-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.picks-root .pick-modal-nav-btn:hover:not(:disabled) {
+  color: var(--pi-ink-primary);
+  border-color: var(--pi-border-strong);
+  background: rgba(255, 255, 255, 0.03);
+}
+.picks-root .pick-modal-nav-btn:focus-visible {
+  outline: 2px solid var(--ax-info);
+  outline-offset: 2px;
+}
+.picks-root .pick-modal-nav-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+.picks-root .pick-modal-nav-position {
+  font-variant-numeric: tabular-nums;
+  color: var(--pi-ink-tertiary);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.picks-root .pick-modal-nav-hint {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--pi-ink-muted);
+  font-family: var(--picks-font-mono);
+}
+:root[data-theme="light"] .picks-root .pick-modal-nav-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+@media (max-width: 640px) {
+  .picks-root .pick-modal-nav {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+  .picks-root .pick-modal-nav-btn {
+    min-height: 44px;
+    padding: 10px 14px;
+    flex: 1 1 auto;
+  }
+  .picks-root .pick-modal-nav-hint {
+    /* The keyboard hint is irrelevant on touch — hide on phones. */
+    display: none;
+  }
+  .picks-root .pick-modal-nav-position {
+    /* Center the position counter between the buttons on phones. */
+    width: 100%;
+    text-align: center;
+    order: -1;
+  }
+  /* Larger close button tap target on touch — 36px diagonal "×" was
+     a tight tap zone for one-handed reach. */
+  .picks-root .pick-modal-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+
+/* ====================================================================
    PHASE 14c — Action Queue decision desk
    ====================================================================
    Two additive blocks:

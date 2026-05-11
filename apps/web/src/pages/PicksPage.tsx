@@ -33,6 +33,8 @@ import OverviewHero from "@/components/picks/OverviewHero";
 import {
   readOverviewSnapshot, writeOverviewSnapshot, deriveOverviewDiff,
 } from "@/lib/picks/overview_memory";
+// Phase 15f.3 — visited-pick memory for the priority-card modal opens.
+import { useVisitedPicks } from "@/lib/picks/visited_memory";
 
 
 interface LauncherCardProps {
@@ -185,6 +187,14 @@ export default function PicksPage() {
     // after the page has stably resolved, not on every minor change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, error, commandBar?.totalNav, sortedPicks.length]);
+
+  // Phase 15f.3 — mark the priority pick visited when the user opens
+  // the modal from this page. PicksPage is a single-pick context (no
+  // queue traversal here), so no onPrev/onNext are passed.
+  const { mark: markVisited } = useVisitedPicks();
+  useEffect(() => {
+    if (openPickId) markVisited(openPickId);
+  }, [openPickId, markVisited]);
 
   return (
     <div className="picks-root" data-test="picks-root" data-density={density}>

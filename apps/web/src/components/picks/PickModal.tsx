@@ -17,6 +17,13 @@ export interface PickModalProps {
   pick: Pick | null;
   priceCache?: LatestPrice | null;
   onClose: () => void;
+  // Phase 15f.1 — traversability. When provided, j / k / arrow keys
+  // and the footer prev/next buttons walk through the parent's list
+  // (filtered as appropriate). Position is rendered as "X of Y" in
+  // the footer when both nav callbacks + position are passed.
+  onPrev?: () => void;
+  onNext?: () => void;
+  position?: { current: number; total: number };
 }
 
 
@@ -98,7 +105,9 @@ function buildPlainThesis(pick: Pick): string {
 }
 
 
-export default function PickModal({ pick, priceCache, onClose }: PickModalProps) {
+export default function PickModal({
+  pick, priceCache, onClose, onPrev, onNext, position,
+}: PickModalProps) {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [price, setPrice] = useState<LatestPrice | null | undefined>(undefined);
   const [techOpen, setTechOpen] = useState(false);
@@ -137,9 +146,29 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
     closeBtnRef.current?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
+      // Don't hijack typing into a form field if some embedded input
+      // ever captures focus. Modal currently has no inputs but be
+      // defensive for future content.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+
       if (e.key === "Escape") {
         e.preventDefault();
         onClose();
+        return;
+      }
+      // Phase 15f.1 — traversal keys. Vim-style j/k + arrow keys.
+      // No-op if the parent didn't pass nav callbacks (PicksPage's
+      // priority-card single-pick context).
+      if ((e.key === "j" || e.key === "ArrowRight" || e.key === "ArrowDown") && onNext) {
+        e.preventDefault();
+        onNext();
+        return;
+      }
+      if ((e.key === "k" || e.key === "ArrowLeft" || e.key === "ArrowUp") && onPrev) {
+        e.preventDefault();
+        onPrev();
+        return;
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -147,7 +176,7 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
       document.body.style.overflow = previousOverflow;
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [pick, onClose]);
+  }, [pick, onClose, onPrev, onNext]);
 
   const isOpen = pick !== null;
   const action = pick ? (pick.adjusted_action ?? pick.action) : "hold";
@@ -418,6 +447,48 @@ export default function PickModal({ pick, priceCache, onClose }: PickModalProps)
               )}
             </div>
           </section>
+
+          {/* Phase 15f.1 — Traversal nav.
+              Renders only when the parent passed at least one of
+              onPrev / onNext (PicksPage priority-card context = no
+              nav; ActionQueue list context = both). Compact text
+              affordance — no large new UI controls per discipline. */}
+          {(onPrev || onNext) && (
+            <nav
+              className="pick-modal-nav"
+              aria-label="Walk through review queue"
+              data-test="pick-modal-nav"
+            >
+              <button
+                type="button"
+                className="pick-modal-nav-btn"
+                onClick={onPrev}
+                disabled={!onPrev}
+                aria-label="Previous pick (k or arrow left)"
+              >
+                <span aria-hidden="true">←</span>
+                <span>Prev</span>
+              </button>
+              {position && (
+                <span className="pick-modal-nav-position" aria-live="polite">
+                  {position.current} of {position.total}
+                </span>
+              )}
+              <button
+                type="button"
+                className="pick-modal-nav-btn"
+                onClick={onNext}
+                disabled={!onNext}
+                aria-label="Next pick (j or arrow right)"
+              >
+                <span>Next</span>
+                <span aria-hidden="true">→</span>
+              </button>
+              <span className="pick-modal-nav-hint" aria-hidden="true">
+                j / k or ← / →
+              </span>
+            </nav>
+          )}
 
           {/* Footer */}
           <footer className="pick-modal-footer">
