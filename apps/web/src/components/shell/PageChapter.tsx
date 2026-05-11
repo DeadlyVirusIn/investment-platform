@@ -1,5 +1,12 @@
-// PageChapter — narrative rail at the top of every Investing-OS page.
-// Renders NOW / WHY IT MATTERS / NEXT in three compact columns.
+// PageChapter — narrative rail with NOW as hero text.
+//
+// Layout:
+//   ┌────────────────────────────────────────────────┐
+//   │ section › page                                 │
+//   │ NOW (hero — large, dominant)                   │
+//   ├──────────────────────┬─────────────────────────┤
+//   │ Why this matters     │ Next chapter →          │
+//   └──────────────────────┴─────────────────────────┘
 //
 // All copy must come from real props — no lorem ipsum, no synthesized
 // claims. `now` is rendered only when supplied (typically derived from
@@ -35,14 +42,14 @@ export default function PageChapter({ pathname, now }: PageChapterProps) {
         <span className="page-chapter-page">{cur.label}</span>
       </div>
 
-      <div className="page-chapter-grid">
-        {now && (
-          <div className="page-chapter-cell">
-            <span className="page-chapter-eyebrow">Now</span>
-            <p className="page-chapter-text">{now}</p>
-          </div>
-        )}
+      {now && (
+        <div className="page-chapter-now">
+          <span className="page-chapter-eyebrow">Now</span>
+          <p className="page-chapter-now-text">{now}</p>
+        </div>
+      )}
 
+      <div className="page-chapter-grid">
         <div className="page-chapter-cell">
           <span className="page-chapter-eyebrow">Why this matters</span>
           <p className="page-chapter-text">{cur.why}</p>

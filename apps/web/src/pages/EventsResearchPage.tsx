@@ -1,4 +1,5 @@
-// EventsResearchPage — full Market Events & Catalysts grid.
+// EventsResearchPage — Events & Catalysts.
+// Catalysts explain WHY signals are changing.
 
 import { useEffect, useState } from "react";
 
@@ -25,28 +26,25 @@ export default function EventsResearchPage() {
 
   const symbols = picks.map(p => p.symbol).filter((s): s is string => !!s);
 
+  const nowText = loading
+    ? undefined
+    : symbols.length === 0
+      ? undefined
+      : `${symbols.length} symbol${symbols.length === 1 ? "" : "s"} from active recommendations · SEC EDGAR feed live · provider news where keys configured.`;
+
   return (
     <div className="picks-root" data-test="events-research-page" data-density="cozy">
       <div className="picks-frame">
         <header className="picks-header">
           <div>
-            <h1 className="picks-title">Events &amp; Research</h1>
+            <h1 className="picks-title">Events &amp; Catalysts</h1>
             <p className="picks-subtitle">
-              {loading
-                ? "Loading…"
-                : `News, SEC filings, earnings, and catalysts for ${symbols.length} tracked ${symbols.length === 1 ? "symbol" : "symbols"}`}
+              SEC filings, news momentum, and earnings windows — the "why" behind signal changes
             </p>
           </div>
         </header>
 
-        <PageChapter
-          pathname="/events"
-          now={
-            symbols.length === 0
-              ? undefined
-              : `Tracking catalysts for ${symbols.length} symbol${symbols.length === 1 ? "" : "s"} from the active recommendation set.`
-          }
-        />
+        <PageChapter pathname="/events" now={nowText} />
 
         <MarketEvents symbols={symbols} />
 
@@ -54,7 +52,7 @@ export default function EventsResearchPage() {
           pathname="/events"
           rationale={
             symbols.length > 0
-              ? `See how these catalysts map to the ${symbols.length} live AI signal${symbols.length === 1 ? "" : "s"}.`
+              ? `Map these catalysts to the ${symbols.length} live signal${symbols.length === 1 ? "" : "s"}.`
               : undefined
           }
         />

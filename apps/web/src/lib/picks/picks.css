@@ -4012,11 +4012,24 @@
 
 .picks-root .page-chapter {
   margin: 14px 0 18px;
-  padding: 14px 18px;
+  padding: 18px 22px;
   border: 1px solid var(--pi-border);
-  border-radius: 14px;
+  border-radius: 16px;
   background: linear-gradient(140deg, var(--pi-bg-card) 0%, var(--pi-bg-card-2) 100%);
   box-shadow: var(--pi-shadow-card);
+}
+.picks-root .page-chapter-now {
+  margin: 0 0 16px;
+  padding: 0 0 14px;
+  border-bottom: 1px dashed var(--pi-border-soft);
+}
+.picks-root .page-chapter-now-text {
+  font-size: clamp(16px, 2.2vw, 20px);
+  line-height: 1.4;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--pi-ink-primary);
+  margin: 4px 0 0;
 }
 .picks-root .page-chapter-crumb {
   display: flex;
@@ -4174,4 +4187,175 @@
 .picks-root .strategy-edu-list strong {
   color: var(--pi-ink-primary);
   font-weight: 600;
+}
+
+
+/* ====================================================================
+   PHASE 12 — Octo UX review polish
+   ExpertDetails component, mobile breakpoints, novice header tightening
+   ==================================================================== */
+
+/* ExpertDetails — collapsible technical block */
+.picks-root .expert-details {
+  margin: 12px 0;
+  border: 1px solid var(--pi-border-soft);
+  border-radius: 10px;
+  background: var(--pi-bg-mute);
+  overflow: hidden;
+}
+.picks-root .expert-details-toggle {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: transparent;
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pi-ink-tertiary);
+  cursor: pointer;
+}
+.picks-root .expert-details-toggle:hover { color: var(--pi-ink-primary); }
+.picks-root .expert-details-arrow {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--pi-ink-muted);
+}
+.picks-root .expert-details-body {
+  padding: 12px 14px 14px;
+  border-top: 1px dashed var(--pi-border-soft);
+  font-size: 12px;
+  color: var(--pi-ink-secondary);
+}
+
+
+/* ---- Mobile breakpoint refinement (Phase 12) ----
+   Progressive collapse:
+     ≤960px: tablet — sidebars stack
+     ≤640px: phone — single column, smaller type
+     ≤480px: small phone — tighter
+*/
+
+@media (max-width: 960px) {
+  .picks-root .picks-frame {
+    padding: clamp(20px, 3vw, 36px) clamp(14px, 3vw, 28px);
+  }
+  .picks-root .queue-layout {
+    grid-template-columns: 1fr;
+  }
+  .picks-root .hr-rail {
+    position: static;
+    margin-top: 14px;
+  }
+  .picks-root .ps-snapshot {
+    grid-template-columns: 1fr;
+  }
+  .picks-root .ps-hero { grid-template-columns: 1fr; gap: 14px; }
+  .picks-root .ps-secondary {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .picks-root .picks-frame {
+    padding: 16px 14px;
+  }
+  .picks-root .picks-title {
+    font-size: clamp(20px, 5vw, 26px);
+  }
+  .picks-root .picks-subtitle {
+    font-size: 12px;
+    margin-top: 4px;
+  }
+  .picks-root .picks-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .picks-root .density-toggle { font-size: 10px; }
+
+  .picks-root .page-chapter { padding: 14px 16px; }
+  .picks-root .page-chapter-now-text { font-size: 15px; }
+  .picks-root .page-chapter-grid { grid-template-columns: 1fr; gap: 10px; }
+
+  .picks-root .ps-nav-value { font-size: 30px; }
+  .picks-root .ps-secondary { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .picks-root .ps-metric { padding: 10px 12px; }
+  .picks-root .ps-metric-value { font-size: 16px; }
+
+  .picks-root .launcher-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .picks-root .launcher-card { padding: 14px 16px; }
+  .picks-root .launcher-title { font-size: 15px; }
+  .picks-root .launcher-body { font-size: 12px; }
+
+  .picks-root .today-panel {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .picks-root .today-mini-grid {
+    grid-template-rows: auto;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .picks-root .today-summary,
+  .picks-root .today-action { padding: 14px 16px; }
+
+  .picks-root .pi-cmdbar {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .picks-root .pi-kpi { padding: 10px 12px; min-height: 64px; }
+  .picks-root .pi-kpi-value { font-size: 16px; }
+
+  .picks-root .picks-filter-bar { gap: 4px; }
+  .picks-root .picks-filter-tab { padding: 5px 10px; font-size: 11px; }
+
+  .picks-root .pick-box { padding: 12px 14px; gap: 8px; }
+  .picks-root .pick-box .pick-symbol { font-size: 18px; }
+  .picks-root .pick-box .pick-explain { -webkit-line-clamp: 2; font-size: 12px; }
+  .picks-root .pick-todo-hint { display: none; }
+
+  .picks-root .action-group { padding: 10px 12px; }
+  .picks-root .action-group-grid { grid-template-columns: 1fr; gap: 8px; }
+  .picks-root .action-queue { gap: 12px; }
+
+  .picks-root .pi-positions-table th,
+  .picks-root .pi-positions-table td,
+  .picks-root .tl-table th,
+  .picks-root .tl-table td {
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .picks-root .me-grid { grid-template-columns: 1fr; gap: 10px; padding: 12px 14px; }
+  .picks-root .pi-strategies-grid { grid-template-columns: 1fr; gap: 10px; }
+  .picks-root .pi-strategy-card { padding: 14px 16px; }
+
+  .picks-root .next-step-card { padding: 14px 16px; gap: 10px; }
+  .picks-root .next-step-arrow { font-size: 20px; }
+
+  .picks-root .strategy-edu { padding: 14px 16px; }
+  .picks-root .strategy-edu-list li { font-size: 12px; }
+}
+
+@media (max-width: 480px) {
+  .picks-root .picks-frame { padding: 12px 10px; }
+  .picks-root .ps-secondary { grid-template-columns: 1fr 1fr; }
+  .picks-root .ps-nav-value { font-size: 26px; }
+  .picks-root .today-mini-grid { grid-template-columns: 1fr 1fr; }
+  .picks-root .picks-filter-bar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+  .picks-root .picks-filter-tab { white-space: nowrap; flex-shrink: 0; }
+  .picks-root .page-chapter-now-text { font-size: 14px; }
+  .picks-root .page-chapter-crumb { font-size: 9px; }
+}
+
+
+/* Header gap utility — sit density-toggle next to title cleanly */
+.picks-root .picks-header {
+  gap: 14px;
 }
