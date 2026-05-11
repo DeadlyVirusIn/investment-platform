@@ -1228,6 +1228,40 @@
   .u-status-seg.is-warn   .u-status-seg-value { color: var(--warning); }
   .u-status-seg.is-accent .u-status-seg-value { color: var(--accent); }
 
+  /* -------- LIGHT-MODE PARITY (Phase 13j) --------------------------
+     Ticker / status-rail / toggle gutter previously hard-coded
+     rgba(16,22,42) and rgba(10,15,28) — dark navy that did not flip
+     under [data-theme="light"]. The shell, sidenav, and main content
+     all flip via --bg / --surface-* tokens; the rail stayed dark.
+     These overrides match the rail to the light palette
+     (surface-1 #FFFFFF → surface-2 #F9FAFC, page-bg #F4F5F8 fades).
+     Dark mode is untouched — no regression to the premium dark look.
+  */
+  :root[data-theme="light"] .u-market-ticker {
+    background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.96) 0%,
+      rgba(249, 250, 252, 0.96) 100%);
+  }
+  :root[data-theme="light"] .u-market-ticker::before {
+    background: linear-gradient(90deg,
+      rgba(249, 250, 252, 1) 10%, transparent 100%);
+  }
+  :root[data-theme="light"] .u-market-ticker::after {
+    background: linear-gradient(270deg,
+      rgba(249, 250, 252, 1) 10%, transparent 100%);
+  }
+  :root[data-theme="light"] .u-ticker-toggle {
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(249, 250, 252, 0.95) 35%,
+      rgba(249, 250, 252, 1) 100%);
+  }
+  :root[data-theme="light"] .u-status-rail {
+    background: linear-gradient(180deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      rgba(249, 250, 252, 0.92) 100%);
+  }
+
   /* -------- REGIME HEATMAP (last 30d memory strip) -------- */
   .u-regime-map {
     display: flex; gap: 3px;
