@@ -223,11 +223,17 @@ export default function Decisions() {
                 {filtered.length} / {trades?.length ?? 0}
               </span>
             </div>
-            <div className="flex flex-wrap gap-1">
+            {/* Phase 15c1 — Mobile fix.
+                Was `flex flex-wrap` which broke filter chips into 2-3
+                rows on phone. Now `flex overflow-x-auto` so the chip
+                row swipes horizontally — same pattern as FilterBar
+                Phase 14f-C. Matches the established mobile interaction
+                language so users learn one chip-row gesture. */}
+            <div className="flex gap-1 overflow-x-auto decisions-filter-scroll">
               {FILTERS.map(f => (
                 <button key={f.id} onClick={() => setFilter(f.id)}
                   className={cn(
-                    "px-3 py-1.5 text-[11px] uppercase tracking-wider",
+                    "shrink-0 whitespace-nowrap px-3 py-1.5 text-[11px] uppercase tracking-wider",
                     "font-semibold rounded-md border transition-colors",
                     filter === f.id
                       ? "bg-accent-subtle text-accent border-b3"

@@ -4816,6 +4816,20 @@
   .picks-root .picks-empty-state {
     padding: 32px 16px;
   }
+  /* Phase 15c1 — Launcher metric line ("8 buy · 2 sell · 6 trim · 4 hold")
+     was wrapping to 2 lines on phones, leaving cards with uneven heights.
+     Tighter font + line-height keeps the metric on one line at 360px and
+     lets it wrap cleanly to 2 at extreme tight widths. The launcher
+     row aligns metric to baseline so any wrap stays visually balanced. */
+  .picks-root .launcher-metric {
+    font-size: 11px;
+    line-height: 1.35;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .picks-root .launcher-row {
+    flex-wrap: wrap;
+  }
 }
 
 /* ---- 7. .picks-action-rail ----

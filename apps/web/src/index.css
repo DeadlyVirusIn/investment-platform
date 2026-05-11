@@ -1677,6 +1677,19 @@
     display: none;
   }
 
+  /* Phase 15c1 — restore enough min-width on the 3 essentials so
+     "$117,585" stops truncating to "$1...". 88px fits a 6-digit
+     account value at 11.5px tabular-nums. Values now read in full
+     on iPhone 14/15 Pro (390px) and Pixel 8 (412px) widths. */
+  .topstrip-root .topstrip-cell[data-slot="nav"],
+  .topstrip-root .topstrip-cell[data-slot="day-pnl"],
+  .topstrip-root .topstrip-cell[data-slot="health"] {
+    min-width: 88px !important;
+  }
+  .topstrip-root .topstrip-cell > div:last-child {
+    font-size: 11.5px;
+  }
+
   /* Toggles cluster: condensed, no "last run" text. */
   .topstrip-root .topstrip-toggles {
     padding: 6px 10px;
@@ -1756,12 +1769,14 @@
    `flex-wrap` -> `overflow-x-auto` was the unanimous P1 mobile fix in
    the Phase 15 audit. Hide the scrollbar visually but preserve scroll
    behavior so the 12 tabs flow as one row on phones. */
-.options-tabnav-scroll {
+.options-tabnav-scroll,
+.decisions-filter-scroll {
   scrollbar-width: none;
   -ms-overflow-style: none;
   -webkit-overflow-scrolling: touch;
 }
-.options-tabnav-scroll::-webkit-scrollbar {
+.options-tabnav-scroll::-webkit-scrollbar,
+.decisions-filter-scroll::-webkit-scrollbar {
   display: none;
 }
 
