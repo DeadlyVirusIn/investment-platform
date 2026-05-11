@@ -35,6 +35,9 @@ import {
 } from "@/lib/picks/overview_memory";
 // Phase 15f.3 — visited-pick memory for the priority-card modal opens.
 import { useVisitedPicks } from "@/lib/picks/visited_memory";
+// Phase 15h.1 — derived recommendation freshness (replaces broken
+// backend pick.stale_data flag per docs/ux/PHASE_15g_freshness_audit.md).
+import { isPickStale } from "@/lib/picks/freshness";
 
 
 interface LauncherCardProps {
@@ -120,8 +123,10 @@ export default function PicksPage() {
   const sellCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
   const trimCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "trim").length;
   const watchlistCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "hold").length;
+  // Phase 15h.1 — riskCount derived from generated_at via isPickStale
+  // instead of the broken backend stale_data flag (per Phase 15g audit).
   const riskCount = sortedPicks.filter(p =>
-    p.stale_data || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
+    isPickStale(p) || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
   ).length;
 
   const openPick = picks.find(p => p.id === openPickId) ?? null;

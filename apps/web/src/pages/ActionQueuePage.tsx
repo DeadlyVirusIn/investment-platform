@@ -22,6 +22,8 @@ import {
 } from "@/lib/portfolio/events";
 // Phase 15f.3 — visited-pick memory
 import { useVisitedPicks } from "@/lib/picks/visited_memory";
+// Phase 15h.1 — derived recommendation freshness
+import { isPickStale } from "@/lib/picks/freshness";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
@@ -75,10 +77,13 @@ export default function ActionQueuePage() {
   const sellCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
   const trimCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "trim").length;
   const watchlistCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "hold").length;
+  // Phase 15h.1 — riskCount + staleCount now derived from generated_at
+  // via isPickStale (instead of the broken backend stale_data flag
+  // which returned false on data 65+ hours old per Phase 15g audit).
   const riskCount = sortedPicks.filter(p =>
-    p.stale_data || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
+    isPickStale(p) || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
   ).length;
-  const staleCount = sortedPicks.filter(p => p.stale_data).length;
+  const staleCount = sortedPicks.filter(p => isPickStale(p)).length;
 
   const openPick = picks.find(p => p.id === openPickId) ?? null;
   const openPrice = openPick?.symbol ? priceMap[openPick.symbol] ?? null : null;

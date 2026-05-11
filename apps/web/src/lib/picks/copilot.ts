@@ -2,6 +2,11 @@
 // English text from honest pick data (no fake content).
 
 import type { Pick, PickAction } from "./api";
+// Phase 15h.1 — derive recommendation freshness locally from
+// generated_at. Replaces the broken backend pick.stale_data flag
+// per docs/ux/PHASE_15g_freshness_audit.md (the flag returned false
+// on data 65+ hours old, lying to every consumer).
+import { isPickStale } from "./freshness";
 
 
 // ============================================================
@@ -38,7 +43,7 @@ export function buildBriefing(picks: Pick[]): Briefing {
     const conf = parseFloat(p.adjusted_confidence ?? p.confidence ?? "0");
     const pct = conf > 1 ? conf : conf * 100;
     if (pct >= 70) highConfidenceCounts[a] = (highConfidenceCounts[a] ?? 0) + 1;
-    if (p.stale_data) staleCount += 1;
+    if (isPickStale(p)) staleCount += 1;
     if (!p.enough_data) thinDataCount += 1;
     if (p.generated_at && (!freshestIso || p.generated_at > freshestIso)) {
       freshestIso = p.generated_at;
@@ -256,7 +261,7 @@ export function derivePriority(picks: Pick[]): PriorityResult | null {
       sell: 100, trim: 70, buy: 60, hold: 20,
     };
     let s = (actionWeight[action] ?? 0) + pct * 0.5;
-    if (p.stale_data) s -= 20;
+    if (isPickStale(p)) s -= 20;
     if (!p.enough_data) s -= 15;
     return s;
   };
@@ -312,7 +317,7 @@ export function pickTags(pick: Pick): PickTag[] {
   const conf = parseFloat(pick.adjusted_confidence ?? pick.confidence ?? "0");
   const pct = conf > 1 ? conf : conf * 100;
 
-  if (pick.stale_data) tags.push({ text: "Stale signal", tone: "warn" });
+  if (isPickStale(pick)) tags.push({ text: "Stale signal", tone: "warn" });
   if (!pick.enough_data) tags.push({ text: "Thin data", tone: "warn" });
 
   if (action === "trim") tags.push({ text: "Momentum weak", tone: "warn" });
@@ -397,12 +402,12 @@ export function applyFilter(picks: Pick[], filter: PicksFilter): Pick[] {
     return [...picks]
       .filter(p => {
         const a = p.adjusted_action ?? p.action;
-        return p.stale_data || !p.enough_data || a === "sell" || a === "trim";
+        return isPickStale(p) || !p.enough_data || a === "sell" || a === "trim";
       })
       .sort((a, b) => {
         const score = (p: Pick) => {
           let s = 0;
-          if (p.stale_data) s += 30;
+          if (isPickStale(p)) s += 30;
           if (!p.enough_data) s += 20;
           const action = p.adjusted_action ?? p.action;
           if (action === "sell") s += 40;

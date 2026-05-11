@@ -11,6 +11,9 @@ import {
   actionTitle,
 } from "@/lib/picks/api";
 import { fetchSymbolEvents, type EventsState } from "@/lib/portfolio/events";
+// Phase 15h.1 — derived recommendation freshness (replaces broken
+// backend pick.stale_data flag per docs/ux/PHASE_15g_freshness_audit.md).
+import { isPickStale } from "@/lib/picks/freshness";
 
 
 export interface PickModalProps {
@@ -68,7 +71,9 @@ function riskLevel(pick: Pick): "low" | "medium" | "high" {
   const conf = pick.adjusted_confidence ?? pick.confidence;
   const n = parseFloat(conf ?? "0");
   const pct = n > 1 ? n : n * 100;
-  if (pick.stale_data || !pick.enough_data) return "high";
+  // Phase 15h.1 — derive freshness from generated_at instead of the
+  // broken backend stale_data flag (per Phase 15g audit).
+  if (isPickStale(pick) || !pick.enough_data) return "high";
   if (pct < 50) return "high";
   if (pct < 70) return "medium";
   return "low";
