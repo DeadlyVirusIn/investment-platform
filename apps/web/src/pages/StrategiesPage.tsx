@@ -9,6 +9,9 @@ import { PAPER_ONLY_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
 import FetchError from "@/components/shell/FetchError";
+import DensityToggle, {
+  readInitialDensity, type Density,
+} from "@/components/portfolio/DensityToggle";
 import {
   fetchLifecycleTrades, fetchStrategies,
   type LifecycleTrade, type StrategyRow,
@@ -20,6 +23,7 @@ export default function StrategiesPage() {
   const [strategies, setStrategies] = useState<StrategyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [density, setDensity] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
     let cancelled = false;
@@ -55,7 +59,7 @@ export default function StrategiesPage() {
   })();
 
   return (
-    <div className="picks-root" data-test="strategies-page" data-density="cozy">
+    <div className="picks-root" data-test="strategies-page" data-density={density}>
       <div className="picks-frame">
         <header className="picks-header">
           <div>
@@ -64,6 +68,7 @@ export default function StrategiesPage() {
               How a signal becomes a trade · paper trading guidance
             </p>
           </div>
+          <DensityToggle value={density} onChange={setDensity} />
         </header>
 
         <PageChapter pathname="/strategies" now={nowText} />

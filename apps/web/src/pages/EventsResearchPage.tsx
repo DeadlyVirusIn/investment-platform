@@ -8,11 +8,15 @@ import { fetchPicks, type Pick } from "@/lib/picks/api";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
+import DensityToggle, {
+  readInitialDensity, type Density,
+} from "@/components/portfolio/DensityToggle";
 
 
 export default function EventsResearchPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [loading, setLoading] = useState(true);
+  const [density, setDensity] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
     let cancelled = false;
@@ -33,7 +37,7 @@ export default function EventsResearchPage() {
       : `${symbols.length} symbol${symbols.length === 1 ? "" : "s"} from active recommendations · SEC EDGAR feed live · provider news where keys configured.`;
 
   return (
-    <div className="picks-root" data-test="events-research-page" data-density="cozy">
+    <div className="picks-root" data-test="events-research-page" data-density={density}>
       <div className="picks-frame">
         <header className="picks-header">
           <div>
@@ -42,6 +46,7 @@ export default function EventsResearchPage() {
               SEC filings, news momentum, and earnings windows — the "why" behind signal changes
             </p>
           </div>
+          <DensityToggle value={density} onChange={setDensity} />
         </header>
 
         <PageChapter pathname="/events" now={nowText} />
