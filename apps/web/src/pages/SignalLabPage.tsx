@@ -11,6 +11,7 @@ import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
 import FetchError from "@/components/shell/FetchError";
+import ExpertDetails from "@/components/shell/ExpertDetails";
 import DensityToggle, {
   readInitialDensity, type Density,
 } from "@/components/portfolio/DensityToggle";
@@ -129,10 +130,15 @@ export default function SignalLabPage() {
                     <h2 className="ps-nav-value">{readiness}</h2>
                     <span className="ps-nav-delta-pct">/ 100</span>
                   </div>
-                  <p className="ps-posture-banner">
-                    Composite of average confidence (50%) + freshness (30%) +
-                    event-feature coverage (20%).
-                  </p>
+                  <ExpertDetails label="How readiness is computed">
+                    <p style={{ margin: 0 }}>
+                      Composite formula: <code>0.5 × avg_confidence + 0.3 × fresh_ratio × 100 + 0.2 × event_coverage × 100</code>.
+                      Bounded 0–100. Average confidence is mean of
+                      adjusted_confidence over all signals; fresh_ratio is
+                      (fresh + recent) ÷ total; event_coverage is
+                      symbols_with_features ÷ total_symbols.
+                    </p>
+                  </ExpertDetails>
                 </div>
               </div>
               <div className="ps-secondary">
