@@ -234,7 +234,7 @@ export default function Decisions() {
               remain (button[role=button] children, selected via
               setSelectedId), and the parent flex-1 scroll container must
               own height (already does via overflow-y-auto). */}
-          <div className="flex-1 overflow-y-auto pr-1 space-y-2">
+          <div className="flex-1 xl:overflow-y-auto pr-1 space-y-2">
             {!trades ? (
               <>
                 <Skeleton className="h-20" /><Skeleton className="h-20" />
@@ -254,14 +254,14 @@ export default function Decisions() {
         </div>
 
         {/* ============== COL 2: DECISION DETAIL ============== */}
-        <div className="overflow-y-auto pr-1">
+        <div className="xl:overflow-y-auto pr-1">
           {hasAny
             ? <DecisionDetail trade={selected} />
             : <TodaysDecisionDetail state={state} />}
         </div>
 
         {/* ============== COL 3: OUTCOME + PATTERN CONTEXT ============== */}
-        <div className="overflow-y-auto pr-1">
+        <div className="xl:overflow-y-auto pr-1">
           {hasAny
             ? <OutcomePatternPanel trade={selected}
                                    allTrades={trades ?? []}

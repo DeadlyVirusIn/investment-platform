@@ -35,14 +35,21 @@ export default function FilterBar({ picks, active, onChange }: FilterBarProps) {
     { key: "highest-risk" },
   ];
 
+  // Phase 13d — converted from role="tab"/aria-selected (which
+  // implied keyboard arrow-key navigation we never wired) to a
+  // plain button group with aria-pressed. Honest a11y semantics.
   return (
-    <div className="picks-filter-bar" data-test="picks-filter-bar" role="tablist">
+    <div
+      className="picks-filter-bar"
+      data-test="picks-filter-bar"
+      role="group"
+      aria-label="Filter recommendations"
+    >
       {filters.map(f => (
         <button
           key={f.key}
           type="button"
-          role="tab"
-          aria-selected={active === f.key}
+          aria-pressed={active === f.key}
           className="picks-filter-tab"
           data-active={active === f.key ? "true" : "false"}
           data-action={f.key === "buy" || f.key === "sell" || f.key === "trim" || f.key === "hold" ? f.key : ""}

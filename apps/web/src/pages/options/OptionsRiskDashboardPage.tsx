@@ -45,7 +45,7 @@ export default function OptionsRiskDashboardPage() {
                 No open paper trades with legs in the engine.
               </p>
             ) : (
-              <table className="w-full text-xs">
+              <div className="u-table-wrap"><table className="w-full text-xs">
                 <thead className="text-zinc-500">
                   <tr>
                     <th className="px-2 py-1 text-left">Expiry</th>
@@ -64,7 +64,7 @@ export default function OptionsRiskDashboardPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </section>
           <OptionsRiskFlagsPanel data={data} />

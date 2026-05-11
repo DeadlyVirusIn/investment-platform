@@ -471,6 +471,14 @@
   .u-divider-v { border-left: 1px solid var(--border-2); }
 
   /* -------- TABLES (DENSE) -------- */
+  /* Phase 13d — universal horizontal-overflow wrapper for any data
+     table. Apply to a parent <div> when the table can be wider than
+     its container (mobile especially). */
+  .u-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
   .u-table { width: 100%; border-collapse: collapse; }
   .u-table thead th {
     font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase;

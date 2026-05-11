@@ -481,7 +481,7 @@ function SymbolTable({ rows }: { rows: ConcentrationSymbolRow[] }) {
     );
   }
   return (
-    <table className="u-table">
+    <div className="u-table-wrap"><table className="u-table">
       <thead>
         <tr>
           <th>Symbol</th>
@@ -523,7 +523,7 @@ function SymbolTable({ rows }: { rows: ConcentrationSymbolRow[] }) {
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -537,7 +537,7 @@ function PortfolioTable({
     );
   }
   return (
-    <table className="u-table">
+    <div className="u-table-wrap"><table className="u-table">
       <thead>
         <tr>
           <th>Portfolio</th>
@@ -557,7 +557,7 @@ function PortfolioTable({
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -575,7 +575,7 @@ function PortfolioSnapshotTable({
     );
   }
   return (
-    <table className="u-table">
+    <div className="u-table-wrap"><table className="u-table">
       <thead>
         <tr>
           <th>Portfolio</th>
@@ -627,6 +627,6 @@ function PortfolioSnapshotTable({
           </tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }

@@ -332,7 +332,7 @@ function ShadowEvaluatorCard() {
             {blockedRows.length === 0 ? (
               <EmptyState note="No blocked candidates on latest run." />
             ) : (
-              <table className="w-full text-xs">
+              <div className="u-table-wrap"><table className="w-full text-xs">
                 <thead className="text-zinc-500">
                   <tr>
                     <th className="px-2 py-1 text-left">Reason</th>
@@ -347,7 +347,7 @@ function ShadowEvaluatorCard() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
 
@@ -401,7 +401,7 @@ function StrategySuggestionsCard({
       ) : scores.length === 0 ? (
         <EmptyState note="No qualified suggestions in the lookback window. Either no observations cleared the threshold, or the evaluator has not produced rows for the selected filters." />
       ) : (
-        <table className="w-full text-xs">
+        <div className="u-table-wrap"><table className="w-full text-xs">
           <thead className="text-zinc-500">
             <tr>
               <th className="px-2 py-1 text-left">As of</th>
@@ -428,7 +428,7 @@ function StrategySuggestionsCard({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       <p className="mt-3 text-[11px] text-zinc-500">
@@ -475,7 +475,7 @@ function PaperTradesCard({
       ) : trades.length === 0 ? (
         <EmptyState note="No options paper trades match the selected underlying. The options_paper_trade table currently holds backfill rows only — automatic seeding is gated on the execution blocker noted above." />
       ) : (
-        <table className="w-full text-xs">
+        <div className="u-table-wrap"><table className="w-full text-xs">
           <thead className="text-zinc-500">
             <tr>
               <th className="px-2 py-1 text-left">ID</th>
@@ -519,7 +519,7 @@ function PaperTradesCard({
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       )}
 
       <p className="mt-3 text-[11px] text-zinc-500">
