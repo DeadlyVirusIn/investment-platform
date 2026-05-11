@@ -33,19 +33,19 @@ const TABS = [
 
 export default function OptionsLayout() {
   return (
-    <div className="space-y-3 p-4 text-zinc-100">
+    <div className="space-y-3 p-4 text-fg">
       <OptionsPaperOnlyBanner />
       <OptionsDataAvailabilityBanner />
       <header className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Options paper trading</h1>
-        <span className="text-xs text-zinc-500">
+        <span className="text-xs text-fg-3">
           Paper-trading guidance · simulated only · no live execution
         </span>
         <span className="ml-auto">
           <GuardrailsToggleButton />
         </span>
       </header>
-      <nav className="flex gap-1 border-b border-zinc-800 flex-wrap">
+      <nav className="flex gap-1 border-b border-b1 flex-wrap">
         {TABS.map((t) => (
           <NavLink
             key={t.to}
@@ -53,8 +53,8 @@ export default function OptionsLayout() {
             className={({ isActive }) =>
               `px-3 py-1 text-sm ${
                 isActive
-                  ? 'border-b-2 border-amber-400 text-zinc-100'
-                  : 'text-zinc-400 hover:text-zinc-200'
+                  ? 'border-b-2 border-amber-400 text-fg'
+                  : 'text-fg-3 hover:text-fg'
               }`
             }
           >

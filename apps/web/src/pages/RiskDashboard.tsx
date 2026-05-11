@@ -126,7 +126,7 @@ export default function RiskDashboard() {
           onClick={handleNarrative}
           disabled={!q.data}
           data-test="risk-dashboard-narrative-btn"
-          className="rounded border border-zinc-700 px-2 py-1 text-[11px] text-zinc-300 hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded border border-b1 px-2 py-1 text-[11px] text-fg-2 hover:bg-elev disabled:cursor-not-allowed disabled:opacity-50"
         >
           Generate explanation
         </button>
