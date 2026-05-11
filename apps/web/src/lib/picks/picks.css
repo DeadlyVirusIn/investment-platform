@@ -4843,6 +4843,94 @@
 
 
 /* ====================================================================
+   PHASE 14f-C — Page header + filter bar + secondary metrics mobile
+   ==================================================================== */
+
+@media (max-width: 640px) {
+  /* ---- picks-header: stack title above density toggle ---- */
+  .picks-root .picks-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  /* Title row stays at the top; subtitle wraps. Density toggle
+     becomes a self-contained row that scrolls if the buttons overflow. */
+  .picks-root .picks-header > div:first-child {
+    min-width: 0;
+  }
+  .picks-root .picks-subtitle {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  /* ---- DensityToggle compact ---- */
+  .picks-root .density-toggle {
+    align-self: flex-start;
+  }
+  .picks-root .density-toggle-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    min-height: 28px;
+  }
+
+  /* ---- picks-filter-bar horizontal scroll ---- */
+  .picks-root .picks-filter-bar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding-bottom: 6px;
+    /* Hide scrollbar visually but keep scroll behavior */
+    scrollbar-width: none;
+  }
+  .picks-root .picks-filter-bar::-webkit-scrollbar { display: none; }
+  .picks-root .picks-filter-tab {
+    flex-shrink: 0;
+    scroll-snap-align: start;
+    min-height: 36px;
+  }
+
+  /* ---- PortfolioSnapshot secondary metrics: 2-col grid ---- */
+  .picks-root .ps-secondary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .picks-root .ps-metric {
+    padding: 10px 12px;
+  }
+  .picks-root .ps-metric-wide {
+    grid-column: 1 / -1;
+  }
+
+  /* ---- ps-hero: stack text above chart on mobile ---- */
+  .picks-root .ps-hero {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .picks-root .ps-hero-chart {
+    width: 100%;
+  }
+
+  /* ---- TodayPanel mini-grid: 2-col instead of 4-col on small phones ---- */
+  .picks-root .today-mini-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .picks-root .today-mini {
+    padding: 10px 12px;
+  }
+  .picks-root .today-action-symbol { font-size: 20px; }
+  .picks-root .today-action-pill {
+    font-size: 10px;
+    padding: 4px 8px;
+  }
+}
+
+
+/* ====================================================================
    PHASE 14b — Overview executive briefing — page-specific helper
    ==================================================================== */
 
