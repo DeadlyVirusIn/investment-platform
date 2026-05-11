@@ -14,6 +14,19 @@ export interface CommandBarData {
   cashAvailable: number | null;
   posture: string | null;
   freshAt: string | null;
+  // ---- Canonical paper-portfolio fields (Phase 13k data-truth fix) ----
+  // These mirror /api/paper/summary so the Overview snapshot agrees
+  // with PortfolioTerminal byte-for-byte. Numbers above the line that
+  // overlap with these (totalNav, cashAvailable, openPnl,
+  // totalReturnPct) are now ALSO sourced from /api/paper/summary —
+  // /api/dashboard/summary is no longer the canonical source for
+  // portfolio numerics. Dashboard summary stays canonical only for
+  // posture / regime / risk-label / monthly premium fields that
+  // paper-summary does not expose.
+  moneyInvested: number | null;       // mark-to-market sum of open positions
+  openPositionsCount: number | null;
+  dailyPnl: number | null;
+  unrealizedPnl: number | null;       // alias of openPnl from paper-summary
 }
 
 
@@ -65,8 +78,27 @@ async function safeFetch<T>(url: string): Promise<T | null> {
 }
 
 
+// Phase 13k data-truth fix —
+// CANONICAL portfolio numbers (NAV, cash, total return %, daily P&L,
+// money invested, open positions count, unrealized P&L, freshAt) come
+// from /api/paper/summary. That endpoint aggregates across every paper
+// portfolio the user owns; PortfolioTerminal already reads it via
+// usePaperSummary. Reading it here too guarantees Overview and
+// Portfolio show the same numbers.
+//
+// /api/dashboard/summary returns ONE portfolio (the snapshotted "lead"
+// portfolio used by older dashboards). Until 13k it was the source of
+// Overview's NAV / cash — that meant Overview displayed $10,501 / $48
+// while Portfolio displayed $117,585 / $537. Same user, same minute,
+// different scopes. Fixed.
+//
+// Dashboard summary is still queried — it remains canonical for
+// posture / regime / risk-label fields that paper-summary doesn't
+// expose. Options endpoints (risk-summary, performance-summary) stay
+// canonical for monthly premium + active strategies.
 export async function fetchCommandBar(): Promise<CommandBarData> {
-  const [dash, exec, opsRisk, opsPerf] = await Promise.all([
+  const [paper, dash, exec, opsRisk, opsPerf] = await Promise.all([
+    safeFetch<Record<string, unknown>>("/api/paper/summary"),
     safeFetch<Record<string, unknown>>("/api/dashboard/summary"),
     safeFetch<Record<string, unknown>>("/api/paper/executed/summary"),
     safeFetch<Record<string, unknown>>("/api/options/risk-summary"),
@@ -77,22 +109,70 @@ export async function fetchCommandBar(): Promise<CommandBarData> {
   const dashPnl = (dashPort.pnl as Record<string, unknown> | undefined)
     ?? (dash?.pnl as Record<string, unknown> | undefined)
     ?? {};
-  const dashCash = (dashPort.cash as Record<string, unknown> | undefined)
-    ?? (dash?.cash as Record<string, unknown> | undefined)
-    ?? {};
   const dashRegime = (dash?.regime as Record<string, unknown> | undefined) ?? {};
 
   const opsPerfTotals = (opsPerf?.totals as Record<string, unknown> | undefined) ?? {};
   const opsRiskOpen = (opsRisk?.open_positions as Record<string, unknown> | undefined) ?? {};
 
+  // Canonical numerics from paper-summary (aggregate across all paper
+  // portfolios). asNum nulls out NaN / undefined / non-finite values.
+  const paperEquity         = asNum(paper?.equity);
+  const paperCash           = asNum(paper?.cash);
+  const paperPositionsValue = asNum(paper?.positions_value);
+  const paperUnrealized     = asNum(paper?.unrealized_pnl);
+  const paperReturnPct      = asNum(paper?.total_return_pct);
+  const paperDailyPnl       = asNum(paper?.daily_pnl);
+  const paperOpenPositions  = asNum(paper?.open_positions_count);
+  const paperFreshAt        = paper?.as_of_date as string | undefined;
+
+  // ---- Dev-mode source map + drift check (Phase 13k) ----
+  // Logs which endpoint provided each numeric the first time the
+  // command bar is fetched in a session. Warns loudly if the older
+  // dashboard.summary numerics diverge from paper-summary by more
+  // than 1% — the exact regression class this fix addresses.
+  if (import.meta.env.DEV && !__commandBarLogged) {
+    __commandBarLogged = true;
+    /* eslint-disable no-console */
+    console.info(
+      "[CommandBar] canonical source = /api/paper/summary",
+      {
+        nav: paperEquity, cash: paperCash, returnPct: paperReturnPct,
+        positions: paperOpenPositions, freshAt: paperFreshAt,
+      },
+    );
+    const dashNav = asNum(dashPort.market_value)
+      ?? asNum(dashPort.total_nav) ?? asNum(dash?.nav);
+    if (paperEquity != null && dashNav != null) {
+      const driftPct = Math.abs(paperEquity - dashNav)
+        / Math.max(1, paperEquity) * 100;
+      if (driftPct > 1) {
+        console.warn(
+          `[CommandBar] NAV drift ${driftPct.toFixed(1)}% between `
+          + `/api/paper/summary (=${paperEquity}) and `
+          + `/api/dashboard/summary (=${dashNav}). `
+          + "paper-summary is canonical; dashboard-summary is one "
+          + "portfolio's snapshot.",
+        );
+      }
+    }
+    /* eslint-enable no-console */
+  }
+
   return {
-    totalNav: asNum(dashPort.market_value)
+    totalNav: paperEquity
+      // Fallbacks ONLY if paper-summary unavailable; preserves old
+      // single-portfolio behavior in degraded mode.
+      ?? asNum(dashPort.market_value)
       ?? asNum(dashPort.total_nav)
       ?? asNum(dash?.nav)
       ?? null,
-    openPnl: asNum(dashPnl.unrealized_pnl) ?? asNum(dashPnl.open_pnl) ?? null,
+    openPnl: paperUnrealized
+      ?? asNum(dashPnl.unrealized_pnl)
+      ?? asNum(dashPnl.open_pnl)
+      ?? null,
     realizedPnl: asNum(dashPnl.realized_pnl) ?? null,
-    totalReturnPct: asNum(dashPnl.total_return_pct)
+    totalReturnPct: paperReturnPct
+      ?? asNum(dashPnl.total_return_pct)
       ?? asNum(dashPort.total_return_pct)
       ?? null,
     monthlyPremium: asNum(opsPerfTotals.premium_collected_30d)
@@ -106,18 +186,29 @@ export async function fetchCommandBar(): Promise<CommandBarData> {
     portfolioRiskLabel: (dashPort.risk_label as string | undefined)
       ?? (dashRegime.vol_regime as string | undefined)
       ?? null,
-    cashAvailable: asNum(dashCash.available)
-      ?? asNum(dashCash.cash_available)
+    cashAvailable: paperCash
+      ?? asNum((dashPort.cash as Record<string, unknown> | undefined)?.available)
+      ?? asNum((dashPort.cash as Record<string, unknown> | undefined)?.cash_available)
       ?? asNum(dashPort.cash)
       ?? null,
     posture: (dashPort.posture as string | undefined)
       ?? (dashRegime.market_trend as string | undefined)
       ?? null,
-    freshAt: (dash?.as_of_date as string | undefined)
+    freshAt: paperFreshAt
+      ?? (dash?.as_of_date as string | undefined)
       ?? (dash?.generated_at as string | undefined)
       ?? null,
+    // ---- Canonical paper-summary additions (Phase 13k) ----
+    moneyInvested: paperPositionsValue ?? null,
+    openPositionsCount: paperOpenPositions ?? null,
+    dailyPnl: paperDailyPnl ?? null,
+    unrealizedPnl: paperUnrealized ?? null,
   };
 }
+
+// Module-scoped flag so dev-mode source log fires once per page load
+// instead of on every refetch (TanStack default 60s interval).
+let __commandBarLogged = false;
 
 
 export async function fetchOpenPositions(): Promise<PositionRow[]> {

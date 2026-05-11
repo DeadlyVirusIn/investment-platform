@@ -91,11 +91,28 @@ export default function PortfolioSnapshot() {
       </div>
 
       {/* SECONDARY METRICS — asymmetric grid */}
-      <div className="ps-secondary">
+      {/* Phase 13k — added Total Return %, Money Invested, Open
+          positions, and Daily P&L. All sourced from canonical
+          /api/paper/summary so this card now agrees with
+          PortfolioTerminal byte-for-byte. */}
+      <div className="ps-secondary"
+           data-source={import.meta.env.DEV ? "paper-summary" : undefined}>
+        {data.totalReturnPct != null && (
+          <div className="ps-metric ps-metric-wide" data-tone={tone(data.totalReturnPct)}>
+            <span className="ps-metric-label">Total return</span>
+            <span className="ps-metric-value">{fmtPct(data.totalReturnPct)}</span>
+          </div>
+        )}
         {data.openPnl != null && (
-          <div className="ps-metric ps-metric-wide" data-tone={tone(data.openPnl)}>
+          <div className="ps-metric" data-tone={tone(data.openPnl)}>
             <span className="ps-metric-label">Open P&L</span>
             <span className="ps-metric-value">{fmtSigned(data.openPnl)}</span>
+          </div>
+        )}
+        {data.dailyPnl != null && data.dailyPnl !== 0 && (
+          <div className="ps-metric" data-tone={tone(data.dailyPnl)}>
+            <span className="ps-metric-label">Day P&L</span>
+            <span className="ps-metric-value">{fmtSigned(data.dailyPnl)}</span>
           </div>
         )}
         {data.realizedPnl != null && (
@@ -108,6 +125,18 @@ export default function PortfolioSnapshot() {
           <div className="ps-metric">
             <span className="ps-metric-label">Cash</span>
             <span className="ps-metric-value">{fmtCurrency(data.cashAvailable, { compact: true })}</span>
+          </div>
+        )}
+        {data.moneyInvested != null && (
+          <div className="ps-metric">
+            <span className="ps-metric-label">Money invested</span>
+            <span className="ps-metric-value">{fmtCurrency(data.moneyInvested, { compact: true })}</span>
+          </div>
+        )}
+        {data.openPositionsCount != null && (
+          <div className="ps-metric">
+            <span className="ps-metric-label">Open positions</span>
+            <span className="ps-metric-value">{data.openPositionsCount}</span>
           </div>
         )}
         {data.monthlyPremium != null && data.monthlyPremium > 0 && (
