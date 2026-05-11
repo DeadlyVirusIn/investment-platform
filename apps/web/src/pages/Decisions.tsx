@@ -21,6 +21,8 @@ import { cn } from "@/lib/cn";
 // UX-1 — plain-English page intro card.
 // UX-1 Commit J — focus guidance + collapsible engineering source.
 import { PageGuide, AdvancedDetails } from "@/components/novice";
+// Phase 13e — narrative-flow rail (NextStepCard available via PageChapter NEXT cell)
+import PageChapter from "@/components/shell/PageChapter";
 
 // Filter set — paper-trading aware. Engine A/B retained for the
 // rare legacy row that still carries those engine values; the
@@ -82,6 +84,9 @@ export default function Decisions() {
 
   return (
     <div className="max-w-[1680px] mx-auto px-8 py-8">
+      <div className="picks-root picks-root-inline">
+        <PageChapter pathname="/decisions" />
+      </div>
       <header className="mb-6 space-y-3">
         <PageGuide
           eyebrow="Decisions"

@@ -4400,6 +4400,28 @@
 
 
 /* ====================================================================
+   PHASE 13e — picks-root-inline modifier
+   Lets PageChapter / NextStepCard render INSIDE legacy Tailwind
+   pages (Decisions, Risk, ResearchLab, Ops) WITHOUT applying the
+   picks-root page background or font/min-height. Only the embedded
+   components inherit the --pi-* tokens they need.
+   ==================================================================== */
+
+.picks-root.picks-root-inline {
+  background: transparent !important;
+  min-height: 0 !important;
+  font-family: inherit;
+  color: inherit;
+  display: contents;
+}
+.picks-root.picks-root-inline .picks-frame {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+
+/* ====================================================================
    PHASE 13b — FetchError component (visible failure state)
    ==================================================================== */
 

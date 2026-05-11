@@ -19,6 +19,8 @@ import { useInsight } from "@/lib/insights/hooks";
 // Commit 4 (Novice UX) — page-level intro card.
 // UX-1 Commit G — focus guidance + collapsible advanced sections.
 import { PageGuide, AdvancedDetails } from "@/components/novice";
+// Phase 13e — narrative-flow chapter rail
+import PageChapter from "@/components/shell/PageChapter";
 
 
 export default function RiskDashboard() {
@@ -40,6 +42,9 @@ export default function RiskDashboard() {
 
   return (
     <div className="max-w-[1480px] mx-auto px-6 py-6 space-y-5">
+      <div className="picks-root picks-root-inline">
+        <PageChapter pathname="/risk" />
+      </div>
       {/* Commit 4 (Novice UX) — plain-English page intro. The      */}
       {/* replay toggle and "Generate explanation" button stay      */}
       {/* visible on a separate row so first-time readers see the   */}

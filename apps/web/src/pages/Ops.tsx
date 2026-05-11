@@ -10,6 +10,8 @@
 // before they encounter the operational telemetry.
 
 import { useSystemHealth, useAnomalies } from "@/lib/operator/hooks";
+// Phase 13e — narrative-flow chapter rail
+import PageChapter from "@/components/shell/PageChapter";
 import {
   Card, Pill, SectionHeader, EmptyState, Divider,
 } from "@/components/ui/primitives";
@@ -42,6 +44,9 @@ export default function Ops() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-8 py-8 space-y-6">
+      <div className="picks-root picks-root-inline">
+        <PageChapter pathname="/ops" />
+      </div>
       {/* UX-1 Commit I — plain-English page header. The visible    */}
       {/* title is now "System status" so a beginner does not read  */}
       {/* "Ops" as something they might have broken. Eyebrow keeps  */}

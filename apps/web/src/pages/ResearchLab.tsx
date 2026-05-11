@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/primitives";
 import type { TradeRow, ShadowSignal } from "@/lib/operator/types";
 import { cn } from "@/lib/cn";
+// Phase 13e — narrative-flow chapter rail
+import PageChapter from "@/components/shell/PageChapter";
 
 const TABS = [
   { id: "signals",   label: "Signals" },
@@ -26,6 +28,9 @@ export default function ResearchLab() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6">
+      <div className="picks-root picks-root-inline">
+        <PageChapter pathname="/research" />
+      </div>
       <div className="u-lab-mode">
         <header className="mb-6 flex items-start justify-between">
           <div>
