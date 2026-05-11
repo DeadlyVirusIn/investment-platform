@@ -4931,6 +4931,86 @@
 
 
 /* ====================================================================
+   PHASE 14f-D — PickBox grid + tap targets + touch behavior
+   ====================================================================
+   Touch-action manipulation + tap-highlight transparent already
+   global from 14f-A. This block:
+   - Raises tap targets to >=44px on critical interactives at <=640
+   - Forces explicit 1-col PickBox grids at narrow widths
+   - Tightens PickBox interior padding so 1-col card content reads
+   ==================================================================== */
+
+@media (max-width: 640px) {
+  /* ---- PickBox grids: explicit single column (defensive — auto-fill
+          already lands here at 393px, but density variants could push
+          back to 2-col). ---- */
+  .picks-root .action-group-grid,
+  .picks-root .action-queue-grid {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  /* ---- PickBox interior: tighten padding for narrow stack ---- */
+  .picks-root .pick-box {
+    padding: 12px 14px;
+  }
+
+  /* ---- 44px tap targets on primary action surfaces ---- */
+  .picks-root .picks-cta-primary,
+  .picks-root .picks-cta-secondary {
+    height: 44px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+
+  /* CTA inside Action Queue (PriorityCTA / fetch-error-retry) */
+  .picks-root .priority-cta,
+  .picks-root .today-cta,
+  .picks-root .fetch-error-retry {
+    min-height: 44px;
+    padding: 10px 16px;
+  }
+
+  /* Density toggle bumped to 36px (was 28 in 14f-C) — fingertip safe
+     when inside a 10px gap row. Adjacent buttons still individually
+     reach a >=44px effective hit area through gap padding. */
+  .picks-root .density-toggle-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  /* TopStrip + MarketTicker chips: pad-aware tap target */
+  .topstrip-toggles .u-chip,
+  .topstrip-toggles .u-btn-toggle,
+  .u-ticker-toggle .u-chip {
+    min-height: 32px;
+    padding: 6px 10px;
+  }
+
+  /* PageChapter NEXT cell — make whole cell easily tappable */
+  .picks-root .page-chapter-next {
+    min-height: 64px;
+  }
+
+  /* NextStepCard CTA */
+  .picks-root .next-step-card a,
+  .picks-root .next-step-card button {
+    min-height: 44px;
+  }
+}
+
+/* ---- prefers-reduced-motion: respect on PickBox hover lift
+        (already set in core .pick-box rule but reaffirm gate) ---- */
+@media (prefers-reduced-motion: reduce) {
+  .picks-root .pick-box,
+  .picks-root .pick-box:hover {
+    transform: none;
+  }
+}
+
+
+/* ====================================================================
    PHASE 14b — Overview executive briefing — page-specific helper
    ==================================================================== */
 
