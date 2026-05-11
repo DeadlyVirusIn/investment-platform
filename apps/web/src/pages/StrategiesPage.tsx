@@ -9,6 +9,7 @@ import { PAPER_ONLY_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
 import FetchError from "@/components/shell/FetchError";
+import ExpertDetails from "@/components/shell/ExpertDetails";
 import DensityToggle, {
   readInitialDensity, type Density,
 } from "@/components/portfolio/DensityToggle";
@@ -81,8 +82,15 @@ export default function StrategiesPage() {
           />
         )}
 
-        <section className="strategy-edu">
-          <h3 className="strategy-edu-title">When each strategy fits</h3>
+        {/* Phase 14f-E — strategy-edu wrapped in ExpertDetails (collapsed
+            by default). Review-doc R1 flagged the always-visible
+            education list as repeat-visit friction. Novices still get
+            the explainer with one tap; operators don't see the wall
+            of text every time they land here.
+            Heading hierarchy fix: h2 (correct sequence after the
+            page-title h1) instead of the previous h3 skip. */}
+        <ExpertDetails label="When each strategy fits">
+          <h2 className="strategy-edu-title">When each strategy fits</h2>
           <ul className="strategy-edu-list">
             <li><strong>Wheel</strong> — neutral-to-bullish underlying you would not mind owning. Sell CSPs, accept assignment, sell covered calls, repeat.</li>
             <li><strong>Covered calls</strong> — long stock with capped near-term upside view. Generates income, modestly reduces cost basis.</li>
@@ -90,7 +98,7 @@ export default function StrategiesPage() {
             <li><strong>LEAPS</strong> — long-dated calls used as leveraged stock replacement on high-conviction names.</li>
             <li><strong>Spreads</strong> — defined-risk credit / debit setups when directional bias is strong but volatility is rich.</li>
           </ul>
-        </section>
+        </ExpertDetails>
 
         <TradeLifecycle />
         <PremiumIncome />
