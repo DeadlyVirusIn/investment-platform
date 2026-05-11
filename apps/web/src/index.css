@@ -1751,3 +1751,39 @@
     display: none;
   }
 }
+
+
+/* =========================================================================
+   PHASE 14f-F — Mobile sticky relax
+=========================================================================
+   Earlier 14f-A wrapped TopStrip + MarketTicker + StatusRail in one
+   sticky container so all three stayed pinned to the viewport top.
+   On phones that consumed ~120px of vertical space permanently — the
+   user reported "top section stays there it's not moving".
+
+   This block:
+   - Releases the outer sticky wrapper at <=768
+   - Pins only .topstrip-root via its own position: sticky
+   - MarketTicker + StatusRail scroll away naturally with the page
+   - Operator still always sees NAV / Day P&L / Health
+   - Recovers ~70px of viewport for actual content
+   - z-index high enough to sit above page chrome below
+   ========================================================================= */
+
+@media (max-width: 768px) {
+  /* Outer sticky wrapper in Shell.tsx is the first .sticky.top-0
+     descendant of .shell-root's main column. Release it so children
+     stack normally; only TopStrip re-pins. */
+  .shell-root .sticky.top-0 {
+    position: static;
+  }
+
+  /* Pin only TopStrip; respect the safe-area inset already added in
+     14f-A so it clears the dynamic island. */
+  .shell-root .topstrip-root {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
