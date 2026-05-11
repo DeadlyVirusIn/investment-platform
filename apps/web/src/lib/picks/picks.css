@@ -4359,3 +4359,41 @@
 .picks-root .picks-header {
   gap: 14px;
 }
+
+
+/* ====================================================================
+   PHASE 13a — A11y debt clear (skip-link + focus-visible)
+   ==================================================================== */
+
+/* Skip-link — visually hidden until focused (WCAG 2.4.1) */
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 8px;
+  z-index: 1000;
+  padding: 10px 16px;
+  background: var(--pi-ink-primary, #f8fafc);
+  color: var(--pi-bg-page, #050811);
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: top 120ms ease-out;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: 8px;
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* :focus-visible on the link-styled card components.
+   Mouse hover already animates via transform/border-color; keyboard
+   users had only the browser default. */
+.picks-root .launcher-card:focus-visible,
+.picks-root .page-chapter-next:focus-visible,
+.picks-root .next-step-card:focus-visible {
+  outline: 2px solid var(--pi-ink-primary);
+  outline-offset: 3px;
+}

@@ -11,6 +11,10 @@ export default function Shell() {
   return (
     <div className="flex min-h-screen"
          style={{ background: "var(--bg)" }}>
+      {/* WCAG 2.4.1 — skip-link to main content. Visually hidden until focused. */}
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
       <SideNav />
       <div className="flex-1 flex flex-col min-w-0">
         <div className="sticky top-0 z-20">
@@ -18,7 +22,7 @@ export default function Shell() {
           <MarketTicker />
           <StatusRail />
         </div>
-        <main className="flex-1 overflow-auto">
+        <main id="main-content" className="flex-1 overflow-auto">
           <Outlet />
         </main>
         {/* Phase 11K.1 — persistent global guardrail footer */}
