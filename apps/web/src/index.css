@@ -1636,3 +1636,118 @@
     animation: none;
   }
 }
+
+
+/* =========================================================================
+   PHASE 14f-B — Sticky bar compress (TopStrip / MarketTicker / StatusRail)
+=========================================================================
+   At <=768 the persistent top chrome eats too much vertical space and
+   forces horizontal overflow. This block:
+   - TopStrip: hide non-essential cells (regime, engine, total-return),
+     drop "last run" text, override min-w to allow tighter cells
+   - MarketTicker: shrink reserved toggle gutter from 168px to 96px,
+     reduce ticker item padding so symbols read on narrow screens
+   - StatusRail: vertical-stack 3 segments OR tight single line
+   ========================================================================= */
+
+@media (max-width: 768px) {
+
+  /* ---- TopStrip ---- */
+
+  /* Drop wide min-widths so cells fit naturally on narrow screens. */
+  .topstrip-root .topstrip-cell {
+    min-width: 0 !important;
+    padding: 8px 10px;
+  }
+  .topstrip-root .topstrip-cell .u-caption-2 {
+    font-size: 9px;
+    margin-bottom: 1px;
+  }
+  .topstrip-root .topstrip-cell > div:last-child {
+    font-size: 12px;
+  }
+
+  /* Hide non-essential cells. Keep NAV + Day P&L + Health (3 cells)
+     to give the operator the absolute-minimum dashboard at a glance.
+     Total Return / Regime / Engine still reachable on the Portfolio
+     and Action Queue pages. */
+  .topstrip-root .topstrip-cell[data-slot="total-return"],
+  .topstrip-root .topstrip-cell[data-slot="regime"],
+  .topstrip-root .topstrip-cell[data-slot="engine"] {
+    display: none;
+  }
+
+  /* Toggles cluster: condensed, no "last run" text. */
+  .topstrip-root .topstrip-toggles {
+    padding: 6px 10px;
+    gap: 6px;
+  }
+  .topstrip-root .topstrip-toggles .topstrip-last-run {
+    display: none;
+  }
+
+  /* ---- MarketTicker ---- */
+
+  /* Smaller reserved gutter on the right (toggle area). 96px is
+     enough for "macro / focus" chip pair at smaller font. */
+  :root { --u-ticker-toggle-w: 96px; }
+
+  .u-market-ticker { height: 32px; }
+  .u-ticker-item {
+    padding: 0 14px;
+    gap: 6px;
+    height: 32px;
+    font-size: 11px;
+  }
+  .u-ticker-sym  { font-size: 10px; letter-spacing: 0.06em; }
+  .u-ticker-px   { font-size: 11px; }
+  .u-ticker-chg  { font-size: 10px; }
+  .u-ticker-toggle {
+    padding: 0 8px 0 12px;
+    gap: 2px;
+  }
+  .u-ticker-toggle .u-chip {
+    padding: 2px 5px;
+    font-size: 9px;
+    letter-spacing: 0.06em;
+  }
+
+  /* ---- StatusRail ---- */
+
+  /* Each segment full-width on its own line, smaller height per row.
+     Maintains border separators as bottom borders instead of right. */
+  .u-status-rail {
+    flex-direction: column;
+    height: auto;
+  }
+  .u-status-seg {
+    padding: 6px 14px;
+    height: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+  }
+  .u-status-seg:last-child {
+    border-bottom: 0;
+    flex: initial;
+  }
+  .u-status-seg-label {
+    font-size: 8px;
+    letter-spacing: 0.18em;
+    min-width: 38px;
+  }
+  .u-status-seg-value {
+    font-size: 11px;
+  }
+}
+
+/* Mid-tablet — collapse just the operator-only cells but keep ticker
+   wide, so 769-1024px still gets a useful header. */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .topstrip-root .topstrip-cell[data-slot="engine"] {
+    display: none;
+  }
+  .topstrip-root .topstrip-toggles .topstrip-last-run {
+    display: none;
+  }
+}

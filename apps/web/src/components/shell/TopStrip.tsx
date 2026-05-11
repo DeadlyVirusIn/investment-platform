@@ -8,18 +8,22 @@ import { useTheme } from "@/lib/ui/theme";
 import { cn } from "@/lib/cn";
 
 function Cell({
-  label, children, className, tooltip,
+  label, children, className, tooltip, slot,
 }: {
   label: string;
   children: React.ReactNode;
   className?: string;
   // Phase 11K.1 — guardrail tooltip text shown on hover
   tooltip?: string;
+  // Phase 14f-B — slot identifier used by mobile CSS to hide
+  // non-essential cells. "essential" cells stay visible at <=768.
+  slot?: "nav" | "day-pnl" | "total-return" | "regime" | "engine" | "health";
 }) {
   return (
     <div
-      className={cn("px-4 py-3 flex flex-col justify-center min-w-0",
+      className={cn("topstrip-cell px-4 py-3 flex flex-col justify-center min-w-0",
                       className)}
+      data-slot={slot}
       title={tooltip}
     >
       <div className="u-caption-2 mb-0.5">{label}</div>
@@ -44,10 +48,11 @@ export default function TopStrip() {
   const healthLabel = crit > 0 ? "Degraded" : warn > 0 ? "Warnings" : "Healthy";
 
   return (
-    <div className="bg-ink/95 backdrop-blur
+    <div className="topstrip-root bg-ink/95 backdrop-blur
                      border-b border-b1 flex items-stretch divide-x divide-b1">
       <Cell
         label="NAV"
+        slot="nav"
         className="min-w-[120px]"
         tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
       >
@@ -55,6 +60,7 @@ export default function TopStrip() {
       </Cell>
       <Cell
         label="Day P&L"
+        slot="day-pnl"
         className="min-w-[120px]"
         tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
       >
@@ -72,6 +78,7 @@ export default function TopStrip() {
       </Cell>
       <Cell
         label="Total Return"
+        slot="total-return"
         className="min-w-[110px]"
         tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
       >
@@ -83,6 +90,7 @@ export default function TopStrip() {
       </Cell>
       <Cell
         label="Regime"
+        slot="regime"
         className="min-w-[130px]"
         tooltip="Regime is a model classification and does not imply direction."
       >
@@ -91,19 +99,19 @@ export default function TopStrip() {
           {regime}
         </Pill>
       </Cell>
-      <Cell label="Engine" className="min-w-[100px]">
+      <Cell label="Engine" slot="engine" className="min-w-[100px]">
         {state?.fire
           ? <Pill tone="success" dot>Engine {state.engine}</Pill>
           : <span className="text-fg-3">No evaluation path currently active</span>}
       </Cell>
-      <Cell label="Health" className="min-w-[120px]">
+      <Cell label="Health" slot="health" className="min-w-[120px]">
         <Pill tone={healthTone} dot>{healthLabel}</Pill>
       </Cell>
-      <div className="ml-auto px-4 py-3 flex items-center gap-3
+      <div className="topstrip-toggles ml-auto px-4 py-3 flex items-center gap-3
                         u-caption-2 font-mono">
         <ThemeToggle />
         <UIModeToggle />
-        <span>
+        <span className="topstrip-last-run">
           {summary?.last_decision_ts
             ? `last run ${new Date(summary.last_decision_ts).toLocaleTimeString()}`
             : "idle"}
