@@ -125,13 +125,28 @@ function SignalsTab() {
     },
   ];
 
-  const signals = (shadow && shadow.length > 0) ? shadow : knownSignals;
+  // Phase 15a — Truth fix. Earlier this page silently substituted the
+  // knownSignals fallback rows for live data when /api/shadow returned
+  // empty, with no visual distinction. usingFallback gates a visible
+  // banner so the user can tell static registry baseline from live.
+  const usingFallback = !(shadow && shadow.length > 0);
+  const signals: ShadowSignal[] = usingFallback ? knownSignals : (shadow ?? []);
 
   return (
     <div className="space-y-5">
       <Card size="md">
         <SectionHeader title="Shadow Signal Registry"
-          hint="Observed in parallel — status per signal shown inline." />
+          hint={usingFallback
+            ? "Static registry baseline — no live shadow signals this cycle."
+            : "Observed in parallel — status per signal shown inline."} />
+        {usingFallback && (
+          <div className="mb-3 inline-flex items-center gap-2 rounded-md
+                          border border-b1 px-2.5 py-1 text-[10px] font-semibold
+                          tracking-[0.16em] uppercase text-fg-3"
+               role="note">
+            Static baseline · not live data
+          </div>
+        )}
         <div className="divide-y divide-b1">
           {signals.map(s => (
             <SignalRow key={s.name} s={s} />

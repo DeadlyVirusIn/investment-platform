@@ -8,6 +8,7 @@ import { fetchPicks, type Pick } from "@/lib/picks/api";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import PageChapter from "@/components/shell/PageChapter";
 import NextStepCard from "@/components/shell/NextStepCard";
+import FetchError from "@/components/shell/FetchError";
 import DensityToggle, {
   readInitialDensity, type Density,
 } from "@/components/portfolio/DensityToggle";
@@ -16,6 +17,10 @@ import DensityToggle, {
 export default function EventsResearchPage() {
   const [picks, setPicks] = useState<Pick[]>([]);
   const [loading, setLoading] = useState(true);
+  // Phase 15a — Truth fix. Previously .catch(() => setLoading(false))
+  // silently swallowed every fetch error, making a 500 indistinguishable
+  // from a clean empty day. Surface a real FetchError instead.
+  const [error, setError] = useState<Error | null>(null);
   const [density, setDensity] = useState<Density>(() => readInitialDensity());
 
   useEffect(() => {
@@ -24,7 +29,11 @@ export default function EventsResearchPage() {
       if (cancelled) return;
       setPicks(rows);
       setLoading(false);
-    }).catch(() => { if (!cancelled) setLoading(false); });
+    }).catch((e: unknown) => {
+      if (cancelled) return;
+      setError(e instanceof Error ? e : new Error(String(e)));
+      setLoading(false);
+    });
     return () => { cancelled = true; };
   }, []);
 
@@ -51,7 +60,15 @@ export default function EventsResearchPage() {
 
         <PageChapter pathname="/events" now={nowText} />
 
-        <MarketEvents symbols={symbols} />
+        {error && (
+          <FetchError
+            title="Could not load market events"
+            message={error.message}
+            onRetry={() => window.location.reload()}
+          />
+        )}
+
+        {!error && <MarketEvents symbols={symbols} />}
 
         <NextStepCard
           pathname="/events"

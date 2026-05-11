@@ -353,10 +353,16 @@ function TimelineEntry({
 }
 
 function EmptyFilter() {
+  // Phase 15a — Truth fix / tone cleanup.
+  // Removed leading 🌱 emoji per the no-emoji discipline in the
+  // user-global instructions. Decision-audit page requires a
+  // restrained AI-moderator tone; quiet glyph (·) at --fg-3 reads
+  // as a neutral "no rows" marker, not a decoration.
   return (
     <div className="u-card-tight">
       <div className="u-caption-2 italic">
-        🌱 Nothing matches this filter yet. Try "All".
+        <span aria-hidden="true" className="text-fg-3 mr-1.5">·</span>
+        Nothing matches this filter yet. Try "All".
       </div>
     </div>
   );

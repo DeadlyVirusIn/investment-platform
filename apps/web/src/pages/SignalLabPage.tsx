@@ -167,20 +167,22 @@ export default function SignalLabPage() {
               </div>
             </section>
 
-            <section className="pi-positions">
-              <header className="pi-section-header">
-                <h3>Backtest validation</h3>
-                <span className="pi-section-sub">Not yet wired</span>
-              </header>
-              <div className="pi-empty-state">
-                <h4>Historical hit rate, post-signal returns, regime performance</h4>
-                <p>
-                  Walk-forward results, IC decay curves, and feature contribution charts
-                  appear here once /api/recommendations/diagnostics surfaces those metrics.
-                  Until then the upper readiness score reflects live snapshot quality only.
-                </p>
-              </div>
-            </section>
+            {/* Phase 15a — Truth fix. Removed ~280px "Not yet wired"
+                tombstone block that read as a developer backlog ticket
+                on the credibility page. Status moved into a single
+                ExpertDetails one-liner so operators can still see the
+                pending validation channel without a vacancy sign in
+                the primary view. */}
+            <ExpertDetails label="Backtest validation status">
+              <p>
+                Backtest validation pending — see Ops &gt; ML pipeline.
+                Walk-forward results, IC decay curves, and feature
+                contribution charts appear here once
+                <code> /api/recommendations/diagnostics </code>
+                surfaces those metrics. Until then the readiness score
+                above reflects live snapshot quality only.
+              </p>
+            </ExpertDetails>
           </>
         )}
 

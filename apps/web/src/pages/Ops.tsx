@@ -258,12 +258,20 @@ export default function Ops() {
       {/* Jobs + scheduler */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card size="md">
-          <SectionHeader title="Scheduled Jobs" />
+          {/* Phase 15a — Truth fix.
+              Earlier this card hardcoded last="ok" / last="skipped" on
+              every job, which read as live health on a system-health
+              surface. Live last-run status is not wired here yet, so
+              the card now states cadences only and labels each row
+              "status pending" until a real scheduler-status hook is
+              connected. Honest data > literal "ok" pill. */}
+          <SectionHeader title="Scheduled Jobs"
+            hint="Expected cadences only — live last-run status not wired yet." />
           <ul className="divide-y divide-b1">
-            <JobRow name="daily_paper_pipeline" cadence="daily 16:30 ET" last="ok" />
-            <JobRow name="fred_ingest"          cadence="daily 17:00 ET" last="ok" />
-            <JobRow name="anomaly_scan"         cadence="daily 17:05 ET" last="ok" />
-            <JobRow name="shadow_refresh"       cadence="daily 17:10 ET" last="skipped" />
+            <JobRow name="daily_paper_pipeline" cadence="daily 16:30 ET" last="unknown" />
+            <JobRow name="fred_ingest"          cadence="daily 17:00 ET" last="unknown" />
+            <JobRow name="anomaly_scan"         cadence="daily 17:05 ET" last="unknown" />
+            <JobRow name="shadow_refresh"       cadence="daily 17:10 ET" last="unknown" />
           </ul>
         </Card>
 
@@ -314,14 +322,19 @@ function OpsAnchorNav() {
 
 
 function JobRow({ name, cadence, last }: {
-  name: string; cadence: string; last: "ok" | "warn" | "fail" | "skipped";
+  name: string;
+  cadence: string;
+  // Phase 15a — Added "unknown" sentinel for the truth-fix pass.
+  // Use this when live status is not yet wired (rather than fake "ok").
+  last: "ok" | "warn" | "fail" | "skipped" | "unknown";
 }) {
   const tone = last === "ok" ? "success"
     : last === "warn" ? "warning"
     : last === "fail" ? "danger" : "neutral";
+  const labelText = last === "unknown" ? "status pending" : last;
   return (
     <li className="py-2.5 flex items-center gap-3">
-      <Pill tone={tone as any} dot={last === "ok"}>{last}</Pill>
+      <Pill tone={tone as any} dot={last === "ok"}>{labelText}</Pill>
       <div className="flex-1">
         <div className="u-mono">{name}</div>
         <div className="u-caption-2">{cadence}</div>
