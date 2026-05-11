@@ -5030,7 +5030,11 @@
 
 /* "Today's read" line above launchers. Tiny eyebrow + body sentence,
    never a card — sits between TodayPanel and launcher-grid as quiet
-   narrative. */
+   narrative.
+   Phase 15e.1 NOTE: this .picks-today-read class is no longer mounted
+   by PicksPage (the line was elevated into .overview-hero above
+   PageChapter). Class definition retained in case other surfaces
+   adopt the same eyebrow+sentence pattern. */
 .picks-root .picks-today-read {
   display: flex;
   align-items: baseline;
@@ -5053,6 +5057,103 @@
     flex-direction: column;
     gap: 4px;
     margin: 14px 0 0;
+  }
+}
+
+
+/* ====================================================================
+   PHASE 15e.1 — Today's-read hero on /overview
+   ====================================================================
+   First emotional moment of the page. Calm institutional strategist
+   tone — one sentence + brief body + honest diff line vs last visit.
+   Renders ABOVE PageChapter so the AI's voice is what the user reads
+   first, not chrome. Compact by design — never paragraphs.
+   ==================================================================== */
+
+.picks-root .overview-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 22px;
+  padding: 20px 22px;
+  border-radius: 14px;
+  /* Subtle gradient — never a heavy chrome card; reads as elevated
+     narrative paper, not a dashboard tile. */
+  background: linear-gradient(160deg,
+    rgba(75, 139, 255, 0.05) 0%,
+    rgba(75, 139, 255, 0.01) 100%);
+  border: 1px solid var(--pi-border);
+  border-left: 3px solid var(--ax-info);
+}
+.picks-root .overview-hero-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ax-info);
+}
+.picks-root .overview-hero-headline {
+  margin: 0;
+  font-size: clamp(18px, 2.6vw, 22px);
+  line-height: 1.35;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--pi-ink-primary);
+  /* Use balanced text-wrap so the institutional-strategist
+     headline never widows on the last line. */
+  text-wrap: balance;
+}
+.picks-root .overview-hero-body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--pi-ink-secondary);
+  max-width: 720px;
+}
+.picks-root .overview-hero-diff {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--pi-ink-tertiary);
+  font-variant-numeric: tabular-nums;
+  /* Subtle quietness — diff is supporting context, not a hero. */
+  font-style: italic;
+}
+/* Make the no-prior + no-change diff lines extra quiet — they say
+   "still here, no manufactured noise" without competing with the
+   headline above. */
+.picks-root .overview-hero-diff[data-kind="no-prior"],
+.picks-root .overview-hero-diff[data-kind="no-change"] {
+  color: var(--pi-ink-muted);
+}
+
+/* Density modifiers — hero compresses with compact, opens with
+   spacious, so density toggle reaches this surface like every other. */
+.picks-root[data-density="compact"] .overview-hero {
+  padding: 14px 16px;
+  gap: 8px;
+}
+.picks-root[data-density="compact"] .overview-hero-headline {
+  font-size: clamp(16px, 2.2vw, 20px);
+}
+.picks-root[data-density="compact"] .overview-hero-body {
+  font-size: 13px;
+}
+.picks-root[data-density="spacious"] .overview-hero {
+  padding: 28px 30px;
+  gap: 14px;
+}
+.picks-root[data-density="spacious"] .overview-hero-headline {
+  font-size: clamp(22px, 3vw, 28px);
+}
+
+@media (max-width: 640px) {
+  .picks-root .overview-hero {
+    padding: 16px 18px;
+    margin: 4px 0 16px;
+  }
+  .picks-root .overview-hero-body {
+    font-size: 13px;
   }
 }
 

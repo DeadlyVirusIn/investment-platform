@@ -28,6 +28,11 @@ import {
 } from "@/lib/portfolio/api";
 import { RESEARCH_NOTE } from "@/lib/ui/disclaimers";
 import FetchError from "@/components/shell/FetchError";
+// Phase 15e — Today's-read hero + returning-user continuity.
+import OverviewHero from "@/components/picks/OverviewHero";
+import {
+  readOverviewSnapshot, writeOverviewSnapshot, deriveOverviewDiff,
+} from "@/lib/picks/overview_memory";
 
 
 interface LauncherCardProps {
@@ -64,6 +69,11 @@ export default function PicksPage() {
   const [_filter, setFilter] = useState<PicksFilter>("all");
   const [commandBar, setCommandBar] = useState<CommandBarData | null>(null);
   const [density, setDensity] = useState<Density>(() => readInitialDensity());
+  // Phase 15e.2 — read prior snapshot ONCE per page mount (before any
+  // current-cycle write). All subsequent comparisons use this captured
+  // value so the diff line is derived from "what was last time" not
+  // "what we just wrote 200ms ago".
+  const [priorSnapshot] = useState(() => readOverviewSnapshot());
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +152,40 @@ export default function PicksPage() {
       })
     : commandBar?.freshAt ?? null;
 
+  // Phase 15e.2 — Compose current-cycle snapshot + diff vs prior visit.
+  // Snapshot is computed every render but written to localStorage only
+  // once per successful load via the effect below.
+  const currentSnapshot = useMemo(() => ({
+    ts: Date.now(),
+    nav: commandBar?.totalNav ?? null,
+    picksCount: sortedPicks.length,
+    buy: buyCount,
+    sell: sellCount,
+    trim: trimCount,
+    hold: watchlistCount,
+    posture: briefing.posture,
+    riskCount,
+  }), [commandBar?.totalNav, sortedPicks.length, buyCount, sellCount,
+       trimCount, watchlistCount, briefing.posture, riskCount]);
+
+  const diff = useMemo(
+    () => deriveOverviewDiff(priorSnapshot, currentSnapshot),
+    [priorSnapshot, currentSnapshot],
+  );
+
+  // Persist current snapshot exactly once per page load — only after
+  // the data has resolved and we have a real briefing in hand. Using
+  // a stable trigger (loading + commandBar present) avoids constant
+  // localStorage churn on every state setter.
+  useEffect(() => {
+    if (loading || error) return;
+    if (commandBar?.totalNav == null && sortedPicks.length === 0) return;
+    writeOverviewSnapshot(currentSnapshot);
+    // Intentionally narrow deps — we only want the write to happen
+    // after the page has stably resolved, not on every minor change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error, commandBar?.totalNav, sortedPicks.length]);
+
   return (
     <div className="picks-root" data-test="picks-root" data-density={density}>
       <div className="picks-frame">
@@ -153,15 +197,20 @@ export default function PicksPage() {
           <DensityToggle value={density} onChange={setDensity} />
         </header>
 
-        {/* Phase 15c3 — Overview redundancy cleanup.
-            Was: PageChapter NOW carried "Engine sees N buy · M sell · ...
-            Posture: cautious." — exact same buy/sell/trim/hold count
-            already on the Action Queue launcher card metric (line ~206)
-            AND posture already on TodayPanel posture-row + executive-
-            briefing subtitle. Dropping NOW removes ~60-80px of
-            duplicated text without touching the FLOW spine — the
-            section breadcrumb + WHY + NEXT cells in PageChapter
-            still render (PageChapter.tsx:45 makes NOW conditional). */}
+        {/* Phase 15e.1 — Today's-read hero.
+            The first emotional moment of the page. A single calm
+            institutional-strategist sentence + optional honest diff
+            line vs the user's last visit. Renders BEFORE PageChapter
+            so the AI's voice is the first voice the user hears. */}
+        <OverviewHero
+          briefing={briefing}
+          diff={diff}
+          ready={!loading && !error}
+        />
+
+        {/* Phase 15c3 — PageChapter without NOW (counts redundant
+            with launcher metric below + new hero above). Section
+            breadcrumb + WHY + NEXT cells still render. */}
         <PageChapter pathname="/overview" />
 
         <PortfolioSnapshot />
@@ -187,14 +236,9 @@ export default function PicksPage() {
               onFilterChange={setFilter}
             />
 
-            {/* Phase 14b — "Today's read" line. Honest derivation from
-                briefing.headline; never invented. */}
-            {briefing.headline && (
-              <p className="picks-today-read">
-                <span className="picks-today-read-label">Today's read</span>
-                {briefing.headline}
-              </p>
-            )}
+            {/* Phase 14b → 15e.1 — Today's-read line removed here;
+                content elevated to the new OverviewHero block above
+                PageChapter. Single hero surface; no duplicate. */}
 
             {/* Phase 14b — 4-card launcher grid per Phase 14 spec.
                 Order matches an executive's reading flow:
