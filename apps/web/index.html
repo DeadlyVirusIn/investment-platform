@@ -1,9 +1,13 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en" class="dark" style="color-scheme: dark light">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Phase 14f-A — viewport-fit=cover enables env(safe-area-inset-*) on iPhone notch/home indicator. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Phase 14f-A — iOS status-bar tint matches app chrome. Two metas via media so light/dark flip. -->
+    <meta name="theme-color" content="#10172A" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#F4F5F8" media="(prefers-color-scheme: light)" />
     <title>Investment Platform</title>
   </head>
   <body class="bg-surface text-text-primary antialiased">

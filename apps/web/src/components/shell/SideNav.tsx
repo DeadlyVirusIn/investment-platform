@@ -3,13 +3,21 @@ import { cn } from "@/lib/cn";
 import { FLOW, SECTIONS, nextStep } from "@/lib/ui/page_flow";
 
 
-export default function SideNav() {
+export interface SideNavProps {
+  // Phase 14f-A — invoked when user taps a nav item, so the parent
+  // Shell can close the mobile drawer.
+  onNavigate?: () => void;
+}
+
+
+export default function SideNav({ onNavigate }: SideNavProps = {}) {
   const { pathname } = useLocation();
   const nxt = nextStep(pathname);
   const nextTo = nxt?.to;
 
   return (
-    <aside className="w-[220px] shrink-0 bg-ink border-r border-b1
+    <aside id="shell-sidenav"
+           className="shell-sidenav w-[220px] shrink-0 bg-ink border-r border-b1
                       flex flex-col">
       <div className="px-5 py-6 border-b border-b1">
         <div className="flex items-center gap-2">
@@ -35,6 +43,7 @@ export default function SideNav() {
               </div>
               {items.map(n => (
                 <NavLink key={n.to} to={n.to}
+                  onClick={() => onNavigate?.()}
                   className={({ isActive }) => cn(
                     "group flex items-center justify-between px-3 py-1.5 rounded-md",
                     "text-[13px] transition-colors duration-150",

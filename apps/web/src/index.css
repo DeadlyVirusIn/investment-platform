@@ -1497,3 +1497,142 @@
     border-top: 1px solid var(--color-border);
   }
 }
+
+
+/* =========================================================================
+   PHASE 14f-A — Mobile foundation (Shell drawer + safe-area + touch)
+=========================================================================
+   Targets:
+   - SideNav becomes slide-in drawer at <=768; static sibling on desktop
+   - Hamburger button rendered always but display:none on desktop
+   - Body scroll lock handled in Shell.tsx (JSX state)
+   - Safe-area-inset top/bottom on sticky chrome + footer
+   - Global touch-action manipulation (no 300ms delay, no double-tap zoom)
+   - Tap-highlight-color transparent (no grey flash)
+   - prefers-reduced-motion respected on drawer transform
+   ========================================================================= */
+
+/* ---- Global touch behavior (all interactive surfaces) ---- */
+@layer base {
+  button,
+  [role="button"],
+  a,
+  summary,
+  input[type="button"],
+  input[type="submit"],
+  input[type="reset"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* ---- Safe-area on shell chrome ---- */
+.shell-root .sticky.top-0 {
+  /* Add notch padding to the topmost sticky chrome — TopStrip + ticker
+     + status rail render under the iPhone dynamic island otherwise. */
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.shell-footer {
+  /* Bottom home-indicator clearance on iPhone. */
+  padding-bottom: max(8px, env(safe-area-inset-bottom, 0px));
+}
+
+/* ---- Hamburger toggle ---- */
+.shell-nav-toggle {
+  display: none;
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 12px));
+  left: max(12px, env(safe-area-inset-left, 12px));
+  z-index: 60;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-2);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+.shell-nav-toggle:hover { background: var(--surface-2); }
+.shell-nav-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.shell-nav-toggle-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 18px;
+}
+.shell-nav-toggle-bars > span {
+  display: block;
+  height: 2px;
+  background: var(--fg-2);
+  border-radius: 2px;
+  transition: transform 200ms ease, opacity 200ms ease;
+}
+.shell-root[data-mobile-nav-open="true"] .shell-nav-toggle-bars > span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+.shell-root[data-mobile-nav-open="true"] .shell-nav-toggle-bars > span:nth-child(2) {
+  opacity: 0;
+}
+.shell-root[data-mobile-nav-open="true"] .shell-nav-toggle-bars > span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+/* ---- Drawer overlay (only mounts when open per JSX) ---- */
+.shell-nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  animation: shell-overlay-in 180ms ease-out;
+}
+@keyframes shell-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ---- Mobile breakpoint: drawer behavior ---- */
+@media (max-width: 768px) {
+  /* SideNav slides in from the left, fixed-positioned over content. */
+  .shell-root .shell-sidenav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 50;
+    transform: translateX(-100%);
+    transition: transform 220ms cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: 0 0 32px rgba(0, 0, 0, 0.55);
+    /* width preserved from existing w-[220px]; safe-area on top */
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .shell-root[data-mobile-nav-open="true"] .shell-sidenav {
+    transform: translateX(0);
+  }
+
+  /* Hamburger surfaces only on mobile */
+  .shell-nav-toggle {
+    display: inline-flex;
+  }
+
+  /* Push sticky chrome below the hamburger so it doesn't sit
+     under the toggle. 40px button + 12px top + 12px breathing. */
+  .shell-root > div:nth-child(4) > .sticky.top-0 {
+    padding-left: 60px;
+  }
+}
+
+/* ---- Reduced motion: kill drawer + overlay animations ---- */
+@media (prefers-reduced-motion: reduce) {
+  .shell-root .shell-sidenav,
+  .shell-nav-toggle-bars > span {
+    transition: none;
+  }
+  .shell-nav-overlay {
+    animation: none;
+  }
+}
