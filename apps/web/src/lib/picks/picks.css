@@ -4873,3 +4873,138 @@
     margin: 14px 0 0;
   }
 }
+
+
+/* ====================================================================
+   PHASE 14c — Action Queue decision desk
+   ====================================================================
+   Two additive blocks:
+   1. "Why no buys?" panel (renders when buyCount === 0)
+   2. Loading skeleton (3 ghost group cards with shimmer)
+   3. Action-color left rail applied to existing .action-group
+   ==================================================================== */
+
+/* ---- 1. "Why no buys?" panel ---- */
+.picks-root .why-no-buys {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 18px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--ax-info-bg);
+  border: 1px solid var(--ax-info-border);
+  border-left: 3px solid var(--ax-info);
+}
+.picks-root .why-no-buys-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.picks-root .why-no-buys-eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ax-info);
+}
+.picks-root .why-no-buys-posture {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--pi-ink-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.picks-root .why-no-buys-body {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--pi-ink-secondary);
+}
+.picks-root .why-no-buys-meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--pi-ink-tertiary);
+  font-style: italic;
+}
+
+/* ---- 2. Loading skeleton ----
+   3 ghost group cards. Shimmer kept very subtle; no fake numbers.
+   Disabled under prefers-reduced-motion. */
+@keyframes picks-skeleton-shimmer {
+  0%   { opacity: 0.65; }
+  50%  { opacity: 0.35; }
+  100% { opacity: 0.65; }
+}
+.picks-root .action-queue-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 18px 0;
+}
+.picks-root .action-group-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--pi-bg-card);
+  border: 1px solid var(--pi-border);
+}
+.picks-root .action-group-skeleton-header {
+  width: 30%;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--pi-border);
+  animation: picks-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+.picks-root .action-group-skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+.picks-root .action-group-skeleton-card {
+  height: 84px;
+  border-radius: 10px;
+  background: var(--pi-bg-card-2);
+  border: 1px solid var(--pi-border);
+  animation: picks-skeleton-shimmer 1.6s ease-in-out infinite;
+  animation-delay: 80ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .picks-root .action-group-skeleton-header,
+  .picks-root .action-group-skeleton-card { animation: none; }
+}
+
+/* ---- 3. Action-color left rail on .action-group ----
+   Higher specificity than 14a's generic .picks-action-rail; piggybacks
+   on the existing data-action attribute already on .action-group so
+   no JSX change is required. */
+.picks-root .action-group {
+  position: relative;
+  padding-left: 14px;
+}
+.picks-root .action-group::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--pi-border);
+  opacity: 0.65;
+}
+.picks-root .action-group[data-action="buy"]::before  { background: var(--ax-buy);  opacity: 1; }
+.picks-root .action-group[data-action="hold"]::before { background: var(--ax-hold); opacity: 1; }
+.picks-root .action-group[data-action="trim"]::before { background: var(--ax-trim); opacity: 1; }
+.picks-root .action-group[data-action="sell"]::before { background: var(--ax-sell); opacity: 1; }
+
+@media (max-width: 640px) {
+  .picks-root .why-no-buys {
+    padding: 14px 14px;
+  }
+  .picks-root .action-group { padding-left: 12px; }
+}

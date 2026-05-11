@@ -69,6 +69,9 @@ export default function ActionQueuePage() {
   }, [picks]);
 
   const briefing = useMemo(() => buildBriefing(sortedPicks), [sortedPicks]);
+  const buyCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "buy").length;
+  const sellCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "sell").length;
+  const trimCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "trim").length;
   const watchlistCount = sortedPicks.filter(p => (p.adjusted_action ?? p.action) === "hold").length;
   const riskCount = sortedPicks.filter(p =>
     p.stale_data || !p.enough_data || (p.adjusted_action ?? p.action) === "sell"
@@ -87,7 +90,11 @@ export default function ActionQueuePage() {
           <div>
             <h1 className="picks-title">Action Queue</h1>
             <p className="picks-subtitle">
-              {loading ? "Loading…" : `${sortedPicks.length} live ${sortedPicks.length === 1 ? "signal" : "signals"} · grouped by recommendation`}
+              {loading
+                ? "Loading…"
+                : sortedPicks.length === 0
+                  ? "AI decision desk · awaiting next evaluation cycle"
+                  : `AI decision desk · ${briefing.postureLabel.toLowerCase()} posture · ${sortedPicks.length} live signal${sortedPicks.length === 1 ? "" : "s"}`}
             </p>
           </div>
           <DensityToggle value={density} onChange={setDensity} />
@@ -98,11 +105,27 @@ export default function ActionQueuePage() {
           now={
             sortedPicks.length === 0
               ? undefined
-              : `Today the AI favors ${briefing.postureLabel.toLowerCase()} — ${sortedPicks.length} live signals across Buy / Trim / Hold / Sell.`
+              : `Today the AI favors ${briefing.postureLabel.toLowerCase()} — ${sortedPicks.length} live signals across buy / sell / trim / hold.`
           }
         />
 
-        {loading && <div className="picks-loading">Loading AI suggestions…</div>}
+        {/* Phase 14c — loading skeleton replaces sterile "Loading…" text.
+            3 ghost group cards mirror the eventual ActionQueue layout. */}
+        {loading && (
+          <div className="action-queue action-queue-skeleton" aria-busy="true" aria-live="polite">
+            {[0, 1, 2].map(i => (
+              <section key={i} className="action-group action-group-skeleton">
+                <div className="action-group-skeleton-header" />
+                <div className="action-group-skeleton-grid">
+                  <div className="action-group-skeleton-card" />
+                  <div className="action-group-skeleton-card" />
+                  <div className="action-group-skeleton-card" />
+                </div>
+              </section>
+            ))}
+            <span className="u-sr-only">Loading AI recommendations…</span>
+          </div>
+        )}
 
         {error && (
           <FetchError
@@ -115,6 +138,37 @@ export default function ActionQueuePage() {
         {!loading && !error && sortedPicks.length > 0 && (
           <section className="queue-section">
             <FilterBar picks={sortedPicks} active={filter} onChange={setFilter} />
+
+            {/* Phase 14c — "Why no buys?" panel. Honest derivation from
+                briefing.body + counts; never invented. Renders only when
+                there are zero buy signals AND there are some non-buy
+                signals (otherwise empty state below covers it). */}
+            {buyCount === 0 && sortedPicks.length > 0 && (
+              <aside className="why-no-buys" data-test="why-no-buys">
+                <div className="why-no-buys-head">
+                  <span className="why-no-buys-eyebrow">Why no buys?</span>
+                  <span className="why-no-buys-posture">
+                    {briefing.postureLabel} posture
+                  </span>
+                </div>
+                <p className="why-no-buys-body">
+                  No buy setups passed the engine&rsquo;s thresholds today.
+                  The strongest live signals are{" "}
+                  {trimCount > 0 && `${trimCount} trim${trimCount === 1 ? "" : "s"}`}
+                  {trimCount > 0 && (sellCount > 0 || watchlistCount > 0) && " · "}
+                  {sellCount > 0 && `${sellCount} sell${sellCount === 1 ? "" : "s"}`}
+                  {sellCount > 0 && watchlistCount > 0 && " · "}
+                  {watchlistCount > 0 && `${watchlistCount} watch${watchlistCount === 1 ? "" : "es"}`}
+                  {(trimCount + sellCount + watchlistCount) === 0 && "watchlist holds only"}.
+                </p>
+                <p className="why-no-buys-meta">
+                  Buys reappear when momentum, trend, and breadth filters
+                  align — typically after a clean session close above the
+                  short-term average.
+                </p>
+              </aside>
+            )}
+
             <div className="queue-layout">
               <div className="queue-main">
                 <ActionQueue
@@ -134,6 +188,21 @@ export default function ActionQueuePage() {
               />
             </div>
           </section>
+        )}
+
+        {!loading && !error && sortedPicks.length === 0 && (
+          <div className="picks-empty-state" role="status">
+            <span className="picks-empty-state-icon" aria-hidden="true">◌</span>
+            <h2 className="picks-empty-state-title">
+              No live signals on the desk
+            </h2>
+            <p className="picks-empty-state-body">
+              The recommendation engine has not produced fresh
+              suggestions yet. The decision desk fills in once the next
+              evaluation cycle completes — usually within one trading
+              session.
+            </p>
+          </div>
         )}
 
         <NextStepCard
