@@ -1,14 +1,19 @@
-// UX-2 Phase B — /portfolio router switch.
+// UX-2 Phase B (initial) — /portfolio router switch.
+// Phase 15b2 — Default flipped from working -> brief; visible toggle.
 //
-// ?view=brief   → CopilotHoldings (new storytelling view)
-// ?view=working → PortfolioTerminal (existing dense view, unchanged)
-// no ?view      → PortfolioTerminal (preserves existing default).
-//                 Phase F is when the default flips to brief.
+// Routes:
+//   /portfolio              -> CopilotHoldings (Brief view, default since 15b2)
+//   /portfolio?view=brief   -> CopilotHoldings (explicit)
+//   /portfolio?view=working -> PortfolioTerminal (legacy dense view, preserved)
 //
-// Reads URL on every render via React Router's useLocation so the
-// page swaps when the user clicks the brief↔working link.
+// Why the flip: docs/ux/PHASE_15_elite_audit.md §3 — 4-of-4 panelist
+// unanimous finding. CopilotHoldings is the most premium AI-narrative
+// surface in the product but was URL-only discoverable. The Phase F
+// default flip was planned in earlier code comments but never shipped.
+// Working view is preserved verbatim and reachable via the visible
+// toggle (no functionality removed).
 
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 import PortfolioTerminal from "@/pages/PortfolioTerminal";
 import CopilotHoldings from "@/pages/copilot/CopilotHoldings";
@@ -18,6 +23,41 @@ export default function PortfolioRouteSwitch() {
   const { search } = useLocation();
   const params = new URLSearchParams(search);
   const view = params.get("view");
-  if (view === "brief") return <CopilotHoldings />;
-  return <PortfolioTerminal />;
+  const isWorking = view === "working";
+
+  return (
+    <div className="portfolio-shell">
+      <PortfolioViewToggle isWorking={isWorking} />
+      {isWorking ? <PortfolioTerminal /> : <CopilotHoldings />}
+    </div>
+  );
+}
+
+
+// Two-segment pill — Brief | Working. Same primitive shape as
+// DensityToggle so the affordance reads as consistent. Renders above
+// every Portfolio view so the user always knows which lens they're
+// in and how to switch.
+function PortfolioViewToggle({ isWorking }: { isWorking: boolean }) {
+  return (
+    <div className="portfolio-view-toggle" role="group"
+         aria-label="Portfolio view">
+      <Link
+        to="/portfolio"
+        className="portfolio-view-toggle-btn"
+        data-active={!isWorking ? "true" : "false"}
+        aria-current={!isWorking ? "page" : undefined}
+      >
+        Brief
+      </Link>
+      <Link
+        to="/portfolio?view=working"
+        className="portfolio-view-toggle-btn"
+        data-active={isWorking ? "true" : "false"}
+        aria-current={isWorking ? "page" : undefined}
+      >
+        Working
+      </Link>
+    </div>
+  );
 }
