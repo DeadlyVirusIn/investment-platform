@@ -111,7 +111,23 @@ export default function SignalLabPage() {
           }
         />
 
-        {loading && <div className="picks-loading">Loading…</div>}
+        {/* Phase 15c2 — Loading-state consistency.
+            Was: <div className="picks-loading">Loading…</div> — plain
+            centered text that caused content jump on resolve.
+            Now: same .ps-snapshot-loading shimmer block PortfolioSnapshot
+            uses on Overview. Layout-stable (matches the readiness hero
+            container shape it's about to fill); same visual idiom across
+            the two ps-snapshot pages so the loading rhythm is
+            recognisably one product. */}
+        {loading && (
+          <section
+            className="ps-snapshot ps-snapshot-loading"
+            data-test="signal-lab-snapshot-loading"
+            aria-busy="true"
+            aria-live="polite"
+            aria-label="Loading Signal Lab"
+          />
+        )}
 
         {error && (
           <FetchError
