@@ -1738,3 +1738,106 @@ class AgentInsight(Base):
         ),
     )
 
+
+# ---------------------------------------------------------------------------
+# pipeline_run — Phase 15i.A canonical operational truth ledger.
+#
+# One row per (trading_date, stage, run_id). The `run_id` UUID groups all
+# stages of a single orchestrator pass; rerunning a stage is modelled by
+# issuing a fresh `run_id` (NOT by mutating an existing row).
+#
+# WRITE STATUS: nothing in production currently writes to this table.
+# The class is exposed so future orchestrator code (Phase 15i.B) can
+# populate rows without a further schema change. The Phase 15i.C
+# `/api/freshness` endpoint reads this ledger plus the existing
+# source-of-truth tables (`recommendation`, `paper_run_log`,
+# `paper_equity_snapshot`, `ml_model_run`, `options_chain_snapshot`).
+# ---------------------------------------------------------------------------
+
+
+class PipelineRun(Base):
+    """Append-only ledger row for one stage of one orchestrator pass.
+
+    See `infra/alembic/versions/065_pipeline_run_ledger.py` for the
+    authoritative DDL. This class is the canonical SQLAlchemy view —
+    NO production code path writes to this table yet. Reading is
+    safe; writing should be confined to a future single orchestrator
+    so the `(trading_date, stage, run_id)` invariant holds.
+    """
+
+    __tablename__ = "pipeline_run"
+
+    id: Mapped[int] = mapped_column(
+        BigInteger, primary_key=True, autoincrement=True,
+    )
+    run_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), nullable=False,
+    )
+    trading_date: Mapped[datetime.date] = mapped_column(
+        Date, nullable=False,
+    )
+    stage: Mapped[str] = mapped_column(Text, nullable=False)
+    # 'pending' | 'running' | 'success' | 'failed' | 'skipped'
+    status: Mapped[str] = mapped_column(Text, nullable=False)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    finished_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    duration_ms: Mapped[int | None] = mapped_column(BigInteger)
+    # 'cron' | 'tickloop' | 'manual' | 'orchestrator'
+    triggered_by: Mapped[str | None] = mapped_column(Text)
+    retry_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0"),
+    )
+    error_class: Mapped[str | None] = mapped_column(Text)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    input_watermark: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    output_watermark: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True),
+    )
+    rows_read: Mapped[int | None] = mapped_column(BigInteger)
+    rows_written: Mapped[int | None] = mapped_column(BigInteger)
+    idempotency_key: Mapped[str | None] = mapped_column(Text)
+    # SQLAlchemy reserves the `metadata` attribute on declarative
+    # classes, so we expose the column as `meta` in Python while
+    # mapping to the `metadata` column on disk.
+    meta: Mapped[dict] = mapped_column(
+        "metadata", JSON_COL,
+        nullable=False, default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False, default=_now, server_default=text("now()"),
+    )
+
+    __table_args__ = (
+        Index(
+            "uq_pipeline_run_trading_stage_runid",
+            "trading_date", "stage", "run_id",
+            unique=True,
+        ),
+        Index(
+            "uq_pipeline_run_idempotency",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
+        Index(
+            "ix_pipeline_run_trading_date",
+            text("trading_date DESC"),
+        ),
+        Index(
+            "ix_pipeline_run_stage_status",
+            "stage", "status",
+        ),
+        Index(
+            "ix_pipeline_run_run_id",
+            "run_id",
+        ),
+    )
+
