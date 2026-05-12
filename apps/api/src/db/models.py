@@ -1841,3 +1841,76 @@ class PipelineRun(Base):
         ),
     )
 
+
+# ---------------------------------------------------------------------------
+# Phase 16 Phase 2 — intraday ML shadow layer (data collection only).
+# Created by migration 066_intraday_observation.py.
+# Writes are gated by INTRADAY_ML_SHADOW_ENABLED (default False).
+# Sole writer: apps.api.src.ml.intraday.observation_writer.write_observation().
+# No trainer / scorer / UI consume these rows yet.
+# ---------------------------------------------------------------------------
+
+
+def _uuid_str() -> str:
+    return str(uuid.uuid4())
+
+
+class IntradayObservation(Base):
+    __tablename__ = "intraday_observation"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False), primary_key=True, default=_uuid_str,
+    )
+    recommendation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("recommendation.id"), nullable=False,
+    )
+    symbol: Mapped[str] = mapped_column(String(16), nullable=False)
+    observed_at_15min: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False,
+    )
+
+    # Quantitative features
+    intraday_change_pct:         Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    vs_open_pct:                 Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    vs_recommendation_entry_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    vs_macro_drift_pct:          Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    intraday_range_pct:          Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    spy_change_pct:              Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    qqq_change_pct:              Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    dia_change_pct:              Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+
+    # Categorical features
+    time_of_day_bucket:   Mapped[str] = mapped_column(String(16), nullable=False)
+    prior_eod_conviction: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    action_type:          Mapped[str] = mapped_column(String(8), nullable=False)
+    position_state:       Mapped[str] = mapped_column(String(16), nullable=False)
+
+    # 60d daily-derived features
+    atr_60d_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    vol_60d_pct: Mapped[Decimal | None] = mapped_column(Numeric(10, 4))
+    sector_id:   Mapped[str | None]     = mapped_column(String(64))
+
+    # Provenance
+    source:         Mapped[str]                       = mapped_column(String(16), nullable=False)
+    delay_minutes:  Mapped[int]                       = mapped_column(Integer, nullable=False)
+    quote_ts:       Mapped[datetime.datetime | None]  = mapped_column(DateTime(timezone=True))
+    feature_hash:   Mapped[str]                       = mapped_column(String(32), nullable=False)
+    created_at:     Mapped[datetime.datetime]         = mapped_column(
+        DateTime(timezone=True), nullable=False, default=datetime.datetime.utcnow,
+    )
+
+    __table_args__ = (
+        UniqueConstraint(
+            "recommendation_id", "observed_at_15min",
+            name="uq_intraday_obs_rec_slot",
+        ),
+        Index(
+            "ix_intraday_obs_symbol_time",
+            "symbol", text("observed_at_15min DESC"),
+        ),
+        Index(
+            "ix_intraday_obs_observed",
+            text("observed_at_15min DESC"),
+        ),
+    )
+

@@ -288,6 +288,16 @@ class Settings(BaseSettings):
     INTRADAY_OVERLAY_ENABLED: bool = False
 
     # ------------------------------------------------------------------
+    # PHASE 16 Phase 2 — Intraday ML shadow data collection
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF. When False, the market-tape poller does
+    # NOT write `intraday_observation` rows. Flipping to True activates
+    # one new UPSERT per (recommendation_id, 15-min slot) per cycle.
+    # No trainer / scorer / UI / cron change is gated by this flag.
+    # See docs/research/INTRADAY_ML_SHADOW.md.
+    INTRADAY_ML_SHADOW_ENABLED: bool = False
+
+    # ------------------------------------------------------------------
     # PHASE 11W (Phase D.2) — Real provider adapter (default OFF)
     # ------------------------------------------------------------------
     # PERMANENT default OFF in production. When False, the resolver

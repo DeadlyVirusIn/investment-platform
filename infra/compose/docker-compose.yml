@@ -74,6 +74,11 @@ services:
       # Phase 16 v1 — intraday context overlay (ephemeral, see
       # docs/research/INTRADAY_CONTEXT_OVERLAY.md). Default OFF.
       INTRADAY_OVERLAY_ENABLED: ${INTRADAY_OVERLAY_ENABLED:-false}
+      # Phase 16 Phase 2 — intraday ML shadow data collection
+      # (durable; see docs/research/INTRADAY_ML_SHADOW.md). Default OFF.
+      # When True, market-tape poller writes one row per 15-min slot
+      # per active recommendation to `intraday_observation`.
+      INTRADAY_ML_SHADOW_ENABLED: ${INTRADAY_ML_SHADOW_ENABLED:-false}
       RESEARCH_AUTO_ENFORCEMENT_ENABLED: ${RESEARCH_AUTO_ENFORCEMENT_ENABLED:-false}
       RESEARCH_PREMIUM_TIER: ${RESEARCH_PREMIUM_TIER:-free}
       RESEARCH_ALLOWED_OPERATORS: ${RESEARCH_ALLOWED_OPERATORS:-}
