@@ -56,12 +56,14 @@ def options_pipeline_status(
     """Honest read-only diagnostic for the options daily pipeline.
 
     Phase 11W (incident fix): the WebUI must NOT show options as
-    silently running. This endpoint exposes the truth — no daily
-    options evaluator is scheduled; tables are empty or seeded only.
-    Returns counts + max dates; UI consumers should render an
-    explicit "Not yet scheduled" state when `active=false`.
+    silently running. Phase Opt-A (2026-05-12): extended to power
+    the new options Brief view + Engine State Banner. Returns
+    everything the page needs to render the truth without
+    further DB queries.
     """
     from sqlalchemy import text
+
+    from apps.api.src.config import settings
 
     row = session.execute(text(
         """
@@ -70,6 +72,8 @@ def options_pipeline_status(
             AS chain_snapshots,
           (SELECT max(snapshot_at_utc)::date FROM options_chain_snapshot)
             AS chain_max_date,
+          (SELECT max(snapshot_at_utc) FROM options_chain_snapshot)
+            AS chain_max_ts,
           (SELECT count(*) FROM options_feature_daily)
             AS features,
           (SELECT max(as_of_date) FROM options_feature_daily)
@@ -78,31 +82,118 @@ def options_pipeline_status(
             AS paper_trades,
           (SELECT max(coalesce(opened_at, created_at))::date
              FROM options_paper_trade)
-            AS paper_trade_max_date
+            AS paper_trade_max_date,
+          (SELECT max(coalesce(opened_at, created_at))
+             FROM options_paper_trade)
+            AS paper_trade_max_ts,
+          -- Phase Opt-A extensions: shadow + outcome + scheduler counts
+          (SELECT count(*) FROM options_shadow_decision_log)
+            AS shadow_decisions,
+          (SELECT max(run_date) FROM options_shadow_decision_log)
+            AS shadow_max_date,
+          (SELECT count(DISTINCT run_date)
+             FROM options_shadow_decision_log)
+            AS shadow_distinct_runs,
+          (SELECT count(*) FROM options_strategy_outcome)
+            AS outcome_rows,
+          (SELECT max(computed_at_utc) FROM options_strategy_outcome)
+            AS outcome_max_ts,
+          (SELECT count(*) FROM job_schedule
+             WHERE name LIKE '%option%')
+            AS scheduler_jobs
         """
     )).mappings().first()
+
+    # Lifecycle state for the Brief view
+    chain_count = int(row["chain_snapshots"])
+    shadow_count = int(row["shadow_decisions"])
+    paper_count = int(row["paper_trades"])
+    scheduler_jobs = int(row["scheduler_jobs"])
+
+    # Truthful single-sentence engine-state line for the banner
+    if not settings.OPTIONS_ENABLED:
+        engine_state = "dormant"
+        engine_state_sentence = (
+            "Options engine is dormant — OPTIONS_ENABLED is off. "
+            "No chain ingest, shadow eval, or paper exec is running."
+        )
+    elif scheduler_jobs == 0:
+        engine_state = "unscheduled"
+        engine_state_sentence = (
+            "Options flag is on but no daily jobs are scheduled — "
+            "manual scripts only."
+        )
+    elif shadow_count == 0:
+        engine_state = "starting"
+        engine_state_sentence = (
+            "Options pipeline is scheduled — collection in progress, "
+            "no shadow decisions yet."
+        )
+    else:
+        engine_state = "active"
+        engine_state_sentence = (
+            f"Options engine is active — {shadow_count} shadow decisions, "
+            f"{paper_count} paper trades, "
+            f"{chain_count} chain snapshots."
+        )
+
     return {
-        "active": False,
-        "last_run": None,
+        "active": False,  # back-compat field; preserved
+        "last_run": None,  # back-compat field; preserved
         "reason": (
             "options evaluator not scheduled / not implemented. "
             "No daily options job exists in worker registry, scheduler, "
             "or run_daily_loop.sh. Existing rows are manual seeds only."
         ),
-        "options_chain_snapshot_count": int(row["chain_snapshots"]),
+        # Engine state — single source of truth for the banner
+        "engine_state": engine_state,
+        "engine_state_sentence": engine_state_sentence,
+        # Flag truths (so the UI can show exactly what's gated where)
+        "options_enabled": bool(settings.OPTIONS_ENABLED),
+        "options_paper_only": bool(getattr(settings, "OPTIONS_PAPER_ONLY", True)),
+        "options_shadow_eval_enabled": bool(
+            getattr(settings, "OPTIONS_SHADOW_EVAL_ENABLED", False)
+        ),
+        "options_ml_can_affect_trades": bool(
+            getattr(settings, "OPTIONS_ML_CAN_AFFECT_TRADES", False)
+        ),
+        # Scheduler wiring count (job_schedule rows where name LIKE '%option%')
+        "scheduler_jobs_count": scheduler_jobs,
+        # Existing chain + feature + paper-trade counts (back-compat)
+        "options_chain_snapshot_count": chain_count,
         "options_chain_snapshot_max_date": (
             row["chain_max_date"].isoformat()
             if row["chain_max_date"] else None
+        ),
+        "options_chain_snapshot_max_ts": (
+            row["chain_max_ts"].isoformat()
+            if row["chain_max_ts"] else None
         ),
         "options_feature_daily_count": int(row["features"]),
         "options_feature_daily_max_date": (
             row["feature_max_date"].isoformat()
             if row["feature_max_date"] else None
         ),
-        "options_paper_trade_count": int(row["paper_trades"]),
+        "options_paper_trade_count": paper_count,
         "options_paper_trade_max_date": (
             row["paper_trade_max_date"].isoformat()
             if row["paper_trade_max_date"] else None
+        ),
+        "options_paper_trade_max_ts": (
+            row["paper_trade_max_ts"].isoformat()
+            if row["paper_trade_max_ts"] else None
+        ),
+        # Phase Opt-A extensions
+        "options_shadow_decision_count": shadow_count,
+        "options_shadow_decision_max_date": (
+            row["shadow_max_date"].isoformat()
+            if row["shadow_max_date"] else None
+        ),
+        "options_shadow_distinct_runs": int(row["shadow_distinct_runs"]),
+        "options_strategy_outcome_count": int(row["outcome_rows"]),
+        "options_strategy_outcome_max_ts": (
+            row["outcome_max_ts"].isoformat()
+            if row["outcome_max_ts"] else None
         ),
         "next_phase_required": (
             "Phase Options-Daily — separate scope; not in stock "

@@ -7,7 +7,7 @@
 // softened from "Options (observation)" to "Options paper
 // trading", with a short reassurance caption.
 
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
 import OptionsPaperOnlyBanner from '@/components/options/OptionsPaperOnlyBanner';
 // Phase 11L — UI-only guardrails toggle button
 import GuardrailsToggleButton from '@/components/options/GuardrailsToggleButton';
@@ -32,47 +32,84 @@ const TABS = [
 ];
 
 export default function OptionsLayout() {
+  // Phase Opt-A — Brief / Working toggle. Default at /options/overview
+  // (no ?view=working) hides the 12-tab nav so the Outlet's
+  // OptionsOverviewPage (truth-first cards) is the only thing visible.
+  // ?view=working OR any sub-route (chain/features/etc.) shows the
+  // existing 12-tab dense nav. NO route changes; no component removal.
+  const { pathname, search } = useLocation();
+  const params = new URLSearchParams(search);
+  const isWorking = params.get('view') === 'working';
+  const isOverviewRoute =
+    pathname === '/options' ||
+    pathname === '/options/' ||
+    pathname === '/options/overview';
+  const showWorkingNav = isWorking || !isOverviewRoute;
+
   return (
     <div className="space-y-3 p-4 text-fg">
       <OptionsPaperOnlyBanner />
       <OptionsDataAvailabilityBanner />
       <header className="flex items-baseline gap-3">
         <h1 className="text-xl font-semibold">Options paper trading</h1>
-        {/* Phase 15b3 microcopy round 2 — Opus verbatim swap:
-              was "Paper-trading guidance · simulated only · no live execution"
-              now "Paper trading — nothing here places real orders" */}
         <span className="text-xs text-fg-3">
           Paper trading — nothing here places real orders
         </span>
-        <span className="ml-auto">
+        <span className="ml-auto flex items-center gap-2">
+          <OptionsViewToggle isWorking={isWorking} />
           <GuardrailsToggleButton />
         </span>
       </header>
-      {/* Phase 15b1 — Mobile fix.
-          Earlier the 12 tabs used `flex-wrap` which wrapped to 4+ rows
-          of chips at 375px before any content was visible. Now they
-          live in a single overflow-x scroll row (CSS-only; routes
-          unchanged). Active state uses the app accent token so the
-          12-tab nav stops shouting amber on every other surface. */}
-      <nav className="flex gap-1 border-b border-b1 overflow-x-auto
-                       flex-nowrap options-tabnav-scroll">
-        {TABS.map((t) => (
-          <NavLink
-            key={t.to}
-            to={t.to}
-            className={({ isActive }) =>
-              `flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm ${
-                isActive
-                  ? 'border-b-2 border-accent text-fg'
-                  : 'text-fg-3 hover:text-fg'
-              }`
-            }
-          >
-            {t.label}
-          </NavLink>
-        ))}
-      </nav>
+
+      {showWorkingNav && (
+        <nav className="flex gap-1 border-b border-b1 overflow-x-auto
+                         flex-nowrap options-tabnav-scroll">
+          {TABS.map((t) => (
+            <NavLink
+              key={t.to}
+              to={t.to}
+              className={({ isActive }) =>
+                `flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm ${
+                  isActive
+                    ? 'border-b-2 border-accent text-fg'
+                    : 'text-fg-3 hover:text-fg'
+                }`
+              }
+            >
+              {t.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
+
       <Outlet />
     </div>
+  );
+}
+
+
+// Two-segment Brief / Working pill — same primitive shape as the
+// /portfolio toggle so the affordance reads consistently.
+function OptionsViewToggle({ isWorking }: { isWorking: boolean }) {
+  return (
+    <span className="opt-view-toggle" role="group"
+          aria-label="Options view">
+      <Link
+        to="/options"
+        className="opt-view-toggle-btn"
+        data-active={!isWorking ? 'true' : 'false'}
+        aria-current={!isWorking ? 'page' : undefined}
+      >
+        Brief
+      </Link>
+      <Link
+        to="/options?view=working"
+        className="opt-view-toggle-btn"
+        data-active={isWorking ? 'true' : 'false'}
+        aria-current={isWorking ? 'page' : undefined}
+      >
+        Working
+      </Link>
+    </span>
   );
 }

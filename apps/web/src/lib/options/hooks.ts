@@ -36,6 +36,7 @@ import {
   type GuardrailsBucketResponse,
   type GuardrailsRankingResponse,
   type GuardrailsPageContextResponse,
+  type OptionsPipelineStatus,
 } from './optionsApi';
 
 const STALE = 30_000;
@@ -45,6 +46,18 @@ export function useOptionsHealth() {
     queryKey: ['options', 'health'],
     queryFn: optionsApi.health,
     staleTime: STALE,
+  });
+}
+
+// Phase Opt-A — full pipeline truth dump for the Brief view.
+// 60s refetch matches natural cron cadence; cheap indexed query.
+export function useOptionsPipelineStatus() {
+  return useQuery<OptionsPipelineStatus>({
+    queryKey: ['options', 'pipeline-status'],
+    queryFn: optionsApi.pipelineStatus,
+    refetchInterval: 60_000,
+    staleTime: STALE,
+    refetchOnWindowFocus: false,
   });
 }
 

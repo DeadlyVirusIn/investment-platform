@@ -37,6 +37,54 @@ export interface OptionsHealth {
   notice: string;
 }
 
+
+// Phase Opt-A — extended truth dump from /api/options/pipeline-status.
+// Powers the Brief view's status banner, diagnostics, and gating.
+export interface OptionsPipelineStatus {
+  // Engine state — single source of truth for the banner
+  engine_state: "dormant" | "unscheduled" | "starting" | "active" | string;
+  engine_state_sentence: string;
+
+  // Flag truths
+  options_enabled: boolean;
+  options_paper_only: boolean;
+  options_shadow_eval_enabled: boolean;
+  options_ml_can_affect_trades: boolean;
+
+  // Scheduler wiring count (job_schedule rows where name LIKE '%option%')
+  scheduler_jobs_count: number;
+
+  // Chain ingest
+  options_chain_snapshot_count: number;
+  options_chain_snapshot_max_date: string | null;
+  options_chain_snapshot_max_ts: string | null;
+
+  // Feature pipeline
+  options_feature_daily_count: number;
+  options_feature_daily_max_date: string | null;
+
+  // Paper trades
+  options_paper_trade_count: number;
+  options_paper_trade_max_date: string | null;
+  options_paper_trade_max_ts: string | null;
+
+  // Shadow decisions (Phase Opt-A extension)
+  options_shadow_decision_count: number;
+  options_shadow_decision_max_date: string | null;
+  options_shadow_distinct_runs: number;
+
+  // Strategy outcomes (Phase Opt-A extension)
+  options_strategy_outcome_count: number;
+  options_strategy_outcome_max_ts: string | null;
+
+  // Back-compat fields
+  active: boolean;
+  last_run: string | null;
+  reason: string;
+  next_phase_required: string;
+  notice: string;
+}
+
 export interface ChainQuote {
   option_symbol: string;
   strike: Money;
@@ -209,6 +257,7 @@ export interface RiskSummary {
 
 export const optionsApi = {
   health:    () => apiGet<OptionsHealth>('/options/health'),
+  pipelineStatus: () => apiGet<OptionsPipelineStatus>('/options/pipeline-status'),
   symbols:   () => apiGet<{ notice: string; symbols: string[] }>('/options/symbols'),
   expiries:  (symbol: string) =>
     apiGet<{ notice: string; symbol: string; expiries: string[] }>(
