@@ -315,7 +315,7 @@ async def _refresh_overlay_cache(client: httpx.AsyncClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-def _write_intraday_observations() -> None:
+async def _write_intraday_observations(client: httpx.AsyncClient) -> None:
     """Persist one row per (recommendation_id, 15-min slot) into
     `intraday_observation`. Sole runtime writer of that table. No-op
     when INTRADAY_ML_SHADOW_ENABLED=false.
@@ -323,6 +323,13 @@ def _write_intraday_observations() -> None:
     Called from _poll_once AFTER the macro tape + overlay caches are
     refreshed. Reuses the SAME (rec_id, symbol) target set as the
     overlay so we cover exactly the active paper holdings.
+
+    Coverage path (v1.1):
+      1. Macro tape cache already holds SPY/QQQ/DIA snapshots.
+      2. For target symbols NOT in the macro tape (e.g. HR), we
+         bulk-fetch their snapshots from Polygon in ONE call.
+      3. Cap the merged set at OVERLAY_SYMBOL_CAP (100) per arch
+         doc §4 governance rule 7.
 
     All exceptions are logged + swallowed — observation persistence
     must never fail the tape cycle. The next cycle 90s later
@@ -358,23 +365,50 @@ def _write_intraday_observations() -> None:
 
         # Position state per asset_id (reverse lookup: target symbol → asset_id
         # is via the rec; cheaper to flag any open position by symbol set).
-        open_symbols: set[str] = set()
         pos_rows = session.execute(
             select(Asset.symbol)
             .join(PaperPosition, PaperPosition.asset_id == Asset.id)
             .where(PaperPosition.is_open.is_(True))
             .distinct()
         ).all()
-        open_symbols = {str(s) for (s,) in pos_rows}
+        open_symbols: set[str] = {str(s) for (s,) in pos_rows}
 
-        # Macro benchmark for the observation features.
+        # Macro benchmark for vs_macro_drift_pct.
         macro_pct: dict[str, float | None] = {"SPY": None, "QQQ": None, "DIA": None}
         for q in _cache.quotes:
             sym = q.get("symbol")
             if sym in macro_pct:
                 macro_pct[sym] = q.get("change_pct")
 
-        cached_symbols = {q.get("symbol"): q for q in _cache.quotes}
+        # Start with snapshots already in the macro tape cache.
+        cached_symbols: dict[str, dict] = {q.get("symbol"): q for q in _cache.quotes}
+
+        # v1.1 — fetch snapshots for target symbols NOT in macro tape.
+        # Single bulk Polygon call covers all missing symbols at once.
+        target_symbols = set(targets.values())
+        missing_symbols = sorted(s for s in target_symbols if s not in cached_symbols)
+        # Honor the 100-symbol governance cap (arch doc §4 rule 7).
+        if len(missing_symbols) > OVERLAY_SYMBOL_CAP:
+            logger.warning(
+                "intraday_shadow: hit OVERLAY_SYMBOL_CAP={} for missing fetch "
+                "({} requested); truncating",
+                OVERLAY_SYMBOL_CAP, len(missing_symbols),
+            )
+            missing_symbols = missing_symbols[:OVERLAY_SYMBOL_CAP]
+
+        fetched_extras: dict[str, dict] = {}
+        if missing_symbols:
+            try:
+                extras = await polygon.fetch_tape_snapshot(client, missing_symbols)
+                for q in extras:
+                    fetched_extras[q["symbol"]] = q
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "intraday_shadow: missing-symbol fetch failed — {}", exc,
+                )
+                # Soft-fail: macro-tape symbols still get observations.
+
+        all_snapshots: dict[str, dict] = {**cached_symbols, **fetched_extras}
 
         written = 0
         skipped_no_meta = 0
@@ -385,7 +419,7 @@ def _write_intraday_observations() -> None:
                 skipped_no_meta += 1
                 continue
             action_type, prior_conv = meta
-            snap = cached_symbols.get(sym)
+            snap = all_snapshots.get(sym)
             if snap is None:
                 skipped_no_snap += 1
                 continue
@@ -426,8 +460,10 @@ def _write_intraday_observations() -> None:
                     "intraday_shadow: write failed for {}: {}", rec_id, exc,
                 )
         logger.debug(
-            "intraday_shadow: wrote {} obs (skipped meta={}, snap={})",
-            written, skipped_no_meta, skipped_no_snap,
+            "intraday_shadow: wrote {} obs "
+            "(macro={}, missing_fetched={}, skipped meta={}, snap={})",
+            written, len(cached_symbols), len(fetched_extras),
+            skipped_no_meta, skipped_no_snap,
         )
 
 
@@ -482,7 +518,7 @@ async def _poll_once(client: httpx.AsyncClient) -> None:
     # tape + overlay refresh. No-op when INTRADAY_ML_SHADOW_ENABLED=false.
     # See docs/research/INTRADAY_ML_SHADOW.md.
     try:
-        _write_intraday_observations()
+        await _write_intraday_observations(client)
     except Exception as exc:  # noqa: BLE001 — never fail the tape cycle
         logger.warning("intraday_shadow: observation write failed — {}", exc)
 
