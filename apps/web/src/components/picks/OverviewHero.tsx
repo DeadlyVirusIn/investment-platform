@@ -18,6 +18,11 @@
 import type { Briefing } from "@/lib/picks/copilot";
 import type { DiffStatus } from "@/lib/picks/overview_memory";
 import { diffSentence } from "@/lib/picks/overview_memory";
+// Phase 15h.3 — freshness-aware hero composition. When the queue is
+// stale, the copilot acknowledges the gap calmly instead of speaking
+// in confident present-tense about Friday's data as if it were today's.
+import type { FreshnessTier } from "@/lib/picks/freshness";
+import { formatAsOf } from "@/lib/picks/freshness";
 
 
 export interface OverviewHeroProps {
@@ -27,18 +32,87 @@ export interface OverviewHeroProps {
   /** Hide the hero entirely while the page is still loading first
    *  picks fetch — prevents an empty hero flash. */
   ready: boolean;
+  /** Phase 15h.3 — aggregate freshness of the picks set (or unknown
+   *  when no picks). Drives the cautious-tone branch when stale. */
+  freshness?: FreshnessTier;
+  /** ISO timestamp of the most-recent pick generation, for the calm
+   *  "as of" annotation when stale or degraded. */
+  freshAt?: string | null;
 }
 
 
-export default function OverviewHero({ briefing, diff, ready }: OverviewHeroProps) {
+// Cautious-tone branch — used when aggregate freshness is "stale" or
+// "unknown". The hero stops asserting present-tense reads and instead
+// acknowledges the system is reading a prior cycle. Copy is drawn
+// from the existing briefing.headline so the underlying analysis
+// content is preserved; only the framing shifts.
+function staleHeadline(briefing: Briefing, freshAt: string | null | undefined): {
+  eyebrow: string;
+  headline: string;
+  body: string;
+} {
+  const asOf = freshAt ? formatAsOf(freshAt) : "the last completed cycle";
+  return {
+    eyebrow: "Reading the last cycle",
+    headline: `Signals from ${asOf}.`,
+    // Lowercase the briefing headline to chain it as the second clause.
+    body: `${lowerFirst(briefing.headline)}. ${briefing.body ?? ""} `
+      + "Today's pipeline has not yet produced new state — copilot is "
+      + "reading the previous session's recommendations.",
+  };
+}
+
+
+function degradedSuffix(freshAt: string | null | undefined): string {
+  const asOf = freshAt ? formatAsOf(freshAt) : "an earlier session";
+  return ` Based on overnight signals from ${asOf}.`;
+}
+
+
+function lowerFirst(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+
+export default function OverviewHero({
+  briefing, diff, ready, freshness = "unknown", freshAt,
+}: OverviewHeroProps) {
   if (!ready) return null;
 
+  // Stale + unknown both route through the cautious branch — when we
+  // can't prove freshness we don't pretend the data is current.
+  const isStaleish = freshness === "stale" || freshness === "unknown";
+
+  let eyebrow: string;
+  let headline: string;
+  let body: string | null;
+
+  if (isStaleish) {
+    const stale = staleHeadline(briefing, freshAt);
+    eyebrow = stale.eyebrow;
+    headline = stale.headline;
+    body = stale.body;
+  } else {
+    eyebrow = "Today's read";
+    headline = briefing.headline;
+    body = briefing.body
+      ? freshness === "degraded"
+        ? briefing.body + degradedSuffix(freshAt)
+        : briefing.body
+      : null;
+  }
+
   return (
-    <section className="overview-hero" data-test="overview-hero">
-      <span className="overview-hero-eyebrow">Today's read</span>
-      <h2 className="overview-hero-headline">{briefing.headline}</h2>
-      {briefing.body && (
-        <p className="overview-hero-body">{briefing.body}</p>
+    <section
+      className="overview-hero"
+      data-test="overview-hero"
+      data-freshness={freshness}
+    >
+      <span className="overview-hero-eyebrow">{eyebrow}</span>
+      <h2 className="overview-hero-headline">{headline}</h2>
+      {body && (
+        <p className="overview-hero-body">{body}</p>
       )}
       <p className="overview-hero-diff" data-kind={diff.kind}>
         {diffSentence(diff)}

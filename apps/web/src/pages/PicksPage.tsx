@@ -37,7 +37,8 @@ import {
 import { useVisitedPicks } from "@/lib/picks/visited_memory";
 // Phase 15h.1 — derived recommendation freshness (replaces broken
 // backend pick.stale_data flag per docs/ux/PHASE_15g_freshness_audit.md).
-import { isPickStale } from "@/lib/picks/freshness";
+// Phase 15h.3 — aggregate freshness for the cautious-tone hero branch.
+import { isPickStale, aggregatePickFreshness } from "@/lib/picks/freshness";
 
 
 interface LauncherCardProps {
@@ -221,6 +222,8 @@ export default function PicksPage() {
           briefing={briefing}
           diff={diff}
           ready={!loading && !error}
+          freshness={aggregatePickFreshness(sortedPicks)}
+          freshAt={briefing.freshestAtIso ?? commandBar?.freshAt ?? null}
         />
 
         {/* Phase 15c3 — PageChapter without NOW (counts redundant

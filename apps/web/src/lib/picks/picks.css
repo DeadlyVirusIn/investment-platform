@@ -5127,6 +5127,33 @@
   color: var(--pi-ink-muted);
 }
 
+/* Phase 15h.3 — Freshness-aware hero treatment.
+   Stale or unknown aggregate freshness shifts the hero from
+   confident accent (--ax-info blue) to a quieter neutral rail and
+   adds a small italic eyebrow weight so the cautious tone is felt
+   without panic. Degraded keeps the accent rail but slightly mutes
+   the gradient so the page reads as "I have signals, just not from
+   the current cycle". */
+.picks-root .overview-hero[data-freshness="stale"],
+.picks-root .overview-hero[data-freshness="unknown"] {
+  background: linear-gradient(160deg,
+    rgba(255, 255, 255, 0.025) 0%, rgba(255, 255, 255, 0.005) 100%);
+  border-left-color: var(--pi-ink-muted);
+}
+.picks-root .overview-hero[data-freshness="stale"] .overview-hero-eyebrow,
+.picks-root .overview-hero[data-freshness="unknown"] .overview-hero-eyebrow {
+  color: var(--pi-ink-muted);
+}
+.picks-root .overview-hero[data-freshness="degraded"] {
+  background: linear-gradient(160deg,
+    rgba(75, 139, 255, 0.025) 0%, rgba(75, 139, 255, 0.005) 100%);
+}
+:root[data-theme="light"] .picks-root .overview-hero[data-freshness="stale"],
+:root[data-theme="light"] .picks-root .overview-hero[data-freshness="unknown"] {
+  background: linear-gradient(160deg,
+    rgba(0, 0, 0, 0.020) 0%, rgba(0, 0, 0, 0.005) 100%);
+}
+
 /* Density modifiers — hero compresses with compact, opens with
    spacious, so density toggle reaches this surface like every other. */
 .picks-root[data-density="compact"] .overview-hero {
