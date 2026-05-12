@@ -22,13 +22,13 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import httpx
 from fastapi import APIRouter, HTTPException
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
@@ -200,43 +200,148 @@ def derive_intraday_context(
 
 
 def resolve_active_overlay_targets(session: Session) -> dict[str, str]:
-    """Return {recommendation_id: symbol} for active overlay targets.
+    """Return {recommendation_id: symbol} for the active overlay / shadow
+    target set. Single source of truth used by both the in-memory overlay
+    refresher AND the durable intraday_observation writer.
 
-    v1 scope: open paper positions only. For each open paper position,
-    find the most recent recommendation for that asset (across all
-    accounts, since this is single-operator). If no recommendation
-    exists for an open position, that position is skipped — the
-    overlay needs a recommendation to bind to.
+    v1.2 scope — UNION of three sources, capped at OVERLAY_SYMBOL_CAP:
 
-    Macro symbols (SPY/QQQ/DIA) are NOT included here because they
-    are not bound to a recommendation; they live in the tape cache
-    instead. The macro intraday change pct is computed at poll time
-    from the tape itself.
+      1. HOLDINGS — open paper positions bound to their latest
+         recommendation within the last 30 days. Never truncated.
+         Currently ~11 symbols.
+
+      2. MACROS — SPY/QQQ/DIA bound to their latest recommendation
+         within the last 7 days. Skipped if no recent rec exists
+         (FK requires a real rec_id). Macros without recs still serve
+         as benchmarks via the tape cache's `change_pct`. Never
+         truncated. Net new beyond HOLDINGS: usually 0–1 symbols.
+
+      3. ACTIVE_RECS — latest recommendation per asset where:
+            action != 'hold' AND conviction >= 60
+            AND generated_at >= NOW() - INTERVAL '7 days'
+         Fills remaining capacity. Ordered deterministically by
+         (conviction DESC NULLS LAST, generated_at DESC, symbol ASC)
+         so truncation under cap is reproducible.
+
+    Dedup: each symbol appears once. The first source to bind a symbol
+    wins (HOLDINGS, then MACROS, then ACTIVE_RECS), so a paper-held
+    symbol is bound via its holdings rec even if it's also in active
+    recs.
+
+    Cap policy:
+      - HOLDINGS + MACROS are always honored (small set, fits cap).
+      - ACTIVE_RECS truncates to fit. Warning logged ONLY on truncation.
+      - Underfill (eligible < remaining capacity) logs an INFO line.
     """
+    now = datetime.now(tz=timezone.utc)
+    holdings_cutoff = now - timedelta(days=30)
+    macros_cutoff = now - timedelta(days=7)
+    active_cutoff = now - timedelta(days=7)
+
     targets: dict[str, str] = {}
-    rows = session.execute(
+    seen_symbols: set[str] = set()
+
+    def _bind(rec_id: str, symbol: str) -> bool:
+        if symbol in seen_symbols:
+            return False
+        targets[str(rec_id)] = str(symbol)
+        seen_symbols.add(symbol)
+        return True
+
+    # ---- SOURCE 1: HOLDINGS --------------------------------------
+    holdings_rows = session.execute(
         select(Asset.id, Asset.symbol)
         .join(PaperPosition, PaperPosition.asset_id == Asset.id)
         .where(PaperPosition.is_open.is_(True))
         .distinct()
     ).all()
-    for asset_id, symbol in rows:
-        # Most-recent recommendation for this asset.
+    for asset_id, symbol in holdings_rows:
         rec = session.execute(
             select(Recommendation.id)
             .where(Recommendation.asset_id == asset_id)
+            .where(Recommendation.generated_at >= holdings_cutoff)
             .order_by(Recommendation.generated_at.desc())
             .limit(1)
         ).scalar_one_or_none()
         if rec is None:
             continue
-        targets[str(rec)] = str(symbol)
+        _bind(rec, symbol)
+    n_holdings = len(targets)
+
+    # ---- SOURCE 2: MACROS ----------------------------------------
+    for sym in MACRO_TAPE_SYMBOLS:
+        if sym in seen_symbols:
+            continue  # already bound via HOLDINGS
+        rec = session.execute(
+            select(Recommendation.id)
+            .join(Asset, Asset.id == Recommendation.asset_id)
+            .where(Asset.symbol == sym)
+            .where(Recommendation.generated_at >= macros_cutoff)
+            .order_by(Recommendation.generated_at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if rec is None:
+            continue
+        _bind(rec, sym)
+    n_macros = len(targets) - n_holdings
+
+    # ---- SOURCE 3: ACTIVE_RECS -----------------------------------
+    remaining = OVERLAY_SYMBOL_CAP - len(targets)
+    if remaining <= 0:
+        return targets
+
+    # Latest rec per asset within window, then filter for actionable
+    # high-conviction signals. Deterministic order for truncation.
+    latest_sq = (
+        select(
+            Recommendation.asset_id.label("asset_id"),
+            func.max(Recommendation.generated_at).label("max_gen"),
+        )
+        .where(Recommendation.generated_at >= active_cutoff)
+        .group_by(Recommendation.asset_id)
+        .subquery()
+    )
+    eligible_rows = session.execute(
+        select(Recommendation.id, Asset.symbol)
+        .join(
+            latest_sq,
+            (Recommendation.asset_id == latest_sq.c.asset_id)
+            & (Recommendation.generated_at == latest_sq.c.max_gen),
+        )
+        .join(Asset, Asset.id == Recommendation.asset_id)
+        .where(func.lower(Recommendation.action) != "hold")
+        .where(Recommendation.conviction >= 60)
+        .order_by(
+            Recommendation.conviction.desc().nulls_last(),
+            Recommendation.generated_at.desc(),
+            Asset.symbol.asc(),
+        )
+    ).all()
+    n_eligible = len(eligible_rows)
+
+    n_taken = 0
+    for rec_id, symbol in eligible_rows:
+        if symbol in seen_symbols:
+            continue  # already bound by HOLDINGS or MACROS
+        if _bind(rec_id, symbol):
+            n_taken += 1
         if len(targets) >= OVERLAY_SYMBOL_CAP:
-            logger.warning(
-                "intraday_overlay: hit OVERLAY_SYMBOL_CAP={} — truncating",
-                OVERLAY_SYMBOL_CAP,
-            )
             break
+
+    n_truncated = max(0, n_eligible - n_taken)
+    if n_truncated > 0:
+        logger.warning(
+            "intraday_shadow: resolver cap hit — "
+            "{} holdings + {} macros + {}/{} active recs (truncated {})",
+            n_holdings, n_macros, n_taken, n_eligible, n_truncated,
+        )
+    elif n_taken < remaining:
+        # Underfill (pool smaller than capacity); calm info, not warning.
+        logger.info(
+            "intraday_shadow: resolver underfill — "
+            "{} holdings + {} macros + {} active recs (eligible pool: {})",
+            n_holdings, n_macros, n_taken, n_eligible,
+        )
     return targets
 
 
