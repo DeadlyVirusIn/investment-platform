@@ -28,6 +28,7 @@ import V2PromotionTriggerCard from "@/components/ops/V2PromotionTriggerCard";
 import HybridAdvisorCard from "@/components/ops/HybridAdvisorCard";
 import HybridReadinessCard from "@/components/ops/HybridReadinessCard";
 import DailyLoopHealthCard from "@/components/ops/DailyLoopHealthCard";
+import IntradayShadowHealthCard from "@/components/ops/IntradayShadowHealthCard";
 import MLReadinessProgressCard from "@/components/ops/MLReadinessProgressCard";
 import SystemHealthCard from "@/components/ops/SystemHealthCard";
 import SystemImprovementsCard from "@/components/ops/SystemImprovementsCard";
@@ -146,6 +147,10 @@ export default function Ops() {
 
       {/* Daily Loop Health — Phase OPS-LOOP-HEALTH (top of page) */}
       <DailyLoopHealthCard />
+
+      {/* Phase 16 Phase 2 — Intraday Shadow Collection. Read-only
+          operational badge. Hidden from non-Ops surfaces. */}
+      <IntradayShadowHealthCard />
 
       {/* System status */}
       <Card size="md">
