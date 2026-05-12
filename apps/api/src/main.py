@@ -75,6 +75,7 @@ from apps.api.src.api.jobs import router as jobs_router
 from apps.api.src.api.market import (
     router as market_router,
     recommendations_overlay_router,
+    intraday_shadow_router,
     start_market_tape_poller,
     stop_market_tape_poller,
 )
@@ -205,6 +206,7 @@ for _router in (
     intelligence_router,
     market_router,
     recommendations_overlay_router,
+    intraday_shadow_router,
     briefing_narrative_router,
     actions_router,
     scorecard_router,

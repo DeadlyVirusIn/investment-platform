@@ -38,13 +38,22 @@ from apps.api.src.db.models import (
     PaperPosition,
     Recommendation,
 )
+from apps.api.src.db.models import IntradayObservation
 from apps.api.src.ml.intraday.observation_writer import (
     derive_observation as derive_intraday_observation,
+    truncate_to_15min,
     write_observation as write_intraday_observation,
 )
 from apps.api.src.providers import polygon
 
 router = APIRouter(prefix="/market", tags=["market"])
+
+# Phase 16 Phase 2 — read-only diagnostics router for the intraday
+# shadow collection layer. Lives in this file so health queries are
+# co-located with the writer they monitor.
+intraday_shadow_router = APIRouter(
+    prefix="/intraday-shadow", tags=["intraday-shadow"],
+)
 
 # Phase 16 v1 — separate router for the recommendation-keyed overlay
 # endpoint so the URL reads /api/recommendations/{id}/intraday-context
@@ -766,4 +775,162 @@ def get_intraday_context(recommendation_id: str) -> dict:
         "source": entry.source,
         "delay_minutes": entry.delay_minutes,
         "stale": tape_is_stale,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Phase 16 Phase 2 — Intraday shadow collection health endpoint
+# ---------------------------------------------------------------------------
+
+
+# Phase 3 gate constants — published here so the health endpoint can
+# report progress vs target without scattering literals across the
+# codebase. See docs/research/INTRADAY_ML_SHADOW.md §3.
+PHASE3_GATE_ROWS = 5_000
+PHASE3_GATE_DISTINCT_SYMBOLS = 20
+PHASE3_GATE_TRADING_DAYS = 60
+
+# Collection is "stale" if the latest observed_at_15min slot is more
+# than two 15-min slots behind the current slot floor — i.e. we have
+# missed at least one cycle's worth of data.
+STALE_COLLECTION_MINUTES = 30
+
+
+@intraday_shadow_router.get("/health")
+def get_intraday_shadow_health() -> dict:
+    """Read-only diagnostic snapshot of the intraday shadow collection.
+
+    Cheap: a handful of indexed COUNT/MAX queries against
+    `intraday_observation`. No upstream calls, no derivation, no DB
+    writes. Safe to poll from an Ops badge at any cadence.
+    """
+    now = datetime.now(tz=timezone.utc)
+    today = now.date()
+    current_slot = truncate_to_15min(now)
+
+    with SessionLocal() as session:
+        # Today's totals
+        today_row_count = session.execute(
+            select(func.count(IntradayObservation.id))
+            .where(IntradayObservation.observed_at_15min >= datetime(
+                today.year, today.month, today.day,
+                tzinfo=timezone.utc,
+            ))
+        ).scalar_one() or 0
+        today_distinct_symbols = session.execute(
+            select(func.count(func.distinct(IntradayObservation.symbol)))
+            .where(IntradayObservation.observed_at_15min >= datetime(
+                today.year, today.month, today.day,
+                tzinfo=timezone.utc,
+            ))
+        ).scalar_one() or 0
+        latest_obs = session.execute(
+            select(func.max(IntradayObservation.observed_at_15min))
+        ).scalar_one()
+
+        # Latest slot details (used for cap-hit signal)
+        latest_slot_count = 0
+        if latest_obs is not None:
+            latest_slot_count = session.execute(
+                select(func.count(IntradayObservation.id))
+                .where(IntradayObservation.observed_at_15min == latest_obs)
+            ).scalar_one() or 0
+
+        # Per-symbol today (top 5 + bottom 5 for sparse-coverage flag)
+        per_symbol_today = session.execute(
+            select(
+                IntradayObservation.symbol,
+                func.count(IntradayObservation.id).label("rows"),
+            )
+            .where(IntradayObservation.observed_at_15min >= datetime(
+                today.year, today.month, today.day,
+                tzinfo=timezone.utc,
+            ))
+            .group_by(IntradayObservation.symbol)
+            .order_by(func.count(IntradayObservation.id).desc())
+        ).all()
+
+        # Phase 3 gate progress (lifetime, not today-only)
+        lifetime_rows = session.execute(
+            select(func.count(IntradayObservation.id))
+        ).scalar_one() or 0
+        lifetime_symbols = session.execute(
+            select(func.count(func.distinct(IntradayObservation.symbol)))
+        ).scalar_one() or 0
+        distinct_dates = session.execute(
+            select(func.count(func.distinct(
+                func.date(IntradayObservation.observed_at_15min)
+            )))
+        ).scalar_one() or 0
+
+    # Derive stale signal
+    if latest_obs is None:
+        is_stale = True
+        stale_minutes: float | None = None
+    else:
+        delta = now - latest_obs
+        stale_minutes = delta.total_seconds() / 60.0
+        is_stale = stale_minutes > STALE_COLLECTION_MINUTES
+
+    # Tape health (reuse the existing tape cache)
+    tape_age = (
+        time.time() - _cache.fetched_at if _cache.fetched_at > 0 else None
+    )
+    tape_is_stale = tape_age is None or tape_age > STALE_AFTER_SECONDS
+
+    # Cap-hit signal: latest slot has rows == OVERLAY_SYMBOL_CAP
+    # (treats a full slot as a positive cap-hit signal; not a perfect
+    # proxy if some symbols simply missing, but close enough for ops)
+    cap_hit = latest_slot_count >= OVERLAY_SYMBOL_CAP
+
+    # Per-symbol top/bottom slices
+    rows_per_symbol = [
+        {"symbol": str(sym), "rows": int(n)}
+        for sym, n in per_symbol_today
+    ]
+    top_5 = rows_per_symbol[:5]
+    bottom_5 = rows_per_symbol[-5:] if len(rows_per_symbol) > 5 else []
+
+    return {
+        "enabled": settings.INTRADAY_ML_SHADOW_ENABLED,
+        "now_utc": _ts_to_iso(now.timestamp()),
+        "current_slot_utc": _ts_to_iso(current_slot.timestamp()),
+
+        "today": {
+            "date": today.isoformat(),
+            "row_count": int(today_row_count),
+            "distinct_symbols": int(today_distinct_symbols),
+            "rows_per_symbol_top_5": top_5,
+            "rows_per_symbol_bottom_5": bottom_5,
+        },
+
+        "latest_slot": {
+            "observed_at_15min": _ts_to_iso(latest_obs.timestamp()) if latest_obs else None,
+            "row_count": int(latest_slot_count),
+            "cap_hit": cap_hit,
+            "cap_threshold": OVERLAY_SYMBOL_CAP,
+        },
+
+        "stale": {
+            "is_stale": is_stale,
+            "minutes_behind_now": stale_minutes,
+            "threshold_minutes": STALE_COLLECTION_MINUTES,
+        },
+
+        "tape": {
+            "stale": tape_is_stale,
+            "fetched_at_utc": _ts_to_iso(_cache.fetched_at) if _cache.fetched_at else None,
+            "source": "polygon" if _cache.quotes else None,
+            "last_error": _cache.last_error,
+            "consecutive_errors": _cache.consecutive_errors,
+        },
+
+        "phase_3_progress": {
+            "lifetime_rows": int(lifetime_rows),
+            "lifetime_rows_target": PHASE3_GATE_ROWS,
+            "lifetime_distinct_symbols": int(lifetime_symbols),
+            "lifetime_distinct_symbols_target": PHASE3_GATE_DISTINCT_SYMBOLS,
+            "distinct_dates": int(distinct_dates),
+            "distinct_dates_target": PHASE3_GATE_TRADING_DAYS,
+        },
     }
