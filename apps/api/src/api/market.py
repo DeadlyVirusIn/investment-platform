@@ -548,6 +548,117 @@ def get_holdings_tape() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Phase 16 v1.4 — Combined tape (macro + holdings in one scroll)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/combined-tape")
+def get_combined_tape() -> dict:
+    """Return macro tape + holdings tape concatenated as a single quote
+    list. Macro symbols (SPY/QQQ/DIA) appear first in deterministic
+    order, then holdings symbols in the order the holdings cache
+    returned them (sorted distinct). Same response shape as the
+    individual tape endpoints with `scope: "combined"` and an
+    additional `segment_breakdown` field so the operator can see
+    where each symbol came from.
+
+    No new cache. Reads from both _cache (macro) and _holdings_cache
+    (holdings) atomically per request.
+
+    Discipline preserved: data sources stay separately auditable in
+    the JSON. Only visual presentation merges in the UI; the
+    underlying snapshots are never mixed in storage.
+    """
+    macro_age = (
+        time.time() - _cache.fetched_at if _cache.fetched_at > 0 else None
+    )
+    macro_stale = macro_age is None or macro_age > STALE_AFTER_SECONDS
+
+    holdings_age = (
+        time.time() - _holdings_cache.fetched_at
+        if _holdings_cache.fetched_at > 0 else None
+    )
+    holdings_stale = holdings_age is None or holdings_age > STALE_AFTER_SECONDS
+
+    # Combined "stale" if BOTH segments are stale. If only one is
+    # stale, emit the healthy one and let the operator notice via the
+    # segment_breakdown.
+    is_stale = macro_stale and holdings_stale
+
+    def _emit_quote(q: dict, segment: str) -> dict:
+        return {
+            "symbol": q.get("symbol"),
+            "price": q.get("price"),
+            "prev_close": q.get("prev_close"),
+            "change_abs": q.get("change_abs"),
+            "change_pct": q.get("change_pct"),
+            "quote_ts": _ts_to_iso(q.get("quote_ts")),
+            "source": q.get("source", "polygon"),
+            "delay_minutes": q.get("delay_minutes", 15),
+            "history": q.get("history") or [],   # macro carries; holdings empty
+            "segment": segment,                  # "macro" | "holdings"
+        }
+
+    quotes_out: list[dict] = []
+    macro_quotes_out: list[dict] = []
+    holdings_quotes_out: list[dict] = []
+
+    # Macro first, in MACRO_TAPE_SYMBOLS order for stable scroll order.
+    if not macro_stale:
+        by_sym = {q.get("symbol"): q for q in _cache.quotes}
+        for sym in MACRO_TAPE_SYMBOLS:
+            q = by_sym.get(sym)
+            if q is None:
+                continue
+            entry = _emit_quote(q, "macro")
+            quotes_out.append(entry)
+            macro_quotes_out.append(entry)
+
+    # Holdings next, in the holdings cache's pre-sorted order, EXCLUDING
+    # any symbol already present in macro (avoids duplicating SPY/QQQ
+    # if held).
+    macro_syms_seen = {q["symbol"] for q in macro_quotes_out}
+    if not holdings_stale:
+        for q in _holdings_cache.quotes:
+            sym = q.get("symbol")
+            if not sym or sym in macro_syms_seen:
+                continue
+            entry = _emit_quote(q, "holdings")
+            quotes_out.append(entry)
+            holdings_quotes_out.append(entry)
+
+    return {
+        "scope": "combined",
+        "stale": is_stale,
+        "fetched_at": _ts_to_iso(
+            min(
+                t for t in (_cache.fetched_at, _holdings_cache.fetched_at)
+                if t > 0
+            ) if (_cache.fetched_at > 0 or _holdings_cache.fetched_at > 0) else 0
+        ),
+        "max_delay_minutes": 15 if quotes_out and not is_stale else None,
+        "source": "polygon" if quotes_out else None,
+        "symbols_tracked": [q["symbol"] for q in quotes_out],
+        "quotes": quotes_out if not is_stale else [],
+        "segment_breakdown": {
+            "macro": {
+                "count": len(macro_quotes_out),
+                "stale": macro_stale,
+                "last_error": _cache.last_error,
+            },
+            "holdings": {
+                "count": len(holdings_quotes_out),
+                "stale": holdings_stale,
+                "last_error": _holdings_cache.last_error,
+            },
+        },
+        "error": (
+            _cache.last_error or _holdings_cache.last_error
+        ),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Phase 16 Phase 2 — Intraday ML shadow observation writes
 # ---------------------------------------------------------------------------
 

@@ -20,7 +20,6 @@ import {
   fmtUSD, fmtPct, toneForNumber,
 } from "@/components/ui/primitives";
 import EquityDrawdownChart from "@/components/operator/EquityDrawdownChart";
-import MarketTicker from "@/components/shell/MarketTicker";
 import Sparkline from "@/components/ui/Sparkline";
 import { cn } from "@/lib/cn";
 import type {
@@ -118,19 +117,6 @@ export default function PortfolioTerminal() {
           </>
         }
       />
-
-      {/* Phase 16 v1.3 — Holdings tape (15-min delayed Polygon prices
-          for currently-open paper positions). Calm, mounted near the
-          page top so operator can scan position tape without scrolling. */}
-      {openExecPositions.length > 0 && (
-        <section
-          data-test="portfolio-terminal-holdings-tape"
-          aria-label="Holdings tape — 15-min delayed prices for open positions"
-        >
-          <div className="holdings-tape-label">Holdings tape</div>
-          <MarketTicker kind="holdings" mode="full" />
-        </section>
-      )}
 
       {/* UX-1 Commit H — Start-here focus card. Tells the operator  */}
       {/* what matters first and what they can defer.                */}

@@ -37,15 +37,20 @@ export interface TapeSnapshot {
 }
 
 
-export type TapeScope = "macro" | "holdings";
+export type TapeScope = "macro" | "holdings" | "combined";
 
 
-// Generalized tape hook. `scope="macro"` (default) hits /market/tape
-// (SPY/QQQ/DIA). `scope="holdings"` hits /market/holdings-tape (open
-// paper positions). Identical response shape; `holdings` adds a
-// `scope: "holdings"` field and omits the `history` field per quote.
+// Generalized tape hook.
+//   scope="macro"      → /market/tape          (SPY/QQQ/DIA)
+//   scope="holdings"   → /market/holdings-tape (open paper positions)
+//   scope="combined"   → /market/combined-tape (macro + holdings, single scroll)
+// Identical response shape across scopes (combined adds segment per quote
+// + segment_breakdown summary).
 export function useTape(scope: TapeScope = "macro") {
-  const path = scope === "holdings" ? "/market/holdings-tape" : "/market/tape";
+  const path =
+    scope === "holdings" ? "/market/holdings-tape"
+    : scope === "combined" ? "/market/combined-tape"
+    : "/market/tape";
   return useQuery<TapeSnapshot>({
     queryKey: ["market", "tape", scope],
     queryFn: () => apiGet<TapeSnapshot>(path),

@@ -36,7 +36,10 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
     isCompact && "u-market-ticker--compact",
   );
 
-  const tapeName = kind === "holdings" ? "Holdings tape" : "Market tape";
+  const tapeName =
+    kind === "holdings" ? "Holdings tape"
+    : kind === "combined" ? "Market tape"
+    : "Market tape";
 
   // -------- Loading first fetch --------
   if (isLoading || !data) {
@@ -108,9 +111,11 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
             key={`${q.symbol}-${i}`}
             q={q}
             compact={isCompact}
-            // Holdings tape v1 omits sparkline regardless of mode
-            // (the backend doesn't fetch minute-bar history for
-            // holdings symbols to keep cycle cost bounded).
+            // Holdings symbols never carry minute-bar history (cycle
+            // cost). For combined-tape, per-quote suppression is
+            // driven by the absence of `q.history` rather than the
+            // outer kind — macro symbols still get sparklines, holdings
+            // segment renders price+% only.
             suppressSpark={kind === "holdings"}
           />
         ))}

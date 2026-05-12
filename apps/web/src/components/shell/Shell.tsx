@@ -113,12 +113,14 @@ export default function Shell() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="sticky top-0 z-20">
           <TopStrip />
-          {/* Phase 15h.5 — route-aware Market Tape slot. Map lives in
-              tickerModeForRoute. Slot currently renders an honest
-              disabled state (no provider integrated). */}
+          {/* Phase 16 v1.4 — route-aware Combined Tape slot. Macro
+              (SPY/QQQ/DIA) + open paper holdings in one continuous
+              scroll. Slot mode (full/compact/null) per
+              tickerModeForRoute. Data sources stay separately
+              auditable in the JSON; only visual presentation merges. */}
           {(() => {
             const tm = tickerModeForRoute(pathname);
-            return tm === null ? null : <MarketTicker mode={tm} />;
+            return tm === null ? null : <MarketTicker mode={tm} kind="combined" />;
           })()}
           <StatusRail />
         </div>
