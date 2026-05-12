@@ -8,6 +8,42 @@ import TopStrip from "./TopStrip";
 import MarketTicker from "./MarketTicker";
 import StatusRail from "./StatusRail";
 
+// Phase 15h.5 — route-aware Market Tape slot mode.
+// Replaces the Phase 15b3 hard hide-on-/overview rule. The slot
+// itself currently renders an honest disabled state (no provider
+// integrated; see docs/research/MARKET_QUOTE_PROVIDER_EVAL.md), but
+// the route → mode map is preserved so that when a real delayed-
+// quote provider lands, the slot density is already correct on every
+// surface with no further routing change.
+//
+// Density rules (per Phase 15h.5 brief):
+//   compact — /, /overview, /risk, /signal-lab, /decisions,
+//             /strategies (executive context surfaces; tape sits
+//             below TopStrip without competing with the page's
+//             biggest answer)
+//   full    — /action-queue, /events, /portfolio*, /options/*
+//             (trade-flow surfaces where the tape is one of the
+//             primary scanning surfaces)
+//   null    — /ops, /research, /alpha-lab (deep work surfaces;
+//             tape would interrupt focus)
+//   default — compact (least-surprise for any unmapped route)
+type TickerMode = "full" | "compact" | null;
+
+function tickerModeForRoute(pathname: string): TickerMode {
+  if (pathname === "/ops"
+      || pathname.startsWith("/research")
+      || pathname.startsWith("/alpha-lab")) {
+    return null;
+  }
+  if (pathname === "/action-queue"
+      || pathname === "/events"
+      || pathname.startsWith("/portfolio")
+      || pathname.startsWith("/options")) {
+    return "full";
+  }
+  return "compact";
+}
+
 export default function Shell() {
   // Phase 14f-A — mobile drawer state. SideNav becomes a slide-in
   // overlay at <=768; on desktop it remains a static sibling. State
@@ -77,14 +113,13 @@ export default function Shell() {
       <div className="flex-1 flex flex-col min-w-0">
         <div className="sticky top-0 z-20">
           <TopStrip />
-          {/* Phase 15b3 — MarketTicker hidden on /overview.
-              The Overview page's executive briefing (NAV / posture /
-              Today's read / launchers) is the page's biggest answer.
-              Ticker was the biggest motion source competing with that
-              answer. Per Phase 15 audit P1.9 (Opus's highest-leverage
-              emotional-read change). Ticker stays on every other
-              page where status context is wanted. */}
-          {pathname !== "/overview" && pathname !== "/" && <MarketTicker />}
+          {/* Phase 15h.5 — route-aware Market Tape slot. Map lives in
+              tickerModeForRoute. Slot currently renders an honest
+              disabled state (no provider integrated). */}
+          {(() => {
+            const tm = tickerModeForRoute(pathname);
+            return tm === null ? null : <MarketTicker mode={tm} />;
+          })()}
           <StatusRail />
         </div>
         <main id="main-content" className="flex-1 overflow-auto">
