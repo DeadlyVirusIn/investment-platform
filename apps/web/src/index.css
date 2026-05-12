@@ -1163,6 +1163,36 @@
   }
   .u-ticker-toggle button { cursor: pointer; }
 
+  /* -------- STATIC TRACK + DELAY CHIP (Phase 15h.5) -------------------
+     With 3 macro symbols (SPY/QQQ/DIA) the track fits without
+     scrolling on every viewport. Static = no fake-live motion. */
+  .u-ticker-track--static {
+    animation: none !important;
+    flex: 0 0 auto;
+    align-items: center;
+  }
+  .u-ticker-delay-chip {
+    position: absolute;
+    right: 0; top: 0; bottom: 0;
+    z-index: 3;
+    display: flex; align-items: center;
+    padding: 0 14px 0 24px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    background: linear-gradient(90deg,
+      transparent 0%, rgba(10, 15, 28, 0.92) 35%, rgba(10, 15, 28, 1) 100%);
+    user-select: none;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  :root[data-theme="light"] .u-ticker-delay-chip {
+    background: linear-gradient(90deg,
+      transparent 0%, rgba(249, 250, 252, 0.92) 35%, rgba(249, 250, 252, 1) 100%);
+  }
+
   /* -------- COMPACT MODIFIER (Phase 15h.5) ----------------------------
      Used on executive surfaces (/overview, /risk, /signal-lab,
      /decisions, /strategies). No focus toggle, no sparkline, smaller

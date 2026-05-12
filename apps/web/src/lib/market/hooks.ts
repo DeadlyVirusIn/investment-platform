@@ -1,41 +1,69 @@
-// Market-quote hook — provider-pending stub.
+// Market-tape hook — Phase 15h.5.
 //
-// Phase 15h.5 honesty rule: until a real delayed-quote provider is
-// integrated (per docs/research/MARKET_QUOTE_PROVIDER_EVAL.md), this
-// hook returns a permanent "no data" state. The Quote interface and
-// useMarketQuotes signature are preserved so that wiring a real
-// provider later is a single-file change: replace the queryFn body
-// with `apiGet("/api/market/quotes", { symbols: ... })` once the
-// backend `/api/market/quotes` endpoint exists.
+// Reads /api/market/tape, which is served from the backend's
+// in-process Polygon poller (90s cadence, 15-min delayed quotes,
+// SPY/QQQ/DIA scope). The frontend NEVER calls Polygon directly.
 //
-// What this file used to be: a synthetic random-walk generator with
-// hardcoded SEEDS for SPX/DJI/NDX/VIX/TNX/SPY/QQQ/AAPL/MSFT/etc. that
-// drove the MarketTicker UI with fake prices. Removed because it
-// violated the honest-data discipline — the user could not tell at a
-// glance that the tape was synthetic.
-//
-// MarketTicker now renders an honest disabled-state strip and does
-// NOT call this hook. The hook stays exported so that other future
-// surfaces (and the eventual provider integration) have a stable
-// import path.
+// Honest discipline: the response carries `stale`, `delay_minutes`
+// per quote, and a top-level `source` so the UI can label freshness
+// truthfully. When `stale: true`, MarketTicker hides its quote row
+// and renders the calm disabled strip instead.
 
 import { useQuery } from "@tanstack/react-query";
+import { apiGet } from "@/lib/api";
 
+
+export interface TapeQuote {
+  symbol: string;
+  price: number | null;
+  prev_close: number | null;
+  change_abs: number | null;
+  change_pct: number | null;
+  quote_ts: string | null;       // ISO; source-reported timestamp (delayed)
+  source: string;                // "polygon"
+  delay_minutes: number;         // 15
+}
+
+
+export interface TapeSnapshot {
+  stale: boolean;
+  fetched_at: string | null;
+  max_delay_minutes: number | null;
+  source: string | null;
+  symbols_tracked: string[];
+  quotes: TapeQuote[];
+  error: string | null;
+}
+
+
+export function useMarketTape() {
+  return useQuery<TapeSnapshot>({
+    queryKey: ["market", "tape"],
+    queryFn: () => apiGet<TapeSnapshot>("/market/tape"),
+    refetchInterval: 60_000,        // refetch from cache every 60s
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+
+// ---------------------------------------------------------------------------
+// Legacy stub — kept exported as a no-op so any straggler import still
+// type-checks. The real surface is useMarketTape() above. Remove this
+// once a grep confirms zero callers.
+// ---------------------------------------------------------------------------
 export interface Quote {
   symbol: string;
   label: string;
   price: number;
   change: number;
   changePct: number;
-  history?: number[];   // last ~24 points for sparkline (optional)
+  history?: number[];
 }
 
 export function useMarketQuotes(_symbols: string[]) {
-  // Permanent disabled state — no upstream provider configured.
-  // Kept as a useQuery so consumers can rely on the standard
-  // TanStack Query result shape (data, isError, isLoading, ...).
   return useQuery<Quote[]>({
-    queryKey: ["market", "quotes", "disabled"],
+    queryKey: ["market", "quotes", "deprecated"],
     queryFn: async () => [],
     initialData: [],
     enabled: false,
