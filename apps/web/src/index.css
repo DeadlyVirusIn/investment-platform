@@ -1163,13 +1163,23 @@
   }
   .u-ticker-toggle button { cursor: pointer; }
 
-  /* -------- STATIC TRACK + DELAY CHIP (Phase 15h.5) -------------------
-     With 3 macro symbols (SPY/QQQ/DIA) the track fits without
-     scrolling on every viewport. Static = no fake-live motion. */
-  .u-ticker-track--static {
-    animation: none !important;
-    flex: 0 0 auto;
-    align-items: center;
+  /* -------- DELAY CHIP + PRICE FLASH (Phase 15h.5 polish) --------------
+     Operator lifted the "no animation" lock for the tape ribbon. Track
+     scroll is restored via the existing .u-ticker-track keyframes; the
+     flash on price-change is a brief background pulse via [data-flash]. */
+  .u-ticker-item[data-flash="pos"] {
+    animation: u-ticker-flash-pos 500ms ease-out;
+  }
+  .u-ticker-item[data-flash="neg"] {
+    animation: u-ticker-flash-neg 500ms ease-out;
+  }
+  @keyframes u-ticker-flash-pos {
+    0%   { background: rgba(34, 197, 94, 0.20); }
+    100% { background: transparent; }
+  }
+  @keyframes u-ticker-flash-neg {
+    0%   { background: rgba(239, 68, 68, 0.20); }
+    100% { background: transparent; }
   }
   .u-ticker-delay-chip {
     position: absolute;

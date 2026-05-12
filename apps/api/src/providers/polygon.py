@@ -147,6 +147,51 @@ async def fetch_tape_snapshot(
     return out
 
 
+async def fetch_intraday_history(
+    client: httpx.AsyncClient, symbol: str, limit: int = 30,
+) -> list[float]:
+    """Fetch last N minute-bar closes for one symbol (chronological order).
+
+    Used by the market tape to render a small intraday sparkline. Returns
+    the closes only; the timestamps are implicit (latest = current price).
+    Empty list on any failure — caller falls back to no-sparkline render.
+    """
+    key = _api_key()
+    if not key or not symbol:
+        return []
+    # Today (UTC) at minute resolution. Polygon accepts YYYY-MM-DD on
+    # both sides of the range; we just need recent bars.
+    import datetime as _dt
+    today = _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%d")
+    url = f"{POLYGON_BASE}/v2/aggs/ticker/{symbol.upper()}/range/1/minute/{today}/{today}"
+    params = {
+        "adjusted": "true",
+        "sort": "desc",
+        "limit": str(limit),
+        "apiKey": key,
+    }
+    try:
+        r = await client.get(url, params=params, timeout=10.0)
+        r.raise_for_status()
+        data = r.json()
+    except Exception as exc:
+        logger.warning("Polygon minute aggs fetch failed for %s: %s", symbol, exc)
+        return []
+    results = data.get("results") or []
+    # Polygon returns desc-sorted; reverse so the sparkline draws
+    # left-to-right with the latest minute on the right.
+    closes: list[float] = []
+    for row in reversed(results):
+        c = row.get("c")
+        if c is None:
+            continue
+        try:
+            closes.append(float(c))
+        except (TypeError, ValueError):
+            continue
+    return closes
+
+
 def fetch_earnings(ticker: str, limit: int = 4) -> list[dict[str, Any]]:
     """Return recent + upcoming earnings events. Empty when not configured."""
     key = _api_key()

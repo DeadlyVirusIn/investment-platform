@@ -313,16 +313,29 @@ async def _refresh_overlay_cache(client: httpx.AsyncClient) -> None:
 
 async def _poll_once(client: httpx.AsyncClient) -> None:
     """Run one refresh cycle. Updates _cache in place. After a successful
-    macro tape refresh, triggers the intraday overlay refresh (no-op when
-    INTRADAY_OVERLAY_ENABLED=false)."""
+    macro tape refresh, also fetches minute-bar history per symbol (used
+    by the UI to render sparklines) and triggers the intraday overlay
+    refresh (no-op when INTRADAY_OVERLAY_ENABLED=false)."""
     try:
         quotes = await polygon.fetch_tape_snapshot(client, MACRO_TAPE_SYMBOLS)
+        # Fetch ~30min minute-bar history per symbol for sparkline rendering.
+        # Sequential per symbol — 3 symbols, ~150ms each, well within
+        # the 90s poll budget. Soft-fail per symbol; missing history just
+        # omits the sparkline for that one.
+        for q in quotes:
+            sym = q.get("symbol")
+            if not sym:
+                continue
+            history = await polygon.fetch_intraday_history(client, sym, limit=30)
+            if history:
+                q["history"] = history
         _cache.quotes = quotes
         _cache.fetched_at = time.time()
         _cache.last_error = None
         _cache.consecutive_errors = 0
         logger.debug(
-            "market_tape: refreshed {} quotes from polygon", len(quotes)
+            "market_tape: refreshed {} quotes from polygon (with history)",
+            len(quotes),
         )
     except Exception as exc:  # noqa: BLE001 — provider errors classified at edge
         _cache.last_error = f"{type(exc).__name__}: {exc}"
@@ -418,6 +431,8 @@ def get_tape() -> dict:
             "quote_ts": _ts_to_iso(q.get("quote_ts")),
             "source": q.get("source", "polygon"),
             "delay_minutes": q.get("delay_minutes", 15),
+            # Intraday 1-min closes (chronological) for sparkline render.
+            "history": q.get("history") or [],
         })
 
     return {

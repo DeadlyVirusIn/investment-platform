@@ -22,6 +22,7 @@ export interface TapeQuote {
   quote_ts: string | null;       // ISO; source-reported timestamp (delayed)
   source: string;                // "polygon"
   delay_minutes: number;         // 15
+  history?: number[];            // intraday 1-min closes (chronological)
 }
 
 

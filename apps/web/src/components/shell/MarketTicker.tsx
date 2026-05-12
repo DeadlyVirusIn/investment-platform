@@ -1,29 +1,25 @@
-// Market Tape — Phase 15h.5 real-data render.
+// Market Tape — Phase 15h.5 polished render.
 //
 // Reads /api/market/tape (backend-cached Polygon delayed snapshots,
-// SPY/QQQ/DIA, 90s refresh) via useMarketTape(). Frontend NEVER calls
-// Polygon directly.
+// SPY/QQQ/DIA, 90s refresh, with 30-min minute-bar history per symbol).
+// Frontend NEVER calls Polygon directly.
 //
-// UX discipline:
-//   - No animation on number change. TanStack Query swaps values
-//     in place; we apply no flash, no color tween.
-//   - No fake real-time motion. The track is static (no infinite
-//     scroll); 3 symbols fit easily on every viewport.
-//   - Honest delay label: "15m delayed · Polygon" pinned to the
-//     right edge in full mode. Compact mode omits the chip to keep
-//     the executive surfaces' focal hierarchy intact.
-//   - Loading / stale / error states render the same calm disabled
-//     strip as the no-provider state — communicates the gap without
-//     alarming the user.
+// Operator decision (2026-05-12): the original "no animation / no fake
+// real-time motion" lock is RELAXED for the tape ribbon only. Scroll
+// + price-change flash + real sparklines are restored. The data layer
+// remains honest — 15-min delayed, real minute-bar history — only the
+// presentation gets the Bloomberg-tape polish back.
 
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { useMarketTape, type TapeQuote } from "@/lib/market/hooks";
+import Sparkline from "./Sparkline";
 
 
 export interface MarketTickerProps {
   /** Render density.
-   *  "full"    = ticker items + delay chip + larger row
-   *  "compact" = ticker items only, smaller row, no chip */
+   *  "full"    = ticker items + delay chip + sparkline + scroll animation
+   *  "compact" = ticker items + scroll, no chip, no sparkline */
   mode?: "full" | "compact";
 }
 
@@ -70,15 +66,23 @@ export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
   }
 
   // -------- Real quotes --------
+  // Duplicate for seamless scroll loop. With only 3 symbols the
+  // duplicated set fills the visible width comfortably.
+  const track = [...data.quotes, ...data.quotes];
+
   return (
     <div
       className={containerCls}
       data-tape-state="live"
       data-tape-source={data.source ?? undefined}
     >
-      <div className="u-ticker-track u-ticker-track--static">
-        {data.quotes.map((q) => (
-          <TickerItem key={q.symbol} q={q} compact={isCompact} />
+      <div className="u-ticker-track">
+        {track.map((q, i) => (
+          <TickerItem
+            key={`${q.symbol}-${i}`}
+            q={q}
+            compact={isCompact}
+          />
         ))}
       </div>
       {!isCompact && (
@@ -97,17 +101,41 @@ function TickerItem({ q, compact }: { q: TapeQuote; compact: boolean }) {
   const toneCls =
     change == null ? "" : change > 0 ? "is-pos" : change < 0 ? "is-neg" : "";
   const arrow = change == null ? "·" : change > 0 ? "▲" : change < 0 ? "▼" : "·";
-  // Decimal precision matches institutional convention (2dp for prices
-  // ≥ $10, 3dp under). ETFs in MACRO scope are all ≥ $10.
   const priceDigits =
     q.price == null ? 0 : q.price >= 1000 ? 2 : q.price >= 10 ? 2 : 3;
 
+  // Price-change flash — fire briefly when the price differs from the
+  // previously-rendered value for this symbol. Pure presentational; no
+  // data fabrication.
+  const prevPriceRef = useRef<number | null>(q.price);
+  const [flash, setFlash] = useState<"pos" | "neg" | null>(null);
+  useEffect(() => {
+    if (q.price == null || prevPriceRef.current == null) {
+      prevPriceRef.current = q.price;
+      return;
+    }
+    if (q.price !== prevPriceRef.current) {
+      setFlash(q.price > prevPriceRef.current ? "pos" : "neg");
+      prevPriceRef.current = q.price;
+      const t = window.setTimeout(() => setFlash(null), 500);
+      return () => window.clearTimeout(t);
+    }
+  }, [q.price]);
+
+  const sparkTone: "pos" | "neg" = (change ?? 0) >= 0 ? "pos" : "neg";
+
   return (
-    <div className={cn("u-ticker-item", toneCls)}>
+    <div
+      className={cn("u-ticker-item", toneCls)}
+      data-flash={flash ?? undefined}
+    >
       <span className="u-ticker-sym">{q.symbol}</span>
       <span className="u-ticker-px">
         {q.price != null ? q.price.toFixed(priceDigits) : "—"}
       </span>
+      {!compact && q.history && q.history.length > 1 && (
+        <Sparkline points={q.history} tone={sparkTone} />
+      )}
       {!compact && (
         <span className={cn("u-ticker-chg", toneCls)}>
           {arrow}{" "}
@@ -120,7 +148,6 @@ function TickerItem({ q, compact }: { q: TapeQuote; compact: boolean }) {
         </span>
       )}
       {compact && pct != null && (
-        // Compact omits absolute change to save horizontal space; only %
         <span className={cn("u-ticker-chg", toneCls)}>
           {arrow} {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
         </span>
