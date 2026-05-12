@@ -9,6 +9,10 @@ import {
   fmtCurrency, fmtPct, fmtSigned,
   type CommandBarData, type EquityPoint,
 } from "@/lib/portfolio/api";
+// Phase 15h.2 — calm "as of" annotation + tier for freshness pill.
+import {
+  freshnessFromTs, formatAsOf, type FreshnessTier,
+} from "@/lib/picks/freshness";
 
 import EquitySparkline from "./EquitySparkline";
 
@@ -60,6 +64,24 @@ export default function PortfolioSnapshot() {
       <div className="ps-hero">
         <div className="ps-hero-text">
           <span className="ps-eyebrow">Portfolio</span>
+          {/* Phase 15h.2 — calm "as of" annotation. Always renders
+              when freshAt exists; tier-driven copy keeps the
+              institutional-strategist tone (no panic, no alert
+              colors). When stale, label hardens to acknowledge
+              the gap honestly. */}
+          {data.freshAt && (() => {
+            const tier: FreshnessTier = freshnessFromTs(data.freshAt);
+            const label = tier === "fresh"
+              ? `Account valued ${formatAsOf(data.freshAt)}`
+              : tier === "degraded"
+                ? `Account snapshot delayed · last update ${formatAsOf(data.freshAt)}`
+                : `Reading the last completed cycle · ${formatAsOf(data.freshAt)}`;
+            return (
+              <span className="ps-asof" data-tier={tier}>
+                {label}
+              </span>
+            );
+          })()}
           <div className="ps-nav-row">
             {navAvail ? (
               <h2 className="ps-nav-value">{fmtCurrency(data.totalNav, { compact: true })}</h2>

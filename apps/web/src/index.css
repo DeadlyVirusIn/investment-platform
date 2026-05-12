@@ -1877,6 +1877,38 @@
   padding: 0 16px 24px;
 }
 
+/* Phase 15h.2 — Calm freshness annotations.
+   Two surfaces share one tone vocabulary:
+     .ps-asof              -> "Account valued ..." pill on PortfolioSnapshot
+     .topstrip-cell-stale  -> muted NAV value when last_decision_ts is stale
+   No alert colors. No banners. Quiet by design — institutional calm. */
+.picks-root .ps-asof {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--pi-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.picks-root .ps-asof[data-tier="degraded"] {
+  color: var(--pi-warn-soft);
+}
+.picks-root .ps-asof[data-tier="stale"] {
+  color: var(--pi-bad-soft);
+  font-style: italic;
+}
+.topstrip-cell-stale > div:last-child {
+  /* Mute the NAV value text + dotted underline so the user reads
+     "current visual but be careful — see tooltip" rather than
+     "broken". No red. No icon. */
+  color: var(--fg-3) !important;
+  text-decoration: underline dotted var(--fg-3);
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+
 /* Phase 15c3 — Strategies inter-section breathing rhythm.
    Stacked TradeLifecycle / PremiumIncome / StrategyModules now
    share a 32px (cozy default) inter-section gap so the page reads

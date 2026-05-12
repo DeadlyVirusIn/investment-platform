@@ -84,3 +84,64 @@ export function aggregatePickFreshness(picks: Pick[]): FreshnessTier {
   if (anyDegraded) return "degraded";
   return "fresh";
 }
+
+
+// ============================================================
+// Phase 15h.2 — calm "as of" formatting helpers
+// ============================================================
+// Format an ISO timestamp into the institutional-strategist style
+// the freshness pills use: "Mon 9:30 AM ET" / "Sat 9 May" / "today
+// 9:30 AM" depending on age. Never raw ISO. Never long form.
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+
+// Returns a calm "as of" sentence for any ISO timestamp.
+// Examples:
+//   today  → "9:30 AM"
+//   < 7d   → "Sat 9 May 9:30 AM"
+//   older  → "9 May 2026"
+export function formatAsOf(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return "—";
+  const d = new Date(ts);
+  const now = new Date();
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+  const ageDays = Math.floor((now.getTime() - ts) / (24 * 3_600_000));
+
+  let hh = d.getHours();
+  const mm = pad2(d.getMinutes());
+  const ampm = hh >= 12 ? "PM" : "AM";
+  hh = hh % 12; if (hh === 0) hh = 12;
+  const time = `${hh}:${mm} ${ampm}`;
+
+  if (sameDay) return time;
+
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  if (ageDays < 7) {
+    // "Sat 9 May 9:30 AM"
+    return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${time}`;
+  }
+  // Older — drop the time, keep date only
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+
+// Generic freshness tier from any ISO timestamp using the same
+// recommendations SLA. The PortfolioSnapshot + TopStrip surfaces use
+// this for paper/summary.last_decision_ts. Per Phase 15g audit: a
+// finer per-channel SLA (intra-market-hours portfolio refresh < 30m)
+// is appropriate but defers until the system actually runs that often;
+// for now one SLA across surfaces keeps the UI tone coherent.
+export function freshnessFromTs(iso: string | null | undefined): FreshnessTier {
+  return freshnessFromAge(ageHours(iso));
+}

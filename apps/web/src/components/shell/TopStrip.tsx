@@ -6,6 +6,8 @@ import { Pill, fmtUSD, fmtPct, toneForNumber } from "@/components/ui/primitives"
 import { useUIMode } from "@/lib/ui/mode";
 import { useTheme } from "@/lib/ui/theme";
 import { cn } from "@/lib/cn";
+// Phase 15h.2 — calm freshness derivation for the NAV cell.
+import { freshnessFromTs, formatAsOf } from "@/lib/picks/freshness";
 
 function Cell({
   label, children, className, tooltip, slot,
@@ -39,6 +41,19 @@ export default function TopStrip() {
   const { data: state } = useCurrentState();
   const { data: anomalies } = useAnomalySummary();
 
+  // Phase 15h.2 — derive freshness tier from the canonical
+  // last_decision_ts so the NAV cell can soften when the snapshot
+  // is older than the SLA. No alert colors; just a muted value
+  // and a hover/tap title that explains the gap honestly.
+  const navFreshness = freshnessFromTs(summary?.last_decision_ts);
+  const navStale = navFreshness === "stale" || navFreshness === "degraded";
+  const navAsOf = summary?.last_decision_ts
+    ? formatAsOf(summary.last_decision_ts)
+    : null;
+  const navTitle = navStale && navAsOf
+    ? `NAV from ${navAsOf} — awaiting next refresh.`
+    : "Values reflect simulated paper-trading results. They do not indicate future outcomes.";
+
   const regime = state?.stress_regime ? "stress"
     : state?.directional_regime ? "directional"
     : "neutral";
@@ -53,8 +68,8 @@ export default function TopStrip() {
       <Cell
         label="NAV"
         slot="nav"
-        className="min-w-[120px]"
-        tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
+        className={cn("min-w-[120px]", navStale && "topstrip-cell-stale")}
+        tooltip={navTitle}
       >
         {summary ? fmtUSD(summary.equity) : "—"}
       </Cell>
