@@ -38,6 +38,10 @@ from apps.api.src.db.models import (
     PaperPosition,
     Recommendation,
 )
+from apps.api.src.ml.intraday.observation_writer import (
+    derive_observation as derive_intraday_observation,
+    write_observation as write_intraday_observation,
+)
 from apps.api.src.providers import polygon
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -307,6 +311,127 @@ async def _refresh_overlay_cache(client: httpx.AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 16 Phase 2 — Intraday ML shadow observation writes
+# ---------------------------------------------------------------------------
+
+
+def _write_intraday_observations() -> None:
+    """Persist one row per (recommendation_id, 15-min slot) into
+    `intraday_observation`. Sole runtime writer of that table. No-op
+    when INTRADAY_ML_SHADOW_ENABLED=false.
+
+    Called from _poll_once AFTER the macro tape + overlay caches are
+    refreshed. Reuses the SAME (rec_id, symbol) target set as the
+    overlay so we cover exactly the active paper holdings.
+
+    All exceptions are logged + swallowed — observation persistence
+    must never fail the tape cycle. The next cycle 90s later
+    re-attempts via the natural retry loop.
+    """
+    if not settings.INTRADAY_ML_SHADOW_ENABLED:
+        return
+    if not _cache.quotes:
+        return  # no tape data this cycle; nothing to bind to
+
+    # Reuse the resolver from the overlay layer (single source of truth
+    # for "what should we be observing now").
+    with SessionLocal() as session:
+        targets = resolve_active_overlay_targets(session)
+        if not targets:
+            logger.debug("intraday_shadow: no active targets")
+            return
+
+        # Lookup recommendations + actions + convictions in one batch.
+        rec_meta: dict[str, tuple[str, float | None]] = {}
+        rows = session.execute(
+            select(
+                Recommendation.id,
+                Recommendation.action,
+                Recommendation.conviction,
+            ).where(Recommendation.id.in_(list(targets.keys())))
+        ).all()
+        for rec_id, action, conv in rows:
+            rec_meta[str(rec_id)] = (
+                str(action or "hold").lower(),
+                float(conv) if conv is not None else None,
+            )
+
+        # Position state per asset_id (reverse lookup: target symbol → asset_id
+        # is via the rec; cheaper to flag any open position by symbol set).
+        open_symbols: set[str] = set()
+        pos_rows = session.execute(
+            select(Asset.symbol)
+            .join(PaperPosition, PaperPosition.asset_id == Asset.id)
+            .where(PaperPosition.is_open.is_(True))
+            .distinct()
+        ).all()
+        open_symbols = {str(s) for (s,) in pos_rows}
+
+        # Macro benchmark for the observation features.
+        macro_pct: dict[str, float | None] = {"SPY": None, "QQQ": None, "DIA": None}
+        for q in _cache.quotes:
+            sym = q.get("symbol")
+            if sym in macro_pct:
+                macro_pct[sym] = q.get("change_pct")
+
+        cached_symbols = {q.get("symbol"): q for q in _cache.quotes}
+
+        written = 0
+        skipped_no_meta = 0
+        skipped_no_snap = 0
+        for rec_id, sym in targets.items():
+            meta = rec_meta.get(rec_id)
+            if meta is None:
+                skipped_no_meta += 1
+                continue
+            action_type, prior_conv = meta
+            snap = cached_symbols.get(sym)
+            if snap is None:
+                skipped_no_snap += 1
+                continue
+            position_state = "open_long" if sym in open_symbols else "flat"
+            quote_ts_epoch = snap.get("quote_ts")
+            quote_ts_dt = (
+                datetime.fromtimestamp(float(quote_ts_epoch), tz=timezone.utc)
+                if quote_ts_epoch else None
+            )
+            row = derive_intraday_observation(
+                recommendation_id=rec_id,
+                symbol=sym,
+                observed_at=datetime.now(tz=timezone.utc),
+                price=snap.get("price"),
+                prev_close=snap.get("prev_close"),
+                day_open=None,           # not yet exposed in tape cache
+                day_high=None,           # ditto
+                day_low=None,            # ditto
+                spy_change_pct=macro_pct.get("SPY"),
+                qqq_change_pct=macro_pct.get("QQQ"),
+                dia_change_pct=macro_pct.get("DIA"),
+                prior_eod_conviction=prior_conv,
+                action_type=action_type,
+                position_state=position_state,
+                entry_reference_price=snap.get("prev_close"),  # v1 proxy
+                atr_60d_pct=None,        # deferred to Phase 3 prep
+                vol_60d_pct=None,        # deferred to Phase 3 prep
+                sector_id=None,          # deferred to Phase 3 prep
+                source=snap.get("source", "polygon"),
+                delay_minutes=int(snap.get("delay_minutes", 15)),
+                quote_ts=quote_ts_dt,
+            )
+            try:
+                write_intraday_observation(session, row)
+                written += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "intraday_shadow: write failed for {}: {}", rec_id, exc,
+                )
+        logger.debug(
+            "intraday_shadow: wrote {} obs (skipped meta={}, snap={})",
+            written, skipped_no_meta, skipped_no_snap,
+        )
+
+
+# ---------------------------------------------------------------------------
 # Background poller
 # ---------------------------------------------------------------------------
 
@@ -352,6 +477,14 @@ async def _poll_once(client: httpx.AsyncClient) -> None:
         await _refresh_overlay_cache(client)
     except Exception as exc:  # noqa: BLE001 — never fail the tape cycle
         logger.warning("intraday_overlay: refresh failed — {}", exc)
+
+    # Phase 16 Phase 2 — durable intraday observation writes AFTER the
+    # tape + overlay refresh. No-op when INTRADAY_ML_SHADOW_ENABLED=false.
+    # See docs/research/INTRADAY_ML_SHADOW.md.
+    try:
+        _write_intraday_observations()
+    except Exception as exc:  # noqa: BLE001 — never fail the tape cycle
+        logger.warning("intraday_shadow: observation write failed — {}", exc)
 
 
 async def _poll_loop() -> None:
