@@ -17,6 +17,15 @@ export default defineConfig({
     allowedHosts: [
       'mobile-preview.packhunter.xyz',
     ],
+    // Phase 16 v1.3 fix — Windows + Git Bash + chokidar misses
+    // filesystem events intermittently, leaving Vite serving stale
+    // modules even after file edits land. Polling mode costs slight
+    // CPU but eliminates the silent stale-cache bug that bit twice
+    // this session (hooks.ts useMarketTape miss + holdings tape miss).
+    watch: {
+      usePolling: true,
+      interval: 500,
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
