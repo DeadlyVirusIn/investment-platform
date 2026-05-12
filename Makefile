@@ -14,6 +14,99 @@ up:
 down:
 	$(COMPOSE) down
 
+## ─── Phase 11Z incident-response: DB volume safety ──────────────────────
+.PHONY: db-clean-test db-clean-dev verify-deploy
+
+## Run alembic upgrade head against the ISOLATED `pg-11v-test`
+## container. NEVER touches `compose_pgdata` (the dev volume).
+## Expects pg-11v-test to be running on the compose_backend network.
+##
+## Phase 15i.R hardening (post-2026-05-11 incident; see
+## docs/ops/INCIDENT_2026_05_11_dev_db_unintended_migration.md).
+## Three layers of routing safety, all passed in the same exec:
+##   1. -e DATABASE_URL=...              env.py reads this
+##   2. -x url=...                       env.py honors this with
+##                                        higher precedence than env
+##   3. -e ALEMBIC_REQUIRE_TEST_TARGET=1 env.py refuses to run if the
+##                                        resolved hostname is the
+##                                        known dev DB
+## env.py logs the resolved target host:port:db to stderr BEFORE any
+## DDL runs.
+db-clean-test:
+	@echo "[db-clean-test] applying alembic upgrade head against pg-11v-test"
+	@docker exec \
+	  -e DATABASE_URL="postgresql+psycopg://test:test@pg-11v-test:5432/test" \
+	  -e ALEMBIC_REQUIRE_TEST_TARGET=1 \
+	  compose-api-1 sh -c "cd /app && PYTHONPATH=/app \
+	    alembic -c infra/alembic/alembic.ini \
+	    -x url=postgresql+psycopg://test:test@pg-11v-test:5432/test \
+	    upgrade head"
+
+## Wipe the dev `compose_pgdata` volume. REFUSES unless caller sets
+## REQUIRE_VOLUME_DELETE_CONFIRMATION=I_UNDERSTAND_THIS_DELETES_DATABASE
+## AND --force-dev-wipe is forwarded. Loops back into the safe wrapper.
+db-clean-dev:
+	@bash scripts/safe_compose_down.sh -v --force-dev-wipe
+
+## Deploy-readiness verification. MUST NOT wipe compose_pgdata.
+## Migration check uses the isolated test DB.
+verify-deploy:
+	@echo "[verify-deploy] rebuild api"
+	$(COMPOSE) --env-file .env build api
+	@echo "[verify-deploy] import smoke"
+	@docker exec compose-api-1 python -c "import apps.api.src.main as m; print('routes=', len(m.app.routes))"
+	@echo "[verify-deploy] alembic upgrade against ISOLATED test DB"
+	@$(MAKE) db-clean-test
+	@echo "[verify-deploy] regression suite"
+	@docker exec \
+	  -e TEST_DATABASE_URL="postgresql+psycopg://test:test@pg-11v-test:5432/test" \
+	  compose-api-1 sh -c "cd /app && PYTHONPATH=/app python -m pytest \
+	    apps/api/tests/integration/research/ apps/api/tests/unit/research/ \
+	    apps/api/tests/integration/test_options_shadow_eval_pg.py --no-header -q"
+	@echo "[verify-deploy] DONE - compose_pgdata UNTOUCHED"
+
+## ─── Phase 11Z hardening: backup + safe verify ─────────────────────────
+.PHONY: db-backup db-restore-preview verify-deploy-safe
+
+## Take timestamped pg_dump of dev DB. Refuses to overwrite.
+## Honors $$BACKUP_DIR (default .backups), $$BACKUP_KEEP (default 10).
+db-backup:
+	@bash scripts/backup_dev_db.sh
+
+## Show what restoring the newest backup WOULD do (dry diff). No restore.
+db-restore-preview:
+	@latest=$$(ls -1t .backups/devdb_*.sql 2>/dev/null | head -1); \
+	if [ -z "$$latest" ]; then \
+	  echo "[restore-preview] no backup found in .backups/" >&2; exit 2; \
+	fi; \
+	echo "[restore-preview] newest backup: $$latest"; \
+	echo "[restore-preview] size: $$(wc -c < $$latest) bytes"; \
+	echo "[restore-preview] tables in dump:"; \
+	grep -E "^(CREATE TABLE|COPY|INSERT INTO)" "$$latest" \
+	  | awk '{print $$2, $$3, $$4}' | sort -u | head -40
+
+## Same as verify-deploy plus a backup-age preflight. Refuses to run
+## unless a fresh-enough backup exists. Override with:
+##   SKIP_BACKUP_CHECK=I_ACCEPT_DATA_LOSS_RISK make verify-deploy-safe
+verify-deploy-safe:
+	@if [ "$$SKIP_BACKUP_CHECK" = "I_ACCEPT_DATA_LOSS_RISK" ]; then \
+	  echo "[verify-deploy-safe] backup-age check SKIPPED by env"; \
+	else \
+	  latest=$$(ls -1t .backups/devdb_*.sql 2>/dev/null | head -1); \
+	  if [ -z "$$latest" ]; then \
+	    echo "[verify-deploy-safe] REFUSED: no .backups/devdb_*.sql found"; \
+	    echo "  Run: make db-backup"; exit 2; \
+	  fi; \
+	  age=$$((( $$(date +%s) - $$(stat -c %Y "$$latest" 2>/dev/null || stat -f %m "$$latest") ) / 3600)); \
+	  if [ "$$age" -gt 24 ]; then \
+	    echo "[verify-deploy-safe] REFUSED: newest backup is $$age h old (>24h)"; \
+	    echo "  Run: make db-backup  OR  set SKIP_BACKUP_CHECK=I_ACCEPT_DATA_LOSS_RISK"; \
+	    exit 2; \
+	  fi; \
+	  echo "[verify-deploy-safe] backup OK ($$age h old): $$latest"; \
+	fi
+	@$(MAKE) verify-deploy
+
 ## Tail logs for all services (Ctrl-C to stop)
 logs:
 	$(COMPOSE) logs -f
@@ -35,3 +128,29 @@ test:
 ## Start Vite dev server (frontend only — backend must already be up)
 web-dev:
 	cd apps/web && npm run dev
+
+# ---------------------------------------------------------------------------
+# Phase OPS1 — paper trading automation
+# ---------------------------------------------------------------------------
+.PHONY: paper-daily paper-daily-dry paper-daily-date paper-daily-force paper-daily-no-shadow
+
+## Run today's paper-trading pipeline (frozen strategy, read-only adapter)
+paper-daily:
+	python -m scripts.run_paper_daily
+
+## Dry run (no DB writes, summary only)
+paper-daily-dry:
+	python -m scripts.run_paper_daily --dry-run
+
+## Run for specific date: make paper-daily-date D=2026-04-22
+paper-daily-date:
+	@test -n "$(D)" || (echo "usage: make paper-daily-date D=YYYY-MM-DD" && exit 1)
+	python -m scripts.run_paper_daily --date $(D)
+
+## Force recompute (overwrite existing snapshot)
+paper-daily-force:
+	python -m scripts.run_paper_daily --force-recompute
+
+## Skip shadow evaluation step
+paper-daily-no-shadow:
+	python -m scripts.run_paper_daily --skip-shadow
