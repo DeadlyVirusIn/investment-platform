@@ -278,6 +278,16 @@ class Settings(BaseSettings):
     RESEARCH_RO_ENABLED: bool = False
 
     # ------------------------------------------------------------------
+    # PHASE 16 v1 — Intraday context overlay (ephemeral)
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF. When False, the market-tape poller does
+    # NOT compute the intraday overlay and the overlay read endpoint
+    # returns 404 for every recommendation_id. Flipping to True adds
+    # an in-memory derivation step to each poll cycle (no DB writes,
+    # no schema impact). See docs/research/INTRADAY_CONTEXT_OVERLAY.md.
+    INTRADAY_OVERLAY_ENABLED: bool = False
+
+    # ------------------------------------------------------------------
     # PHASE 11W (Phase D.2) — Real provider adapter (default OFF)
     # ------------------------------------------------------------------
     # PERMANENT default OFF in production. When False, the resolver
