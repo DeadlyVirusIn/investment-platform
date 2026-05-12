@@ -97,6 +97,30 @@ _poll_task: asyncio.Task | None = None
 
 
 # ---------------------------------------------------------------------------
+# Phase 16 v1.3 — Holdings tape (parallel to macro tape).
+#
+# Purpose: real Polygon delayed quotes for the operator's open paper
+# positions only. Separate from the macro tape (SPY/QQQ/DIA) so the
+# two surfaces stay independent + are auditable separately.
+#
+# The cache refreshes EVERY cycle, independent of the
+# INTRADAY_ML_SHADOW_ENABLED flag (the holdings TAPE is a UI surface
+# regardless of whether the shadow ML COLLECTION is on).
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class _HoldingsCache:
+    quotes: list[dict] = field(default_factory=list)
+    symbols: list[str] = field(default_factory=list)
+    fetched_at: float = 0.0
+    last_error: str | None = None
+
+
+_holdings_cache: _HoldingsCache = _HoldingsCache()
+
+
+# ---------------------------------------------------------------------------
 # Phase 16 v1 — intraday context overlay (ephemeral)
 # Architecture: docs/research/INTRADAY_CONTEXT_OVERLAY.md
 #
@@ -425,6 +449,105 @@ async def _refresh_overlay_cache(client: httpx.AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Phase 16 v1.3 — Holdings tape refresh + read endpoint
+# ---------------------------------------------------------------------------
+
+
+def _resolve_open_holdings_symbols(session: Session) -> list[str]:
+    """Distinct symbols of all currently-open paper positions.
+
+    Subset of resolve_active_overlay_targets() — open positions only,
+    no recommendation_id binding (the holdings tape doesn't need one).
+    Returns sorted symbol list, capped at OVERLAY_SYMBOL_CAP.
+    """
+    rows = session.execute(
+        select(Asset.symbol)
+        .join(PaperPosition, PaperPosition.asset_id == Asset.id)
+        .where(PaperPosition.is_open.is_(True))
+        .distinct()
+    ).all()
+    syms = sorted({str(s) for (s,) in rows})
+    if len(syms) > OVERLAY_SYMBOL_CAP:
+        logger.warning(
+            "holdings_tape: hit OVERLAY_SYMBOL_CAP={} — truncating",
+            OVERLAY_SYMBOL_CAP,
+        )
+        syms = syms[:OVERLAY_SYMBOL_CAP]
+    return syms
+
+
+async def _refresh_holdings_cache(client: httpx.AsyncClient) -> None:
+    """Refresh the holdings tape cache. Bulk-fetch latest snapshots
+    for currently-open paper positions. No minute-history fetch
+    (sparkline omitted on holdings tape v1 to keep cycle cost bounded).
+
+    Independent of INTRADAY_ML_SHADOW_ENABLED — the holdings tape is
+    a UI surface, not part of the ML collection.
+    """
+    with SessionLocal() as session:
+        symbols = _resolve_open_holdings_symbols(session)
+    _holdings_cache.symbols = symbols
+    if not symbols:
+        _holdings_cache.quotes = []
+        _holdings_cache.fetched_at = time.time()
+        _holdings_cache.last_error = None
+        return
+    try:
+        quotes = await polygon.fetch_tape_snapshot(client, symbols)
+        _holdings_cache.quotes = quotes
+        _holdings_cache.fetched_at = time.time()
+        _holdings_cache.last_error = None
+        logger.debug(
+            "holdings_tape: refreshed {} quotes ({} requested)",
+            len(quotes), len(symbols),
+        )
+    except Exception as exc:  # noqa: BLE001
+        _holdings_cache.last_error = f"{type(exc).__name__}: {exc}"
+        logger.warning("holdings_tape: snapshot fetch failed — {}", exc)
+
+
+@router.get("/holdings-tape")
+def get_holdings_tape() -> dict:
+    """Return the cached delayed holdings tape.
+
+    Mirrors the /api/market/tape response shape with one new field
+    (`scope: "holdings"`) and a different symbol set (open paper
+    positions instead of macro). When no positions are open or the
+    cache is stale, quotes is [] and stale=true.
+    """
+    age = (
+        time.time() - _holdings_cache.fetched_at
+        if _holdings_cache.fetched_at > 0 else None
+    )
+    is_stale = age is None or age > STALE_AFTER_SECONDS
+
+    quotes_out: list[dict] = []
+    for q in _holdings_cache.quotes:
+        quotes_out.append({
+            "symbol": q.get("symbol"),
+            "price": q.get("price"),
+            "prev_close": q.get("prev_close"),
+            "change_abs": q.get("change_abs"),
+            "change_pct": q.get("change_pct"),
+            "quote_ts": _ts_to_iso(q.get("quote_ts")),
+            "source": q.get("source", "polygon"),
+            "delay_minutes": q.get("delay_minutes", 15),
+            # No history field — holdings tape v1 omits sparkline.
+        })
+
+    return {
+        "scope": "holdings",
+        "stale": is_stale,
+        "fetched_at": _ts_to_iso(_holdings_cache.fetched_at),
+        "max_delay_minutes": 15 if quotes_out and not is_stale else None,
+        "source": "polygon" if quotes_out else None,
+        "symbols_tracked": _holdings_cache.symbols,
+        "quotes": quotes_out if not is_stale else [],
+        "error": _holdings_cache.last_error,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Phase 16 Phase 2 — Intraday ML shadow observation writes
 # ---------------------------------------------------------------------------
 
@@ -627,6 +750,15 @@ async def _poll_once(client: httpx.AsyncClient) -> None:
         await _refresh_overlay_cache(client)
     except Exception as exc:  # noqa: BLE001 — never fail the tape cycle
         logger.warning("intraday_overlay: refresh failed — {}", exc)
+
+    # Phase 16 v1.3 — holdings tape refresh AFTER macro tape. Always
+    # runs (NOT gated by INTRADAY_ML_SHADOW_ENABLED) because the
+    # holdings tape is a UI surface independent of the shadow
+    # collection. Soft-fails per cycle.
+    try:
+        await _refresh_holdings_cache(client)
+    except Exception as exc:  # noqa: BLE001 — never fail the tape cycle
+        logger.warning("holdings_tape: refresh failed — {}", exc)
 
     # Phase 16 Phase 2 — durable intraday observation writes AFTER the
     # tape + overlay refresh. No-op when INTRADAY_ML_SHADOW_ENABLED=false.

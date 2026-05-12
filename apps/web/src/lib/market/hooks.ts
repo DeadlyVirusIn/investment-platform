@@ -37,14 +37,28 @@ export interface TapeSnapshot {
 }
 
 
-export function useMarketTape() {
+export type TapeScope = "macro" | "holdings";
+
+
+// Generalized tape hook. `scope="macro"` (default) hits /market/tape
+// (SPY/QQQ/DIA). `scope="holdings"` hits /market/holdings-tape (open
+// paper positions). Identical response shape; `holdings` adds a
+// `scope: "holdings"` field and omits the `history` field per quote.
+export function useTape(scope: TapeScope = "macro") {
+  const path = scope === "holdings" ? "/market/holdings-tape" : "/market/tape";
   return useQuery<TapeSnapshot>({
-    queryKey: ["market", "tape"],
-    queryFn: () => apiGet<TapeSnapshot>("/market/tape"),
+    queryKey: ["market", "tape", scope],
+    queryFn: () => apiGet<TapeSnapshot>(path),
     refetchInterval: 60_000,        // refetch from cache every 60s
     staleTime: 30_000,
     refetchOnWindowFocus: false,
   });
+}
+
+
+// Back-compat alias — existing call sites (Shell.tsx) keep working.
+export function useMarketTape() {
+  return useTape("macro");
 }
 
 

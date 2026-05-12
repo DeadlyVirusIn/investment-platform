@@ -12,7 +12,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
-import { useMarketTape, type TapeQuote } from "@/lib/market/hooks";
+import { useTape, type TapeQuote, type TapeScope } from "@/lib/market/hooks";
 import Sparkline from "./Sparkline";
 
 
@@ -21,17 +21,22 @@ export interface MarketTickerProps {
    *  "full"    = ticker items + delay chip + sparkline + scroll animation
    *  "compact" = ticker items + scroll, no chip, no sparkline */
   mode?: "full" | "compact";
+  /** Data source. Defaults to "macro" (SPY/QQQ/DIA from /api/market/tape).
+   *  "holdings" reads /api/market/holdings-tape (open paper positions). */
+  kind?: TapeScope;
 }
 
 
-export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
+export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTickerProps) {
   const isCompact = mode === "compact";
-  const { data, isLoading, isError } = useMarketTape();
+  const { data, isLoading, isError } = useTape(kind);
 
   const containerCls = cn(
     "u-market-ticker",
     isCompact && "u-market-ticker--compact",
   );
+
+  const tapeName = kind === "holdings" ? "Holdings tape" : "Market tape";
 
   // -------- Loading first fetch --------
   if (isLoading || !data) {
@@ -39,11 +44,30 @@ export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
       <div
         className={cn(containerCls, "u-market-ticker--disabled")}
         role="status"
-        aria-label="Loading market tape"
+        aria-label={`Loading ${tapeName.toLowerCase()}`}
         data-tape-state="loading"
+        data-tape-kind={kind}
       >
         <div className="u-market-ticker-disabled-text">
-          Loading market tape…
+          Loading {tapeName.toLowerCase()}…
+        </div>
+      </div>
+    );
+  }
+
+  // -------- Empty positions (holdings only): calm "no holdings" --------
+  if (kind === "holdings" && data.quotes.length === 0
+      && (data.symbols_tracked?.length ?? 0) === 0) {
+    return (
+      <div
+        className={cn(containerCls, "u-market-ticker--disabled")}
+        role="status"
+        aria-label="No open holdings to display"
+        data-tape-state="empty"
+        data-tape-kind={kind}
+      >
+        <div className="u-market-ticker-disabled-text">
+          No open paper holdings · holdings tape activates with open positions
         </div>
       </div>
     );
@@ -55,11 +79,12 @@ export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
       <div
         className={cn(containerCls, "u-market-ticker--disabled")}
         role="status"
-        aria-label="Market tape unavailable, awaiting live quote feed"
+        aria-label={`${tapeName} unavailable, awaiting live quote feed`}
         data-tape-state="disabled"
+        data-tape-kind={kind}
       >
         <div className="u-market-ticker-disabled-text">
-          Market tape unavailable · awaiting live quote feed
+          {tapeName} unavailable · awaiting live quote feed
         </div>
       </div>
     );
@@ -75,6 +100,7 @@ export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
       className={containerCls}
       data-tape-state="live"
       data-tape-source={data.source ?? undefined}
+      data-tape-kind={kind}
     >
       <div className="u-ticker-track">
         {track.map((q, i) => (
@@ -82,6 +108,10 @@ export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
             key={`${q.symbol}-${i}`}
             q={q}
             compact={isCompact}
+            // Holdings tape v1 omits sparkline regardless of mode
+            // (the backend doesn't fetch minute-bar history for
+            // holdings symbols to keep cycle cost bounded).
+            suppressSpark={kind === "holdings"}
           />
         ))}
       </div>
@@ -95,7 +125,13 @@ export default function MarketTicker({ mode = "full" }: MarketTickerProps) {
 }
 
 
-function TickerItem({ q, compact }: { q: TapeQuote; compact: boolean }) {
+function TickerItem({
+  q, compact, suppressSpark = false,
+}: {
+  q: TapeQuote;
+  compact: boolean;
+  suppressSpark?: boolean;
+}) {
   const change = q.change_abs;
   const pct = q.change_pct;
   const toneCls =
@@ -133,7 +169,7 @@ function TickerItem({ q, compact }: { q: TapeQuote; compact: boolean }) {
       <span className="u-ticker-px">
         {q.price != null ? q.price.toFixed(priceDigits) : "—"}
       </span>
-      {!compact && q.history && q.history.length > 1 && (
+      {!compact && !suppressSpark && q.history && q.history.length > 1 && (
         <Sparkline points={q.history} tone={sparkTone} />
       )}
       {!compact && (

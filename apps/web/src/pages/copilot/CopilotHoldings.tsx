@@ -15,6 +15,7 @@ import { Link } from "react-router-dom";
 import {
   PositionStoryCard, QuietDay,
 } from "@/components/copilot";
+import MarketTicker from "@/components/shell/MarketTicker";
 import { COPILOT_BRAND, HOLDINGS_COPY, ONBOARDING_CLAUSES } from "@/lib/copilot/copy";
 import { derivePositionStory } from "@/lib/copilot/derive";
 import { hasSeen, markSeen } from "@/lib/copilot/onboarding";
@@ -128,6 +129,17 @@ export default function CopilotHoldings() {
             {" "}
             {HOLDINGS_COPY.emptyBody}
           </p>
+        </section>
+      )}
+
+      {positions.length > 0 && (
+        <section
+          data-test="copilot-holdings-tape"
+          aria-label="Holdings tape — 15-min delayed prices for open positions"
+          style={{ marginBottom: 18 }}
+        >
+          <div className="holdings-tape-label">Holdings tape</div>
+          <MarketTicker kind="holdings" mode="full" />
         </section>
       )}
 

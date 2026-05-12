@@ -1203,6 +1203,19 @@
       transparent 0%, rgba(249, 250, 252, 0.92) 35%, rgba(249, 250, 252, 1) 100%);
   }
 
+  /* -------- HOLDINGS TAPE LABEL (Phase 16 v1.3) ----------------------
+     Calm uppercase eyebrow above the tape on /portfolio surfaces.
+     Discrete, doesn't compete with the page header. */
+  .holdings-tape-label {
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--fg-3);
+    font-weight: 600;
+    margin-bottom: 6px;
+    padding-left: 2px;
+  }
+
   /* -------- COMPACT MODIFIER (Phase 15h.5) ----------------------------
      Used on executive surfaces (/overview, /risk, /signal-lab,
      /decisions, /strategies). No focus toggle, no sparkline, smaller
