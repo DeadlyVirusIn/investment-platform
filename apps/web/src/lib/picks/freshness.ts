@@ -172,3 +172,82 @@ export function formatAsOf(iso: string | null | undefined): string {
 export function freshnessFromTs(iso: string | null | undefined): FreshnessTier {
   return freshnessFromAge(ageHours(iso));
 }
+
+
+// ============================================================
+// Phase 15h.4 — staged-freshness pending-window helpers
+// ============================================================
+// Detect the recurring 22:30–23:30 ET Mon–Fri window where the
+// daily ingest + recommendations cron has fired but the paper-trading
+// run (scheduled 23:30 ET) has not yet completed. During this window
+// /api/paper/summary.as_of_date still reflects the previous session
+// even though tonight's pipeline IS running. The Portfolio + Overview
+// surfaces use this signal to render a staged copy that names the
+// pending step + the next refresh time, instead of just saying
+// "Reading the last completed cycle · Sat 9 May" (which reads as
+// abandonment).
+//
+// Pure client-side derivation. No backend call. The heuristic is
+// based on the cron cadence in job_schedule:
+//   ingest_prices_daily              0  22 * * 1-5
+//   run_recommendations_for_all_…   30  22 * * 1-5
+//   score_recommendation_outcomes    0  23 * * 1-5
+//   run_paper_trading               30  23 * * 1-5
+
+// Parts in America/New_York timezone for any Date.
+function etParts(now: Date): { year: number; month: number; day: number; hour: number; minute: number; weekday: number } {
+  // Intl returns the ET wall-clock components.
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+    weekday: "short",
+  });
+  const parts: Record<string, string> = {};
+  for (const p of fmt.formatToParts(now)) parts[p.type] = p.value;
+  const wmap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    year:    parseInt(parts.year, 10),
+    month:   parseInt(parts.month, 10),
+    day:     parseInt(parts.day, 10),
+    // "24" is returned by some impls for midnight; normalize.
+    hour:    parseInt(parts.hour, 10) % 24,
+    minute:  parseInt(parts.minute, 10),
+    weekday: wmap[parts.weekday] ?? -1,
+  };
+}
+
+
+// True if `now` is the recurring pending window: Mon–Fri ET, between
+// 22:00 and 23:30 ET (inclusive of 22:00, exclusive of 23:30) AND
+// `asOfISO` (paper summary's as_of_date) names a date strictly before
+// today's ET date — i.e. the paper-trading snapshot has not yet
+// rolled forward to today.
+export function isPaperRunPendingWindow(
+  asOfISO: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!asOfISO) return false;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(asOfISO);
+  if (!m) return false;
+  const asOfY = parseInt(m[1], 10);
+  const asOfM = parseInt(m[2], 10);
+  const asOfD = parseInt(m[3], 10);
+
+  const et = etParts(now);
+  if (et.weekday < 1 || et.weekday > 5) return false; // Mon–Fri only
+  // Window: [22:00, 23:30) ET
+  const minutesInDay = et.hour * 60 + et.minute;
+  if (minutesInDay < 22 * 60) return false;
+  if (minutesInDay >= 23 * 60 + 30) return false;
+
+  // as_of strictly before today (ET).
+  if (asOfY !== et.year)  return asOfY  < et.year;
+  if (asOfM !== et.month) return asOfM  < et.month;
+  return asOfD < et.day;
+}
+
+
+// Copy fragment used by the staged surfaces. Kept here so tests +
+// future tone tweaks live next to the detector.
+export const PAPER_REFRESH_HINT_ET = "today's portfolio refresh at 11:30 PM ET";

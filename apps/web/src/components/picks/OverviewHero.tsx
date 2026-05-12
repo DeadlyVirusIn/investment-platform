@@ -22,7 +22,9 @@ import { diffSentence } from "@/lib/picks/overview_memory";
 // stale, the copilot acknowledges the gap calmly instead of speaking
 // in confident present-tense about Friday's data as if it were today's.
 import type { FreshnessTier } from "@/lib/picks/freshness";
-import { formatAsOf } from "@/lib/picks/freshness";
+import {
+  formatAsOf, isPaperRunPendingWindow, PAPER_REFRESH_HINT_ET,
+} from "@/lib/picks/freshness";
 
 
 export interface OverviewHeroProps {
@@ -52,6 +54,17 @@ function staleHeadline(briefing: Briefing, freshAt: string | null | undefined): 
   body: string;
 } {
   const asOf = freshAt ? formatAsOf(freshAt) : "the last completed cycle";
+  // Phase 15h.4 — pending-window branch: name the next refresh so
+  // the user sees the cycle is still running, not silent.
+  const pending = isPaperRunPendingWindow(freshAt);
+  if (pending) {
+    return {
+      eyebrow: "Reading the last cycle",
+      headline: `Signals from ${asOf}.`,
+      body: `${lowerFirst(briefing.headline)}. ${briefing.body ?? ""} `
+        + `Tonight's cycle is still running — ${PAPER_REFRESH_HINT_ET}.`,
+    };
+  }
   return {
     eyebrow: "Reading the last cycle",
     headline: `Signals from ${asOf}.`,

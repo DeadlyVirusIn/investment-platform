@@ -10,8 +10,10 @@ import {
   type CommandBarData, type EquityPoint,
 } from "@/lib/portfolio/api";
 // Phase 15h.2 — calm "as of" annotation + tier for freshness pill.
+// Phase 15h.4 — staged-freshness pending-window detection.
 import {
-  freshnessFromTs, formatAsOf, type FreshnessTier,
+  freshnessFromTs, formatAsOf, isPaperRunPendingWindow,
+  PAPER_REFRESH_HINT_ET, type FreshnessTier,
 } from "@/lib/picks/freshness";
 
 import EquitySparkline from "./EquitySparkline";
@@ -71,13 +73,21 @@ export default function PortfolioSnapshot() {
               the gap honestly. */}
           {data.freshAt && (() => {
             const tier: FreshnessTier = freshnessFromTs(data.freshAt);
+            // Phase 15h.4 — when stale AND inside the recurring
+            // 22:00–23:30 ET Mon–Fri pending window, name the next
+            // refresh time instead of leaving the user thinking the
+            // pipeline has been silent for days.
+            const pending = tier !== "fresh"
+              && isPaperRunPendingWindow(data.freshAt);
             const label = tier === "fresh"
               ? `Account valued ${formatAsOf(data.freshAt)}`
-              : tier === "degraded"
-                ? `Account snapshot delayed · last update ${formatAsOf(data.freshAt)}`
-                : `Reading the last completed cycle · ${formatAsOf(data.freshAt)}`;
+              : pending
+                ? `Last completed cycle ${formatAsOf(data.freshAt)} · ${PAPER_REFRESH_HINT_ET}`
+                : tier === "degraded"
+                  ? `Account snapshot delayed · last update ${formatAsOf(data.freshAt)}`
+                  : `Reading the last completed cycle · ${formatAsOf(data.freshAt)}`;
             return (
-              <span className="ps-asof" data-tier={tier}>
+              <span className="ps-asof" data-tier={tier} data-pending={pending ? "true" : undefined}>
                 {label}
               </span>
             );
