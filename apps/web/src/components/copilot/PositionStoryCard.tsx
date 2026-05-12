@@ -12,6 +12,7 @@
 // NEVER invents targets, reasoning, confidence, or pricing.
 
 import DisclosureRow from "./DisclosureRow";
+import IntradayContextLine from "./IntradayContextLine";
 import LifecycleRibbon, {
   LIFECYCLE_NODE_LABELS,
   type LifecycleRibbonNode,
@@ -168,6 +169,9 @@ export default function PositionStoryCard(
           </div>
         }
       />
+      {/* Phase 16 v1 — intraday context overlay sub-line. Renders
+          nothing when feature flag off OR no entry OR quiet/windfall. */}
+      <IntradayContextLine symbol={story.symbol} />
     </article>
   );
 }

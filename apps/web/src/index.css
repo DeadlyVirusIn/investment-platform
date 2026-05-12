@@ -1248,6 +1248,36 @@
     letter-spacing: 0.06em;
   }
 
+  /* -------- INTRADAY CONTEXT LINE (Phase 16 v1) -----------------------
+     Calm one-line annotation below holding-card glance rows. Renders
+     real overlay context derived from 15-min delayed Polygon quotes.
+     No animation, no flash, no live indicator. Hidden entirely when
+     the backend says quiet/stale/no-entry. */
+  .intraday-context-line {
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-style: italic;
+    line-height: 1.45;
+    color: var(--fg-3);
+    letter-spacing: 0.005em;
+    /* Mobile-safe wrapping for narrow viewports. */
+    white-space: normal;
+    overflow-wrap: anywhere;
+    /* Subtle left rule so the line reads as a child of the card
+       above. 1px is enough on dark; light mode has its own override. */
+    padding-left: 8px;
+    border-left: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  }
+  .intraday-context-line[data-context-label="stress"] {
+    /* Slightly louder on stress so it surfaces — still calm,
+       still no color flash. var(--fg-2) is one tone above fg-3. */
+    color: var(--fg-2);
+  }
+  :root[data-theme="light"] .intraday-context-line {
+    color: var(--fg-3);
+    border-left-color: rgba(0, 0, 0, 0.08);
+  }
+
   /* -------- BEGINNER GUIDANCE HELPERS -------- */
   .u-help-icon {
     display: inline-flex; align-items: center; justify-content: center;
