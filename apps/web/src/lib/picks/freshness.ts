@@ -98,15 +98,35 @@ function pad2(n: number): string {
 }
 
 
-// Returns a calm "as of" sentence for any ISO timestamp.
+// Returns a calm "as of" sentence for any ISO timestamp or date-only
+// string.
+//
 // Examples:
-//   today  → "9:30 AM"
-//   < 7d   → "Sat 9 May 9:30 AM"
-//   older  → "9 May 2026"
+//   "2026-05-12T09:30:00Z" same day → "9:30 AM"   (full timestamp, time included)
+//   "2026-05-09T03:30:00Z" < 7d     → "Fri 8 May 11:30 PM" (full timestamp, ET-rendered)
+//   "2026-05-09"           < 7d     → "Sat 9 May" (date-only — no fake time)
+//   any timestamp          older    → "9 May 2026"
+//
+// Phase 15h.2 / 15g.II — Date-only inputs (e.g. paper.summary.as_of_date
+// = "2026-05-09") are parsed at LOCAL midnight (not UTC midnight) and
+// rendered without a time component. The previous implementation
+// parsed "2026-05-09" via Date.parse() which interprets date-only as
+// UTC midnight per JS spec; in EDT that displays as "Fri 8 May 8 PM"
+// — a misleading 1-day shift backwards plus a fake time that the
+// source never carried. The fix preserves backwards-compat for full
+// ISO timestamps with explicit time components.
 export function formatAsOf(iso: string | null | undefined): string {
   if (!iso) return "—";
-  const ts = Date.parse(iso);
+
+  // Detect bare-date format YYYY-MM-DD (no time component).
+  const isDateOnly = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  // For date-only inputs, parse at LOCAL midnight to avoid the
+  // UTC-midnight TZ artifact. For full timestamps, parse as-is.
+  const ts = isDateOnly
+    ? Date.parse(`${iso}T00:00:00`)
+    : Date.parse(iso);
   if (Number.isNaN(ts)) return "—";
+
   const d = new Date(ts);
   const now = new Date();
   const sameDay =
@@ -119,19 +139,26 @@ export function formatAsOf(iso: string | null | undefined): string {
   const mm = pad2(d.getMinutes());
   const ampm = hh >= 12 ? "PM" : "AM";
   hh = hh % 12; if (hh === 0) hh = 12;
-  const time = `${hh}:${mm} ${ampm}`;
-
-  if (sameDay) return time;
+  // Date-only sources have no real time — never append one.
+  const time = isDateOnly ? null : `${hh}:${mm} ${ampm}`;
 
   const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  if (ageDays < 7) {
-    // "Sat 9 May 9:30 AM"
-    return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]} ${time}`;
+  if (sameDay) {
+    // Same day + full timestamp -> just the time (existing behaviour)
+    // Same day + date-only -> "today" date label
+    return time ?? `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
   }
-  // Older — drop the time, keep date only
+
+  if (ageDays < 7) {
+    // < 7d: "Sat 9 May 9:30 AM" with time (full ts) OR "Sat 9 May" (date-only)
+    const dateLabel = `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+    return time ? `${dateLabel} ${time}` : dateLabel;
+  }
+
+  // Older — date only, regardless of source granularity
   return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
 }
 
