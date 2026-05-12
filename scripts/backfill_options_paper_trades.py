@@ -376,37 +376,47 @@ def main(argv: list[str] | None = None) -> int:
                     })
                     continue
 
-                trade = OptionsPaperTrade(
+                # Phase Opt-B1 — sole-writer path. Idempotent rerun:
+                # re-running this backfill against the same date will
+                # detect existing rows via proposal_hash and skip them.
+                legs_payload = _build_leg_rows(
+                    legs, args.qty, submitted_at, underlying,
+                )
+                from apps.api.src.options.persist_option import (
+                    persist_option_from_dicts,
+                )
+                trade_id, write_status = persist_option_from_dicts(
+                    session,
                     underlying=underlying,
                     strategy_name=db_strategy_name,
                     strategy_version=STRATEGY_VERSION,
-                    status="PROPOSED",
                     opened_at=submitted_at,
+                    fill_model_version=FILL_MODEL_VERSION,
+                    legs=legs_payload,
                     entry_credit_dollars=payoff["entry_credit"],
                     max_loss_dollars=payoff["max_loss"],
                     max_profit_dollars=payoff["max_profit"],
                     breakeven_lower=payoff["breakeven_lower"],
                     breakeven_upper=payoff["breakeven_upper"],
                     fees_total_dollars=Decimal("0"),
-                    fill_model_version=FILL_MODEL_VERSION,
-                    paper_only=True,
                 )
-                session.add(trade)
-                session.flush()
-                legs_payload = _build_leg_rows(
-                    legs, args.qty, submitted_at, underlying,
-                )
-                for lp in legs_payload:
-                    session.add(OptionsPaperTradeLeg(
-                        trade_id=trade.id, **lp,
-                    ))
-                session.commit()
+                if write_status == "duplicate":
+                    date_summary["fills"].append({
+                        "underlying": underlying,
+                        "strategy": strategy,
+                        "trade_id": trade_id,
+                        "legs": len(legs_payload),
+                        "max_loss": float(payoff["max_loss"]),
+                        "max_profit": float(payoff["max_profit"]),
+                        "result": "duplicate",
+                    })
+                    continue
                 total_inserted += 1
                 total_legs_inserted += len(legs_payload)
                 date_summary["fills"].append({
                     "underlying": underlying,
                     "strategy": strategy,
-                    "trade_id": trade.id,
+                    "trade_id": trade_id,
                     "legs": len(legs_payload),
                     "max_loss": float(payoff["max_loss"]),
                     "max_profit": float(payoff["max_profit"]),
@@ -415,7 +425,7 @@ def main(argv: list[str] | None = None) -> int:
                 logger.info(
                     "[opt-backfill.submitted] D={} trade_id={} "
                     "{}/{} max_loss={} max_profit={}",
-                    cur, trade.id, underlying, db_strategy_name,
+                    cur, trade_id, underlying, db_strategy_name,
                     payoff["max_loss"], payoff["max_profit"],
                 )
         per_date.append(date_summary)

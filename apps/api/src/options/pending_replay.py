@@ -97,30 +97,12 @@ def _replay_one_date(
                 continue
 
             db_strategy_name = DB_STRATEGY_NAME[strategy]
-            trade = OptionsPaperTrade(
-                underlying=underlying,
-                strategy_name=db_strategy_name,
-                strategy_version=STRATEGY_VERSION,
-                status="PROPOSED",
-                opened_at=submitted_at,
-                entry_credit_dollars=payoff["entry_credit"],
-                max_loss_dollars=payoff["max_loss"],
-                max_profit_dollars=payoff["max_profit"],
-                breakeven_lower=payoff["breakeven_lower"],
-                breakeven_upper=payoff["breakeven_upper"],
-                fees_total_dollars=Decimal("0"),
-                fill_model_version=FILL_MODEL_VERSION,
-                paper_only=True,
-            )
-            session.add(trade)
-            session.flush()
             try:
                 legs_payload = _build_legs_payload(
                     strategy, legs, qty=1,
                     entry_quote_at_utc=submitted_at,
                 )
             except ValueError as exc:
-                session.rollback()
                 logger.warning(
                     "[opt-pending-replay.rejected] {} {} legs build "
                     "failed: {}", underlying, strategy, exc,
@@ -129,20 +111,43 @@ def _replay_one_date(
                 continue
             for lp in legs_payload:
                 lp["underlying"] = underlying
-                session.add(OptionsPaperTradeLeg(
-                    trade_id=trade.id, **lp,
-                ))
-            session.commit()
+            # Phase Opt-B1 — sole-writer service. Idempotent on
+            # proposal_hash; pending-replay re-runs are now safe.
+            from apps.api.src.options.persist_option import (
+                persist_option_from_dicts,
+            )
+            trade_id, write_status = persist_option_from_dicts(
+                session,
+                underlying=underlying,
+                strategy_name=db_strategy_name,
+                strategy_version=STRATEGY_VERSION,
+                opened_at=submitted_at,
+                fill_model_version=FILL_MODEL_VERSION,
+                legs=legs_payload,
+                entry_credit_dollars=payoff["entry_credit"],
+                max_loss_dollars=payoff["max_loss"],
+                max_profit_dollars=payoff["max_profit"],
+                breakeven_lower=payoff["breakeven_lower"],
+                breakeven_upper=payoff["breakeven_upper"],
+                fees_total_dollars=Decimal("0"),
+            )
+            if write_status == "duplicate":
+                logger.info(
+                    "[opt-pending-replay.duplicate] hash matched — "
+                    "trade_id={} {}/{}",
+                    trade_id, underlying, db_strategy_name,
+                )
+                continue
             filled += 1
             fills.append({
-                "trade_id": trade.id, "underlying": underlying,
+                "trade_id": trade_id, "underlying": underlying,
                 "strategy": db_strategy_name,
                 "submitted_at": submitted_at.isoformat(),
             })
             logger.info(
                 "[opt-pending-replay.filled] D={} trade_id={} "
                 "{}/{} submitted_at={}",
-                original_date, trade.id, underlying,
+                original_date, trade_id, underlying,
                 db_strategy_name, submitted_at.isoformat(),
             )
 

@@ -243,6 +243,9 @@ class OptionsPaperTrade(Base):
     breakeven_upper: Mapped[float | None] = mapped_column(Numeric(12, 4))
     fill_model_version: Mapped[str] = mapped_column(Text, nullable=False)
     rollback_reason: Mapped[str | None] = mapped_column(Text)
+    # Phase Opt-B1 — idempotency key set by persist_option().
+    # NULL on rows pre-dating the sole-writer contract.
+    proposal_hash: Mapped[str | None] = mapped_column(String(32))
     paper_only: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True,
     )

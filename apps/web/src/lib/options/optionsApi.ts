@@ -77,6 +77,16 @@ export interface OptionsPipelineStatus {
   options_strategy_outcome_count: number;
   options_strategy_outcome_max_ts: string | null;
 
+  // Phase Opt-B1 — ThetaData pre-flight 5-state classifier
+  thetadata_health: {
+    state: "key_missing" | "auth_failed" | "unreachable"
+         | "rate_limited" | "healthy" | string;
+    sentence: string;
+    http_status: number | null;
+    latency_ms: number | null;
+    reason: string | null;
+  };
+
   // Back-compat fields
   active: boolean;
   last_run: string | null;

@@ -496,34 +496,16 @@ def main(argv: list[str] | None = None) -> int:
                 })
                 continue
 
-            # Commit path — INSERT options_paper_trade + legs.
+            # Commit path — Phase Opt-B1: persist via sole-writer
+            # service. Idempotent on proposal_hash.
             db_strategy_name = DB_STRATEGY_NAME[strategy]
-            trade = OptionsPaperTrade(
-                underlying=underlying,
-                strategy_name=db_strategy_name,
-                strategy_version=STRATEGY_VERSION,
-                status="PROPOSED",
-                opened_at=now,
-                entry_credit_dollars=payoff["entry_credit"],
-                max_loss_dollars=payoff["max_loss"],
-                max_profit_dollars=payoff["max_profit"],
-                breakeven_lower=payoff["breakeven_lower"],
-                breakeven_upper=payoff["breakeven_upper"],
-                fees_total_dollars=Decimal("0"),
-                fill_model_version=FILL_MODEL_VERSION,
-                paper_only=True,
-            )
-            session.add(trade)
-            session.flush()
             try:
                 legs_payload = _build_legs_payload(
                     strategy, legs, effective_qty,
                     entry_quote_at_utc=now,
                 )
             except ValueError as exc:
-                # Roll back the trade row we just flushed; record the
-                # rejection in the plan. No partial trade leaks to DB.
-                session.rollback()
+                # No partial trade leaks to DB — we never started one.
                 logger.warning(
                     "[options-exec.rejected] {} {}: legs payload "
                     "build failed: {}",
@@ -537,20 +519,51 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             for lp in legs_payload:
                 lp["underlying"] = underlying
-                session.add(OptionsPaperTradeLeg(
-                    trade_id=trade.id, **lp,
-                ))
-            session.commit()
+            from apps.api.src.options.persist_option import (
+                persist_option_from_dicts,
+            )
+            trade_id, write_status = persist_option_from_dicts(
+                session,
+                underlying=underlying,
+                strategy_name=db_strategy_name,
+                strategy_version=STRATEGY_VERSION,
+                opened_at=now,
+                fill_model_version=FILL_MODEL_VERSION,
+                legs=legs_payload,
+                entry_credit_dollars=payoff["entry_credit"],
+                max_loss_dollars=payoff["max_loss"],
+                max_profit_dollars=payoff["max_profit"],
+                breakeven_lower=payoff["breakeven_lower"],
+                breakeven_upper=payoff["breakeven_upper"],
+                fees_total_dollars=Decimal("0"),
+            )
+            if write_status == "duplicate":
+                logger.info(
+                    "[options-exec.duplicate] hash matched — returning "
+                    "existing trade_id={} for {} {}",
+                    trade_id, underlying, db_strategy_name,
+                )
+                plan.append({
+                    "trade_id": trade_id,
+                    "underlying": underlying,
+                    "strategy": strategy,
+                    "confidence": cand["confidence"],
+                    "max_loss": float(payoff["max_loss"]),
+                    "max_profit": float(payoff["max_profit"]),
+                    "result": "duplicate",
+                    "mode": "options_exploratory",
+                })
+                continue
             submitted += 1
             logger.info(
                 "[options-exec.submitted] trade_id={} {} {} "
                 "(conf={:.4f}, max_loss=${} max_profit=${})",
-                trade.id, underlying, db_strategy_name,
+                trade_id, underlying, db_strategy_name,
                 cand["confidence"],
                 payoff["max_loss"], payoff["max_profit"],
             )
             plan.append({
-                "trade_id": trade.id,
+                "trade_id": trade_id,
                 "underlying": underlying,
                 "strategy": strategy,
                 "confidence": cand["confidence"],

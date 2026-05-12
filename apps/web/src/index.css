@@ -1597,6 +1597,12 @@
   .opt-diag-v.is-pos  { color: var(--success); }
   .opt-diag-v.is-warn { color: var(--warning); }
   .opt-diag-v.is-neg  { color: var(--danger); }
+  .opt-diag-foot {
+    font-size: 11px;
+    color: var(--fg-3);
+    margin-top: 6px;
+    line-height: 1.45;
+  }
 
   /* Explanation panel */
   .opt-explain-block { margin: 10px 0; }

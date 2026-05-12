@@ -237,6 +237,9 @@ from apps.worker.src.jobs.generate_stock_candidates import generate_stock_candid
 from apps.worker.src.jobs.ingest_prices_daily import ingest_prices_daily
 from apps.worker.src.jobs.run_daily_pipeline import run_daily_pipeline_job
 from apps.worker.src.jobs.run_paper_trading import run_paper_trading
+from apps.worker.src.jobs.options_chain_snapshot import (
+    run_options_chain_snapshot_job,
+)
 from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
 from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
 from apps.worker.src.jobs.v2_promotion_snapshot import (
@@ -268,4 +271,12 @@ REGISTRY: dict[str, JobFn] = {
     # in SCHEDULER_TZ (set SCHEDULER_TZ=UTC for design-spec
     # Monday 00:15 UTC firing).
     "v2_promotion_snapshot": run_v2_promotion_snapshot_job,
+    # Phase Opt-B1 — Options chain snapshot. REGISTERED but NOT
+    # SCHEDULED (no job_schedule row added in Opt-B1). Job is gated
+    # internally on settings.OPTIONS_ENABLED (currently False), so
+    # even if a row were added, the job would no-op until the
+    # operator flips the flag. Cron target intent (per source
+    # comments): `*/15 13-21 * * 1-5` UTC during market hours.
+    # Scheduling lands in Phase Opt-B3.
+    "options_chain_snapshot": run_options_chain_snapshot_job,
 }

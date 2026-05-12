@@ -64,6 +64,9 @@ def options_pipeline_status(
     from sqlalchemy import text
 
     from apps.api.src.config import settings
+    from apps.api.src.options.data_provider.thetadata_adapter import (
+        classify_thetadata_preflight,
+    )
 
     row = session.execute(text(
         """
@@ -109,6 +112,9 @@ def options_pipeline_status(
     shadow_count = int(row["shadow_decisions"])
     paper_count = int(row["paper_trades"])
     scheduler_jobs = int(row["scheduler_jobs"])
+
+    # Phase Opt-B1 — ThetaData pre-flight (5-state classifier)
+    thetadata_health = classify_thetadata_preflight(settings)
 
     # Truthful single-sentence engine-state line for the banner
     if not settings.OPTIONS_ENABLED:
@@ -195,6 +201,8 @@ def options_pipeline_status(
             row["outcome_max_ts"].isoformat()
             if row["outcome_max_ts"] else None
         ),
+        # Phase Opt-B1 — ThetaData pre-flight 5-state classifier
+        "thetadata_health": thetadata_health,
         "next_phase_required": (
             "Phase Options-Daily — separate scope; not in stock "
             "incident fix. Requires: ThetaData ingest scheduling, "

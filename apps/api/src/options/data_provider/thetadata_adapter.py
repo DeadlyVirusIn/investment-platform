@@ -255,6 +255,128 @@ class ThetaDataAdapter(BaseOptionsAdapter):
         )
         return result
 
+
+# ---------------------------------------------------------------------------
+# Phase Opt-B1 — classified pre-flight health probe
+# ---------------------------------------------------------------------------
+
+
+def classify_thetadata_preflight(settings_obj: Any) -> dict[str, Any]:
+    """Distinguish 5 distinct health states for the operator dashboard.
+
+    Returns a dict with EXACTLY these keys:
+      - state:    "key_missing" | "auth_failed" | "unreachable" |
+                  "rate_limited" | "healthy"
+      - sentence: one short calm operator-facing sentence
+      - http_status: int | None  (for healthy/auth_failed/rate_limited)
+      - latency_ms:  int | None
+      - reason:      raw upstream reason (verbose; for diagnostics card)
+
+    NEVER raises. NEVER calls upstream when key/config is missing
+    (saves the network round-trip + avoids leaking that the
+    deployment exists to a misconfigured probe).
+
+    Rule order matters:
+      1. key_missing wins (config-only, no network call)
+      2. unreachable beats everything network (connection refused / timeout)
+      3. auth_failed (HTTP 401/403)
+      4. rate_limited (HTTP 429)
+      5. healthy (HTTP 2xx)
+      6. default to unreachable for any other HTTP / unknown error
+    """
+    # 1. Config-level — key/credentials missing
+    api_key = (getattr(settings_obj, "THETADATA_API_KEY", "") or "").strip()
+    username = (getattr(settings_obj, "THETADATA_USERNAME", "") or "").strip()
+    password = (getattr(settings_obj, "THETADATA_PASSWORD", "") or "").strip()
+    if not api_key and not (username and password):
+        return {
+            "state": "key_missing",
+            "sentence": (
+                "ThetaData credentials not configured "
+                "(THETADATA_API_KEY unset)."
+            ),
+            "http_status": None,
+            "latency_ms": None,
+            "reason": "no api_key and no username/password in env",
+        }
+
+    # 2-5. Network probe via the existing detail check
+    base_url = getattr(settings_obj, "THETADATA_BASE_URL", DEFAULT_BASE_URL)
+    cfg = ThetaDataConfig(
+        base_url=base_url,
+        api_key=api_key or None,
+        username=username or None,
+        password=password or None,
+        timeout_seconds=2,  # short for dashboard; not for chain pulls
+        max_retries=0,
+    )
+    try:
+        adapter = ThetaDataAdapter(cfg)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "state": "unreachable",
+            "sentence": "ThetaData adapter could not be constructed.",
+            "http_status": None,
+            "latency_ms": None,
+            "reason": f"adapter init failed: {exc}",
+        }
+    try:
+        detail = adapter.health_check_detail()
+    finally:
+        try:
+            adapter.close()
+        except Exception:  # noqa: BLE001
+            pass
+
+    sc = detail.get("status_code")
+    raw_reason = detail.get("reason")
+    latency_ms = detail.get("latency_ms")
+
+    if detail.get("ok") and sc and 200 <= sc < 300:
+        return {
+            "state": "healthy",
+            "sentence": (
+                f"ThetaData reachable at {detail.get('base_url_host')} "
+                f"({latency_ms}ms)."
+            ),
+            "http_status": sc,
+            "latency_ms": latency_ms,
+            "reason": None,
+        }
+    if sc in (401, 403):
+        return {
+            "state": "auth_failed",
+            "sentence": (
+                f"ThetaData rejected credentials ({sc}). Check API key / "
+                "username + password."
+            ),
+            "http_status": sc,
+            "latency_ms": latency_ms,
+            "reason": raw_reason,
+        }
+    if sc == 429:
+        return {
+            "state": "rate_limited",
+            "sentence": (
+                "ThetaData returned 429 Too Many Requests. Reduce poll "
+                "rate or wait."
+            ),
+            "http_status": sc,
+            "latency_ms": latency_ms,
+            "reason": raw_reason,
+        }
+    # Default — any non-2xx / no status_code / connection failure
+    return {
+        "state": "unreachable",
+        "sentence": (
+            f"ThetaData unreachable at {detail.get('base_url_host')}: "
+            f"{raw_reason or 'no response'}"
+        ),
+        "http_status": sc,
+        "latency_ms": latency_ms,
+        "reason": raw_reason or "unknown",
+    }
+
     # ------------------------------------------------------------------
     # HTTP layer
     # ------------------------------------------------------------------

@@ -83,6 +83,42 @@ export default function OptionsDiagnosticsCard() {
         </span>
       </header>
 
+      {/* Phase Opt-B1 — ThetaData pre-flight (5-state classifier) */}
+      <div className="opt-diag-section">
+        <div className="opt-diag-section-label">ThetaData (chain provider)</div>
+        <div className="opt-diag-grid">
+          <KV
+            k="State"
+            v={data.thetadata_health.state}
+            tone={
+              data.thetadata_health.state === "healthy" ? "pos"
+              : data.thetadata_health.state === "rate_limited" ? "warn"
+              : data.thetadata_health.state === "key_missing" ? "warn"
+              : "neg"
+            }
+          />
+          <KV
+            k="HTTP"
+            v={
+              data.thetadata_health.http_status != null
+                ? String(data.thetadata_health.http_status)
+                : "—"
+            }
+          />
+          <KV
+            k="Latency"
+            v={
+              data.thetadata_health.latency_ms != null
+                ? `${data.thetadata_health.latency_ms} ms`
+                : "—"
+            }
+          />
+        </div>
+        <div className="opt-diag-foot">
+          {data.thetadata_health.sentence}
+        </div>
+      </div>
+
       {/* Master flag truths */}
       <div className="opt-diag-section">
         <div className="opt-diag-section-label">Configuration</div>
