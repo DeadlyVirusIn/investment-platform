@@ -69,6 +69,7 @@ from apps.api.src.api.diagnostics_pending import (
     router as diagnostics_pending_router,
 )
 from apps.api.src.api.factors import router as factors_router
+from apps.api.src.api.freshness import router as freshness_router
 from apps.api.src.api.intelligence import router as intelligence_router
 from apps.api.src.api.jobs import router as jobs_router
 from apps.api.src.api.news import router as news_router
@@ -182,6 +183,7 @@ for _router in (
     universe_router,
     regime_router,
     factors_router,
+    freshness_router,
     stock_engine_router,
     stock_engine_analytics_router,
     dashboard_router,
