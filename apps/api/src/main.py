@@ -72,6 +72,11 @@ from apps.api.src.api.factors import router as factors_router
 from apps.api.src.api.freshness import router as freshness_router
 from apps.api.src.api.intelligence import router as intelligence_router
 from apps.api.src.api.jobs import router as jobs_router
+from apps.api.src.api.market import (
+    router as market_router,
+    start_market_tape_poller,
+    stop_market_tape_poller,
+)
 from apps.api.src.api.news import router as news_router
 from apps.api.src.api.pnl import router as pnl_router
 from apps.api.src.api.paper import router as paper_router
@@ -133,7 +138,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     )
     cfg = {k: getattr(settings, k, "MISSING") for k in _ml_keys}
     logger.info("ML effective config: {}", cfg)
+    # Phase 15h.5 — Market tape poller (Polygon delayed snapshots).
+    # Starts only when POLYGON_API_KEY is set; otherwise no-op.
+    start_market_tape_poller()
     yield
+    stop_market_tape_poller()
     logger.info("Shutting down investment-platform API")
 
 
@@ -193,6 +202,7 @@ for _router in (
     settings_router,
     news_router,
     intelligence_router,
+    market_router,
     briefing_narrative_router,
     actions_router,
     scorecard_router,

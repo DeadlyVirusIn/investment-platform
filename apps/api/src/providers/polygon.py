@@ -1,12 +1,14 @@
-"""Polygon.io provider — earnings + news.
+"""Polygon.io provider — earnings + news + market tape snapshots.
 
 Activated only when POLYGON_API_KEY env var is set. Otherwise all
-fetch functions return empty lists. Frontend handles the empty case
-without faking.
+fetch functions return empty lists / None. Frontend handles the empty
+case without faking.
 
 Endpoint references (require paid key for full data):
 - Earnings: /vX/reference/earnings?ticker={ticker}
 - News:     /v2/reference/news?ticker={ticker}&limit=5
+- Tape:     /v2/snapshot/locale/us/markets/stocks/tickers?tickers=A,B,C
+            (Stocks Starter tier, 15-min delayed)
 """
 
 from __future__ import annotations
@@ -58,6 +60,91 @@ def fetch_news(ticker: str, limit: int = 5) -> list[dict[str, Any]]:
             "summary": str(item.get("description") or "") or None,
         })
     return [n for n in out if n["title"] and n["url"]]
+
+
+# ---------------------------------------------------------------------------
+# Market tape — 15-min delayed bulk snapshots (Stocks Starter tier).
+# Used by apps/api/src/api/market.py to drive the UI's macro tape ribbon.
+# ---------------------------------------------------------------------------
+
+
+async def fetch_tape_snapshot(
+    client: httpx.AsyncClient, symbols: list[str],
+) -> list[dict[str, Any]]:
+    """Fetch one bulk delayed snapshot for the given symbols.
+
+    Returns a list of normalized dicts, one per symbol that Polygon
+    returned. Symbols Polygon couldn't price are simply absent from
+    the result. Raises on transport / auth / non-OK status — caller
+    decides how to surface the failure.
+
+    Normalized shape:
+      {
+        "symbol":        "SPY",
+        "price":         736.10,    # last delayed price (day.c → min.c → prevDay.c)
+        "prev_close":    739.30,
+        "change_abs":    -3.20,
+        "change_pct":    -0.4328,
+        "quote_ts":      1778585229.571,   # epoch seconds (source-reported, delayed)
+        "source":        "polygon",
+        "delay_minutes": 15,
+      }
+    """
+    key = _api_key()
+    if not key:
+        raise RuntimeError("POLYGON_API_KEY not set")
+    if not symbols:
+        return []
+    url = f"{POLYGON_BASE}/v2/snapshot/locale/us/markets/stocks/tickers"
+    params = {"tickers": ",".join(symbols), "apiKey": key}
+    r = await client.get(url, params=params, timeout=10.0)
+    r.raise_for_status()
+    payload = r.json()
+    status = payload.get("status")
+    if status not in ("OK", "DELAYED"):
+        raise RuntimeError(
+            f"polygon snapshot returned status={status}: {payload.get('error', '')}"
+        )
+    out: list[dict[str, Any]] = []
+    for t in payload.get("tickers", []):
+        sym = str(t.get("ticker") or "").upper()
+        if not sym:
+            continue
+        prev_day = t.get("prevDay") or {}
+        min_bar = t.get("min") or {}
+        day_bar = t.get("day") or {}
+        # Price selection: prefer intraday day close (nonzero only when
+        # session has started), then last delayed minute bar, then prior
+        # session close as a fallback.
+        price = (
+            (day_bar.get("c") or 0)
+            or (min_bar.get("c") or 0)
+            or prev_day.get("c")
+        )
+        prev_close = prev_day.get("c")
+        if price is None or prev_close is None:
+            change_abs: float | None = None
+            change_pct: float | None = None
+        else:
+            change_abs = float(price) - float(prev_close)
+            change_pct = (
+                (change_abs / float(prev_close)) * 100.0
+                if float(prev_close) != 0 else None
+            )
+        # Polygon's `updated` is nanoseconds since epoch.
+        ns = t.get("updated")
+        quote_ts = (float(ns) / 1e9) if ns else None
+        out.append({
+            "symbol": sym,
+            "price": float(price) if price is not None else None,
+            "prev_close": float(prev_close) if prev_close is not None else None,
+            "change_abs": change_abs,
+            "change_pct": change_pct,
+            "quote_ts": quote_ts,
+            "source": "polygon",
+            "delay_minutes": 15,
+        })
+    return out
 
 
 def fetch_earnings(ticker: str, limit: int = 4) -> list[dict[str, Any]]:
