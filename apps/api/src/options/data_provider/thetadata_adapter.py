@@ -37,7 +37,11 @@ from decimal import Decimal
 from typing import Any
 
 import httpx
-from loguru import logger
+from apps.api.src.options.data_provider._redact import (
+    redact_token,
+    safe_logger as logger,
+    safe_url,
+)
 
 from apps.api.src.options.data_provider.base_adapter import (
     BaseOptionsAdapter,
@@ -172,21 +176,23 @@ class ThetaDataAdapter(BaseOptionsAdapter):
         except (httpx.ConnectError, httpx.ConnectTimeout, ConnectionError) as exc:
             logger.warning(
                 "thetadata: provider unavailable for {} @ {}: {}",
-                symbol, timestamp, exc,
+                symbol, timestamp, redact_token(str(exc)),
             )
-            raise ProviderUnavailable(str(exc)) from exc
+            raise ProviderUnavailable(
+                redact_token(str(exc))) from None
         except (httpx.ReadTimeout, httpx.WriteTimeout, TimeoutError) as exc:
             logger.warning(
                 "thetadata: provider timeout for {} @ {}: {}",
-                symbol, timestamp, exc,
+                symbol, timestamp, redact_token(str(exc)),
             )
-            raise ProviderUnavailable(f"timeout: {exc}") from exc
+            raise ProviderUnavailable(
+                redact_token(f"timeout: {exc}")) from None
         except Exception as exc:
             logger.error(
                 "thetadata: unexpected error for {} @ {}: {}",
-                symbol, timestamp, exc,
+                symbol, timestamp, redact_token(str(exc)),
             )
-            raise ProviderError(str(exc)) from exc
+            raise ProviderError(redact_token(str(exc))) from None
 
         quotes = self._normalize(raw, symbol=symbol, snapshot_at=timestamp)
         partial = bool(raw.get("partial", False))
@@ -420,13 +426,13 @@ def classify_thetadata_preflight(settings_obj: Any) -> dict[str, Any]:
             if 400 <= sc < 500:
                 raise ProviderError(
                     f"thetadata returned {sc} for {symbol}: "
-                    f"{resp.text[:200]!r}"
+                    f"{redact_token(resp.text[:200])!r}"
                 )
             if 500 <= sc < 600:
                 if attempt >= self.config.max_retries:
                     raise ProviderUnavailable(
                         f"thetadata server error {sc} for {symbol}: "
-                        f"{resp.text[:200]!r}"
+                        f"{redact_token(resp.text[:200])!r}"
                     )
                 attempt += 1
                 continue

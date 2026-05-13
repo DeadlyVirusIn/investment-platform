@@ -88,6 +88,25 @@ services:
       AUTH_DISABLED_LOCAL: ${AUTH_DISABLED_LOCAL:-false}
       RESEARCH_GRACE_ENABLED: ${RESEARCH_GRACE_ENABLED:-false}
       OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
+      # Phase Opt-B3a — options master flag (default OFF). Even when
+      # True, discipline gates (paper-only lock, no exec wrapper)
+      # prevent live trading.
+      OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
+      # Phase Opt-B3a — provider abstraction. v1 = thetadata; B3a
+      # introduces 'finnhub' (free tier, EOD-fresh). Adapter chosen
+      # at chain_ingest._build_adapter() per this value.
+      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
+      # Phase Opt-B3a — Finnhub key (also used by catalysts pipeline).
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      # Phase Opt-B3a — Tradier sandbox/prod options provider.
+      # Token loaded from .env; never embedded in any URL (adapter
+      # uses Authorization: Bearer header). When empty, adapter
+      # graceful-degrades to partial=True without raising.
+      TRADIER_BASE_URL: ${TRADIER_BASE_URL:-https://sandbox.tradier.com/v1}
+      TRADIER_ACCESS_TOKEN: ${TRADIER_ACCESS_TOKEN:-}
+      TRADIER_TIMEOUT_SECONDS: ${TRADIER_TIMEOUT_SECONDS:-15}
+      TRADIER_RATE_LIMIT_QPS: ${TRADIER_RATE_LIMIT_QPS:-1.0}
+      TRADIER_DTE_WINDOW_DAYS: ${TRADIER_DTE_WINDOW_DAYS:-60}
       SAFE_GATE_EVOLUTION_PILOT_EXECUTION: ${SAFE_GATE_EVOLUTION_PILOT_EXECUTION:-false}
       # Market Events providers — empty defaults preserve graceful empty
       # arrays when keys not set. SEC EDGAR is free; UA optional override.

@@ -16,6 +16,12 @@ from apps.api.src.options.data_provider.base_adapter import (
 from apps.api.src.options.data_provider.thetadata_adapter import (
     ThetaDataAdapter,
 )
+from apps.api.src.options.data_provider.finnhub_adapter import (
+    FinnhubOptionsAdapter,
+)
+from apps.api.src.options.data_provider.tradier_adapter import (
+    TradierOptionsAdapter,
+)
 
 
 __all__ = [
@@ -25,4 +31,6 @@ __all__ = [
     "ProviderUnavailable",
     "PartialChainWarning",
     "ThetaDataAdapter",
+    "FinnhubOptionsAdapter",
+    "TradierOptionsAdapter",
 ]

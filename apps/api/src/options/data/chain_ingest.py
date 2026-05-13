@@ -40,6 +40,12 @@ from apps.api.src.options.data_provider.greeks import (
 from apps.api.src.options.data_provider.thetadata_adapter import (
     ThetaDataAdapter,
 )
+from apps.api.src.options.data_provider.finnhub_adapter import (
+    FinnhubOptionsAdapter,
+)
+from apps.api.src.options.data_provider.tradier_adapter import (
+    TradierOptionsAdapter,
+)
 
 
 # Default v1 universe — frozen per docs/research/OPTIONS_STRATEGY_UNIVERSE.md
@@ -80,12 +86,25 @@ _INSERT_SQL = text(
 
 
 def _build_adapter(provider_name: str) -> BaseOptionsAdapter:
-    """Provider-name → adapter instance. Frozen v1 = ThetaData only."""
+    """Provider-name → adapter instance.
+
+    Phase Opt-B3a — three providers wired:
+      * 'tradier'   — sandbox or production; provider-native Greeks/IV;
+                      Bearer-header auth; chosen as initial low-cost
+                      activation path (sandbox tier).
+      * 'finnhub'   — kept for legacy/free-tier paths; adapter exists
+                      but free tier blocks /stock/option-chain (403).
+      * 'thetadata' — paid OPRA-direct path; future upgrade route.
+    """
     if provider_name == "thetadata":
         return ThetaDataAdapter()
+    if provider_name == "finnhub":
+        return FinnhubOptionsAdapter()
+    if provider_name == "tradier":
+        return TradierOptionsAdapter()
     raise ValueError(
         f"unknown options data provider {provider_name!r}; "
-        f"v1 supports 'thetadata' only"
+        f"supported: 'thetadata', 'finnhub', 'tradier'"
     )
 
 

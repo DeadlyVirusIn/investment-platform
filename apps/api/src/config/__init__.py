@@ -248,6 +248,19 @@ class Settings(BaseSettings):
     THETADATA_RATE_LIMIT_QPS: float = 5.0
 
     # ------------------------------------------------------------------
+    # TRADIER PROVIDER (Phase Opt-B3a — sandbox EOD-delayed options chain)
+    # Provider abstraction lives in
+    # apps/api/src/options/data_provider/tradier_adapter.py. Activated
+    # via OPTIONS_DATA_PROVIDER=tradier. Sandbox token bound to a
+    # Tradier brokerage sandbox account.
+    # ------------------------------------------------------------------
+    TRADIER_BASE_URL: str = "https://sandbox.tradier.com/v1"
+    TRADIER_ACCESS_TOKEN: str = ""
+    TRADIER_TIMEOUT_SECONDS: int = 15
+    TRADIER_RATE_LIMIT_QPS: float = 1.0
+    TRADIER_DTE_WINDOW_DAYS: int = 60
+
+    # ------------------------------------------------------------------
     # FRED PROVIDER (Phase 11P.2 — manual macro backfill)
     # Optional. Required only when running scripts/backfill_macro_features.py
     # against the FRED feed. Pure read. Never affects live execution.
