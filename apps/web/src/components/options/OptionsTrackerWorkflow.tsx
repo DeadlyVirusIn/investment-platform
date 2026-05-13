@@ -1,6 +1,6 @@
-// Phase Opt-C1 Step 9 — Tracker workflow grouping (6 sections).
+// Phase Opt-C1 Step 9 — Tracker workflow grouping.
 //
-// Composes paper trades into 6 collapsible workflow sections:
+// Composes paper trades into collapsible workflow sections:
 //   1. OPEN POSITIONS                 expanded · sort: days held desc
 //   2. EXPIRING SOON (≤ 5 days)        expanded · sort: dte asc
 //   3. RECENTLY CLOSED (last 7 days)   expanded · sort: closed_at desc
@@ -204,7 +204,9 @@ export default function OptionsTrackerWorkflow() {
       <header className="opt-card-header">
         <span className="opt-card-eyebrow">Paper options journal</span>
         <span className="opt-card-meta">
-          {isLoading ? "loading…" : `${trades.length} total · 6 workflow sections`}
+          {isLoading
+            ? "loading…"
+            : `${trades.length} total · ${GROUPS.length} workflow sections`}
         </span>
       </header>
 

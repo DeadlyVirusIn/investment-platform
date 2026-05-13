@@ -1,12 +1,19 @@
 // Phase Opt-C1 Step 1 — Supported strategy catalog.
 //
-// Reads /api/options/strategies (existing endpoint). Renders an
-// 8-card grid of strategy families with calm explainer copy.
-// Visible in dormant mode AND active mode (always educational).
+// Reads /api/options/strategies (existing endpoint). Renders a
+// responsive grid of strategy families (one card per family
+// returned by the endpoint) with calm explainer copy. Visible
+// in dormant mode AND active mode (always educational).
 //
 // Discipline: NO suggestions, NO recommendations, NO confidence
 // scores. Pure catalog — what the engine CAN evaluate, not what
 // it IS evaluating.
+//
+// Terminology note: per-strategy `criteria` are the strategy's
+// own structural rules (legs, deltas, IV-rank, etc.) and are
+// distinct from the universal 7 quality-check filters surfaced
+// in OptionsRejectionsSection. To avoid the collision we label
+// these here as "strategy criteria", never "quality checks".
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -69,16 +76,17 @@ export default function OptionsStrategyCatalog() {
         <span className="opt-card-meta">
           {isLoading
             ? "loading…"
-            : `${strategies.length} families · ${strategies.reduce(
+            : `${strategies.length} famil${strategies.length === 1 ? "y" : "ies"} · ${strategies.reduce(
                 (n, s) => n + s.criteria.length, 0
-              )} quality checks`}
+              )} strategy criteria`}
         </span>
       </header>
 
       <p className="opt-explain-body" style={{ marginBottom: 12 }}>
         These are the strategy templates the engine can evaluate.
-        When live, candidates pass each strategy's quality checks
-        before promotion.
+        When live, candidates must satisfy each strategy's own
+        criteria (and the universal quality-check filters) before
+        promotion.
       </p>
 
       <div className="opt-strategy-grid">
@@ -92,7 +100,7 @@ export default function OptionsStrategyCatalog() {
             <div className="opt-strategy-direction">{_directionFor(s.name)}</div>
             <p className="opt-strategy-summary">{s.summary}</p>
             <div className="opt-strategy-checks">
-              {s.criteria.length} quality check{s.criteria.length === 1 ? "" : "s"}
+              {s.criteria.length} strategy criteri{s.criteria.length === 1 ? "on" : "a"}
             </div>
           </div>
         ))}
