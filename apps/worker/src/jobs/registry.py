@@ -240,6 +240,9 @@ from apps.worker.src.jobs.run_paper_trading import run_paper_trading
 from apps.worker.src.jobs.options_chain_snapshot import (
     run_options_chain_snapshot_job,
 )
+from apps.worker.src.jobs.options_shadow_eval import (
+    run_options_shadow_eval_job,
+)
 from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
 from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
 from apps.worker.src.jobs.v2_promotion_snapshot import (
@@ -279,4 +282,13 @@ REGISTRY: dict[str, JobFn] = {
     # comments): `*/15 13-21 * * 1-5` UTC during market hours.
     # Scheduling lands in Phase Opt-B3.
     "options_chain_snapshot": run_options_chain_snapshot_job,
+    # Phase Opt-B3a Step 4 — Options shadow evaluator wrapper.
+    # REGISTERED but NOT SCHEDULED. Inert until BOTH:
+    #   * OPTIONS_ENABLED=True             (master flag)
+    #   * job_schedule row referencing 'options_shadow_eval' exists
+    # Persistence further requires OPTIONS_SHADOW_EVAL_ENABLED=True
+    # (separate flag). NEVER touches options_paper_trade or lifecycle
+    # tables. Cron target intent: `15 21 * * 1-5` UTC (~30 min after
+    # US market close). Scheduling lands in Step 5.
+    "options_shadow_eval": run_options_shadow_eval_job,
 }
