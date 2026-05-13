@@ -1,8 +1,6 @@
 // Phase Opt-C1 Step 9 — Tracker workflow grouping (6 sections).
 //
-// Replaces the flat OptionsOpenTradesCard + OptionsClosedTradesCard
-// from Opt-A. Composes paper trades into 6 collapsible workflow
-// sections:
+// Composes paper trades into 6 collapsible workflow sections:
 //   1. OPEN POSITIONS                 expanded · sort: days held desc
 //   2. EXPIRING SOON (≤ 5 days)        expanded · sort: dte asc
 //   3. RECENTLY CLOSED (last 7 days)   expanded · sort: closed_at desc
