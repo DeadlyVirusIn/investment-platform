@@ -282,6 +282,19 @@ def persist_option(
     # trade row to prevent an orphaned header.
     try:
         for leg in sorted(proposal.legs, key=lambda L: L.leg_index):
+            # Schema does not store `multiplier` on the leg row — it's a
+            # constant 100 for all US listed options and lives on the
+            # OptionLegSpec dataclass for hash purposes only.
+            entry_qts = (
+                leg.entry_quote_at_utc
+                if leg.entry_quote_at_utc is not None
+                else proposal.opened_at
+            )
+            entry_fp = (
+                leg.entry_fill_price
+                if leg.entry_fill_price is not None
+                else (leg.entry_mid or Decimal("0"))
+            )
             session.add(OptionsPaperTradeLeg(
                 trade_id=trade.id,
                 leg_index=leg.leg_index,
@@ -292,8 +305,7 @@ def persist_option(
                 option_type=leg.option_type.upper(),
                 side=leg.side.upper(),
                 qty=leg.qty,
-                multiplier=leg.multiplier,
-                entry_quote_at_utc=leg.entry_quote_at_utc,
+                entry_quote_at_utc=entry_qts,
                 entry_bid=leg.entry_bid,
                 entry_ask=leg.entry_ask,
                 entry_mid=leg.entry_mid,
@@ -302,7 +314,7 @@ def persist_option(
                 entry_gamma=leg.entry_gamma,
                 entry_theta=leg.entry_theta,
                 entry_vega=leg.entry_vega,
-                entry_fill_price=leg.entry_fill_price,
+                entry_fill_price=entry_fp,
             ))
         session.commit()
     except Exception:
