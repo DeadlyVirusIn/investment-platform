@@ -157,6 +157,20 @@ services:
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # Phase Opt-B3a Step 6a — worker tickloop fires options_*
+      # scheduled jobs and needs identical OPTIONS_*/TRADIER_*
+      # env shape as the api service so wrapper gating + adapter
+      # config resolve identically. All defaults are inert/safe so
+      # missing .env keys do not change behavior.
+      OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
+      OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
+      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
+      TRADIER_BASE_URL: ${TRADIER_BASE_URL:-https://sandbox.tradier.com/v1}
+      TRADIER_ACCESS_TOKEN: ${TRADIER_ACCESS_TOKEN:-}
+      TRADIER_TIMEOUT_SECONDS: ${TRADIER_TIMEOUT_SECONDS:-15}
+      TRADIER_RATE_LIMIT_QPS: ${TRADIER_RATE_LIMIT_QPS:-1.0}
+      TRADIER_DTE_WINDOW_DAYS: ${TRADIER_DTE_WINDOW_DAYS:-60}
     volumes:
       # 2026-05-08 trust fix — paper-trading skip JSONLs written by
       # run_paper_trading must persist on host so post-ingest cycle

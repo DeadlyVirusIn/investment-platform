@@ -45,16 +45,61 @@ from apps.api.src.options.shadow_evaluator import evaluate
 # ---------------------------------------------------------------------------
 
 def _resolve_persist() -> bool:
-    """Persistence requires BOTH master flag AND shadow-eval flag.
-    Either being False forces dry-run."""
-    if not bool(getattr(settings, "OPTIONS_ENABLED", False)):
-        return False
+    """Phase Opt-B3a Step 6a — gates DECOUPLED.
+
+    OPTIONS_SHADOW_EVAL_ENABLED alone controls shadow persistence.
+    OPTIONS_ENABLED is reserved for the future paper-execution master
+    gate (separate semantic). Either flag enables a wrapper run; only
+    the shadow flag controls writes to options_shadow_decision_log.
+
+    Persisted rows are IMMUTABLE — INSERT-only with ON CONFLICT
+    DO NOTHING (see shadow_evaluator._persist). No UPDATE path exists
+    in the evaluator module (verified by grep at commit time).
+    """
     return bool(getattr(settings, "OPTIONS_SHADOW_EVAL_ENABLED", False))
 
 
 # ---------------------------------------------------------------------------
 # Single-pass internal
 # ---------------------------------------------------------------------------
+
+def _per_strategy_distribution(decisions) -> dict[str, dict[str, Any]]:
+    """Phase Opt-B3a Step 6a — cheap single-pass aggregation.
+
+    Each entry maps `strategy_name` to:
+      * total_evaluated
+      * would_trade
+      * blocked
+      * top_rejection_reason  (most common blocked.reason; None if zero
+                               blocked decisions for that strategy)
+    """
+    from collections import Counter, defaultdict
+    totals: dict[str, int] = defaultdict(int)
+    would_trade: dict[str, int] = defaultdict(int)
+    blocked: dict[str, int] = defaultdict(int)
+    block_reasons: dict[str, Counter] = defaultdict(Counter)
+    for d in decisions or ():
+        s = getattr(d, "strategy_name", None) or "unknown"
+        totals[s] += 1
+        if getattr(d, "would_trade", False):
+            would_trade[s] += 1
+        else:
+            blocked[s] += 1
+            r = getattr(d, "reason", None) or "unknown"
+            block_reasons[s][r] += 1
+    out: dict[str, dict[str, Any]] = {}
+    for s, n in totals.items():
+        top_reason = None
+        if block_reasons[s]:
+            top_reason = block_reasons[s].most_common(1)[0][0]
+        out[s] = {
+            "total_evaluated":    n,
+            "would_trade":        would_trade[s],
+            "blocked":            blocked[s],
+            "top_rejection_reason": top_reason,
+        }
+    return out
+
 
 def _run_one(
     *,
@@ -66,16 +111,21 @@ def _run_one(
 
     Returns a fully-typed summary dict suitable for JSON serialization,
     log emission, and unit-test assertions.
+
+    Step 6a addition: `per_strategy` key with single-pass aggregation
+    over the decisions list (cheap; no second DB query).
     """
     t0 = time.perf_counter()
     with SessionLocal() as session:
-        summary, _decisions = evaluate(
+        summary, decisions = evaluate(
             session,
             run_date=run_date,
             underlyings=underlyings,
             persist=persist,
         )
     elapsed_ms = (time.perf_counter() - t0) * 1000.0
+
+    per_strategy = _per_strategy_distribution(decisions)
 
     return {
         # Evaluator-supplied counts
@@ -86,6 +136,8 @@ def _run_one(
         "blocked_reason_counts": dict(summary.blocked_reason_counts),
         "freshness_warnings":    list(summary.freshness_warnings),
         "inserted":              summary.inserted,
+        # Step 6a — per-strategy distribution (single-pass cheap)
+        "per_strategy":          per_strategy,
         # Wrapper-supplied context
         "persist":               persist,
         "options_enabled":
@@ -114,9 +166,13 @@ async def run_options_shadow_eval_job() -> None:
 
     NEVER touches options_paper_trade. NEVER touches lifecycle table.
     """
-    if not bool(getattr(settings, "OPTIONS_ENABLED", False)):
+    # Step 6a — skip only when BOTH flags off → fully dormant.
+    # Either flag enables a run; persist mode is _resolve_persist().
+    if not (bool(getattr(settings, "OPTIONS_ENABLED", False))
+            or bool(getattr(settings, "OPTIONS_SHADOW_EVAL_ENABLED", False))):
         logger.info(
-            "options_shadow_eval skipped — OPTIONS_ENABLED=False")
+            "options_shadow_eval skipped — both OPTIONS_ENABLED and "
+            "OPTIONS_SHADOW_EVAL_ENABLED are False")
         return
 
     run_date = dt.date.today()

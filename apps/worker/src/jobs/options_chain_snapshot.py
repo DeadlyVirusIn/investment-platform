@@ -34,9 +34,15 @@ async def run_options_chain_snapshot_job() -> None:
 
     Skips silently when OPTIONS_ENABLED is False — no work, no error.
     """
-    if not getattr(settings, "OPTIONS_ENABLED", False):
+    # Phase Opt-B3a Step 6a — gate decoupled. Chain ingest fires when
+    # EITHER OPTIONS_ENABLED (paper-exec master) OR
+    # OPTIONS_SHADOW_EVAL_ENABLED (research persistence) is True,
+    # because shadow eval needs fresh chain rows to evaluate against.
+    if not (getattr(settings, "OPTIONS_ENABLED", False)
+            or getattr(settings, "OPTIONS_SHADOW_EVAL_ENABLED", False)):
         logger.info(
-            "options_chain_snapshot job skipped — OPTIONS_ENABLED=False",
+            "options_chain_snapshot skipped — both OPTIONS_ENABLED and "
+            "OPTIONS_SHADOW_EVAL_ENABLED are False",
         )
         return
 
