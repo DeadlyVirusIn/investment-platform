@@ -1,100 +1,51 @@
-// Phase Opt-A — Options page Brief view (default).
+// Phase 6b-3-c — Options Overview (executive briefing surface).
 //
-// Truth-first composition. Six cards in a single calm column:
-//   1. Engine state banner (one truthful sentence)
-//   2. Today's options ideas
-//   3. Open paper options trades
-//   4. Closed paper options trades
-//   5. Diagnostics (key/value truth dump)
-//   6. Explanation panel (only when engine dormant/unscheduled)
+// Three sections only. The page intentionally ENDS EARLY.
+//   1. Research Pulse Hero       (6b-3-a)
+//   2. Top 3 candidate cards     (existing OptionsResearchCandidates)
+//   3. Editorial doorway strip   (6b-3-c, sentence + arrow only)
 //
-// The previous 12-tab layout is preserved verbatim behind
-// `?view=working` (handled by OptionsLayout). Operator can still
-// reach Chain, Features, Strategy Observatory, Decision Support,
-// etc. via the URL query param.
+// What this page no longer renders (relocated, not lost):
+//   * OptionsStatusBanner          → deleted (superseded by hero)
+//   * OptionsRejectionsSection     → /options/research (6b-3-d)
+//   * OptionsTrackerWorkflow       → /options/journal  (6b-3-e)
+//   * OptionsRejectedCandidatesGroup → /options/research (6b-3-d)
+//   * OptionsLifecycleTimeline     → /options/journal  (6b-3-e drawer)
+//   * OptionsLearningGate          → /options/learning (6b-3-f, replaced
+//                                     by OptionsLearningReadinessGate)
+//   * OptionsStrategyCatalog       → /options/lab      (6b-3-g)
+//   * OptionsEvaluationFlow        → /options/lab      (6b-3-g)
+//   * OptionsDiagnosticsAccordion  → /options/ops      (6b-3-h, no longer
+//                                     surfaced from Overview)
+//   * OptionsExplanationPanel      → deleted (superseded by hero
+//                                     calm sentence)
+//
+// Discipline:
+//   * Read-only. Zero mutation. Zero new endpoints.
+//   * No buttons with handlers. Anchors and routes only.
+//   * OPTIONS_ENABLED stays absent; paper-exec path unreachable.
 
-import OptionsResearchPulseHero from "@/components/options/OptionsResearchPulseHero";
-import OptionsStatusBanner from "@/components/options/OptionsStatusBanner";
-import OptionsDiagnosticsAccordion from "@/components/options/OptionsDiagnosticsAccordion";
-import OptionsExplanationPanel from "@/components/options/OptionsExplanationPanel";
-import OptionsLearningGate from "@/components/options/OptionsLearningGate";
-// Phase Opt-C1 Checkpoint 1 — Steps 1-2 (catalog + evaluation flow).
-import OptionsStrategyCatalog from "@/components/options/OptionsStrategyCatalog";
-import OptionsEvaluationFlow from "@/components/options/OptionsEvaluationFlow";
-// Phase Opt-C1 Checkpoint 2 — Steps 5-7.
-import OptionsResearchCandidates from "@/components/options/OptionsResearchCandidates";
-import OptionsRejectionsSection from "@/components/options/OptionsRejectionsSection";
-import OptionsRejectedCandidatesGroup from "@/components/options/OptionsRejectedCandidatesGroup";
-// Phase Opt-C1 Checkpoint 3 — Steps 8-11.
-// Grouped tracker REPLACES Opt-A's flat OpenTradesCard + ClosedTradesCard.
-// Lifecycle timeline is rendered when the operator selects a trade
-// (Checkpoint 4 will add a global selection store; for now timeline is
-// available via direct URL hash deep-link, e.g. #lifecycle=1).
-import OptionsTrackerWorkflow from "@/components/options/OptionsTrackerWorkflow";
-import OptionsLifecycleTimeline from "@/components/options/OptionsLifecycleTimeline";
-
-
-/** Read trade-id from URL hash (#lifecycle=N) for Checkpoint 3.
- *  Checkpoint 4 will swap this for a proper selection state. */
-function _selectedTradeId(): number | null {
-  if (typeof window === "undefined") return null;
-  const m = window.location.hash.match(/lifecycle=(\d+)/);
-  return m ? Number(m[1]) : null;
-}
+import OptionsResearchPulseHero from
+  "@/components/options/OptionsResearchPulseHero";
+import OptionsResearchCandidates from
+  "@/components/options/OptionsResearchCandidates";
+import OptionsDoorwayStrip from
+  "@/components/options/OptionsDoorwayStrip";
 
 
 export default function OptionsOverviewPage() {
-  const selectedTrade = _selectedTradeId();
-
   return (
-    <div className="opt-brief">
-      <header className="opt-brief-header">
-        <h2 className="opt-brief-title">Options paper trading</h2>
-        <p className="opt-brief-subtitle">
-          Read-only research surface. Paper-only.{" "}
-          Switch to{" "}
-          <a href="/options?view=working" className="opt-brief-link">
-            working view
-          </a>{" "}
-          for the dense terminal layout.
-        </p>
-      </header>
-
-      {/* Phase 6b-3-a — Research Pulse Hero (premium hero surface).
-          Renders ABOVE the legacy OptionsStatusBanner for visual A/B
-          during the 6b-3 redesign rollout. Banner stays visible until
-          6b-3-f composition pass removes it. */}
+    <div className="opt-overview" data-test="options-overview-page">
+      {/* 1. Research Pulse Hero — the make-or-break headline */}
       <OptionsResearchPulseHero />
 
-      <OptionsStatusBanner />
-
-      {/* Phase Opt-C1 Step 5 — Today's Research Candidates (top 3) */}
+      {/* 2. Top 3 observations — equal-weight curated row */}
       <OptionsResearchCandidates />
 
-      {/* Phase Opt-C1 Step 6 — Filtered Out Today (rejection bar chart) */}
-      <OptionsRejectionsSection />
+      {/* 3. Editorial doorway strip — three calm exits to depth */}
+      <OptionsDoorwayStrip />
 
-      {/* Phase Opt-C1 Step 9-10 — Paper options journal (6 grouped sections) */}
-      <OptionsTrackerWorkflow />
-
-      {/* Phase Opt-C1 Step 7 — Rejected Candidates workflow group */}
-      <OptionsRejectedCandidatesGroup />
-
-      {/* Phase Opt-C1 Step 11 — Lifecycle timeline (deep-link only for now) */}
-      {selectedTrade !== null && (
-        <OptionsLifecycleTimeline trade_id={selectedTrade} />
-      )}
-
-      {/* Phase Opt-C1 Step 12 — Learning desk gate */}
-      <OptionsLearningGate />
-
-      {/* Phase Opt-C1 — educational layer (always visible, useful in dormant) */}
-      <OptionsStrategyCatalog />
-      <OptionsEvaluationFlow />
-
-      {/* Phase Opt-C1 Step 14 — Diagnostics moved into accordion (?view=ops expands) */}
-      <OptionsDiagnosticsAccordion />
-      <OptionsExplanationPanel />
+      {/* The page ends here. By design. */}
     </div>
   );
 }
