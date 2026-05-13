@@ -3177,3 +3177,168 @@
   color: var(--fg);
   border-color: var(--accent);
 }
+
+
+/* ============================================================ */
+/* Phase 6b-3-a — Options Research Pulse Hero                   */
+/*                                                              */
+/* Composes: u-card-lg + u-card-accent-l (existing primitives)  */
+/* Adds:     internal layout (65/35 split), 2-tier integrity    */
+/*           hierarchy, big-number scale, foot meta strip.      */
+/* No new tokens; all colors via var(--*).                      */
+/* ============================================================ */
+
+/* 65/35 split — desktop ≥ 1024 px; stacks below */
+.hero-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  margin-bottom: 20px;
+}
+@media (min-width: 1024px) {
+  .hero-split {
+    grid-template-columns: 1.86fr 1fr;   /* ≈ 65/35 */
+    gap: 36px;
+  }
+}
+
+/* Left: contracts + candidates blocks */
+.hero-counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: end;
+}
+.hero-count-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hero-count-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.hero-count-num-xl { font-size: 36px; }
+.hero-count-num-lg { font-size: 30px; }
+
+/* Right: integrity rail with 2 visual tiers */
+.hero-integrity {
+  /* 1 px subtle vertical divider on desktop only — "space, not borders"
+     principle relaxed slightly here so the integrity rail reads as a
+     distinct trust column, not a continuation of the metrics. */
+  padding-left: 0;
+}
+@media (min-width: 1024px) {
+  .hero-integrity {
+    padding-left: 24px;
+    border-left: 1px solid var(--border-subtle);
+  }
+}
+
+/* PRIMARY tier — coherent batch + freshness */
+.hero-integrity-primary {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  grid-template-areas:
+    "mark label"
+    "mark value";
+  column-gap: 10px;
+  row-gap: 2px;
+  margin-bottom: 14px;
+}
+.hero-integrity-mark {
+  grid-area: mark;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(38, 202, 114, 0.12);   /* success bg, soft */
+  color: var(--success);
+  margin-top: 1px;
+}
+.hero-integrity-primary[data-ok="false"] .hero-integrity-mark {
+  background: rgba(248, 166, 56, 0.14);
+  color: var(--warning);
+}
+.hero-integrity-label {
+  grid-area: label;
+  font-size: 13px;
+  line-height: 16px;
+  color: var(--fg);
+  font-weight: 500;
+}
+.hero-integrity-value {
+  grid-area: value;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fg-3);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* SECONDARY tier — universe + shadow log (compact inline row) */
+.hero-integrity-secondary {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--fg-3);
+}
+.hero-integrity-secondary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.hero-integrity-secondary-dot {
+  color: var(--success);
+  font-weight: 700;
+}
+.hero-integrity-secondary-item[data-ok="false"]
+  .hero-integrity-secondary-dot {
+  color: var(--warning);
+}
+
+/* Bottom metadata strip — single line, lowest gravity */
+.hero-foot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.hero-foot-sep {
+  color: var(--fg-4, var(--text-muted));
+  opacity: 0.6;
+}
+
+/* Mobile collapse */
+@media (max-width: 600px) {
+  .hero-counts {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .hero-foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .hero-foot-sep { display: none; }
+}

@@ -13,6 +13,7 @@
 // reach Chain, Features, Strategy Observatory, Decision Support,
 // etc. via the URL query param.
 
+import OptionsResearchPulseHero from "@/components/options/OptionsResearchPulseHero";
 import OptionsStatusBanner from "@/components/options/OptionsStatusBanner";
 import OptionsDiagnosticsAccordion from "@/components/options/OptionsDiagnosticsAccordion";
 import OptionsExplanationPanel from "@/components/options/OptionsExplanationPanel";
@@ -58,6 +59,12 @@ export default function OptionsOverviewPage() {
           for the dense terminal layout.
         </p>
       </header>
+
+      {/* Phase 6b-3-a — Research Pulse Hero (premium hero surface).
+          Renders ABOVE the legacy OptionsStatusBanner for visual A/B
+          during the 6b-3 redesign rollout. Banner stays visible until
+          6b-3-f composition pass removes it. */}
+      <OptionsResearchPulseHero />
 
       <OptionsStatusBanner />
 
