@@ -393,6 +393,23 @@ class Settings(BaseSettings):
     OPTIONS_SHADOW_TOP_N: int = 5
 
     # ------------------------------------------------------------------
+    # Phase Opt-B3a Phase B — chain-integrity invariants
+    # ------------------------------------------------------------------
+    # Production providers allowed in shadow-eval runs. Any provider
+    # not in this whitelist is filtered out at chain-selection time.
+    # Test fixtures (csv-fixture, yahoo, mock) are EXCLUDED.
+    OPTIONS_PRODUCTION_PROVIDERS: tuple[str, ...] = ("tradier", "thetadata")
+    # Maximum allowable age of the chain batch backing a shadow-eval
+    # run, computed live as (NOW() - snapshot_at_utc). Replaces
+    # reliance on the frozen quote_age_seconds field.
+    MAX_RUN_CHAIN_AGE_HOURS: int = 24
+    # Universe of underlyings eligible for shadow-eval consumption.
+    # Mirror of chain_ingest.DEFAULT_UNIVERSE — kept here so the
+    # evaluator can enforce universe closure at its own boundary
+    # (Invariant: RUN_UNIVERSE_CLOSURE).
+    OPTIONS_RUN_UNIVERSE: tuple[str, ...] = ("SPY", "QQQ", "IWM", "GLD", "TLT")
+
+    # ------------------------------------------------------------------
     # PHASE 11W (Phase E) — Manual research-run activation (research-only)
     # ------------------------------------------------------------------
     # Adds a tightly-gated *manual* trigger for the research-artifact

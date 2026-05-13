@@ -90,30 +90,107 @@ def _latest_chain_snapshot_date(session: Session) -> dt.date | None:
     return row[0] if row and row[0] else None
 
 
+def _select_run_batch(
+    session: Session, *,
+    run_date: dt.date,
+    production_providers: tuple[str, ...],
+    max_age_hours: int,
+) -> dict[str, Any] | None:
+    """Phase Opt-B3a Phase B — DETERMINISTIC_BATCH_SELECTION invariant.
+
+    Picks the single chain batch a shadow-eval run will consume:
+      * provider MUST be in production whitelist (no fixtures)
+      * snapshot_at_utc::date <= run_date (per-run cutoff)
+      * NOW() - snapshot_at_utc <= max_age_hours (live freshness)
+      * Most recent batch satisfying all above
+
+    Returns dict {snapshot_at_utc, provider, provider_version,
+    age_seconds, age_hours, n_rows} or None if no eligible batch.
+    Read-only; no side effects.
+    """
+    row = session.execute(text(
+        """
+        SELECT snapshot_at_utc, provider, provider_version,
+               EXTRACT(EPOCH FROM (NOW() - snapshot_at_utc))::int AS age_seconds,
+               COUNT(*)                                            AS n_rows
+          FROM options_chain_snapshot
+         WHERE provider = ANY(:provs)
+           AND snapshot_at_utc::date <= :d
+           AND (NOW() - snapshot_at_utc) <= make_interval(hours => :hrs)
+         GROUP BY snapshot_at_utc, provider, provider_version
+         ORDER BY snapshot_at_utc DESC
+         LIMIT 1
+        """
+    ), {"provs": list(production_providers), "d": run_date,
+        "hrs": int(max_age_hours)}).mappings().first()
+    if row is None:
+        return None
+    out = dict(row)
+    out["age_hours"] = round(out["age_seconds"] / 3600.0, 2)
+    return out
+
+
 def _read_chains(
     session: Session, *, run_date: dt.date,
     underlyings: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    """Latest snapshot per (underlying, option_symbol) on or before
-    run_date. Read-only."""
-    where_under = ""
-    params: dict[str, Any] = {"d": run_date}
-    if underlyings:
-        where_under = "AND underlying = ANY(:unders)"
-        params["unders"] = underlyings
+    """Phase Opt-B3a Phase B — batch-first, invariant-guarded chain read.
+
+    Enforces six invariants at SQL-selection time:
+      * RUN_BATCH_COHERENCE        — single snapshot_at_utc value
+      * DETERMINISTIC_BATCH_SELECTION — _select_run_batch picks exactly
+                                        one batch deterministically
+      * PROVIDER_WHITELIST         — provider must be in production set
+      * PROVIDER_VERSION_HOMOGENEITY — pinned to picked batch's value
+      * RUN_FRESHNESS_BOUND        — live age via NOW() - snapshot_at_utc
+      * RUN_UNIVERSE_CLOSURE       — underlying must be in run universe
+
+    Returns [] (empty list) when no eligible batch exists. Caller
+    should record a freshness_warning in that case.
+    """
+    production_providers = tuple(getattr(
+        settings, "OPTIONS_PRODUCTION_PROVIDERS", ("tradier", "thetadata")))
+    max_age_hours = int(getattr(settings, "MAX_RUN_CHAIN_AGE_HOURS", 24))
+    run_universe = tuple(getattr(
+        settings, "OPTIONS_RUN_UNIVERSE",
+        ("SPY", "QQQ", "IWM", "GLD", "TLT")))
+
+    batch = _select_run_batch(
+        session, run_date=run_date,
+        production_providers=production_providers,
+        max_age_hours=max_age_hours,
+    )
+    if batch is None:
+        # No eligible batch — return empty. Caller surfaces in warnings.
+        return []
+
+    # Optional caller-supplied subset (must intersect run_universe)
+    effective_universe = (
+        tuple(set(underlyings) & set(run_universe)) if underlyings
+        else run_universe
+    )
+    if not effective_universe:
+        return []
+
     rows = session.execute(text(
-        f"""
-        SELECT DISTINCT ON (underlying, option_symbol)
-               underlying, option_symbol, expiry, strike, option_type,
+        """
+        SELECT underlying, option_symbol, expiry, strike, option_type,
                bid, ask, mid, last, volume, open_interest,
                delta, gamma, theta, vega, iv,
-               quote_age_seconds, provider, snapshot_at_utc
-        FROM options_chain_snapshot
-        WHERE snapshot_at_utc::date <= :d
-          {where_under}
-        ORDER BY underlying, option_symbol, snapshot_at_utc DESC
+               quote_age_seconds, provider, provider_version,
+               snapshot_at_utc
+          FROM options_chain_snapshot
+         WHERE snapshot_at_utc = :ts
+           AND provider = :prov
+           AND provider_version IS NOT DISTINCT FROM :pver
+           AND underlying = ANY(:unders)
         """
-    ), params).mappings().all()
+    ), {
+        "ts":     batch["snapshot_at_utc"],
+        "prov":   batch["provider"],
+        "pver":   batch["provider_version"],
+        "unders": list(effective_universe),
+    }).mappings().all()
     return [dict(r) for r in rows]
 
 
@@ -433,6 +510,13 @@ def evaluate(
         )
     if not features:
         warnings.append("no_options_feature_daily_rows")
+    # Phase Opt-B3a Phase B — emit a structured warning when batch
+    # selection refused to produce a coherent batch (provider
+    # whitelist + freshness bound enforced inside _read_chains).
+    if not chains:
+        warnings.append(
+            "no_eligible_chain_batch:"
+            "no_run_satisfies_provider_whitelist_and_freshness_bound")
 
     decisions: list[CandidateDecision] = []
     for c in chains:
