@@ -63,8 +63,8 @@ const NAV_GROUPS: Array<{
   {
     id: 'performance',
     label: 'Performance',
-    description: 'Aggregate paper-trading performance across all strategies.',
-    tab_paths: ['/options/performance'],
+    description: 'Paper trade ledger and aggregate performance across strategies.',
+    tab_paths: ['/options/trades', '/options/performance'],
   },
   {
     id: 'engineering',
