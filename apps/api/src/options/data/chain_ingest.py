@@ -63,6 +63,12 @@ class IngestSummary:
     n_skipped_existing: int = 0
     reject_counts: dict[str, int] = field(default_factory=dict)
     note: str | None = None
+    # Phase Opt-B3a — filter provenance: which liquidity profile
+    # admitted these contracts? Stamped from
+    # liquidity_filter.resolve_profile(provider_version).
+    profile_name: str | None = None
+    provider: str | None = None
+    provider_version: str | None = None
 
 
 _INSERT_SQL = text(
@@ -264,11 +270,29 @@ def ingest_chain_snapshot(
         for q in result.quotes
     ]
 
-    # Apply liquidity filter
+    # Phase Opt-B3a — resolve liquidity profile from provider tagging.
+    # Sample provider_version off the first quote (all quotes from a
+    # single snapshot share the same provider tag by adapter contract).
+    # Adapters emitting empty result.quotes still produce a result
+    # object with `result.provider` set — fall back to strict-default
+    # in that case (FAIL-CLOSED).
+    sample_provider_version: str | None = (
+        result.quotes[0].provider_version if result.quotes else None
+    )
+    sample_provider: str | None = (
+        result.quotes[0].provider if result.quotes else result.provider
+    )
+    from apps.api.src.options.data.liquidity_filter import resolve_profile
+    profile = resolve_profile(sample_provider_version)
+
+    # Apply liquidity filter under the resolved profile
     filtered: FilterResult = filter_chain(
         enriched,
         require_iv=require_iv,
         require_greeks=require_greeks,
+        min_open_interest=profile.min_open_interest,
+        max_spread_dollars=profile.max_spread_dollars,
+        max_quote_age_seconds=profile.max_quote_age_seconds,
     )
 
     # INSERT (append-only)
@@ -286,12 +310,17 @@ def ingest_chain_snapshot(
         n_skipped_existing=skipped,
         reject_counts=dict(filtered.reject_counts),
         note=partial_note,
+        profile_name=profile.name,
+        provider=sample_provider,
+        provider_version=sample_provider_version,
     )
     logger.info(
-        "options chain ingest {} @ {} status={} provider={} filtered={} "
+        "options chain ingest {} @ {} status={} provider={} "
+        "provider_version={} profile={} provider_quotes={} filtered={} "
         "inserted={} skipped_existing={} rejects={}",
-        underlying, snapshot_at, status, n_provider,
-        filtered.n_accepted, inserted, skipped,
+        underlying, snapshot_at, status,
+        sample_provider, sample_provider_version, profile.name,
+        n_provider, filtered.n_accepted, inserted, skipped,
         filtered.reject_counts,
     )
     return summary

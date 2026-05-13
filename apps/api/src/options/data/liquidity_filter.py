@@ -22,10 +22,109 @@ from typing import Iterable
 from apps.api.src.options.data_provider.base_adapter import OptionChainQuote
 
 
-# Frozen module constants (mirror docs/research/OPTIONS_STRATEGY_UNIVERSE.md locks)
+# Frozen module constants (mirror docs/research/OPTIONS_STRATEGY_UNIVERSE.md locks).
+# These remain the FAIL-CLOSED defaults — used when an unknown
+# provider_version is encountered (e.g., a typo, a new adapter without
+# a profile entry, or a None tag). They were calibrated for OPRA-direct
+# real-time quotes (ThetaData) and intentionally too strict for
+# delayed/sandbox feeds — fail-closed prevents silent regression.
 MIN_OPEN_INTEREST = 500
 MAX_BID_ASK_SPREAD_DOLLARS = Decimal("0.10")
 MAX_QUOTE_AGE_SECONDS = 60
+
+
+# ---------------------------------------------------------------------------
+# Phase Opt-B3a — provider-aware liquidity profiles
+# ---------------------------------------------------------------------------
+#
+# Different providers emit quotes with structurally different freshness,
+# spread, and OI characteristics. Applying a single set of thresholds
+# treats sandbox/delayed feeds the same as OPRA-direct, which is wrong
+# in both directions: too loose for production, too strict for research.
+#
+# Profile keys MUST match the `provider_version` string an adapter
+# stamps onto each `OptionChainQuote` (see thetadata_adapter.py,
+# tradier_adapter.py, finnhub_adapter.py). Lookup is exact-match;
+# unknown keys → strict defaults (fail-closed).
+#
+# IMPORTANT — separation of concerns:
+#   These profiles govern RESEARCH-INGEST liquidity gates only.
+#   Future paper-execution / live-execution quality gates are SEPARATE
+#   modules (eval_runner, fills) and MUST NOT inherit from this map.
+#   Loosening here for research observability does NOT loosen
+#   execution. See docs/research/OPTIONS_STRATEGY_UNIVERSE.md §3.4.
+
+@dataclass(frozen=True)
+class LiquidityProfile:
+    """Resolved threshold set for a single provider_version.
+
+    `name` is for log provenance. `min_open_interest`,
+    `max_spread_dollars`, `max_quote_age_seconds` are the gate values.
+    """
+    name: str
+    min_open_interest: int
+    max_spread_dollars: Decimal
+    max_quote_age_seconds: int
+
+
+# Strict default — also returned by resolve() when an unknown key is
+# requested. Mirror of the frozen module constants above.
+_PROFILE_STRICT_DEFAULT = LiquidityProfile(
+    name="strict_default_fail_closed",
+    min_open_interest=MIN_OPEN_INTEREST,
+    max_spread_dollars=MAX_BID_ASK_SPREAD_DOLLARS,
+    max_quote_age_seconds=MAX_QUOTE_AGE_SECONDS,
+)
+
+
+LIQUIDITY_PROFILES: dict[str, LiquidityProfile] = {
+    # ThetaData OPRA-direct, real-time. Original locked v1 — UNCHANGED.
+    "thetadata": LiquidityProfile(
+        name="thetadata",
+        min_open_interest=500,
+        max_spread_dollars=Decimal("0.10"),
+        max_quote_age_seconds=60,
+    ),
+    # Tradier sandbox: ~15-min delayed batch quotes; wider sandbox-
+    # specific spreads on placeholder strikes. Calibrated against
+    # actual sandbox data (see scripts/_audit_filter_calibration.py).
+    "tradier-sandbox": LiquidityProfile(
+        name="tradier-sandbox",
+        min_open_interest=100,
+        max_spread_dollars=Decimal("0.50"),
+        max_quote_age_seconds=1800,
+    ),
+    # Tradier production (future activation path): live consolidated
+    # quotes from MBBO, tighter than sandbox but looser than OPRA-direct.
+    "tradier-prod": LiquidityProfile(
+        name="tradier-prod",
+        min_open_interest=250,
+        max_spread_dollars=Decimal("0.25"),
+        max_quote_age_seconds=300,
+    ),
+    # Finnhub free tier: /stock/option-chain returns 403 (paid only),
+    # so this profile is reserved for the future paid-tier path. EOD-
+    # fresh by design; large age cap.
+    "finnhub-free-tier": LiquidityProfile(
+        name="finnhub-free-tier",
+        min_open_interest=100,
+        max_spread_dollars=Decimal("0.50"),
+        max_quote_age_seconds=86400,
+    ),
+}
+
+
+def resolve_profile(provider_version: str | None) -> LiquidityProfile:
+    """Return the LiquidityProfile matching ``provider_version``.
+
+    FAIL-CLOSED: any key not present in LIQUIDITY_PROFILES (including
+    None, empty string, typos, brand-new untagged adapters) returns
+    the strict default profile. This guarantees that a forgotten
+    profile registration cannot silently widen ingest thresholds.
+    """
+    if not provider_version:
+        return _PROFILE_STRICT_DEFAULT
+    return LIQUIDITY_PROFILES.get(provider_version, _PROFILE_STRICT_DEFAULT)
 
 
 # Reasons surfaced when a quote is rejected (kept frozen for downstream
