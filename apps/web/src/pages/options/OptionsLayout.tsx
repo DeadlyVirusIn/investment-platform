@@ -14,11 +14,91 @@ import GuardrailsToggleButton from '@/components/options/GuardrailsToggleButton'
 // Phase 11Z — surfaces "no options data ingested" once at the top
 import OptionsDataAvailabilityBanner from '@/components/options/OptionsDataAvailabilityBanner';
 
-// Phase Opt-C1 Step 15 — Advanced Research Workspace nav grouping.
-// 12 routes preserved verbatim. Grouped into 5 semantic sections so
-// the Working view stops feeling like tab-chaos.
+// Phase 6b-3-b — 7-surface premium workspace nav (default).
+// Each surface answers one product question. Legacy 12 routes
+// remain reachable; they map to a parent surface for active-state
+// highlighting so deep links don't lose visual context.
+const WORKSPACE_NAV: Array<{
+  to:         string;
+  label:      string;
+  question:   string;          // hover-tooltip / aria-label fodder
+  parent_for: readonly string[];   // legacy paths that belong to this surface
+}> = [
+  {
+    to: '/options/overview',
+    label: 'Overview',
+    question: 'What is the engine seeing today?',
+    parent_for: [],
+  },
+  {
+    to: '/options/research',
+    label: 'Research',
+    question: 'What setups look strongest?',
+    parent_for: [
+      '/options/chain', '/options/features', '/options/replay',
+      '/options/decision-support', '/options/decision-framing',
+    ],
+  },
+  {
+    to: '/options/journal',
+    label: 'Journal',
+    question: 'How are paper trades evolving?',
+    parent_for: ['/options/trades', '/options/performance'],
+  },
+  {
+    to: '/options/learning',
+    label: 'Learning',
+    question: 'What is the system learning?',
+    parent_for: [],
+  },
+  {
+    to: '/options/lab',
+    label: 'Lab',
+    question: 'What can the engine evaluate?',
+    parent_for: ['/options/observatory', '/options/evaluation'],
+  },
+  {
+    to: '/options/ops',
+    label: 'Ops',
+    question: 'Is the engine healthy?',
+    parent_for: ['/options/diagnostics', '/options/risk'],
+  },
+  {
+    to: '/options/settings',
+    label: 'Settings',
+    question: 'How is the engine configured?',
+    parent_for: [],
+  },
+];
+
+// Resolve which workspace surface owns a given pathname.
+// Returns the surface `to` path so NavLink active-state highlights
+// the right top-nav entry even when on a legacy URL.
+function _activeWorkspaceSurface(pathname: string): string | null {
+  // Exact-match check first
+  for (const s of WORKSPACE_NAV) {
+    if (pathname === s.to) return s.to;
+  }
+  // Parent-of check next
+  for (const s of WORKSPACE_NAV) {
+    if (s.parent_for.includes(pathname)) return s.to;
+  }
+  // Index/root → Overview
+  if (pathname === '/options' || pathname === '/options/') {
+    return '/options/overview';
+  }
+  return null;
+}
+
+
+// ────────────────────────────────────────────────────────────
+// LEGACY — preserved for ?view=working backward compat
+// ────────────────────────────────────────────────────────────
 //
-// "Overview" leads the legacy tab list so URL deep-links stay valid.
+// Phase Opt-C1 Step 15 (still applied in Working view per amendment 3
+// of 6b-3-b): legacy 5-group nav is the dense operator surface.
+// Untouched in 6b-3-b — operators with `?view=working` keep exactly
+// the experience they had.
 const TABS = [
   { to: '/options/overview',      label: 'Overview' },
   { to: '/options/chain',         label: 'Chain' },
@@ -78,19 +158,23 @@ const TAB_BY_PATH: Record<string, { to: string; label: string }> =
   Object.fromEntries(TABS.map(t => [t.to, t]));
 
 export default function OptionsLayout() {
-  // Phase Opt-A — Brief / Working toggle. Default at /options/overview
-  // (no ?view=working) hides the 12-tab nav so the Outlet's
-  // OptionsOverviewPage (truth-first cards) is the only thing visible.
-  // ?view=working OR any sub-route (chain/features/etc.) shows the
-  // existing 12-tab dense nav. NO route changes; no component removal.
+  // Phase 6b-3-b — premium workspace by default, legacy via ?view=working.
+  //
+  // Default mode (no ?view=working):
+  //   * 7-surface workspace top-nav (Overview / Research / Journal /
+  //     Learning / Lab / Ops / Settings)
+  //   * Active state derived from pathname OR legacy parent mapping
+  //   * All 12 legacy URLs still render their pages — they show up
+  //     under the corresponding workspace surface in the active state
+  //
+  // Working mode (?view=working):
+  //   * Existing Phase Opt-C1 Step 15 5-group nav, preserved verbatim
+  //     per amendment 3 of 6b-3-b
+  //   * Legacy operators keep their dense terminal experience
   const { pathname, search } = useLocation();
   const params = new URLSearchParams(search);
   const isWorking = params.get('view') === 'working';
-  const isOverviewRoute =
-    pathname === '/options' ||
-    pathname === '/options/' ||
-    pathname === '/options/overview';
-  const showWorkingNav = isWorking || !isOverviewRoute;
+  const activeSurface = _activeWorkspaceSurface(pathname);
 
   return (
     <div className="space-y-3 p-4 text-fg">
@@ -107,16 +191,39 @@ export default function OptionsLayout() {
         </span>
       </header>
 
-      {showWorkingNav && (
+      {!isWorking && (
+        // ─── Premium 7-surface workspace nav (default) ───
+        <nav
+          className="opt-workspace-nav"
+          data-test="options-workspace-nav"
+          aria-label="Options workspace"
+        >
+          {WORKSPACE_NAV.map((s) => (
+            <NavLink
+              key={s.to}
+              to={s.to}
+              className={`opt-workspace-tab${
+                activeSurface === s.to ? ' is-active' : ''
+              }`}
+              aria-current={activeSurface === s.to ? 'page' : undefined}
+              title={s.question}
+            >
+              {s.label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
+
+      {isWorking && (
         <>
-          {/* Overview link always available as a quick "back to brief" pill */}
+          {/* Legacy ?view=working nav — Phase Opt-C1 Step 15 preserved */}
           <nav
             className="flex gap-1 border-b border-b1 overflow-x-auto
                        flex-nowrap options-tabnav-scroll"
             aria-label="Options primary navigation"
           >
             <NavLink
-              to="/options/overview"
+              to="/options/overview?view=working"
               className={({ isActive }) =>
                 `flex-shrink-0 whitespace-nowrap px-3 py-2 text-sm ${
                   isActive
@@ -129,7 +236,6 @@ export default function OptionsLayout() {
             </NavLink>
           </nav>
 
-          {/* Step 15 — five semantic groups, each a small labeled cluster */}
           <div
             className="opt-working-nav-groups"
             data-test="options-working-nav-groups"

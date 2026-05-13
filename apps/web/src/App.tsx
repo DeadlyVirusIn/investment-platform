@@ -58,6 +58,13 @@ import OptionsDecisionSupportPage     from '@/pages/options/OptionsDecisionSuppo
 
 // Phase 11J — Decision Framing (read-only, paper-only)
 import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFramingPage';
+// Phase 6b-3-b — new 7-surface workspace placeholders
+import OptionsResearchShell  from '@/pages/options/OptionsResearchShell';
+import OptionsJournalShell   from '@/pages/options/OptionsJournalShell';
+import OptionsLearningShell  from '@/pages/options/OptionsLearningShell';
+import OptionsLabShell       from '@/pages/options/OptionsLabShell';
+import OptionsOpsShell       from '@/pages/options/OptionsOpsShell';
+import OptionsSettingsShell  from '@/pages/options/OptionsSettingsShell';
 
 // Phase 11Q — Pending T+1 Decisions diagnostic (read-only)
 import PendingT1Page                  from '@/pages/diagnostics/PendingT1';
@@ -112,6 +119,15 @@ export default function App() {
           <Route path="decision-support" element={<OptionsDecisionSupportPage />} />
           {/* Phase 11J — Decision Framing (read-only) */}
           <Route path="decision-framing" element={<OptionsDecisionFramingPage />} />
+          {/* Phase 6b-3-b — new 7-surface workspace shells.
+              All 12 legacy routes above remain reachable; these are
+              ADDITIVE. Bodies land in 6b-3-{d..i}. */}
+          <Route path="research" element={<OptionsResearchShell />} />
+          <Route path="journal"  element={<OptionsJournalShell />} />
+          <Route path="learning" element={<OptionsLearningShell />} />
+          <Route path="lab"      element={<OptionsLabShell />} />
+          <Route path="ops"      element={<OptionsOpsShell />} />
+          <Route path="settings" element={<OptionsSettingsShell />} />
         </Route>
 
         {/* Phase 11Q — Pending T+1 Decisions diagnostic (read-only) */}
