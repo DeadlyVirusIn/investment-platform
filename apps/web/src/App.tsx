@@ -59,7 +59,8 @@ import OptionsDecisionSupportPage     from '@/pages/options/OptionsDecisionSuppo
 // Phase 11J — Decision Framing (read-only, paper-only)
 import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFramingPage';
 // Phase 6b-3-b — new 7-surface workspace placeholders
-import OptionsResearchShell  from '@/pages/options/OptionsResearchShell';
+// Phase 6b-3-d — Research shell replaced by full Research page
+import OptionsResearchPage   from '@/pages/options/OptionsResearchPage';
 import OptionsJournalShell   from '@/pages/options/OptionsJournalShell';
 import OptionsLearningShell  from '@/pages/options/OptionsLearningShell';
 import OptionsLabShell       from '@/pages/options/OptionsLabShell';
@@ -122,7 +123,7 @@ export default function App() {
           {/* Phase 6b-3-b — new 7-surface workspace shells.
               All 12 legacy routes above remain reachable; these are
               ADDITIVE. Bodies land in 6b-3-{d..i}. */}
-          <Route path="research" element={<OptionsResearchShell />} />
+          <Route path="research" element={<OptionsResearchPage />} />
           <Route path="journal"  element={<OptionsJournalShell />} />
           <Route path="learning" element={<OptionsLearningShell />} />
           <Route path="lab"      element={<OptionsLabShell />} />

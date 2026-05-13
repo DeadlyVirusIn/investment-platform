@@ -3486,3 +3486,343 @@
     padding: 22px 20px;
   }
 }
+
+/* 4-cell variant (used by Research pathways) */
+.opt-doorway-strip-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1100px) {
+  .opt-doorway-strip-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .opt-doorway-strip-4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+
+/* ============================================================ */
+/* Phase 6b-3-d — Research surface (workstation)                 */
+/* ============================================================ */
+
+/* Page container — wider than Overview, more breathing room. */
+.opt-research {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding-top: 4px;
+}
+
+/* ─── 1. Pulse strip ────────────────────────────────────── */
+.opt-research-pulse-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 14px 18px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--fg-2);
+}
+.opt-pulse-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+.opt-pulse-text {
+  font-size: 13px;
+  color: var(--fg-2);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+.opt-pulse-num {
+  color: var(--fg);
+  font-weight: 600;
+}
+.opt-pulse-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+.opt-pulse-ok   { color: var(--success); font-weight: 500; }
+.opt-pulse-warn { color: var(--warning); font-weight: 500; }
+
+/* ─── 2. High-conviction card ───────────────────────────── */
+.opt-conviction-card {
+  /* u-card-lg already gives gradient + shadow + 22-24 px padding */
+}
+.opt-conviction-eyebrow {
+  margin-bottom: 10px;
+}
+.opt-conviction-headline {
+  margin-bottom: 0;
+  letter-spacing: -0.015em;
+}
+.opt-conviction-strategy {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--fg-3);
+  letter-spacing: 0;
+}
+.opt-conviction-head {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.opt-conviction-quality {
+  text-align: right;
+  min-width: 130px;
+}
+.opt-conviction-dots {
+  font-family: var(--mono);
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--accent);
+}
+.opt-conviction-quality-text {
+  font-size: 12px;
+  color: var(--fg-3);
+  margin-top: 4px;
+}
+.opt-conviction-section {
+  margin-bottom: 18px;
+}
+.opt-conviction-section-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.opt-conviction-section-body {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--fg-2);
+  margin: 0;
+  max-width: 78ch;
+}
+.opt-conviction-foot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.opt-conviction-foot-sep {
+  color: var(--text-muted);
+  opacity: 0.5;
+}
+@media (max-width: 700px) {
+  .opt-conviction-head {
+    grid-template-columns: 1fr;
+  }
+  .opt-conviction-quality {
+    text-align: left;
+  }
+}
+.opt-conviction-body {
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--fg-2);
+  max-width: 70ch;
+}
+
+/* ─── 3. Supporting observations list ────────────────────── */
+.opt-supp-section {
+  /* uses u-card */
+}
+.opt-supp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opt-supp-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.opt-supp-row:first-child {
+  border-top: 0;
+}
+.opt-supp-row-head {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 12px 0;
+  cursor: pointer;
+  text-align: left;
+  display: grid;
+  grid-template-columns:
+    36px        /* rank */
+    72px        /* ticker */
+    1fr         /* meta strike+type */
+    50px        /* meta dte */
+    120px       /* dots */
+    72px        /* score */
+    20px;       /* toggle */
+  gap: 14px;
+  align-items: baseline;
+  color: var(--fg);
+  font-size: 13px;
+  transition: background-color 100ms ease;
+}
+.opt-supp-row-head:hover {
+  background: var(--surface-2);
+}
+.opt-supp-row-rank {
+  font-family: var(--mono);
+  color: var(--fg-3);
+  font-size: 12px;
+}
+.opt-supp-row-ticker {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 14px;
+}
+.opt-supp-row-meta {
+  font-family: var(--mono);
+  color: var(--fg-2);
+  font-size: 12px;
+}
+.opt-supp-row-dots {
+  font-family: var(--mono);
+  letter-spacing: 1px;
+  color: var(--accent);
+  font-size: 13px;
+}
+.opt-supp-row-score {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg);
+  font-size: 13px;
+}
+.opt-supp-row-toggle {
+  color: var(--fg-3);
+  text-align: center;
+  font-size: 11px;
+}
+.opt-supp-row-detail {
+  padding: 0 0 14px 50px;
+}
+.opt-supp-row-detail-body {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--fg-2);
+  line-height: 21px;
+}
+.opt-supp-row-detail-meta {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+
+@media (max-width: 700px) {
+  .opt-supp-row-head {
+    grid-template-columns:
+      28px 60px 1fr 80px 60px 16px;
+    gap: 10px;
+  }
+  .opt-supp-row-meta:nth-of-type(2) {
+    /* hide DTE on small */
+    display: none;
+  }
+}
+
+/* ─── 4. Research narrative ──────────────────────────────── */
+.opt-narrative {
+  /* uses u-card */
+}
+.opt-narrative-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.opt-narrative-item {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 16px;
+  align-items: baseline;
+}
+.opt-narrative-label {
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--accent);
+  padding-top: 4px;
+}
+.opt-narrative-sentence {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--fg);
+  letter-spacing: -0.005em;
+}
+.opt-narrative-foot {
+  margin-top: 18px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border-subtle);
+  color: var(--fg-3);
+}
+@media (max-width: 700px) {
+  .opt-narrative-item {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* ─── 5. Filtered-out collapsible ────────────────────────── */
+.opt-research-filter-deep-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--fg);
+}
+.opt-research-filter-deep-toggle {
+  display: inline-block;
+  width: 14px;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.opt-research-filter-deep-summary {
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.opt-research-filter-deep-body {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.opt-supp-empty {
+  /* uses u-card; empty state styling */
+}
