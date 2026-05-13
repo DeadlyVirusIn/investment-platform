@@ -702,3 +702,198 @@ def interpretation_guardrails_page_context() -> dict[str, Any]:
     out = ig_service.get_page_context()
     out["notice"] = PAPER_ONLY_NOTICE
     return out
+
+
+# ---------------------------------------------------------------------------
+# Phase Opt-C1 Step 11 — Lifecycle timeline read-only endpoint.
+# Reads options_trade_lifecycle_event written by Opt-B2 sole-writer.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/learning/summary")
+def options_learning_summary(
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Phase Opt-C1 Step 13 — gated learning insights.
+
+    Hard thresholds (see docs/research/OPTIONS_OPT_C1_REFINEMENT.md §8):
+      - ≥30 total CLOSED paper trades
+      - ≥10 CLOSED per strategy in ≥3 distinct strategies
+      - ≥30 distinct trading days of CLOSED coverage
+      - ML_OPTIONS_LEARNING_ENABLED env flag (operator master switch)
+
+    Below thresholds: returns gate progress only. Above: aggregates
+    with Wilson 95% CI. Currently always below threshold (zero CLOSED
+    trades exist; engine dormant).
+    """
+    from sqlalchemy import text
+
+    from apps.api.src.config import settings
+
+    THRESHOLD_TOTAL_CLOSED = 30
+    THRESHOLD_PER_STRATEGY = 10
+    THRESHOLD_DISTINCT_STRATEGIES = 3
+    THRESHOLD_TRADING_DAYS = 30
+
+    counts = session.execute(text(
+        """
+        SELECT
+          (SELECT COUNT(*) FROM options_paper_trade
+             WHERE status IN ('CLOSED','EXPIRED','ASSIGNED'))
+            AS closed_total,
+          (SELECT COUNT(DISTINCT DATE(closed_at))
+             FROM options_paper_trade
+             WHERE closed_at IS NOT NULL)
+            AS distinct_days
+        """
+    )).mappings().first()
+
+    closed_total = int(counts["closed_total"]) if counts else 0
+    distinct_days = int(counts["distinct_days"]) if counts else 0
+
+    # Per-strategy CLOSED counts
+    per_strategy_rows = session.execute(text(
+        """
+        SELECT strategy_name, COUNT(*) AS n
+        FROM options_paper_trade
+        WHERE status IN ('CLOSED','EXPIRED','ASSIGNED')
+        GROUP BY strategy_name
+        ORDER BY n DESC
+        """
+    )).mappings().all()
+    per_strategy = [
+        {"strategy_name": str(r["strategy_name"]), "closed_count": int(r["n"])}
+        for r in per_strategy_rows
+    ]
+    distinct_strategies_meeting_floor = sum(
+        1 for r in per_strategy if r["closed_count"] >= THRESHOLD_PER_STRATEGY
+    )
+    top_strategy_count = per_strategy[0]["closed_count"] if per_strategy else 0
+
+    flag_on = bool(getattr(settings, "ML_OPTIONS_LEARNING_ENABLED", False))
+    all_data_gates_pass = (
+        closed_total >= THRESHOLD_TOTAL_CLOSED
+        and distinct_strategies_meeting_floor >= THRESHOLD_DISTINCT_STRATEGIES
+        and distinct_days >= THRESHOLD_TRADING_DAYS
+    )
+    enabled = flag_on and all_data_gates_pass
+
+    if enabled:
+        # Phase Opt-C1 ships the gate logic only. Aggregate computation
+        # (Wilson CI, calibration bins) lands in a separate operator-
+        # approved phase once gates actually trip. Until then this
+        # branch is unreachable in practice.
+        # The shape is reserved here for forward-compat.
+        return {
+            "enabled": True,
+            "ml_options_learning_enabled": flag_on,
+            "thresholds_met": True,
+            "win_rate_by_strategy": [],
+            "calibration": [],
+            "best_worst": [],
+            "rejection_history": [],
+            "notice": PAPER_ONLY_NOTICE,
+            "computed_at_utc": (
+                __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc
+                ).isoformat()
+            ),
+        }
+
+    return {
+        "enabled": False,
+        "ml_options_learning_enabled": flag_on,
+        "thresholds_met": all_data_gates_pass,
+        "gate": {
+            "closed_trades": closed_total,
+            "closed_trades_target": THRESHOLD_TOTAL_CLOSED,
+            "distinct_strategies_meeting_floor":
+                distinct_strategies_meeting_floor,
+            "distinct_strategies_target": THRESHOLD_DISTINCT_STRATEGIES,
+            "top_strategy_closed_count": top_strategy_count,
+            "per_strategy_target": THRESHOLD_PER_STRATEGY,
+            "trading_days": distinct_days,
+            "trading_days_target": THRESHOLD_TRADING_DAYS,
+        },
+        "per_strategy_breakdown": per_strategy,
+        "reason": (
+            "Learning insights unlock when all data gates pass AND the "
+            "ML_OPTIONS_LEARNING_ENABLED flag is True. Currently "
+            f"{'data gates would pass' if all_data_gates_pass else 'data thresholds not met'}; "
+            f"flag is {'on' if flag_on else 'off'}."
+        ),
+        "notice": PAPER_ONLY_NOTICE,
+    }
+
+
+@router.get("/trades/{trade_id}/lifecycle")
+def options_trade_lifecycle(
+    trade_id: int,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Read-only event log for one paper-trade. Powers the lifecycle
+    timeline UI (Opt-C1 Step 11). Sole writer of the underlying table
+    is apps/api/src/options/lifecycle.py (Opt-B2)."""
+    from sqlalchemy import text
+
+    trade_row = session.execute(text(
+        """
+        SELECT id, status, opened_at, closed_at, underlying,
+               strategy_name, strategy_version,
+               proposal_hash
+        FROM options_paper_trade
+        WHERE id = :tid
+        """
+    ), {"tid": trade_id}).mappings().first()
+    if trade_row is None:
+        return {
+            "trade_id": trade_id,
+            "found": False,
+            "current_status": None,
+            "events": [],
+            "notice": PAPER_ONLY_NOTICE,
+        }
+
+    events = session.execute(text(
+        """
+        SELECT id, event_type, event_at_utc, triggered_by, payload_json
+        FROM options_trade_lifecycle_event
+        WHERE trade_id = :tid
+        ORDER BY event_at_utc ASC, id ASC
+        """
+    ), {"tid": trade_id}).mappings().all()
+
+    return {
+        "trade_id": trade_id,
+        "found": True,
+        "current_status": str(trade_row["status"]),
+        "underlying": str(trade_row["underlying"]),
+        "strategy_name": str(trade_row["strategy_name"]),
+        "strategy_version": str(trade_row["strategy_version"]),
+        "opened_at": (
+            trade_row["opened_at"].isoformat()
+            if trade_row["opened_at"] else None
+        ),
+        "closed_at": (
+            trade_row["closed_at"].isoformat()
+            if trade_row["closed_at"] else None
+        ),
+        "proposal_hash": (
+            str(trade_row["proposal_hash"])
+            if trade_row["proposal_hash"] else None
+        ),
+        "events": [
+            {
+                "id": int(e["id"]),
+                "event_type": str(e["event_type"]),
+                "event_at_utc": (
+                    e["event_at_utc"].isoformat()
+                    if e["event_at_utc"] else None
+                ),
+                "triggered_by": str(e["triggered_by"]),
+                "payload": e["payload_json"] or {},
+            }
+            for e in events
+        ],
+        "notice": PAPER_ONLY_NOTICE,
+    }

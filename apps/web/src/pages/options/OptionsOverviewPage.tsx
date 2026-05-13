@@ -14,14 +14,37 @@
 // etc. via the URL query param.
 
 import OptionsStatusBanner from "@/components/options/OptionsStatusBanner";
-import OptionsTodayIdeasCard from "@/components/options/OptionsTodayIdeasCard";
-import OptionsOpenTradesCard from "@/components/options/OptionsOpenTradesCard";
-import OptionsClosedTradesCard from "@/components/options/OptionsClosedTradesCard";
-import OptionsDiagnosticsCard from "@/components/options/OptionsDiagnosticsCard";
+import OptionsDiagnosticsAccordion from "@/components/options/OptionsDiagnosticsAccordion";
 import OptionsExplanationPanel from "@/components/options/OptionsExplanationPanel";
+import OptionsLearningGate from "@/components/options/OptionsLearningGate";
+// Phase Opt-C1 Checkpoint 1 — Steps 1-2 (catalog + evaluation flow).
+import OptionsStrategyCatalog from "@/components/options/OptionsStrategyCatalog";
+import OptionsEvaluationFlow from "@/components/options/OptionsEvaluationFlow";
+// Phase Opt-C1 Checkpoint 2 — Steps 5-7.
+import OptionsResearchCandidates from "@/components/options/OptionsResearchCandidates";
+import OptionsRejectionsSection from "@/components/options/OptionsRejectionsSection";
+import OptionsRejectedCandidatesGroup from "@/components/options/OptionsRejectedCandidatesGroup";
+// Phase Opt-C1 Checkpoint 3 — Steps 8-11.
+// Grouped tracker REPLACES Opt-A's flat OpenTradesCard + ClosedTradesCard.
+// Lifecycle timeline is rendered when the operator selects a trade
+// (Checkpoint 4 will add a global selection store; for now timeline is
+// available via direct URL hash deep-link, e.g. #lifecycle=1).
+import OptionsTrackerWorkflow from "@/components/options/OptionsTrackerWorkflow";
+import OptionsLifecycleTimeline from "@/components/options/OptionsLifecycleTimeline";
+
+
+/** Read trade-id from URL hash (#lifecycle=N) for Checkpoint 3.
+ *  Checkpoint 4 will swap this for a proper selection state. */
+function _selectedTradeId(): number | null {
+  if (typeof window === "undefined") return null;
+  const m = window.location.hash.match(/lifecycle=(\d+)/);
+  return m ? Number(m[1]) : null;
+}
 
 
 export default function OptionsOverviewPage() {
+  const selectedTrade = _selectedTradeId();
+
   return (
     <div className="opt-brief">
       <header className="opt-brief-header">
@@ -37,10 +60,33 @@ export default function OptionsOverviewPage() {
       </header>
 
       <OptionsStatusBanner />
-      <OptionsTodayIdeasCard />
-      <OptionsOpenTradesCard />
-      <OptionsClosedTradesCard />
-      <OptionsDiagnosticsCard />
+
+      {/* Phase Opt-C1 Step 5 — Today's Research Candidates (top 3) */}
+      <OptionsResearchCandidates />
+
+      {/* Phase Opt-C1 Step 6 — Filtered Out Today (rejection bar chart) */}
+      <OptionsRejectionsSection />
+
+      {/* Phase Opt-C1 Step 9-10 — Paper options journal (6 grouped sections) */}
+      <OptionsTrackerWorkflow />
+
+      {/* Phase Opt-C1 Step 7 — Rejected Candidates workflow group */}
+      <OptionsRejectedCandidatesGroup />
+
+      {/* Phase Opt-C1 Step 11 — Lifecycle timeline (deep-link only for now) */}
+      {selectedTrade !== null && (
+        <OptionsLifecycleTimeline trade_id={selectedTrade} />
+      )}
+
+      {/* Phase Opt-C1 Step 12 — Learning desk gate */}
+      <OptionsLearningGate />
+
+      {/* Phase Opt-C1 — educational layer (always visible, useful in dormant) */}
+      <OptionsStrategyCatalog />
+      <OptionsEvaluationFlow />
+
+      {/* Phase Opt-C1 Step 14 — Diagnostics moved into accordion (?view=ops expands) */}
+      <OptionsDiagnosticsAccordion />
       <OptionsExplanationPanel />
     </div>
   );

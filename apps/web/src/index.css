@@ -1664,6 +1664,592 @@
     }
   }
 
+  /* -------- OPTIONS C1 — STRATEGY CATALOG ----------------------------
+     8-card grid of supported strategy families. Calm + educational. */
+  .opt-strategy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .opt-strategy-card {
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: var(--sunken, rgba(255, 255, 255, 0.02));
+  }
+  .opt-strategy-name {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--fg);
+    line-height: 1.3;
+  }
+  .opt-strategy-direction {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-3);
+    margin: 3px 0 6px;
+  }
+  .opt-strategy-summary {
+    font-size: 11.5px;
+    color: var(--fg-2);
+    line-height: 1.45;
+    margin: 0 0 6px;
+  }
+  .opt-strategy-checks {
+    font-size: 10px;
+    color: var(--fg-3);
+    font-family: var(--mono);
+  }
+
+  /* -------- OPTIONS C1 — EVALUATION FLOW -----------------------------
+     6-step illustrated flow. Numbered steps with title + body. */
+  .opt-flow {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .opt-flow-step {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+  .opt-flow-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: var(--sunken, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+    color: var(--fg-2);
+    font-size: 10.5px;
+    font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+  }
+  .opt-flow-title {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--fg);
+    margin-bottom: 1px;
+  }
+  .opt-flow-body {
+    font-size: 11.5px;
+    color: var(--fg-3);
+    line-height: 1.45;
+  }
+
+  /* -------- OPTIONS C1 — SUGGESTION CARD -----------------------------
+     Per-card layout. 3-up grid in OptionsResearchCandidates (Step 5). */
+  .opt-suggestion-card {
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--sunken, rgba(255, 255, 255, 0.02));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .opt-suggestion-head {
+    display: flex; align-items: baseline; justify-content: space-between;
+    gap: 8px;
+  }
+  .opt-suggestion-ticker {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--fg);
+    font-family: var(--mono);
+    letter-spacing: 0.04em;
+  }
+  .opt-suggestion-dots {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    font-family: var(--mono);
+  }
+  .opt-suggestion-rank {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-3);
+    font-family: var(--mono);
+  }
+  .opt-suggestion-strat {
+    font-size: 11.5px;
+    color: var(--fg-2);
+  }
+  .opt-suggestion-exp {
+    color: var(--fg-3);
+  }
+  .opt-suggestion-legs {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg-2);
+    padding: 4px 6px;
+    background: var(--sunken, rgba(0, 0, 0, 0.15));
+    border-radius: 4px;
+  }
+  .opt-suggestion-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin: 0;
+  }
+  .opt-suggestion-kv {
+    display: flex; flex-direction: column; gap: 1px;
+  }
+  .opt-suggestion-kv dt {
+    font-size: 9.5px;
+    color: var(--fg-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .opt-suggestion-kv dd {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg);
+    margin: 0;
+  }
+  .opt-suggestion-reading {
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    padding-top: 6px;
+  }
+  .opt-suggestion-reading-label {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-3);
+    display: block;
+    margin-bottom: 2px;
+  }
+  .opt-suggestion-reading p {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--fg-2);
+    line-height: 1.45;
+  }
+  .opt-suggestion-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 10.5px;
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    padding-top: 6px;
+  }
+  .opt-suggestion-label {
+    color: var(--fg-3);
+  }
+  .opt-suggestion-pill {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    background: var(--sunken, rgba(255, 255, 255, 0.05));
+  }
+  .opt-suggestion-pill.is-pos     { color: var(--success); }
+  .opt-suggestion-pill.is-neg     { color: var(--danger); }
+  .opt-suggestion-pill.is-warn    { color: var(--warning); }
+  .opt-suggestion-pill.is-accent  { color: var(--accent); }
+  .opt-suggestion-pill.is-neutral { color: var(--fg-3); }
+  .opt-suggestion-why {
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    padding-top: 6px;
+  }
+  .opt-suggestion-why-toggle {
+    background: none; border: 0; padding: 0;
+    font-size: 11px;
+    color: var(--fg-2);
+    cursor: pointer;
+    text-align: left;
+  }
+  .opt-suggestion-why-toggle:hover { color: var(--fg); }
+  .opt-suggestion-why-list {
+    list-style: none;
+    margin: 6px 0 0;
+    padding: 0;
+    display: flex; flex-direction: column; gap: 3px;
+  }
+  .opt-suggestion-why-row {
+    display: grid;
+    grid-template-columns: 16px 1fr;
+    font-size: 11px;
+    color: var(--fg-2);
+  }
+  .opt-suggestion-why-row.is-pos .opt-suggestion-why-mark { color: var(--success); }
+  .opt-suggestion-why-row.is-neg .opt-suggestion-why-mark { color: var(--danger); }
+
+  /* -------- OPTIONS C1 — SUGGESTION GRID (3-up) ----------------------- */
+  .opt-suggestion-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  /* -------- OPTIONS C1 — REJECTION BAR CHART ------------------------- */
+  .opt-rejection-bars {
+    display: flex; flex-direction: column; gap: 5px;
+  }
+  .opt-rejection-row {
+    display: grid;
+    grid-template-columns: 1fr 90px 32px;
+    align-items: center;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--fg-2);
+  }
+  .opt-rejection-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .opt-rejection-bar-track {
+    height: 8px;
+    background: var(--sunken, rgba(255, 255, 255, 0.04));
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .opt-rejection-bar-fill {
+    height: 100%;
+    background: var(--warning);
+    opacity: 0.7;
+  }
+  .opt-rejection-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: right;
+    color: var(--fg-3);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* -------- OPTIONS C1 — QUALITY-CHECKS PREVIEW LIST ------------------ */
+  .opt-quality-checks-list {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 4px;
+  }
+  .opt-quality-check {
+    font-size: 11px;
+    color: var(--fg-2);
+    padding: 4px 8px;
+    background: var(--sunken, rgba(255, 255, 255, 0.03));
+    border-left: 2px solid var(--border, rgba(255, 255, 255, 0.1));
+    border-radius: 2px;
+  }
+  .opt-quality-check.is-extra {
+    border-left-color: var(--accent);
+    color: var(--fg-3);
+    font-style: italic;
+  }
+
+  /* -------- OPTIONS C1 — REJECTED-CANDIDATES GROUP ------------------- */
+  .opt-rejected-section-head {
+    background: none; border: 0; padding: 0;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    margin-bottom: 4px;
+  }
+  .opt-rejected-section-head:hover .opt-card-eyebrow { color: var(--fg); }
+  .opt-rejected-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex; flex-direction: column;
+  }
+  .opt-rejected-row {
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.04));
+  }
+  .opt-rejected-row:first-child { border-top: 0; }
+  .opt-rejected-head {
+    background: none; border: 0; padding: 6px 0;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 14px 60px 1fr 2fr;
+    gap: 8px;
+    align-items: baseline;
+    cursor: pointer;
+    text-align: left;
+    color: var(--fg-2);
+    font-size: 11.5px;
+  }
+  .opt-rejected-head:hover { color: var(--fg); }
+  .opt-rejected-toggle {
+    color: var(--fg-3);
+    font-family: var(--mono);
+  }
+  .opt-rejected-ticker {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--fg);
+  }
+  .opt-rejected-strategy {
+    color: var(--fg-3);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .opt-rejected-failures {
+    font-size: 10.5px;
+    color: var(--warning);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .opt-rejected-detail {
+    padding: 4px 0 8px 22px;
+  }
+
+  @media (max-width: 600px) {
+    .opt-suggestion-grid {
+      grid-template-columns: 1fr;
+    }
+    .opt-rejection-row {
+      grid-template-columns: 1fr 60px 28px;
+    }
+    .opt-rejected-head {
+      grid-template-columns: 14px auto 1fr;
+    }
+    .opt-rejected-failures { display: none; }
+  }
+
+  /* -------- OPTIONS C1 — LIFECYCLE CHIP ------------------------------ */
+  .opt-lifecycle-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10.5px;
+    text-transform: lowercase;
+    letter-spacing: 0.04em;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: var(--sunken, rgba(255, 255, 255, 0.04));
+    color: var(--fg-2);
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    white-space: nowrap;
+  }
+  .opt-lifecycle-dot {
+    font-size: 8px;
+    line-height: 1;
+  }
+  .opt-lifecycle-meta {
+    color: var(--fg-3);
+    font-size: 9.5px;
+    font-family: var(--mono);
+  }
+  .opt-lifecycle-chip.is-open      { color: var(--success); }
+  .opt-lifecycle-chip.is-open .opt-lifecycle-dot     { color: var(--success); }
+  .opt-lifecycle-chip.is-expiring  { color: var(--warning); }
+  .opt-lifecycle-chip.is-expiring .opt-lifecycle-dot { color: var(--warning); }
+  .opt-lifecycle-chip.is-closed    { color: var(--accent); }
+  .opt-lifecycle-chip.is-closed .opt-lifecycle-dot   { color: var(--accent); }
+  .opt-lifecycle-chip.is-expired   { color: var(--warning); opacity: 0.85; }
+  .opt-lifecycle-chip.is-expired .opt-lifecycle-dot  { color: var(--warning); }
+  .opt-lifecycle-chip.is-assigned  { color: var(--danger); }
+  .opt-lifecycle-chip.is-assigned .opt-lifecycle-dot { color: var(--danger); }
+  .opt-lifecycle-chip.is-proposed,
+  .opt-lifecycle-chip.is-neutral   { color: var(--fg-3); }
+
+  /* -------- OPTIONS C1 — TRACKER WORKFLOW + ROW ---------------------- */
+  .opt-tracker-groups {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .opt-tracker-group {
+    border-top: 1px solid var(--border, rgba(255, 255, 255, 0.04));
+    padding-top: 6px;
+  }
+  .opt-tracker-group:first-child { border-top: 0; padding-top: 0; }
+  .opt-tracker-group-head {
+    background: none; border: 0; padding: 4px 0;
+    width: 100%;
+    display: flex; align-items: baseline; gap: 8px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .opt-tracker-group-head:hover .opt-tracker-group-label { color: var(--fg); }
+  .opt-tracker-group-toggle {
+    color: var(--fg-3);
+    font-family: var(--mono);
+    width: 14px;
+    flex-shrink: 0;
+  }
+  .opt-tracker-group-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-2);
+    font-weight: 600;
+  }
+  .opt-tracker-group-count {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--fg-3);
+  }
+  .opt-tracker-table-wrap {
+    overflow-x: auto;
+    margin: 6px 0 4px;
+  }
+  .opt-tracker-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+    color: var(--fg-2);
+  }
+  .opt-tracker-table thead th {
+    text-align: left;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+    color: var(--fg-3);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  }
+  .opt-tracker-table tbody td {
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.04));
+    vertical-align: middle;
+  }
+  .opt-tracker-table tbody tr:last-child td { border-bottom: 0; }
+  .opt-tracker-cell-date {
+    font-family: var(--mono); color: var(--fg-3);
+  }
+  .opt-tracker-cell-ticker {
+    font-family: var(--mono); font-weight: 600; color: var(--fg);
+  }
+  .opt-tracker-cell-strategy { color: var(--fg-2); }
+  .opt-tracker-cell-legs,
+  .opt-tracker-cell-exp { font-family: var(--mono); color: var(--fg-3); }
+  .opt-tracker-cell-num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .opt-tracker-cell-num.is-pos { color: var(--success); }
+  .opt-tracker-cell-num.is-neg { color: var(--danger); }
+  .opt-tracker-cell-status,
+  .opt-tracker-cell-notes { white-space: nowrap; }
+  .opt-tracker-notes-pill {
+    font-size: 9.5px;
+    color: var(--fg-3);
+    border: 1px dashed var(--border, rgba(255, 255, 255, 0.12));
+    border-radius: 8px;
+    padding: 1px 6px;
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  /* Mobile card-stack — desktop table hidden, mobile list shown */
+  .opt-tracker-mobile-list { display: none; }
+  @media (max-width: 768px) {
+    .opt-tracker-table-wrap { display: none; }
+    .opt-tracker-mobile-list {
+      display: flex; flex-direction: column; gap: 6px;
+      padding: 6px 0;
+    }
+  }
+  .opt-tracker-row-mobile {
+    border: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+    border-radius: 6px;
+    padding: 8px 10px;
+    background: var(--sunken, rgba(255, 255, 255, 0.02));
+  }
+  .opt-tracker-row-mobile-head {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 4px;
+  }
+  .opt-tracker-mobile-ticker {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--fg);
+    font-size: 12px;
+  }
+  .opt-tracker-row-mobile-body {
+    font-size: 11.5px;
+    color: var(--fg-2);
+    margin-bottom: 4px;
+  }
+  .opt-tracker-row-mobile-foot {
+    display: flex; justify-content: space-between;
+    font-size: 11px;
+    color: var(--fg-3);
+  }
+  .opt-tracker-pnl {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--fg);
+  }
+  .opt-tracker-pnl.is-pos { color: var(--success); }
+  .opt-tracker-pnl.is-neg { color: var(--danger); }
+  .opt-tracker-pct { color: var(--fg-3); margin-left: 4px; }
+
+  /* -------- OPTIONS C1 — LIFECYCLE TIMELINE -------------------------- */
+  .opt-lifecycle-prov {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+  }
+  .opt-lifecycle-prov > div {
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .opt-lifecycle-prov-k {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--fg-3);
+  }
+  .opt-lifecycle-prov-v {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--fg);
+  }
+  .opt-lifecycle-events {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+  }
+  .opt-lifecycle-events thead th {
+    text-align: left;
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--fg-3);
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  }
+  .opt-lifecycle-events tbody td {
+    padding: 5px 8px;
+    border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.04));
+    color: var(--fg-2);
+    font-family: var(--mono);
+  }
+  .opt-lifecycle-events tbody tr:last-child td { border-bottom: 0; }
+  .opt-lifecycle-events-when { color: var(--fg-3); }
+  .opt-lifecycle-events-type {
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--sunken, rgba(255, 255, 255, 0.05));
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    color: var(--fg-2);
+  }
+  .opt-lifecycle-events-type[data-event-type="FILLED"]   { color: var(--success); }
+  .opt-lifecycle-events-type[data-event-type="CLOSED"]   { color: var(--accent); }
+  .opt-lifecycle-events-type[data-event-type="EXPIRED"]  { color: var(--warning); }
+  .opt-lifecycle-events-type[data-event-type="ASSIGNED"] { color: var(--danger); }
+  .opt-lifecycle-events-src {
+    color: var(--fg-3);
+    font-size: 10px;
+  }
+  .opt-lifecycle-events-reason { color: var(--fg-2); }
+
   /* -------- BEGINNER GUIDANCE HELPERS -------- */
   .u-help-icon {
     display: inline-flex; align-items: center; justify-content: center;
@@ -2486,4 +3072,153 @@
     z-index: 30;
     padding-top: env(safe-area-inset-top, 0px);
   }
+}
+
+
+/* ============================================================ */
+/* Phase Opt-C1 Step 12 — Learning Desk gate UI                 */
+/* ============================================================ */
+.opt-learning-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+.opt-learning-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.opt-learning-bar-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--fg-2);
+}
+.opt-learning-bar-k { font-weight: 500; }
+.opt-learning-bar-v {
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-3);
+}
+.opt-learning-bar-v.is-met {
+  color: var(--success, #2e9c5a);
+  font-weight: 600;
+}
+.opt-learning-bar-track {
+  height: 6px;
+  background: var(--bg-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.opt-learning-bar-fill {
+  height: 100%;
+  background: var(--fg-3);
+  transition: width 240ms ease;
+}
+.opt-learning-bar-fill[data-met="true"] {
+  background: var(--success, #2e9c5a);
+}
+.opt-learning-foot {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--b1);
+  font-size: 11.5px;
+  color: var(--fg-3);
+  line-height: 1.55;
+}
+
+
+/* ============================================================ */
+/* Phase Opt-C1 Step 14 — Diagnostics accordion                 */
+/* ============================================================ */
+.opt-diag-accordion-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--fg);
+}
+.opt-diag-accordion-head:hover .opt-card-eyebrow {
+  color: var(--fg);
+}
+.opt-diag-accordion-toggle {
+  display: inline-block;
+  width: 14px;
+  font-size: 11px;
+  color: var(--fg-3);
+}
+.opt-diag-accordion-summary {
+  font-size: 12px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+.opt-diag-accordion-body {
+  margin-top: 12px;
+}
+
+
+/* ============================================================ */
+/* Phase Opt-C1 Step 15 — Working view nav grouping             */
+/* ============================================================ */
+.opt-working-nav-groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+.opt-working-nav-group {
+  background: var(--bg-1);
+  border: 1px solid var(--b1);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.opt-working-nav-group-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.opt-working-nav-group-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+.opt-working-nav-group-desc {
+  font-size: 11.5px;
+  color: var(--fg-3);
+  line-height: 1.45;
+}
+.opt-working-nav-group-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.opt-working-nav-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--b1);
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--fg-3);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+.opt-working-nav-pill:hover {
+  color: var(--fg);
+  border-color: var(--b2, var(--b1));
+}
+.opt-working-nav-pill.is-active {
+  color: var(--fg);
+  border-color: var(--accent);
 }

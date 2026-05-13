@@ -298,6 +298,17 @@ class Settings(BaseSettings):
     INTRADAY_ML_SHADOW_ENABLED: bool = False
 
     # ------------------------------------------------------------------
+    # PHASE Opt-C1 — Options ML learning desk (gated)
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF. Even when True, /api/options/learning/summary
+    # returns aggregates ONLY after the closed-trade thresholds pass:
+    #   - ≥30 total CLOSED paper trades
+    #   - ≥10 CLOSED per strategy in ≥3 distinct strategies
+    #   - ≥30 distinct trading days of CLOSED coverage
+    # See docs/research/OPTIONS_OPT_C1_REFINEMENT.md §8.
+    ML_OPTIONS_LEARNING_ENABLED: bool = False
+
+    # ------------------------------------------------------------------
     # PHASE 11W (Phase D.2) — Real provider adapter (default OFF)
     # ------------------------------------------------------------------
     # PERMANENT default OFF in production. When False, the resolver
