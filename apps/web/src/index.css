@@ -4227,3 +4227,82 @@
     border-bottom: 0;
   }
 }
+
+
+/* ============================================================ */
+/* Phase 6b-3-h — Lab surface                                    */
+/* (inspectable methodology, not AI theater)                    */
+/* ============================================================ */
+
+.opt-lab {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding-top: 4px;
+}
+
+/* Today's evaluation funnel */
+.opt-lab-funnel {
+  /* uses u-card */
+}
+.opt-funnel-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opt-funnel-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 20px;
+  align-items: baseline;
+  padding: 14px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.opt-funnel-row:first-child { border-top: 0; }
+.opt-funnel-num {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--fg);
+  letter-spacing: -0.015em;
+  text-align: right;
+}
+.opt-funnel-num-warn { color: var(--warning); }
+.opt-funnel-num-ok   { color: var(--success); }
+.opt-funnel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.opt-funnel-stage {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.opt-funnel-detail {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--fg-3);
+}
+.opt-funnel-detail code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  background: var(--surface-1);
+  padding: 1px 6px;
+  border-radius: 3px;
+  color: var(--fg);
+}
+
+@media (max-width: 700px) {
+  .opt-funnel-row {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .opt-funnel-num { text-align: left; }
+}
