@@ -1435,7 +1435,7 @@
   .opt-overview {
     display: flex;
     flex-direction: column;
-    gap: 28px;
+    gap: 24px;          /* normalized to match all 7 surfaces */
     max-width: 1480px;
     margin: 0 auto;
     padding-top: 4px;
