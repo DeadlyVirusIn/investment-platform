@@ -3826,3 +3826,76 @@
 .opt-supp-empty {
   /* uses u-card; empty state styling */
 }
+
+
+/* ============================================================ */
+/* Phase 6b-3-e — Journal surface                                */
+/* ============================================================ */
+
+.opt-journal {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding-top: 4px;
+}
+
+.opt-journal-pulse {
+  /* uses .opt-research-pulse-strip from 6b-3-d for shape */
+}
+
+.opt-journal-history {
+  /* uses u-card */
+}
+.opt-journal-history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opt-journal-history-row {
+  display: grid;
+  grid-template-columns: 220px 1fr 1fr auto;
+  gap: 16px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.opt-journal-history-row:first-child {
+  border-top: 0;
+}
+.opt-journal-history-date {
+  font-size: 14px;
+  color: var(--fg);
+  font-weight: 500;
+}
+.opt-journal-history-meta {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  color: var(--fg-2);
+}
+.opt-journal-history-num {
+  color: var(--fg);
+  font-weight: 600;
+}
+.opt-journal-history-meta-sub {
+  color: var(--fg-3);
+  text-align: right;
+  font-size: 11.5px;
+}
+
+@media (max-width: 800px) {
+  .opt-journal-history-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 14px 0;
+  }
+  .opt-journal-history-meta-sub {
+    text-align: left;
+  }
+}

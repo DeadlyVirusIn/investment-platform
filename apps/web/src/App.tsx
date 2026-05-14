@@ -61,7 +61,8 @@ import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFrami
 // Phase 6b-3-b — new 7-surface workspace placeholders
 // Phase 6b-3-d — Research shell replaced by full Research page
 import OptionsResearchPage   from '@/pages/options/OptionsResearchPage';
-import OptionsJournalShell   from '@/pages/options/OptionsJournalShell';
+// Phase 6b-3-e — Journal shell replaced by full Journal page
+import OptionsJournalPage    from '@/pages/options/OptionsJournalPage';
 import OptionsLearningShell  from '@/pages/options/OptionsLearningShell';
 import OptionsLabShell       from '@/pages/options/OptionsLabShell';
 import OptionsOpsShell       from '@/pages/options/OptionsOpsShell';
@@ -124,7 +125,7 @@ export default function App() {
               All 12 legacy routes above remain reachable; these are
               ADDITIVE. Bodies land in 6b-3-{d..i}. */}
           <Route path="research" element={<OptionsResearchPage />} />
-          <Route path="journal"  element={<OptionsJournalShell />} />
+          <Route path="journal"  element={<OptionsJournalPage />} />
           <Route path="learning" element={<OptionsLearningShell />} />
           <Route path="lab"      element={<OptionsLabShell />} />
           <Route path="ops"      element={<OptionsOpsShell />} />
