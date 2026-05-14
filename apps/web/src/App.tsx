@@ -69,7 +69,8 @@ import OptionsLearningPage   from '@/pages/options/OptionsLearningPage';
 import OptionsOpsPage        from '@/pages/options/OptionsOpsPage';
 // Phase 6b-3-h — Lab shell replaced by full Lab page
 import OptionsLabPage        from '@/pages/options/OptionsLabPage';
-import OptionsSettingsShell  from '@/pages/options/OptionsSettingsShell';
+// Phase 6b-3-i — Settings shell replaced by full Settings page
+import OptionsSettingsPage   from '@/pages/options/OptionsSettingsPage';
 
 // Phase 11Q — Pending T+1 Decisions diagnostic (read-only)
 import PendingT1Page                  from '@/pages/diagnostics/PendingT1';
@@ -132,7 +133,7 @@ export default function App() {
           <Route path="learning" element={<OptionsLearningPage />} />
           <Route path="lab"      element={<OptionsLabPage />} />
           <Route path="ops"      element={<OptionsOpsPage />} />
-          <Route path="settings" element={<OptionsSettingsShell />} />
+          <Route path="settings" element={<OptionsSettingsPage />} />
         </Route>
 
         {/* Phase 11Q — Pending T+1 Decisions diagnostic (read-only) */}

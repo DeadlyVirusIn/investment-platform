@@ -4306,3 +4306,128 @@
   }
   .opt-funnel-num { text-align: left; }
 }
+
+
+/* ============================================================ */
+/* Phase 6b-3-i — Settings surface                               */
+/* (declared institutional governance, smallest surface)        */
+/* ============================================================ */
+
+.opt-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding-top: 4px;
+}
+
+/* Operating boundaries — policy rows */
+.opt-boundaries-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opt-boundary-row {
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.opt-boundary-row:first-child { border-top: 0; }
+.opt-boundary-head {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.opt-boundary-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+}
+.opt-boundary-immutable {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-3);
+  padding: 2px 8px;
+  background: var(--surface-1);
+  border-radius: 4px;
+}
+.opt-boundary-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--fg);
+}
+.opt-boundary-row[data-state="ok"] .opt-boundary-value {
+  color: var(--success);
+}
+.opt-boundary-row[data-state="warn"] .opt-boundary-value {
+  color: var(--warning);
+}
+.opt-boundary-explanation {
+  font-size: 12.5px;
+  line-height: 18px;
+  color: var(--fg-3);
+  margin: 0;
+  max-width: 78ch;
+}
+
+@media (max-width: 700px) {
+  .opt-boundary-head {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+/* Declared configuration — definition list */
+.opt-declared-list {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+.opt-declared-row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 24px;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.opt-declared-row:first-child { border-top: 0; }
+.opt-declared-key {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--fg-3);
+  padding-top: 4px;
+}
+.opt-declared-val {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.opt-declared-val-primary {
+  font-size: 14px;
+  color: var(--fg);
+  font-weight: 500;
+}
+.opt-declared-val-list {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-3);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 700px) {
+  .opt-declared-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+}
