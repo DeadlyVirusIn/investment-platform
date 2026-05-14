@@ -159,3 +159,28 @@ def learning_readiness(
         out["all_gates_pass"]
         and out["ml_options_learning_enabled"])
     return out
+
+
+# ---------------------------------------------------------------------------
+# 9. Scheduler rows (Phase 6b-3-g — Ops)
+# ---------------------------------------------------------------------------
+
+@router.get("/scheduler-rows")
+def scheduler_rows(
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    rows = Q.scheduler_rows(session)
+    return {"count": len(rows), "rows": rows}
+
+
+# ---------------------------------------------------------------------------
+# 10. Job-run history (Phase 6b-3-g — Ops)
+# ---------------------------------------------------------------------------
+
+@router.get("/job-runs")
+def job_runs(
+    limit: int = Query(default=10, ge=1, le=200),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    rows = Q.job_runs(session, limit=limit)
+    return {"limit": limit, "count": len(rows), "rows": rows}

@@ -486,6 +486,68 @@ def learning_readiness(
     }
 
 
+def scheduler_rows(session: Session) -> list[dict[str, Any]]:
+    """Phase 6b-3-g — Ops · scheduler row read (SELECT-only).
+
+    Returns options scheduler rows in name order, with cron + enabled
+    + next/last fire timestamps. Pure SELECT.
+    """
+    rows = session.execute(text(
+        """
+        SELECT name, cron_expr, enabled, next_run_at, last_run_at,
+               created_at
+          FROM job_schedule
+         WHERE name LIKE '%option%'
+         ORDER BY name
+        """
+    )).mappings().all()
+    return [
+        {
+            "name":         r["name"],
+            "cron_expr":    r["cron_expr"],
+            "enabled":      bool(r["enabled"]),
+            "next_run_at":  r["next_run_at"].isoformat() if r["next_run_at"] else None,
+            "last_run_at":  r["last_run_at"].isoformat() if r["last_run_at"] else None,
+            "created_at":   r["created_at"].isoformat() if r["created_at"] else None,
+        }
+        for r in rows
+    ]
+
+
+def job_runs(session: Session, *, limit: int = 10) -> list[dict[str, Any]]:
+    """Phase 6b-3-g — Ops · recent job_run rows (SELECT-only).
+
+    Returns recent runs across the options scheduler entries in
+    started_at DESC order, capped at `limit`.
+    """
+    n = _coerce_int(limit, 10)
+    rows = session.execute(text(
+        """
+        SELECT jr.id, js.name, jr.status, jr.started_at,
+               jr.finished_at, jr.duration_seconds, jr.error_message
+          FROM job_run jr
+          JOIN job_schedule js ON jr.job_schedule_id = js.id
+         WHERE js.name LIKE '%option%'
+         ORDER BY jr.started_at DESC
+         LIMIT :limit
+        """
+    ), {"limit": n}).mappings().all()
+    return [
+        {
+            "id":               r["id"],
+            "name":             r["name"],
+            "status":           r["status"],
+            "started_at":       r["started_at"].isoformat() if r["started_at"] else None,
+            "finished_at":      r["finished_at"].isoformat() if r["finished_at"] else None,
+            "duration_seconds": (float(r["duration_seconds"])
+                                 if r["duration_seconds"] is not None
+                                 else None),
+            "error_message":    r["error_message"],
+        }
+        for r in rows
+    ]
+
+
 __all__ = [
     "integrity_status",
     "daily_counts",
@@ -495,4 +557,6 @@ __all__ = [
     "universe_coverage",
     "freshness",
     "learning_readiness",
+    "scheduler_rows",
+    "job_runs",
 ]
