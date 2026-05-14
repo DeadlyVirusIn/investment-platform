@@ -63,7 +63,8 @@ import OptionsDecisionFramingPage     from '@/pages/options/OptionsDecisionFrami
 import OptionsResearchPage   from '@/pages/options/OptionsResearchPage';
 // Phase 6b-3-e — Journal shell replaced by full Journal page
 import OptionsJournalPage    from '@/pages/options/OptionsJournalPage';
-import OptionsLearningShell  from '@/pages/options/OptionsLearningShell';
+// Phase 6b-3-f — Learning shell replaced by full Learning page
+import OptionsLearningPage   from '@/pages/options/OptionsLearningPage';
 import OptionsLabShell       from '@/pages/options/OptionsLabShell';
 import OptionsOpsShell       from '@/pages/options/OptionsOpsShell';
 import OptionsSettingsShell  from '@/pages/options/OptionsSettingsShell';
@@ -126,7 +127,7 @@ export default function App() {
               ADDITIVE. Bodies land in 6b-3-{d..i}. */}
           <Route path="research" element={<OptionsResearchPage />} />
           <Route path="journal"  element={<OptionsJournalPage />} />
-          <Route path="learning" element={<OptionsLearningShell />} />
+          <Route path="learning" element={<OptionsLearningPage />} />
           <Route path="lab"      element={<OptionsLabShell />} />
           <Route path="ops"      element={<OptionsOpsShell />} />
           <Route path="settings" element={<OptionsSettingsShell />} />
