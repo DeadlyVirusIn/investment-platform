@@ -107,6 +107,16 @@ services:
       TRADIER_TIMEOUT_SECONDS: ${TRADIER_TIMEOUT_SECONDS:-15}
       TRADIER_RATE_LIMIT_QPS: ${TRADIER_RATE_LIMIT_QPS:-1.0}
       TRADIER_DTE_WINDOW_DAYS: ${TRADIER_DTE_WINDOW_DAYS:-60}
+      # Phase Opt-C2 Pre-Canary 0 — canary activation gate + scope.
+      # All default OFF / restrictive; requires explicit operator
+      # opt-in to leave shadow-only state.
+      OPTIONS_CANARY_ENABLED: ${OPTIONS_CANARY_ENABLED:-false}
+      OPTIONS_CANARY_UNIVERSE: ${OPTIONS_CANARY_UNIVERSE:-SPY}
+      OPTIONS_CANARY_STRATEGY: ${OPTIONS_CANARY_STRATEGY:-BULL_CALL_SPREAD}
+      OPTIONS_CANARY_MAX_OPEN: ${OPTIONS_CANARY_MAX_OPEN:-1}
+      OPTIONS_CANARY_MAX_CAPITAL_USD: ${OPTIONS_CANARY_MAX_CAPITAL_USD:-500}
+      OPTIONS_CANARY_MIN_DTE: ${OPTIONS_CANARY_MIN_DTE:-21}
+      OPTIONS_CANARY_MAX_DTE: ${OPTIONS_CANARY_MAX_DTE:-45}
       SAFE_GATE_EVOLUTION_PILOT_EXECUTION: ${SAFE_GATE_EVOLUTION_PILOT_EXECUTION:-false}
       # Market Events providers — empty defaults preserve graceful empty
       # arrays when keys not set. SEC EDGAR is free; UA optional override.
@@ -148,6 +158,7 @@ services:
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
       # Phase 11W follow-up — run_engine_pipeline.py calls
       # backfill_macro_features which requires FRED_API_KEY. Without
       # this propagation the daily loop's macro_backfill stage exits
@@ -171,6 +182,16 @@ services:
       TRADIER_TIMEOUT_SECONDS: ${TRADIER_TIMEOUT_SECONDS:-15}
       TRADIER_RATE_LIMIT_QPS: ${TRADIER_RATE_LIMIT_QPS:-1.0}
       TRADIER_DTE_WINDOW_DAYS: ${TRADIER_DTE_WINDOW_DAYS:-60}
+      # Phase Opt-C2 Pre-Canary 0 — canary flags also forwarded
+      # to worker-tickloop so promoter + lifecycle jobs can read
+      # the same gate state as the api process.
+      OPTIONS_CANARY_ENABLED: ${OPTIONS_CANARY_ENABLED:-false}
+      OPTIONS_CANARY_UNIVERSE: ${OPTIONS_CANARY_UNIVERSE:-SPY}
+      OPTIONS_CANARY_STRATEGY: ${OPTIONS_CANARY_STRATEGY:-BULL_CALL_SPREAD}
+      OPTIONS_CANARY_MAX_OPEN: ${OPTIONS_CANARY_MAX_OPEN:-1}
+      OPTIONS_CANARY_MAX_CAPITAL_USD: ${OPTIONS_CANARY_MAX_CAPITAL_USD:-500}
+      OPTIONS_CANARY_MIN_DTE: ${OPTIONS_CANARY_MIN_DTE:-21}
+      OPTIONS_CANARY_MAX_DTE: ${OPTIONS_CANARY_MAX_DTE:-45}
     volumes:
       # 2026-05-08 trust fix — paper-trading skip JSONLs written by
       # run_paper_trading must persist on host so post-ingest cycle
@@ -197,6 +218,7 @@ services:
       TZ: ${TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
       # Phase 11W follow-up — run_engine_pipeline.py calls
       # backfill_macro_features which requires FRED_API_KEY. Without
       # this propagation the daily loop's macro_backfill stage exits
@@ -225,6 +247,22 @@ services:
       ML_PROMOTION_MAX_MISSED_WINNER_RATE: ${ML_PROMOTION_MAX_MISSED_WINNER_RATE:-0.50}
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
+      # 2026-05-19 — options chain-ingest recovery. worker-cron may
+      # invoke options modules during operator-driven runs (manual
+      # invocations of options_chain_snapshot, options diagnostics
+      # scripts, etc.). Without these vars, the Tradier adapter
+      # returns empty `partial=True` results and chain ingest silently
+      # produces zero rows. The scheduled options_chain_snapshot job
+      # itself fires from worker-tickloop, but parity matters for
+      # manual ops + future Phase 1A/1B work.
+      OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
+      OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
+      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
+      TRADIER_BASE_URL: ${TRADIER_BASE_URL:-https://sandbox.tradier.com/v1}
+      TRADIER_ACCESS_TOKEN: ${TRADIER_ACCESS_TOKEN:-}
+      TRADIER_TIMEOUT_SECONDS: ${TRADIER_TIMEOUT_SECONDS:-15}
+      TRADIER_RATE_LIMIT_QPS: ${TRADIER_RATE_LIMIT_QPS:-1.0}
+      TRADIER_DTE_WINDOW_DAYS: ${TRADIER_DTE_WINDOW_DAYS:-60}
     volumes:
       # Persist /tmp health markers so API + host can read them
       - worker_cron_tmp:/tmp

@@ -14,6 +14,8 @@ import {
   Card, Pill, Divider, fmtPct, toneForNumber, Skeleton,
 } from "@/components/ui/primitives";
 import FactorAttributionMini from "@/components/decisions/FactorAttributionMini";
+// Phase L UI-1 — deterministic reasoning card.
+import ReasoningCard from "@/components/decisions/ReasoningCard";
 import type {
   TradeRow, CurrentState, DecisionRow, AnomalyEvent,
 } from "@/lib/operator/types";
@@ -45,7 +47,12 @@ export default function Decisions() {
   const { data: state } = useCurrentState();
   const { data: anomalies } = useAnomalies("open");
   const { data: pending } = usePendingFills();
-  const [filter, setFilter] = useState<Filter>("all");
+  // Cohesion polish: default to "live" so the timeline does not blend
+  // live trades with replay-recovered rows on first load. User can
+  // explicitly switch to "all"/"replay" via the filter chips. The
+  // prior default ("all") overstated AI activity in the novice's
+  // mental model.
+  const [filter, setFilter] = useState<Filter>("live");
   const [selected, setSelected] = useState<TradeRow | null>(null);
 
   const totals = useMemo(() => {
@@ -466,10 +473,10 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
       + `review version ${trade.decision_version ?? "—"}`
     : isAccountPath
       ? (trade.status === "closed"
+          // Phase L UI-1 — removed freeform trade.reason suffix.
+          // Reasoning now lives in the ReasoningCard below.
           ? `Bought ${trade.entry_date} · closed ${trade.exit_date ?? "—"}`
-            + ` · ${trade.reason ?? "no reason recorded"}`
-          : `Bought ${trade.entry_date} · `
-            + `${trade.reason ?? "no reason recorded"}`)
+          : `Bought ${trade.entry_date}`)
       : "Older row — the review notes for this date are no longer kept.";
 
   return (
@@ -502,17 +509,17 @@ function DecisionDetail({ trade }: { trade: TradeRow | null }) {
 
       <Divider />
 
-      {/* B — plain-english reasoning */}
-      <Section title="Why this happened">
-        <p className="u-body-fg leading-relaxed">
-          {humanReasoning(trade, decision ?? null)}
-        </p>
-        {decision?.reason && (
-          <pre className="u-mono-sm bg-sunken rounded-md p-3 mt-3 whitespace-pre-wrap
-                           leading-relaxed text-fg-2">
-            {decision.reason}
-          </pre>
-        )}
+      {/* B — Phase L UI-1 reasoning card.
+          Replaces the previous "Why this happened" section which
+          rendered humanReasoning() prose and the raw decision.reason
+          freeform string. Every visible word now sources from the
+          deterministic backend renderer. 404 surfaces honest absence
+          via the card's built-in incomplete_lifecycle copy. */}
+      <Section title="AI's reasoning">
+        <ReasoningCard
+          paperTradeId={trade.trade_id}
+          variant="operator"
+        />
       </Section>
 
       {/* C — production inputs */}
@@ -719,44 +726,12 @@ function BlockingPanel({
   );
 }
 
-function humanReasoning(trade: TradeRow, decision: DecisionRow | null): string {
-  const isAccountPath = trade.engine === "paper";
-  const isLegacyEngine = trade.engine === "A" || trade.engine === "B";
-  const outcome = trade.net_ret_pct === null
-    ? "Position still open."
-    : trade.net_ret_pct > 0
-      ? `Closed at ${fmtPct(trade.net_ret_pct)} net — thesis confirmed.`
-      : `Closed at ${fmtPct(trade.net_ret_pct)} net — thesis rejected.`;
-
-  // Account-path / unknown-engine trades have a real fill but no
-  // captured decision_log row. Avoid the misleading "no engine
-  // fired long" phrasing — a buy DID execute at trade.entry_price.
-  if (!isLegacyEngine) {
-    const stem = isAccountPath
-      ? `Paper trade (${trade.engine}) executed on ${trade.entry_date} at ` +
-        `$${trade.entry_price.toFixed(2)}.`
-      : `Backfilled trade — decision context unavailable for ` +
-        `${trade.entry_date}.`;
-    const reasonText = trade.reason
-      ? ` Reason: ${trade.reason}.`
-      : "";
-    return `${stem}${reasonText} ${outcome}`;
-  }
-
-  const engine = trade.engine === "A"
-    ? "Engine A (mean reversion)"
-    : "Engine B (credit + rates alignment)";
-  const regime = trade.regime_at_entry === "stress" ? "stress regime"
-    : trade.regime_at_entry === "directional" ? "directional regime"
-    : "neutral regime";
-  const ctx = decision?.context_values ?? {};
-  const ctxTrue = Object.entries(ctx).filter(([, v]) => v).map(([k]) => k);
-  const gatesText = ctxTrue.length > 0
-    ? ` Supporting contexts: ${ctxTrue.join(", ")}.`
-    : "";
-  return `${engine} fired long into ${regime} on ${trade.entry_date}.` +
-    gatesText + ` ${outcome}`;
-}
+// Phase L UI-1 — humanReasoning(trade, decision) was removed. It
+// generated freeform explanatory prose in the frontend (engine
+// labels, regime descriptions, outcome judgements, engine-supplied
+// trade.reason passthrough). Reasoning now lives entirely inside
+// <ReasoningCard/>, which sources every visible word from the
+// deterministic backend renderer or the locked honest-absence copy.
 
 // =========================================================================
 // COL 3 — OUTCOME + PATTERN CONTEXT

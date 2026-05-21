@@ -2989,6 +2989,43 @@
 }
 
 
+/* Phase 1b — Live MTM dual display labels on PortfolioSnapshot.
+   Calm tone matching .ps-asof. The "Live estimate" pill sits under
+   the hero NAV. The "Official close" line is a secondary anchor —
+   smaller, muted, dated. Together they tell the user: this is what
+   the market is doing now, this is what the nightly snapshot says,
+   no contradiction. */
+.picks-root .ps-live-label {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--pi-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.picks-root .ps-live-label[data-status="error"],
+.picks-root .ps-live-label[data-status="unavailable"] {
+  color: var(--pi-warn-soft);
+}
+.picks-root .ps-live-asof {
+  color: var(--pi-ink-muted);
+}
+.picks-root .ps-official-line {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: var(--pi-ink-muted);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+.picks-root .ps-official-asof {
+  color: var(--pi-ink-muted);
+}
+
+
 /* Phase 15c3 — Strategies inter-section breathing rhythm.
    Stacked TradeLifecycle / PremiumIncome / StrategyModules now
    share a 32px (cozy default) inter-section gap so the page reads
@@ -4430,4 +4467,158 @@
     grid-template-columns: 1fr;
     gap: 8px;
   }
+}
+
+/* -----------------------------------------------------------------
+ * Phase Opt-C2 Pre-Canary 0.5 — canary portfolio status block
+ * ----------------------------------------------------------------- */
+.opt-canary-status { padding: 16px; }
+.opt-canary-portfolio {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 12px;
+  margin-top: 12px;
+}
+.opt-canary-portfolio:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+.opt-canary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: baseline;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.opt-canary-row-meta {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+.opt-canary-name {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.opt-canary-state {
+  color: var(--fg-muted);
+  font-style: italic;
+  font-size: 12px;
+}
+.opt-canary-funnel-line {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-subtle);
+  font-size: 12px;
+  color: var(--fg-muted);
+}
+.opt-card-empty {
+  font-style: italic;
+  color: var(--fg-muted);
+  font-size: 13px;
+  margin: 8px 0 0 0;
+}
+
+
+/* =====================================================================
+   Phase L UI-1 — ReasoningCard.
+   Minimal styling. No new tokens. Sources existing color/spacing
+   variables. Designed to read clearly when sitting inside both
+   PickModal sections and Decisions Column 2.
+   ===================================================================== */
+.reasoning-card {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--bg-sunken, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.reasoning-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.reasoning-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-1, inherit);
+}
+.reasoning-card-body {
+  margin: 0;
+  font-size: 14px;
+  color: var(--fg-2, inherit);
+  line-height: 1.5;
+}
+.reasoning-card-setup {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--fg-1, inherit);
+}
+.reasoning-card-thesis {
+  margin: 0;
+  font-size: 14px;
+  color: var(--fg-2, inherit);
+  line-height: 1.5;
+}
+.reasoning-card-uncertainty {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 10px;
+}
+.reasoning-card-uncertainty-item {
+  font-size: 13px;
+  color: var(--fg-muted, var(--fg-2, inherit));
+  line-height: 1.45;
+}
+.reasoning-card-uncertainty-item::before {
+  content: "•  ";
+  color: var(--fg-muted, inherit);
+}
+.reasoning-card-detail {
+  margin-top: 6px;
+  border-top: 1px dashed var(--border-subtle);
+  padding-top: 10px;
+}
+.reasoning-card-detail-summary {
+  font-size: 12px;
+  color: var(--fg-muted, var(--fg-2, inherit));
+  cursor: pointer;
+  letter-spacing: 0.01em;
+}
+.reasoning-card-detail-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.reasoning-card-detail-list dt {
+  color: var(--fg-muted, var(--fg-2, inherit));
+}
+.reasoning-card-detail-list dd {
+  margin: 0;
+  color: var(--fg-1, inherit);
+  word-break: break-all;
+}
+.reasoning-card-slot {
+  display: contents;
+}
+
+/* Phase L UI-1 — compact source-pill variant for dense table rows. */
+.u-chip-compact {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
 }

@@ -61,3 +61,11 @@ logs/
 apps/web/.claude-octopus/
 artifacts/
 .debate/
+
+# ── Code-review graph cache (MCP) ────────────────────────────────
+.code-review-graph/
+
+# ── Runtime output dirs ──────────────────────────────────────────
+# reports/: runtime-only report output. data/ and models/ left
+# un-ignored pending per-path policy review.
+reports/

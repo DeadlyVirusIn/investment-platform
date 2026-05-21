@@ -5,15 +5,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import type { Pick, LatestPrice, PickAction } from "@/lib/picks/api";
+import type { Pick, LatestPrice } from "@/lib/picks/api";
 import {
-  confidenceLabel, fmtConfidencePct, fetchLatestPrice,
+  confidenceLabel, fetchLatestPrice,
   actionTitle,
 } from "@/lib/picks/api";
 import { fetchSymbolEvents, type EventsState } from "@/lib/portfolio/events";
-// Phase 15h.1 — derived recommendation freshness (replaces broken
-// backend pick.stale_data flag per docs/ux/PHASE_15g_freshness_audit.md).
-import { isPickStale } from "@/lib/picks/freshness";
+// Phase L UI-1 — deterministic reasoning card.
+import ReasoningCard from "@/components/decisions/ReasoningCard";
 
 
 export interface PickModalProps {
@@ -27,6 +26,13 @@ export interface PickModalProps {
   onPrev?: () => void;
   onNext?: () => void;
   position?: { current: number; total: number };
+  /**
+   * PR-2 visual consistency: opt-in calm variant. When set to "calm"
+   * the modal renders inside `.today-root` token cascade (no glow,
+   * no hover lift, no uppercase labels). Default "legacy" preserves
+   * the existing /overview behavior byte-for-byte.
+   */
+  shellVariant?: "legacy" | "calm";
 }
 
 
@@ -47,71 +53,28 @@ function fmtRelTime(iso: string | null): string {
 }
 
 
-function plainWhatThisMeans(action: PickAction): string {
-  switch (action) {
-    case "buy":  return "AI sees an opportunity to enter or add to this position. Strength is building.";
-    case "sell": return "AI suggests exiting this position. The downside risk is greater than the remaining upside.";
-    case "trim": return "AI suggests reducing exposure but not fully exiting. Some upside may remain but risk has grown.";
-    case "hold": return "Keep watching this name but don't take new action yet. The signals aren't strong enough either way.";
-  }
-}
+// Phase L UI-1 — the helpers plainWhatThisMeans, plainWhatCouldChange,
+// riskLevelText, and buildPlainThesis were removed. They generated
+// freeform explanatory prose in the frontend, which violates the
+// constitutional guarantee that every visible explanation comes
+// from the deterministic backend renderer. The "What this means"
+// and "Plain-English thesis" sections now use <ReasoningCard/>
+// instead, which sources its text from the backend envelope or
+// renders the honest research-preview absence state when no
+// decision has attached.
 
 
-function plainWhatCouldChange(action: PickAction): string {
-  switch (action) {
-    case "buy":  return "If price breaks key support or momentum reverses, the AI may downgrade to Hold or Trim.";
-    case "sell": return "If price stabilizes above invalidation or fundamentals improve, the AI may upgrade to Hold.";
-    case "trim": return "If momentum re-strengthens or risk metrics improve, the AI may move back to Hold or Buy.";
-    case "hold": return "A clear breakout, flow signal, or earnings catalyst could shift the AI toward Buy or Trim.";
-  }
-}
-
-
-function riskLevel(pick: Pick): "low" | "medium" | "high" {
-  const conf = pick.adjusted_confidence ?? pick.confidence;
-  const n = parseFloat(conf ?? "0");
-  const pct = n > 1 ? n : n * 100;
-  // Phase 15h.1 — derive freshness from generated_at instead of the
-  // broken backend stale_data flag (per Phase 15g audit).
-  if (isPickStale(pick) || !pick.enough_data) return "high";
-  if (pct < 50) return "high";
-  if (pct < 70) return "medium";
-  return "low";
-}
-
-
-function riskLevelText(level: "low" | "medium" | "high"): string {
-  switch (level) {
-    case "low":    return "Low — signals are clean and recent.";
-    case "medium": return "Medium — partial signal strength or some uncertainty.";
-    case "high":   return "High — thin data, stale signals, or low confidence.";
-  }
-}
-
-
-function buildPlainThesis(pick: Pick): string {
-  // Start with raw thesis, but drop "composite score" / "score:" jargon if present
-  const t = pick.thesis ?? "";
-  const cleaned = t
-    .replace(/composite\s+score\s+[\-+]?[\d.]+\s*[→\-]+\s*\w+\.?\s*/gi, "")
-    .replace(/(trend|momentum|volatility|risk|valuation|growth)\/?\w*\s+score[: ]\s*[\-+]?[\d.]+\s*\.?/gi, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  if (cleaned.length > 12) return cleaned;
-
-  // Fallback if thesis was almost entirely jargon
-  const action = pick.adjusted_action ?? pick.action;
-  switch (action) {
-    case "buy":  return "Multiple factors point to upside; entry conditions look favorable.";
-    case "sell": return "Risk metrics dominate; the AI's models suggest exiting.";
-    case "trim": return "Momentum has weakened relative to entry conditions; AI suggests scaling back.";
-    case "hold": return "Signals are mixed across momentum, valuation, and trend — no clear edge.";
-  }
-}
+// Phase L UI-1 — riskLevel(pick) was used by the removed
+// Risk/Invalidation section. The risk-level dot was a frontend-
+// derived heuristic that we no longer present as a meaningful
+// signal. The pick.risk.{entry,target,stop_loss} numbers are still
+// rendered as Reference Price values — those are factual numbers,
+// not interpretive prose.
 
 
 export default function PickModal({
   pick, priceCache, onClose, onPrev, onNext, position,
+  shellVariant = "legacy",
 }: PickModalProps) {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [price, setPrice] = useState<LatestPrice | null | undefined>(undefined);
@@ -186,7 +149,7 @@ export default function PickModal({
   const isOpen = pick !== null;
   const action = pick ? (pick.adjusted_action ?? pick.action) : "hold";
   const confidence = pick ? (pick.adjusted_confidence ?? pick.confidence) : null;
-  const risk = pick ? riskLevel(pick) : "medium";
+  // Phase L UI-1 — `risk` removed; no longer surfaced.
 
   // Top 4 evidence items with narratives
   const topEvidence = useMemo(
@@ -205,6 +168,7 @@ export default function PickModal({
     <div
       className="pick-overlay"
       data-open={isOpen ? "true" : "false"}
+      data-shell={shellVariant}
       data-test="pick-overlay"
       onClick={onClose}
       aria-hidden={!isOpen}
@@ -213,6 +177,7 @@ export default function PickModal({
         <div
           className="pick-modal"
           data-action={action}
+          data-shell={shellVariant}
           data-test="pick-modal"
           role="dialog"
           aria-modal="true"
@@ -242,28 +207,38 @@ export default function PickModal({
             </button>
           </header>
 
-          {/* Recommendation — big colored badge */}
+          {/* Signal — big colored badge.
+              Phase L UI-1 N.2: confidence percentage rendering
+              removed. The engine's conviction band (Low / Medium /
+              High) is structured state we keep.
+              Cohesion polish: header relabeled "Signal" — this is a
+              research-stage row (no attached paper_trade) so calling
+              it a "Recommendation" overstates what the system has
+              committed to. */}
           <section className="pick-modal-section" data-test="pick-modal-recommendation">
-            <h4>Recommendation</h4>
+            <h4>Signal</h4>
             <div className="pick-modal-action-row">
               <span className="pick-modal-action-badge">{action}</span>
               <span><strong>{actionTitle(action)}</strong></span>
-              <span>· {confidenceLabel(confidence)} confidence ({fmtConfidencePct(confidence)})</span>
+              {confidenceLabel(confidence) && (
+                <span>· {confidenceLabel(confidence)} conviction</span>
+              )}
             </div>
           </section>
 
-          {/* What this means */}
-          <section className="pick-modal-section" data-test="pick-modal-meaning">
-            <h4>What this means</h4>
-            <div className="pick-modal-callout">
-              {plainWhatThisMeans(action)}
-            </div>
-          </section>
-
-          {/* Plain-English thesis */}
-          <section className="pick-modal-section" data-test="pick-modal-thesis">
-            <h4>Plain-English thesis</h4>
-            <p>{buildPlainThesis(pick)}</p>
+          {/* AI's reasoning — Phase L UI-1.
+              Frontend-generated prose has been REMOVED. The
+              ReasoningCard sources every visible word from the
+              deterministic backend renderer. Picks are research-
+              stage rows that have no attached paper_trade yet, so
+              the card renders the honest research-preview state. */}
+          <section className="pick-modal-section" data-test="pick-modal-reasoning">
+            <h4>AI's reasoning</h4>
+            <ReasoningCard
+              paperTradeId={null}
+              researchPreview
+              variant="novice"
+            />
           </section>
 
           {/* Reference price */}
@@ -305,25 +280,15 @@ export default function PickModal({
             </section>
           )}
 
-          {/* What could change the view */}
-          <section className="pick-modal-section" data-test="pick-modal-could-change">
-            <h4>What could change the view</h4>
-            <p>{pick.risk.what_changed_text ?? plainWhatCouldChange(action)}</p>
-          </section>
-
-          {/* Risk / invalidation */}
-          <section className="pick-modal-section" data-test="pick-modal-risk-level">
-            <h4>Risk / invalidation</h4>
-            <div className="pick-modal-risk-level">
-              <span className="pick-modal-risk-dot" data-level={risk} />
-              <span>{riskLevelText(risk)}</span>
-            </div>
-            {pick.risk.invalidation_text && (
-              <p style={{ marginTop: 12 }}>
-                <strong>Invalidation:</strong> {pick.risk.invalidation_text}
-              </p>
-            )}
-          </section>
+          {/* Phase L UI-1 — REMOVED:
+              "What could change the view" (used plainWhatCouldChange
+              + engine.what_changed_text prose),
+              "Risk / invalidation" (used riskLevelText prose +
+              engine.invalidation_text prose).
+              Invalidation now surfaces inside <ReasoningCard/> via
+              the deterministic renderer's setup sentence. The
+              risk-level dot was a frontend-derived heuristic that
+              we no longer present as a meaningful signal. */}
 
           {/* Catalysts & filings */}
           <section className="pick-modal-section" data-test="pick-modal-catalysts">

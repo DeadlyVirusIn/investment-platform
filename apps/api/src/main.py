@@ -48,6 +48,18 @@ from apps.api.src.api.b2_v2_comparison import router as b2_v2_comparison_router
 from apps.api.src.api.v2_promotion import router as v2_promotion_router
 from apps.api.src.options.routes_readonly import router as options_readonly_router
 from apps.api.src.options.routes_analytics import router as options_analytics_router
+from apps.api.src.options.canary.routes import router as options_canary_router
+from apps.api.src.options.opportunities.routes import router as options_opportunities_router
+from apps.api.src.options.positions.routes import router as options_positions_router
+from apps.api.src.options.research.routes import router as options_research_router
+from apps.api.src.options.journal.routes import router as options_journal_router
+from apps.api.src.options.playbooks.routes import router as options_playbooks_router
+from apps.api.src.options.ai_playbooks.routes import router as options_ai_playbooks_router
+from apps.api.src.api.paper_funnel import router as paper_funnel_router
+from apps.api.src.api.reasoning import (
+    router as reasoning_router,
+    health_router as reasoning_health_router,
+)
 from apps.api.src.api.options_shadow import router as options_shadow_router
 from apps.api.src.api.auth_me import router as auth_me_router
 from apps.api.src.api.research import router as research_router
@@ -84,6 +96,7 @@ from apps.api.src.api.news import router as news_router
 from apps.api.src.api.pnl import router as pnl_router
 from apps.api.src.api.paper import router as paper_router
 from apps.api.src.api.paper_executed import router as paper_executed_router
+from apps.api.src.api.paper_live import router as paper_live_router
 from apps.api.src.api.performance_paper import router as performance_paper_router
 from apps.api.src.api.performance_paper import options_router as performance_options_router
 from apps.api.src.api.cross_signal import router as cross_signal_router
@@ -186,6 +199,7 @@ for _router in (
     performance_router,
     paper_router,
     paper_executed_router,
+    paper_live_router,
     performance_paper_router,
     performance_options_router,
     cross_signal_router,
@@ -237,6 +251,16 @@ for _router in (
     v2_promotion_router,
     options_readonly_router,
     options_analytics_router,
+    options_canary_router,
+    options_opportunities_router,
+    options_positions_router,
+    options_research_router,
+    options_journal_router,
+    options_playbooks_router,
+    options_ai_playbooks_router,
+    paper_funnel_router,
+    reasoning_router,
+    reasoning_health_router,
     options_shadow_router,
     auth_me_router,
     safe_gate_evolution_router,

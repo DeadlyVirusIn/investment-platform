@@ -31,20 +31,30 @@ function buildMetrics(d: CommandBarData): { available: Metric[]; missing: string
   const available: Metric[] = [];
   const missing: string[] = [];
 
+  // Canonical labels — must match AccountingStrip / PortfolioSnapshot /
+  // PortfolioTerminal / TopStrip.
   if (d.totalNav != null) {
-    available.push({ key: "nav", label: "Total NAV", value: fmtCurrency(d.totalNav, { compact: true }), tone: "default" });
-  } else missing.push("Portfolio NAV");
+    available.push({ key: "nav", label: "Account value (NAV)", value: fmtCurrency(d.totalNav, { compact: true }), tone: "default" });
+  } else missing.push("Account value (NAV)");
 
-  if (d.openPnl != null) {
-    available.push({ key: "open", label: "Open P&L", value: fmtSigned(d.openPnl), tone: toneFor(d.openPnl) });
-  } else missing.push("Open P&L");
+  // Total profit (NAV − starting capital). Headline number per
+  // accounting-truth lock. Falls back to the previous "Open P&L"
+  // signal only when starting capital is unavailable.
+  if (d.startingCapitalTotal != null && d.totalNav != null) {
+    const profit = d.totalNav - d.startingCapitalTotal;
+    available.push({ key: "profit", label: "Total profit", value: fmtSigned(profit), tone: toneFor(profit) });
+  }
+
+  if (d.unrealizedPnl != null) {
+    available.push({ key: "unr", label: "Unrealized P&L", value: fmtSigned(d.unrealizedPnl), tone: toneFor(d.unrealizedPnl) });
+  } else missing.push("Unrealized P&L");
 
   if (d.realizedPnl != null) {
     available.push({ key: "rea", label: "Realized P&L", value: fmtSigned(d.realizedPnl), tone: toneFor(d.realizedPnl) });
   }
 
   if (d.totalReturnPct != null) {
-    available.push({ key: "ret", label: "Total Return", value: fmtPct(d.totalReturnPct), tone: toneFor(d.totalReturnPct) });
+    available.push({ key: "ret", label: "Total return", value: fmtPct(d.totalReturnPct), tone: toneFor(d.totalReturnPct) });
   }
 
   if (d.monthlyPremium != null && d.monthlyPremium > 0) {
@@ -62,7 +72,7 @@ function buildMetrics(d: CommandBarData): { available: Metric[]; missing: string
   }
 
   if (d.cashAvailable != null) {
-    available.push({ key: "cash", label: "Cash Available", value: fmtCurrency(d.cashAvailable, { compact: true }), tone: "default" });
+    available.push({ key: "cash", label: "Available cash", value: fmtCurrency(d.cashAvailable, { compact: true }), tone: "default" });
   }
 
   if (d.posture) {

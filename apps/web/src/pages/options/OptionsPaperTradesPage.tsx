@@ -47,18 +47,24 @@ export default function OptionsPaperTradesPage() {
     <div className="space-y-3">
       <OptionsPaperOnlyBanner />
 
-      {/* UX-1 Commit O — quiet intro. */}
+      {/* HONEST-BANNER cleanup — was previously "Simulated by the
+          options paper engine", which implied an active simulation
+          that is not running. Updated to describe what the page
+          actually shows: strategy proposal records whose lifecycle
+          execution is intentionally unshipped (per the banner above). */}
       <header data-test="options-paper-trades-intro" className="mb-1">
         <div className="u-caption-2 text-fg-3 uppercase tracking-wide mb-1">
-          Pro view · Options paper trades
+          Pro view · Options strategy proposals
         </div>
         <h2 className="text-base font-semibold text-zinc-100">
-          Multi-leg paper options trades
+          Multi-leg options strategy proposals
         </h2>
         <p className="u-caption-2 text-fg-3 mt-0.5 max-w-3xl">
-          Simulated by the options paper engine. Separate from
-          your stock paper trades. Read-only — nothing here places
-          real orders. Click a row for full leg detail.
+          Strategy proposal records and their multi-leg structure.
+          The lifecycle that would fill, monitor, and close these is
+          currently dormant — no simulated orders are placed.
+          Separate from your stock paper trades. Read-only.
+          Click a row for full leg detail.
         </p>
       </header>
 

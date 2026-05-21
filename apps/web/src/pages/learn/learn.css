@@ -1,0 +1,631 @@
+/*
+ * Learn surfaces — calm editorial styling.
+ * Scoped to .today-root (inherits tokens from today.css + primitives.css).
+ * Phase A: Learn home / Path / Lesson / Term / Concept / Glossary.
+ */
+
+/* ============================================================
+ * Layout primitives — single reading column
+ * ============================================================ */
+.today-root .learn-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--t-12) var(--t-12) var(--t-16);
+}
+@media (max-width: 640px) {
+  .today-root .learn-page {
+    padding: var(--t-8) var(--t-6) var(--t-12);
+  }
+}
+
+.today-root .learn-section {
+  padding: var(--t-8) 0;
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-root .learn-section:first-of-type { border-top: none; }
+.today-root .learn-section-label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--t-ink-muted);
+  margin: 0 0 var(--t-4) 0;
+  font-weight: 500;
+}
+
+.today-root .learn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-1);
+  margin-bottom: var(--t-6);
+  font-size: 14px;
+  color: var(--t-ink-secondary);
+  border-bottom: 1px solid transparent;
+  transition: color var(--t-motion);
+}
+.today-root .learn-back:hover {
+  color: var(--t-ink-primary);
+  border-bottom-color: var(--t-border-medium);
+}
+
+/* ============================================================
+ * Learn home — hero + path index
+ * ============================================================ */
+.today-root .learn-page-title {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+  color: var(--t-ink-primary);
+  margin: 0;
+  text-wrap: balance;
+}
+@media (min-width: 1024px) {
+  .today-root .learn-page-title { font-size: 36px; }
+}
+
+.today-root .learn-hero-identity {
+  font-family: var(--t-font-display);
+  font-size: 26px;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+  color: var(--t-ink-primary);
+  font-style: italic;
+  font-weight: 400;
+  margin: 0 0 var(--t-4) 0;
+  max-width: 640px;
+}
+.today-root .learn-hero-sub {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-secondary);
+  margin: 0;
+  max-width: 580px;
+}
+@media (max-width: 640px) {
+  .today-root .learn-page-title { font-size: 24px; }
+  .today-root .learn-hero-identity { font-size: 21px; }
+}
+
+.today-root .learn-where {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+  margin: 0;
+}
+.today-root .learn-where-meta {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+}
+.today-root .learn-where-cta {
+  margin-left: var(--t-3);
+  font-size: 15px;
+  color: var(--t-accent);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-motion);
+}
+.today-root .learn-where-cta:hover {
+  border-bottom-color: var(--t-accent);
+}
+
+.today-root .learn-featured-term {
+  display: block;
+  padding: 24px;
+  border-radius: var(--t-radius-lg);
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  box-shadow: var(--t-shadow-soft);
+  text-decoration: none !important;
+  border-bottom: 1px solid var(--t-border-quiet) !important;
+  transition: box-shadow var(--t-motion), border-color var(--t-motion);
+}
+.today-root .learn-featured-term:hover {
+  box-shadow: var(--t-shadow-card);
+  border-color: var(--t-border-medium) !important;
+}
+.today-root .learn-featured-term-name {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-2) 0;
+}
+.today-root .learn-featured-term-def {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--t-ink-secondary);
+  margin: 0;
+  text-wrap: pretty;
+}
+.today-root .learn-featured-term-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--t-4);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t-accent);
+}
+
+/* Path index — grouped by tier */
+.today-root .learn-path-group {
+  margin-bottom: var(--t-8);
+}
+.today-root .learn-path-group:last-child { margin-bottom: 0; }
+.today-root .learn-path-group-label {
+  font-size: 12px;
+  color: var(--t-ink-faint);
+  margin: 0 0 var(--t-3) 0;
+  letter-spacing: 0.02em;
+}
+.today-root .learn-path-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid var(--t-border-quiet);
+  border-bottom: 1px solid var(--t-border-quiet);
+}
+.today-root .learn-path-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 20px;
+  padding: 20px 8px;
+  margin: 0 -8px;
+  border-radius: var(--t-radius-sm);
+  align-items: center;
+  font-size: 17px;
+  color: var(--t-ink-primary);
+  transition: background var(--t-motion);
+}
+.today-root .learn-path-row + .learn-path-row {
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-root .learn-path-row:hover {
+  background: var(--t-surface-elevated);
+}
+.today-root .learn-path-row:hover { color: var(--t-ink-primary); }
+.today-root .learn-path-row a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: none;
+}
+.today-root .learn-path-row a:hover { border-bottom: none; }
+.today-root .learn-path-mark {
+  width: 14px; height: 14px;
+  display: inline-block;
+}
+.today-root .learn-path-mark[data-state="complete"]::before {
+  content: "✓";
+  color: var(--t-accent);
+  font-size: 14px;
+}
+.today-root .learn-path-mark[data-state="empty"]::before {
+  content: "▢";
+  color: var(--t-ink-faint);
+  font-size: 14px;
+}
+.today-root .learn-path-mark[data-state="coming"]::before {
+  content: "·";
+  color: var(--t-ink-faint);
+  font-size: 14px;
+}
+.today-root .learn-path-name {
+  color: var(--t-ink-primary);
+}
+.today-root .learn-path-name[data-coming="true"] {
+  color: var(--t-ink-muted);
+}
+.today-root .learn-path-meta {
+  color: var(--t-ink-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.today-root .learn-glossary-cta {
+  font-size: 15px;
+  color: var(--t-accent);
+}
+
+/* ============================================================
+ * Path page — synopsis + lesson list + outcome
+ * ============================================================ */
+.today-root .learn-path-title {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+  color: var(--t-ink-primary);
+  margin: 0;
+  text-wrap: balance;
+}
+@media (min-width: 1024px) {
+  .today-root .learn-path-title { font-size: 36px; }
+}
+.today-root .learn-path-meta-row {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  margin: 0 0 var(--t-6) 0;
+}
+.today-root .learn-path-synopsis {
+  font-family: var(--t-font-display);
+  font-size: 18px;
+  line-height: 1.55;
+  font-style: italic;
+  color: var(--t-ink-secondary);
+  font-weight: 400;
+  margin: 0;
+  max-width: 600px;
+}
+@media (max-width: 640px) {
+  .today-root .learn-path-title { font-size: 26px; }
+  .today-root .learn-path-synopsis { font-size: 17px; }
+}
+
+.today-root .learn-lesson-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border-top: 1px solid var(--t-border-quiet);
+  border-bottom: 1px solid var(--t-border-quiet);
+}
+.today-root .learn-lesson-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 20px;
+  padding: 22px 8px;
+  margin: 0 -8px;
+  border-radius: var(--t-radius-sm);
+  font-size: 17px;
+  line-height: 1.35;
+  color: var(--t-ink-primary);
+  align-items: baseline;
+  transition: background var(--t-motion);
+}
+.today-root .learn-lesson-row + .learn-lesson-row {
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-root .learn-lesson-row:hover {
+  background: var(--t-surface-elevated);
+}
+.today-root .learn-lesson-row a {
+  color: inherit; text-decoration: none; border-bottom: none;
+}
+.today-root .learn-lesson-row a:hover { color: var(--t-ink-primary); border-bottom: none; }
+.today-root .learn-lesson-row[data-state="locked"] {
+  color: var(--t-ink-muted);
+  pointer-events: none;
+}
+.today-root .learn-lesson-num {
+  color: var(--t-ink-muted);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.today-root .learn-lesson-min {
+  color: var(--t-ink-muted);
+  font-size: 13px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.today-root .learn-path-outcome {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--t-ink-primary);
+  margin: 0;
+  max-width: 600px;
+}
+
+.today-root .learn-concept-chips {
+  display: flex; flex-wrap: wrap; gap: var(--t-2);
+}
+.today-root .learn-concept-chip {
+  display: inline-flex;
+  padding: 2px var(--t-3);
+  font-size: 13px;
+  color: var(--t-ink-secondary);
+  background: var(--t-accent-faint);
+  border-radius: 6px;
+  text-decoration: none;
+  border-bottom: none !important;
+  transition: color var(--t-motion), background var(--t-motion);
+}
+.today-root .learn-concept-chip:hover {
+  color: var(--t-accent);
+  background: var(--t-accent-soft);
+}
+
+/* ============================================================
+ * Lesson page — content rendering
+ * ============================================================ */
+.today-root .learn-lesson-title {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+  color: var(--t-ink-primary);
+  margin: 0;
+  text-wrap: balance;
+}
+@media (min-width: 1024px) {
+  .today-root .learn-lesson-title { font-size: 40px; }
+}
+.today-root .learn-lesson-meta {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  margin: 0 0 var(--t-8) 0;
+}
+
+.today-root .learn-lesson-opening {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 22px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  font-weight: 400;
+  color: var(--t-ink-primary);
+  margin: 24px 0 var(--t-8) 0;
+  text-wrap: pretty;
+  max-width: 640px;
+}
+@media (max-width: 640px) {
+  .today-root .learn-lesson-opening { font-size: 19px; }
+}
+
+.today-root .learn-lesson-paragraph {
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-6) 0;
+}
+@media (max-width: 640px) {
+  .today-root .learn-lesson-paragraph { font-size: 16px; line-height: 1.65; }
+}
+
+.today-root .learn-lesson-subhead {
+  font-family: var(--t-font-body);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--t-ink-primary);
+  margin: var(--t-8) 0 var(--t-4) 0;
+}
+
+.today-root .learn-lesson-livedata {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--t-ink-secondary);
+  margin: 0 0 var(--t-6) 0;
+  padding: var(--t-4);
+  background: var(--t-surface-sunken);
+  border-radius: 8px;
+  font-style: italic;
+}
+.today-root .learn-lesson-livedata::before {
+  content: "Real data placeholder · ";
+  color: var(--t-ink-faint);
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+
+.today-root .learn-reflection {
+  margin-top: var(--t-12);
+  padding: 28px;
+  border-radius: var(--t-radius-lg);
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  border-left: 2px solid var(--t-accent);
+}
+.today-root .learn-reflection-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--t-ink-muted);
+  font-weight: 500;
+  margin: 0 0 12px 0;
+}
+.today-root .learn-reflection-prompt {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 21px;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+  color: var(--t-ink-primary);
+  font-style: italic;
+  margin: 0;
+  max-width: 600px;
+  text-wrap: pretty;
+}
+
+.today-root .learn-lesson-footer {
+  margin-top: var(--t-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--t-4);
+  align-items: flex-start;
+}
+.today-root .learn-lesson-next {
+  font-size: 16px;
+  color: var(--t-accent);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-motion);
+}
+.today-root .learn-lesson-next:hover {
+  border-bottom-color: var(--t-accent);
+}
+.today-root .learn-lesson-secondary {
+  font-size: 14px;
+  color: var(--t-ink-muted);
+  border-bottom: 1px solid transparent;
+  transition: color var(--t-motion);
+}
+.today-root .learn-lesson-secondary:hover {
+  color: var(--t-ink-primary);
+}
+
+/* ============================================================
+ * Term page
+ * ============================================================ */
+.today-root .learn-term-title {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+  color: var(--t-ink-primary);
+  margin: 0;
+  text-wrap: balance;
+}
+@media (min-width: 1024px) {
+  .today-root .learn-term-title { font-size: 36px; }
+}
+.today-root .learn-term-category {
+  font-size: 12px;
+  color: var(--t-ink-muted);
+  letter-spacing: 0.02em;
+  margin: 0 0 var(--t-8) 0;
+}
+@media (max-width: 640px) {
+  .today-root .learn-term-title { font-size: 26px; }
+}
+
+.today-root .learn-term-definition {
+  font-family: var(--t-font-display);
+  font-size: 20px;
+  line-height: 1.5;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-8) 0;
+  max-width: 600px;
+}
+
+.today-root .learn-term-subhead {
+  font-family: var(--t-font-body);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--t-ink-muted);
+  letter-spacing: 0.02em;
+  margin: var(--t-6) 0 var(--t-3) 0;
+}
+.today-root .learn-term-body {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--t-ink-primary);
+  margin: 0;
+  max-width: 620px;
+}
+
+/* ============================================================
+ * Concept page (stub variant for Phase A)
+ * ============================================================ */
+.today-root .learn-concept-stub-note {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--t-ink-faint);
+  background: var(--t-surface-sunken);
+  padding: 2px var(--t-3);
+  border-radius: 6px;
+  margin-bottom: var(--t-4);
+  letter-spacing: 0.02em;
+}
+
+/* ============================================================
+ * Glossary page
+ * ============================================================ */
+.today-root .learn-glossary-search {
+  display: block;
+  width: 100%;
+  max-width: 480px;
+  padding: var(--t-3) var(--t-4);
+  font-family: var(--t-font-body);
+  font-size: 15px;
+  color: var(--t-ink-primary);
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  border-radius: 8px;
+  transition: border-color var(--t-motion);
+}
+.today-root .learn-glossary-search:focus {
+  outline: none;
+  border-color: var(--t-accent);
+}
+
+.today-root .learn-glossary-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--t-2);
+  margin-top: var(--t-3);
+}
+.today-root .learn-glossary-filter {
+  display: inline-flex;
+  padding: 2px var(--t-3);
+  font-size: 13px;
+  color: var(--t-ink-secondary);
+  background: var(--t-surface-sunken);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color var(--t-motion), color var(--t-motion);
+}
+.today-root .learn-glossary-filter[data-active="true"] {
+  background: var(--t-accent-faint);
+  color: var(--t-accent);
+}
+.today-root .learn-glossary-filter:hover {
+  color: var(--t-ink-primary);
+}
+
+.today-root .learn-glossary-letter {
+  font-family: var(--t-font-display);
+  font-size: 22px;
+  color: var(--t-ink-muted);
+  margin: var(--t-8) 0 var(--t-3) 0;
+  padding-bottom: var(--t-2);
+  border-bottom: 1px solid var(--t-border-quiet);
+}
+
+.today-root .learn-glossary-list {
+  list-style: none; padding: 0; margin: 0;
+}
+.today-root .learn-glossary-row {
+  padding: var(--t-3) 0;
+  border-top: 1px solid var(--t-border-quiet);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.today-root .learn-glossary-row:first-child { border-top: none; }
+.today-root .learn-glossary-row a {
+  color: var(--t-ink-primary);
+  text-decoration: none;
+  border-bottom: none;
+}
+.today-root .learn-glossary-row a:hover {
+  color: var(--t-accent);
+  border-bottom: none;
+}
+.today-root .learn-glossary-name {
+  color: var(--t-ink-primary);
+  font-weight: 500;
+}
+.today-root .learn-glossary-def {
+  color: var(--t-ink-secondary);
+  display: block;
+  margin-top: 2px;
+  font-size: 14px;
+}
+
+/* ============================================================
+ * Reflection placeholder
+ * ============================================================ */
+.today-root .learn-reflection-placeholder {
+  font-size: 16px;
+  color: var(--t-ink-muted);
+  margin: 0;
+  font-style: italic;
+}

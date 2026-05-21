@@ -229,16 +229,20 @@ function PaperPortfolioInner() {
 
       {detail && (
         <>
+          {/* Canonical labels — single-portfolio scope. The aggregate
+              counterpart lives on /overview + /portfolio?view=working. */}
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
             <StatCard
-              label="Total equity"
+              label="Account value (NAV)"
               value={formatCurrency(detail.total_equity)}
               secondary={
-                totalReturnPct != null ? `${formatSignedPercent(totalReturnPct)} vs start` : undefined
+                totalReturnPct != null
+                  ? `${formatSignedPercent(totalReturnPct)} vs start · per-portfolio`
+                  : 'Per-portfolio view'
               }
               tone={n(totalReturnPct) !== null && n(totalReturnPct)! >= 0 ? 'positive' : 'negative'}
             />
-            <StatCard label="Cash" value={formatCurrency(detail.cash)} tone="muted" />
+            <StatCard label="Available cash" value={formatCurrency(detail.cash)} tone="muted" />
             <StatCard
               label="Unrealized P&L"
               value={formatSignedCurrency(detail.unrealized_pnl)}
@@ -250,7 +254,7 @@ function PaperPortfolioInner() {
               tone={n(detail.realized_pnl_cumulative) !== null && n(detail.realized_pnl_cumulative)! >= 0 ? 'positive' : 'negative'}
             />
             <StatCard
-              label="Max drawdown"
+              label="Biggest drop from peak"
               value={dd?.max_drawdown_pct ? formatSignedPercent(dd.max_drawdown_pct) : '—'}
               secondary={
                 dd?.max_drawdown_duration_days != null

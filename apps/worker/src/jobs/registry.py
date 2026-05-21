@@ -243,6 +243,24 @@ from apps.worker.src.jobs.options_chain_snapshot import (
 from apps.worker.src.jobs.options_shadow_eval import (
     run_options_shadow_eval_job,
 )
+from apps.worker.src.jobs.options_features_compute import (
+    run_options_features_compute,
+)
+from apps.worker.src.jobs.options_canary_promotion import (
+    run_options_canary_promotion,
+)
+from apps.worker.src.jobs.options_lifecycle_check import (
+    run_options_lifecycle_check,
+)
+from apps.worker.src.jobs.options_canary_proposal import (
+    run_options_canary_proposal_job,
+)
+from apps.worker.src.jobs.options_canary_lifecycle import (
+    run_options_canary_lifecycle_job,
+)
+from apps.worker.src.jobs.run_paper_exit_cycle import (
+    run_paper_exit_cycle_job,
+)
 from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
 from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
 from apps.worker.src.jobs.v2_promotion_snapshot import (
@@ -265,6 +283,15 @@ REGISTRY: dict[str, JobFn] = {
     "run_recommendations_for_all_accounts": run_recommendations_for_all_accounts,
     "score_recommendation_outcomes": score_recommendation_outcomes,
     "run_paper_trading": run_paper_trading,
+    # Phase 2 stock fix Phase 5 — paper exit-cycle worker job.
+    # Wraps `scripts.run_paper_exit_cycle` in commit mode. Paper-only.
+    # Closes positions on TP=8% / SL=4% / MaxHold=10d (env-overridable
+    # via PAPER_TAKE_PROFIT_PCT / PAPER_STOP_LOSS_PCT /
+    # PAPER_MAX_HOLD_DAYS). Cron target: `0 23 * * 1-5` interpreted in
+    # SCHEDULER_TZ (=America/New_York) → 03:00 UTC next day. Runs
+    # between ingest_prices_daily (02:00 UTC) and run_paper_trading
+    # (03:30 UTC) so exits free slots BEFORE new opens are evaluated.
+    "run_paper_exit_cycle": run_paper_exit_cycle_job,
     # Live-forward orchestrator (umbrella: candidates → paper trading → verify)
     "run_daily_pipeline": run_daily_pipeline_job,
     # V2 promotion-trigger weekly snapshot (Phase 8). Idempotent on
@@ -291,4 +318,33 @@ REGISTRY: dict[str, JobFn] = {
     # tables. Cron target intent: `15 21 * * 1-5` UTC (~30 min after
     # US market close). Scheduling lands in Step 5.
     "options_shadow_eval": run_options_shadow_eval_job,
+    # Phase Opt-C2 Pre-Canary 0.1 — options feature engine wrapper.
+    # Wraps `apps/api/src/options/features/engine.compute_features_for`
+    # for every underlying in OPTIONS_RUN_UNIVERSE. Plugs the silent
+    # fail-open on `iv_rank_pass` discovered in the Phase Opt-C2
+    # forensic audit. NEVER touches options_paper_trade or lifecycle
+    # tables. Cron target: `35 21 * * 1-5` UTC (between chain snapshot
+    # at 21:30 and shadow eval at 21:45).
+    "compute_options_features": run_options_features_compute,
+    # Phase Opt-C2 Pre-Canary 0 — promoter + lifecycle stubs.
+    # Both are gated on OPTIONS_CANARY_ENABLED=true at runtime.
+    # Bodies remain inert until Phase 1A (promotion) + Phase 1B
+    # (lifecycle fill + close) ship. Cron rows added in migration
+    # 069 fire these jobs daily so that the wiring is exercised
+    # and observable from job_run logs even before activation.
+    "run_options_canary_promotion": run_options_canary_promotion,
+    "run_options_lifecycle_check": run_options_lifecycle_check,
+    # Canary-1 Gate 4 — operational shell. REGISTERED but NOT SCHEDULED
+    # (no job_schedule row inserted at this gate). Both jobs gate
+    # internally on (OPTIONS_ENABLED or OPTIONS_CANARY_ENABLED); with
+    # both flags currently false, the first executable line is the
+    # master-flag-off short-circuit which writes telemetry and returns
+    # {skipped: True, reason: "master_flags_off"}. No lifecycle logic
+    # exists at Gate 4 — engine cycle functions are themselves stubs.
+    # See:
+    #   docs/research/OPTIONS_CANARY_1_EXECUTION_PLAN.md
+    #   docs/research/OPTIONS_CANARY_1_GATE_3_MODULE_SKELETONS.md
+    # Schedules and logic land at Gates 5+ following approval.
+    "options_canary_proposal": run_options_canary_proposal_job,
+    "options_canary_lifecycle": run_options_canary_lifecycle_job,
 }

@@ -107,6 +107,22 @@ def _argparse() -> argparse.ArgumentParser:
         help="Operator override — close every open position "
              "regardless of rule. Still requires --commit + env.",
     )
+    p.add_argument(
+        "--only-portfolio-id", default=None,
+        help="Operator override — restrict the scan to a single "
+             "portfolio UUID. Used for controlled-blast-radius "
+             "validation after lifecycle repair. Other portfolios "
+             "are skipped entirely (not scanned, not logged).",
+    )
+    p.add_argument(
+        "--source", default=None,
+        choices=("live", "replay", "backfill", "operator_manual"),
+        help="Phase L M079 truth-contract: source tag for any equity "
+             "snapshots written during this run. MUST be specified. "
+             "live = scheduled normal fire; replay = operator re-runs "
+             "a past date; backfill = historical gap-fill; "
+             "operator_manual = ad-hoc intervention.",
+    )
     return p
 
 
@@ -166,6 +182,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
 
+    # Phase L M079: --source must be specified.
+    if args.source is None:
+        sys.stderr.write(
+            "REFUSED: --source must be specified (live|replay|backfill|"
+            "operator_manual). Phase L M079 truth contract.\n"
+        )
+        return 2
+
     take_profit = _env_decimal("PAPER_TAKE_PROFIT_PCT", Decimal("0.08"))
     stop_loss = _env_decimal("PAPER_STOP_LOSS_PCT", Decimal("0.04"))
     max_hold_days = _env_int("PAPER_MAX_HOLD_DAYS", 10)
@@ -199,15 +223,27 @@ def main(argv: list[str] | None = None) -> int:
     realized_pnl_total = Decimal("0")
 
     with SessionLocal() as session:
-        rows = session.execute(text("""
-            SELECT pp.id, pp.portfolio_id, pp.asset_id,
-                   pp.quantity, pp.avg_cost, pp.opened_at,
-                   a.symbol, p.is_active, p.name
-            FROM paper_position pp
-            JOIN paper_portfolio p ON p.id = pp.portfolio_id
-            JOIN asset a ON a.id = pp.asset_id
-            WHERE pp.is_open = TRUE AND p.is_active = TRUE
-        """)).all()
+        if args.only_portfolio_id:
+            rows = session.execute(text("""
+                SELECT pp.id, pp.portfolio_id, pp.asset_id,
+                       pp.quantity, pp.avg_cost, pp.opened_at,
+                       a.symbol, p.is_active, p.name
+                FROM paper_position pp
+                JOIN paper_portfolio p ON p.id = pp.portfolio_id
+                JOIN asset a ON a.id = pp.asset_id
+                WHERE pp.is_open = TRUE AND p.is_active = TRUE
+                  AND pp.portfolio_id = :pid
+            """), {"pid": args.only_portfolio_id}).all()
+        else:
+            rows = session.execute(text("""
+                SELECT pp.id, pp.portfolio_id, pp.asset_id,
+                       pp.quantity, pp.avg_cost, pp.opened_at,
+                       a.symbol, p.is_active, p.name
+                FROM paper_position pp
+                JOIN paper_portfolio p ON p.id = pp.portfolio_id
+                JOIN asset a ON a.id = pp.asset_id
+                WHERE pp.is_open = TRUE AND p.is_active = TRUE
+            """)).all()
 
     for r in rows:
         n_scanned += 1
@@ -282,9 +318,11 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 pf = s.get(PaperPortfolio, portfolio_id)
                 if pf is not None:
+                    # Phase L M079: source must be supplied by caller.
                     snapshot_equity_now(
                         s, pf,
                         as_of=submitted_at.replace(hour=22),
+                        source=args.source,
                     )
                 s.commit()
             realized = Decimal(str(result.realized_pnl or 0))

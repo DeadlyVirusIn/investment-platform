@@ -10,7 +10,7 @@
 //  - Real inputs only (briefing.headline / briefing.body / diffSentence
 //    derived from canonical /api/paper/summary localStorage delta)
 //  - No fabricated narrative. Quiet days fall back to the briefing's
-//    own honest "AI engine has no fresh suggestions" copy.
+//    own honest "No new signals today" copy (semantic freeze pass).
 //  - No motion. No atmospheric prose. No generic market commentary.
 //  - Compact: single sentence + optional sub-line. NEVER paragraphs.
 //  - Calm institutional tone — not hype, not Bloomberg, not startup.

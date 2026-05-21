@@ -114,6 +114,11 @@ def _run_one(
 
     Step 6a addition: `per_strategy` key with single-pass aggregation
     over the decisions list (cheap; no second DB query).
+
+    Phase B6 addition: when persist=True AND the eval succeeded, this
+    function also invokes the strategy_candidate generator on every
+    accepted observation for `run_date`. Generation is read-only on
+    shadow_decision_log and write-only on strategy_candidate.
     """
     t0 = time.perf_counter()
     with SessionLocal() as session:
@@ -127,6 +132,27 @@ def _run_one(
 
     per_strategy = _per_strategy_distribution(decisions)
 
+    # Phase B6 — strategy candidate enrichment. Only runs when the
+    # shadow log was actually persisted; dry-mode passes leave the
+    # candidate table untouched.
+    candidate_stats: dict[str, Any] = {"enabled": False}
+    if persist and summary.inserted > 0:
+        try:
+            from apps.api.src.options.strategy_candidates.service import (
+                generate_for_observations,
+            )
+            with SessionLocal() as session:
+                candidate_stats = generate_for_observations(
+                    session, run_date=run_date,
+                )
+                candidate_stats["enabled"] = True
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "strategy_candidate generation failed for {}: {}",
+                run_date, exc,
+            )
+            candidate_stats = {"enabled": True, "error": str(exc)}
+
     return {
         # Evaluator-supplied counts
         "run_date":              summary.run_date.isoformat(),
@@ -138,6 +164,8 @@ def _run_one(
         "inserted":              summary.inserted,
         # Step 6a — per-strategy distribution (single-pass cheap)
         "per_strategy":          per_strategy,
+        # Phase B6 — strategy_candidate generator stats
+        "strategy_candidates":   candidate_stats,
         # Wrapper-supplied context
         "persist":               persist,
         "options_enabled":

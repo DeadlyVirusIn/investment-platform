@@ -8,11 +8,19 @@ export interface EquitySparklineProps {
   points: EquityPoint[];
   height?: number;
   showAxis?: boolean;
+  /**
+   * PR-2 visual consistency: "neutral" makes the stroke + fill follow
+   * the surrounding ink (currentColor) instead of green/red. Used by
+   * the /today calm shell where emerald/red would clash with the
+   * warm-paper palette. Legacy callers omit the prop and keep the
+   * existing green-up / red-down behavior byte-for-byte.
+   */
+  theme?: "auto" | "neutral";
 }
 
 
 export default function EquitySparkline({
-  points, height = 56, showAxis = false,
+  points, height = 56, showAxis = false, theme = "auto",
 }: EquitySparklineProps) {
   if (points.length < 2) {
     return <div className="ps-spark-empty">Not enough history yet</div>;
@@ -41,8 +49,12 @@ export default function EquitySparkline({
   const firstEquity = ys[0];
   const lastEquity = ys[ys.length - 1];
   const trending = lastEquity >= firstEquity;
-  const stroke = trending ? "var(--pi-good)" : "var(--pi-bad)";
-  const fill = trending ? "rgba(52, 211, 153, 0.16)" : "rgba(248, 113, 113, 0.16)";
+  const stroke = theme === "neutral"
+    ? "currentColor"
+    : trending ? "var(--pi-good)" : "var(--pi-bad)";
+  const fill = theme === "neutral"
+    ? "rgba(46, 80, 67, 0.08)"
+    : trending ? "rgba(52, 211, 153, 0.16)" : "rgba(248, 113, 113, 0.16)";
 
   return (
     <svg className="ps-spark" viewBox={`0 0 ${w} ${h}`} width="100%" height={h} preserveAspectRatio="none">

@@ -13,77 +13,95 @@ import OptionsPaperOnlyBanner from '@/components/options/OptionsPaperOnlyBanner'
 import GuardrailsToggleButton from '@/components/options/GuardrailsToggleButton';
 // Phase 11Z — surfaces "no options data ingested" once at the top
 import OptionsDataAvailabilityBanner from '@/components/options/OptionsDataAvailabilityBanner';
+// Copilot Phase A — engine live-state chip in header. Single source
+// of "is the engine live / canary / shadow" framing.
+import OptionsLiveStateChip from '@/components/options/copilot/OptionsLiveStateChip';
 
 // Phase 6b-3-b — 7-surface premium workspace nav (default).
 // Each surface answers one product question. Legacy 12 routes
 // remain reachable; they map to a parent surface for active-state
 // highlighting so deep links don't lose visual context.
-const WORKSPACE_NAV: Array<{
+// Copilot nav (Phase A): Today / Opportunities / Positions / Research /
+// Journal / Lab / Learn. Legacy 12 routes remain reachable via deep
+// links — listed under their owning surface for active-state highlighting.
+// Opportunities + Positions point at the Overview surface for Phase A
+// (full surfaces land in Phase B and C).
+// H.5 — nav collapse 7→4 primary + secondary "library" row.
+// Primary nav = surfaces a user opens daily. Secondary nav = surfaces
+// reached intentionally (study/diagnostics). Visual hierarchy via
+// font-size: primary 17px, secondary 13px.
+const PRIMARY_NAV: Array<{
   to:         string;
   label:      string;
-  question:   string;          // hover-tooltip / aria-label fodder
-  parent_for: readonly string[];   // legacy paths that belong to this surface
+  question:   string;
+  parent_for: readonly string[];
 }> = [
   {
     to: '/options/overview',
-    label: 'Overview',
-    question: 'What is the engine seeing today?',
+    label: 'Today',
+    question: "Today's strategist read.",
     parent_for: [],
   },
   {
-    to: '/options/research',
-    label: 'Research',
-    question: 'What setups look strongest?',
+    to: '/options/opportunities',
+    label: 'Opportunities',
+    question: 'Setups worth a look right now.',
     parent_for: [
-      '/options/chain', '/options/features', '/options/replay',
       '/options/decision-support', '/options/decision-framing',
     ],
   },
   {
-    to: '/options/journal',
-    label: 'Journal',
-    question: 'How are paper trades evolving?',
-    parent_for: ['/options/trades', '/options/performance'],
+    to: '/options/research',
+    label: 'Research',
+    question: 'Per-underlying conviction.',
+    parent_for: [
+      '/options/chain', '/options/features', '/options/replay',
+    ],
   },
   {
-    to: '/options/learning',
-    label: 'Learning',
-    question: 'What is the system learning?',
-    parent_for: [],
-  },
-  {
-    to: '/options/lab',
-    label: 'Lab',
-    question: 'What can the engine evaluate?',
-    parent_for: ['/options/observatory', '/options/evaluation'],
-  },
-  {
-    to: '/options/ops',
-    label: 'Ops',
-    question: 'Is the engine healthy?',
-    parent_for: ['/options/diagnostics', '/options/risk'],
-  },
-  {
-    to: '/options/settings',
-    label: 'Settings',
-    question: 'How is the engine configured?',
-    parent_for: [],
+    to: '/options/positions',
+    label: 'Holdings',
+    question: 'Open positions + lifecycle memory.',
+    parent_for: [
+      '/options/trades', '/options/performance', '/options/journal',
+    ],
   },
 ];
+
+// Secondary "Library" + diagnostics row. Quieter visual weight.
+const SECONDARY_NAV: Array<{
+  to:    string;
+  label: string;
+  parent_for: readonly string[];
+}> = [
+  { to: '/options/approaches', label: 'Approaches', parent_for: [] },
+  { to: '/options/learn',      label: 'Playbooks',  parent_for: ['/options/learning'] },
+  { to: '/options/journal',    label: 'Journal',    parent_for: [] },
+  { to: '/options/lab',        label: 'Lab',
+    parent_for: ['/options/observatory', '/options/evaluation'] },
+];
+
+// (Phase H.5) WORKSPACE_NAV alias removed — direct PRIMARY_NAV refs only.
 
 // Resolve which workspace surface owns a given pathname.
 // Returns the surface `to` path so NavLink active-state highlights
 // the right top-nav entry even when on a legacy URL.
 function _activeWorkspaceSurface(pathname: string): string | null {
-  // Exact-match check first
-  for (const s of WORKSPACE_NAV) {
+  // Exact-match check first across primary + secondary
+  for (const s of PRIMARY_NAV) {
+    if (pathname === s.to) return s.to;
+  }
+  for (const s of SECONDARY_NAV) {
     if (pathname === s.to) return s.to;
   }
   // Parent-of check next
-  for (const s of WORKSPACE_NAV) {
+  for (const s of PRIMARY_NAV) {
     if (s.parent_for.includes(pathname)) return s.to;
   }
-  // Index/root → Overview
+  for (const s of SECONDARY_NAV) {
+    if (s.parent_for.includes(pathname)) return s.to;
+  }
+  // Index/root → Today
   if (pathname === '/options' || pathname === '/options/') {
     return '/options/overview';
   }
@@ -181,37 +199,61 @@ export default function OptionsLayout() {
       <OptionsPaperOnlyBanner />
       <OptionsDataAvailabilityBanner />
       <header className="flex items-baseline gap-3">
-        <h1 className="text-xl font-semibold">Options paper trading</h1>
+        <h1 className="text-xl font-semibold">Options AI strategist</h1>
         <span className="text-xs text-fg-3">
           Paper trading — nothing here places real orders
         </span>
         <span className="ml-auto flex items-center gap-2">
+          <OptionsLiveStateChip />
           <OptionsViewToggle isWorking={isWorking} />
           <GuardrailsToggleButton />
         </span>
       </header>
 
       {!isWorking && (
-        // ─── Premium 7-surface workspace nav (default) ───
-        <nav
-          className="opt-workspace-nav"
-          data-test="options-workspace-nav"
-          aria-label="Options workspace"
-        >
-          {WORKSPACE_NAV.map((s) => (
-            <NavLink
-              key={s.to}
-              to={s.to}
-              className={`opt-workspace-tab${
-                activeSurface === s.to ? ' is-active' : ''
-              }`}
-              aria-current={activeSurface === s.to ? 'page' : undefined}
-              title={s.question}
-            >
-              {s.label}
-            </NavLink>
-          ))}
-        </nav>
+        // H.5 — primary nav (4 daily surfaces) + secondary nav (library).
+        // Secondary row is quieter (smaller font, lighter color) so the
+        // eye lands on the four primary surfaces first.
+        <div className="opt-workspace-nav-block"
+             data-test="options-workspace-nav-block">
+          <nav
+            className="opt-workspace-nav opt-workspace-nav-primary"
+            data-test="options-workspace-nav"
+            aria-label="Options workspace primary"
+          >
+            {PRIMARY_NAV.map((s) => (
+              <NavLink
+                key={s.to}
+                to={s.to}
+                className={`opt-workspace-tab${
+                  activeSurface === s.to ? ' is-active' : ''
+                }`}
+                aria-current={activeSurface === s.to ? 'page' : undefined}
+                title={s.question}
+              >
+                {s.label}
+              </NavLink>
+            ))}
+          </nav>
+          <nav
+            className="opt-workspace-nav-secondary"
+            data-test="options-workspace-nav-secondary"
+            aria-label="Options library + diagnostics"
+          >
+            {SECONDARY_NAV.map((s) => (
+              <NavLink
+                key={s.to}
+                to={s.to}
+                className={`opt-workspace-tab-secondary${
+                  activeSurface === s.to ? ' is-active' : ''
+                }`}
+                aria-current={activeSurface === s.to ? 'page' : undefined}
+              >
+                {s.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
       )}
 
       {isWorking && (

@@ -1,0 +1,1 @@
+"""Model adapter services root."""

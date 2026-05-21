@@ -77,15 +77,19 @@ export default function Briefing() {
         </Card>
       )}
 
-      {/* Portfolio snapshot */}
+      {/* Portfolio snapshot — single-portfolio scope (briefing endpoint
+          reads /dashboard/summary internally). Canonical labels +
+          explicit framing so this card never gets mistaken for the
+          aggregate shown on /overview. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard
-          label="NAV"
+          label="Account value (NAV)"
           value={p ? formatCurrency(p.nav) : '—'}
           tone="neutral"
+          secondary="Per-portfolio view"
         />
         <StatCard
-          label="Cash"
+          label="Available cash"
           value={p ? formatCurrency(p.cash) : '—'}
           tone="muted"
         />

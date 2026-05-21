@@ -24,6 +24,9 @@ import OptionsSchedulerTable from
   "@/components/options/OptionsSchedulerTable";
 import OptionsRunHistoryTable from
   "@/components/options/OptionsRunHistoryTable";
+// Phase Opt-C2 Pre-Canary 0.5 — canary portfolio status block.
+import OptionsCanaryStatus from
+  "@/components/options/OptionsCanaryStatus";
 import OptionsOpsPathways from
   "@/components/options/OptionsOpsPathways";
 
@@ -43,7 +46,10 @@ export default function OptionsOpsPage() {
       {/* 4. Recent runs — 4 real job_run rows */}
       <OptionsRunHistoryTable />
 
-      {/* 5. Pathways */}
+      {/* 5. Canary portfolio status — Phase Opt-C2 Pre-Canary 0.5 */}
+      <OptionsCanaryStatus />
+
+      {/* 6. Pathways */}
       <OptionsOpsPathways />
     </div>
   );

@@ -174,17 +174,22 @@ def test_diagnose_empty_portfolio_returns_zero_open(
         as_of=as_of, lookback_days=30,
     )
     assert out["open_positions_count"] == 0
-    assert out["max_open_positions"] == 10
-    assert out["free_slots"] == 10
+    assert out["max_open_positions"] == 30
+    assert out["free_slots"] == 30
     assert out["pending_exits_count"] == 0
-    assert out["expected_slots_after_next_run"] == 10
+    assert out["expected_slots_after_next_run"] == 30
     assert out["blocked_buys_reason"] is None
 
 
 def test_diagnose_full_portfolio_blocks_buys(
     pg_session, session_factory,
 ):
-    pid = _seed_portfolio(pg_session)
+    # Pin max_open_positions=10 via override so 10 seeded positions
+    # saturate. Default rose 10→30; this test asserts saturation
+    # semantics, not the default value.
+    pid = _seed_portfolio(
+        pg_session, config_json='{"max_open_positions": 10}',
+    )
     as_of = dt.datetime(2026, 4, 29, 15, 0, tzinfo=dt.timezone.utc)
     opened = as_of - dt.timedelta(days=5)
     for i in range(10):

@@ -1,0 +1,337 @@
+/*
+ * Pick Detail page — calm analyst briefing.
+ * Scoped to .today-root (cascades from primitives.css + today.css).
+ * All copy passes Tier-A forbidden-phrase lint.
+ */
+
+.today-root .pickdetail-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--t-12) var(--t-12) var(--t-16);
+}
+@media (max-width: 640px) {
+  .today-root .pickdetail-page {
+    padding: var(--t-8) var(--t-6) var(--t-12);
+  }
+}
+
+.today-root .pd-section {
+  padding: var(--t-8) 0;
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-root .pd-section:first-of-type { border-top: none; }
+.today-root .pd-section-label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--t-ink-muted);
+  margin: 0 0 var(--t-4) 0;
+  font-weight: 500;
+}
+
+/* ============================================================
+ * Section 1 — Thesis (with Why it matters + concept tag)
+ * ============================================================ */
+.today-root .pd-thesis-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--t-3);
+  flex-wrap: wrap;
+}
+.today-root .pd-thesis-symbol {
+  font-family: var(--t-font-display);
+  font-size: 28px;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: var(--t-ink-primary);
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--t-3);
+}
+.today-root .pd-thesis-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-2);
+  font-family: var(--t-font-body);
+  font-size: 16px;
+  color: var(--t-ink-secondary);
+  font-weight: 400;
+}
+.today-root .pd-thesis-dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--t-tone-neutral);
+  display: inline-block;
+}
+.today-root .pd-thesis-signal[data-action="buy"]  .pd-thesis-dot { background: var(--t-tone-up); }
+.today-root .pd-thesis-signal[data-action="sell"] .pd-thesis-dot { background: var(--t-tone-down); }
+.today-root .pd-thesis-signal[data-action="trim"] .pd-thesis-dot { background: var(--t-tone-warn); }
+.today-root .pd-thesis-signal[data-action="hold"] .pd-thesis-dot { background: var(--t-tone-neutral); }
+
+.today-root .pd-thesis-asof {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+}
+
+.today-root .pd-thesis-statement {
+  font-family: var(--t-font-display);
+  font-size: 22px;
+  line-height: 1.45;
+  letter-spacing: -0.005em;
+  color: var(--t-ink-primary);
+  margin: var(--t-6) 0 var(--t-4) 0;
+  max-width: 640px;
+}
+@media (max-width: 640px) {
+  .today-root .pd-thesis-symbol     { font-size: 24px; }
+  .today-root .pd-thesis-statement  { font-size: 19px; }
+}
+
+.today-root .pd-why-it-matters {
+  font-family: var(--t-font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-secondary);
+  margin: 0 0 var(--t-4) 0;
+  max-width: 640px;
+}
+.today-root .pd-concept-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-2);
+  padding: 2px var(--t-3);
+  font-size: 12px;
+  color: var(--t-ink-secondary);
+  background: var(--t-accent-faint);
+  border-radius: 6px;
+  text-decoration: none;
+  transition: color var(--t-motion), background var(--t-motion);
+}
+.today-root .pd-concept-tag:hover {
+  color: var(--t-accent);
+  background: var(--t-accent-soft);
+}
+
+/* ============================================================
+ * Section 2 — What changed since yesterday (observational)
+ * ============================================================ */
+.today-root .pd-changed-list {
+  list-style: none; padding: 0; margin: 0;
+}
+.today-root .pd-changed-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--t-3);
+  padding: var(--t-3) 0;
+  border-top: 1px solid var(--t-border-quiet);
+  font-size: 15px;
+  color: var(--t-ink-primary);
+  line-height: 1.5;
+  align-items: baseline;
+}
+.today-root .pd-changed-row:first-child { border-top: none; }
+.today-root .pd-changed-row-text { color: var(--t-ink-primary); }
+.today-root .pd-changed-row-when {
+  color: var(--t-ink-muted); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+ * Section 3 — Why this appeared today (bullet list)
+ * ============================================================ */
+.today-root .pd-why-list {
+  list-style: none; padding: 0; margin: 0;
+}
+.today-root .pd-why-row {
+  position: relative;
+  padding: var(--t-2) 0 var(--t-2) var(--t-4);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+}
+.today-root .pd-why-row::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: var(--t-ink-muted);
+}
+.today-root .pd-why-meta {
+  margin-top: var(--t-4);
+  font-size: 13px;
+  color: var(--t-ink-muted);
+}
+
+/* ============================================================
+ * Sections 4 & 5 — Evidence / What could go wrong
+ * ============================================================ */
+.today-root .pd-card-stack {
+  display: flex; flex-direction: column;
+  gap: var(--t-3);
+}
+.today-root .pd-card {
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  border-radius: 12px;
+  padding: var(--t-4) var(--t-4) var(--t-3);
+  transition: border-color var(--t-motion);
+}
+.today-root .pd-card:hover { border-color: var(--t-border-medium); }
+.today-root .pd-card-claim {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+  margin: 0;
+}
+.today-root .pd-card-source {
+  display: inline-block;
+  margin-top: var(--t-2);
+  font-size: 12px;
+  color: var(--t-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+.today-root .pd-card-source-label {
+  color: var(--t-ink-faint);
+  margin-right: 4px;
+}
+.today-root .pd-risk-foot {
+  margin-top: var(--t-3);
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  font-style: italic;
+}
+
+/* ============================================================
+ * Section 6 — Risk awareness
+ * ============================================================ */
+.today-root .pd-risk-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--t-3);
+}
+.today-root .pd-risk-item {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+}
+.today-root .pd-risk-link {
+  margin-left: var(--t-2);
+  font-size: 13px;
+  color: var(--t-accent);
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-motion);
+}
+.today-root .pd-risk-link:hover { border-bottom-color: var(--t-accent); }
+
+/* ============================================================
+ * Section 7 — Expected horizon (paragraph)
+ * ============================================================ */
+.today-root .pd-horizon {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--t-ink-primary);
+  max-width: 640px;
+  margin: 0;
+}
+
+/* ============================================================
+ * Reference levels + in-portfolio (small inline blocks)
+ * ============================================================ */
+.today-root .pd-reference {
+  font-size: 14px;
+  color: var(--t-ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.today-root .pd-reference-label {
+  color: var(--t-ink-muted);
+  margin-right: var(--t-2);
+}
+.today-root .pd-reference-sep { color: var(--t-ink-faint); }
+
+.today-root .pd-inport {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+}
+.today-root .pd-inport-muted { color: var(--t-ink-muted); }
+
+/* ============================================================
+ * Section 8 — Learn more (chips)
+ * ============================================================ */
+.today-root .pd-learn-chips {
+  display: flex; flex-wrap: wrap; gap: var(--t-2);
+  margin-top: var(--t-3);
+}
+.today-root .pd-learn-chip {
+  display: inline-flex;
+  padding: var(--t-2) var(--t-3);
+  font-size: 13px;
+  color: var(--t-ink-secondary);
+  background: var(--t-surface-sunken);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: color var(--t-motion), border-color var(--t-motion);
+}
+.today-root .pd-learn-chip:hover {
+  color: var(--t-ink-primary);
+  border-color: var(--t-border-medium);
+}
+
+/* ============================================================
+ * Section 9 — Technical detail (collapsed by default)
+ * ============================================================ */
+.today-root .pd-tech-details {
+  margin-top: var(--t-6);
+  border-top: 1px dashed var(--t-border-quiet);
+  padding-top: var(--t-4);
+}
+.today-root .pd-tech-details summary {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  cursor: pointer;
+  letter-spacing: 0.01em;
+  user-select: none;
+  list-style: none;
+}
+.today-root .pd-tech-details summary::-webkit-details-marker { display: none; }
+.today-root .pd-tech-details summary::before { content: "› "; color: var(--t-ink-faint); }
+.today-root .pd-tech-details[open] summary::before { content: "⌄ "; }
+.today-root .pd-tech-grid {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: var(--t-2) var(--t-4);
+  margin-top: var(--t-4);
+  padding: var(--t-4);
+  background: var(--t-surface-sunken);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.today-root .pd-tech-key { color: var(--t-ink-muted); }
+.today-root .pd-tech-val {
+  color: var(--t-ink-primary);
+  font-variant-numeric: tabular-nums;
+  word-break: break-all;
+}
+@media (max-width: 640px) {
+  .today-root .pd-tech-grid {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .today-root .pd-tech-key { font-size: 11px; }
+}
+
+/* ============================================================
+ * Back link
+ * ============================================================ */
+.today-root .pd-back {
+  display: inline-block;
+  margin-top: var(--t-8);
+  font-size: 14px;
+  color: var(--t-ink-secondary);
+  border-bottom: 1px solid transparent;
+  transition: color var(--t-motion), border-color var(--t-motion);
+}
+.today-root .pd-back:hover {
+  color: var(--t-ink-primary);
+  border-bottom-color: var(--t-border-medium);
+}

@@ -43,7 +43,7 @@ export const FLOW: FlowStep[] = [
     what: "Action distribution, freshness, event-feature coverage, readiness score.",
     next: "/decisions" },
   { to: "/decisions", label: "Decisions", section: "signals", hot: "D",
-    why: "Audit how the AI reached a recommendation.",
+    why: "Audit the decision trace and rationale behind each signal.",
     what: "Decision review, rationale traces, factor evidence.",
     next: "/strategies" },
 

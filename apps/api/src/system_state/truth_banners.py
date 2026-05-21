@@ -91,10 +91,14 @@ CATALOG: dict[TruthBannerCause, BannerContent] = {
     ),
     TruthBannerCause.INCOMPLETE_LIFECYCLE: BannerContent(
         cause=TruthBannerCause.INCOMPLETE_LIFECYCLE,
-        short_label="Part of this is still being built",
+        # Phase L UI-1 N.3 revision: "Part of this is still being built"
+        # was read as platform-incompleteness rather than deliberate
+        # restraint. Reworded to frame the absence as a behavior choice.
+        short_label="We don't have a clear read on this one",
         long_text=(
-            "This surface is in progress. What you see is honest about "
-            "what's working today — and clear about what isn't."
+            "Some trades have a clean structural pattern the AI can "
+            "describe. This one doesn't. The trade is in your portfolio; "
+            "we don't have a story to tell about it."
         ),
     ),
     TruthBannerCause.STALE_DATA_SINGLE_NAME: BannerContent(

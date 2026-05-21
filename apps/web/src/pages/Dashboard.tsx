@@ -68,22 +68,28 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ZONE A — WHAT'S HAPPENING */}
-      <Zone label="What's happening">
+      {/* ZONE A — WHAT'S HAPPENING                                  */}
+      {/* Single-portfolio scope (legacy dashboard endpoint). Labels  */}
+      {/* match the canonical terminology lock; subtext makes the     */}
+      {/* per-portfolio framing explicit so the reader doesn't        */}
+      {/* mistake these numbers for the aggregate shown on /overview. */}
+      <Zone label="What's happening · per-portfolio view">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
-            label="NAV"
+            label="Account value (NAV)"
             value={formatCurrency(pnl?.nav)}
+            secondary="Single portfolio · /pnl/summary"
           />
           <StatCard
-            label="Daily PnL"
+            label="Today P&L"
             value={formatSignedCurrency(dailyPnl)}
             tone={pnlPositive ? 'positive' : 'negative'}
           />
           <StatCard
-            label="Cumulative PnL"
+            label="Realized P&L"
             value={formatSignedCurrency(cumPnl)}
             tone={cumPositive ? 'positive' : 'negative'}
+            secondary="Cumulative · closed trades"
           />
           <StatCard
             label="Cash %"

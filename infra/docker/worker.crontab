@@ -1,0 +1,11 @@
+# Investment platform worker — supercronic schedule.
+#
+# Timezone: container TZ is set via docker-compose (America/New_York).
+# Schedule below uses that local TZ.
+#
+# 03:30 local, Tue–Sat → processes the prior trading day's data after
+# end-of-day bars are finalized.
+#
+# Columns: m h dom mon dow  command
+
+30 3 * * 2-6    /app/scripts/run_daily_loop.sh

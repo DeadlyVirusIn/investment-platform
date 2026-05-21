@@ -410,6 +410,27 @@ class Settings(BaseSettings):
     OPTIONS_RUN_UNIVERSE: tuple[str, ...] = ("SPY", "QQQ", "IWM", "GLD", "TLT")
 
     # ------------------------------------------------------------------
+    # Phase Opt-C2 Pre-Canary 0 — controlled canary activation
+    # ------------------------------------------------------------------
+    # Master canary gate — gates promotion + lifecycle. Default OFF.
+    # Independent from OPTIONS_ENABLED (which remains the master
+    # broad-execution gate and stays OFF). When CANARY_ENABLED=true,
+    # promoter + lifecycle jobs respect the per-portfolio caps below.
+    OPTIONS_CANARY_ENABLED: bool = False
+    # Single underlying for canary universe.
+    OPTIONS_CANARY_UNIVERSE: str = "SPY"
+    # Single strategy family allowed.
+    OPTIONS_CANARY_STRATEGY: str = "BULL_CALL_SPREAD"
+    # Hard slot cap per portfolio (enforced in promoter).
+    OPTIONS_CANARY_MAX_OPEN: int = 1
+    # Max dollar reservation per trade (enforced via max_loss_dollars).
+    OPTIONS_CANARY_MAX_CAPITAL_USD: float = 500.0
+    # DTE window for canary proposals (excludes 0DTE chaos and very
+    # long-dated theta-bound holds).
+    OPTIONS_CANARY_MIN_DTE: int = 21
+    OPTIONS_CANARY_MAX_DTE: int = 45
+
+    # ------------------------------------------------------------------
     # PHASE 11W (Phase E) — Manual research-run activation (research-only)
     # ------------------------------------------------------------------
     # Adds a tightly-gated *manual* trigger for the research-artifact

@@ -314,21 +314,21 @@ function Body({
         data-test="risk-headline-strip"
       >
         <Cell
-          label="Account value"
+          label="Account value (NAV)"
           value={data.nav != null ? fmtUSD(data.nav) : "—"}
           sub={data.snapshot_date
-            ? `As of ${data.snapshot_date.slice(0, 10)}`
+            ? `As of ${data.snapshot_date.slice(0, 10)} · per-portfolio risk view`
             : "No snapshot yet"}
         />
         <Cell
           label="Available cash"
           value={data.cash != null ? fmtUSD(data.cash) : "—"}
           sub={(data.cash != null && data.nav)
-            ? `${((data.cash / data.nav) * 100).toFixed(1)}% of account value`
+            ? `${((data.cash / data.nav) * 100).toFixed(1)}% of NAV`
             : "—"}
         />
         <Cell
-          label="Money invested"
+          label="Holdings value"
           value={data.mark_unavailable
             ? "Current price not available"
             : (data.exposure_value != null
@@ -338,7 +338,7 @@ function Body({
             ? `${data.open_positions_count} open · `
               + `waiting for fresh price data`
             : (data.exposure_pct != null
-                ? `${(data.exposure_pct * 100).toFixed(1)}% invested · `
+                ? `${(data.exposure_pct * 100).toFixed(1)}% of NAV · `
                   + `${data.open_positions_count} open`
                 : `${data.open_positions_count} open`)}
           warn={data.mark_unavailable}

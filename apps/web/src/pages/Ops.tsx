@@ -288,7 +288,7 @@ export default function Ops() {
             <Row k="Engine B"         v="engineB-v1.0.0" />
             <Divider />
             <Row k="Cost model"       v="10 / 20 / 30 bps tested" />
-            <Row k="Capital"          v="$100,000 paper" />
+            <Row k="Capital"          v="paper (see Portfolio)" />
             <Row k="Instrument"       v="ES / SPY" />
           </div>
         </Card>

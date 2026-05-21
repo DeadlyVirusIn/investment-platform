@@ -52,18 +52,18 @@ export default function KeyMetricsRow() {
   return (
     <div className="card">
       <div className="flex flex-wrap gap-y-6">
-        <MetricBlock label="Equity"
+        <MetricBlock label="Account value (NAV)"
                      value={fmtUSD(data.equity)}
                      sub={`cash ${fmtUSD(data.cash)}`}
                      tone="neutral" />
-        <MetricBlock label="Daily P&L"
+        <MetricBlock label="Today P&L"
                      value={fmtUSD(data.daily_pnl, 2)}
                      sub={fmtPct(data.daily_pnl / (data.equity || 1) * 100, 3)}
                      tone={dailyTone} />
-        <MetricBlock label="Total Return"
+        <MetricBlock label="Total return"
                      value={fmtPct(data.total_return_pct)}
-                     sub="since inception" tone={cumTone} />
-        <MetricBlock label="Max Drawdown"
+                     sub="since inception · aggregate" tone={cumTone} />
+        <MetricBlock label="Biggest drop from peak"
                      value={fmtPct(data.max_drawdown_pct)}
                      sub="peak-to-trough" tone="neg" />
       </div>

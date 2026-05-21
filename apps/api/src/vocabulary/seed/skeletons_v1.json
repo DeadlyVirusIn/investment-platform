@@ -1,0 +1,38 @@
+[
+  {
+    "name": "momentum_breakout",
+    "label": "Momentum breakout",
+    "domain": "equities,options",
+    "description": "Entry on confirmed momentum break above prior range or resistance."
+  },
+  {
+    "name": "mean_reversion_pullback",
+    "label": "Mean-reversion pullback",
+    "domain": "equities",
+    "description": "Pullback entry inside an established trend — buys weakness expecting reversion to mean."
+  },
+  {
+    "name": "breadth_thrust_entry",
+    "label": "Breadth-thrust entry",
+    "domain": "equities",
+    "description": "Entry triggered by broad market participation widening (advancers vs decliners thrust)."
+  },
+  {
+    "name": "iv_compression_setup",
+    "label": "IV compression setup",
+    "domain": "options",
+    "description": "Options entry when implied volatility has compressed relative to recent regime — long volatility-favorable structure."
+  },
+  {
+    "name": "catalyst_anticipation",
+    "label": "Catalyst anticipation",
+    "domain": "equities,options",
+    "description": "Entry timed ahead of a known catalyst (earnings, macro release) — sized for binary outcome."
+  },
+  {
+    "name": "regime_aligned_continuation",
+    "label": "Regime-aligned continuation",
+    "domain": "equities",
+    "description": "Continuation entry where signal direction matches prevailing regime — lowest-friction trade shape."
+  }
+]

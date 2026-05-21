@@ -250,4 +250,9 @@ export function isPaperRunPendingWindow(
 
 // Copy fragment used by the staged surfaces. Kept here so tests +
 // future tone tweaks live next to the detector.
-export const PAPER_REFRESH_HINT_ET = "today's portfolio refresh at 11:30 PM ET";
+// Phase: cohesion polish — softened from "11:30 PM ET" to "tonight's refresh"
+// because the cron container TZ misconfig (env=America/New_York but localtime
+// symlinked to UTC) causes the snapshot to actually fire at 10:30 PM ET in
+// EST. "Tonight's refresh" is true regardless of season; specific time was
+// wrong four months/year.
+export const PAPER_REFRESH_HINT_ET = "tonight's portfolio refresh";

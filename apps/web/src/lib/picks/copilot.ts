@@ -77,27 +77,30 @@ export function buildBriefing(picks: Pick[]): Briefing {
   let body: string;
   let recommendedAction: string;
 
+  // Cohesion polish — Phase A semantic freeze.
+  // Headlines describe signals, thresholds, posture, and state.
+  // No AI agency, intent, emotion, recommendations, or judgment.
   if (total === 0) {
-    headline = "AI engine has no fresh suggestions";
-    body = "The recommendation engine has not produced any results recently. Check engine health or try again shortly.";
+    headline = "No new signals today";
+    body = "The engine produced no signals in the most recent cycle. Check pipeline health or try again after the next refresh.";
     recommendedAction = "Check engine status";
   } else if (counts.buy === 0 && counts.sell === 0) {
-    headline = "AI is cautious today";
-    body = "No fresh Buy signals passed the engine's threshold. The strongest signals are Trim and Hold — protect gains, reduce weak positions, and wait for cleaner entries.";
+    headline = "Defensive posture · no Buy signals";
+    body = "No Buy signals passed today's threshold. The strongest signals are Trim and Hold. Review weak positions first.";
     recommendedAction = counts.trim > 0
       ? "Review highest-risk trims"
       : "Review watchlist holds";
   } else if (counts.buy > 0 && counts.sell === 0) {
-    headline = `${counts.buy} Buy ${counts.buy === 1 ? "idea" : "ideas"} today`;
-    body = `AI sees ${counts.buy === 1 ? "an entry opportunity" : "entry opportunities"} with favorable risk/reward. Review the highest-confidence pick first.`;
+    headline = `${counts.buy} Buy ${counts.buy === 1 ? "signal" : "signals"} today`;
+    body = `${counts.buy} ${counts.buy === 1 ? "entry signal" : "entry signals"} matched today's filters. Review the highest-confidence row first.`;
     recommendedAction = "Review top Buy";
   } else if (counts.sell > 0 && counts.buy === 0) {
     headline = `${counts.sell} Sell ${counts.sell === 1 ? "signal" : "signals"} today`;
-    body = "AI sees risk increasing on these names. Consider exiting before further deterioration.";
+    body = `${counts.sell} ${counts.sell === 1 ? "name" : "names"} flagged for exit review. Address before evaluating new entries.`;
     recommendedAction = "Review Sell signals";
   } else {
     headline = `${counts.buy} Buy · ${counts.sell} Sell · ${counts.trim} Trim`;
-    body = "Mixed market — AI sees both entry and exit signals. Address Sell signals first, then evaluate Buy opportunities.";
+    body = "Mixed signal day — both entry and exit signals present. Address Sell signals first, then evaluate Buy entries.";
     recommendedAction = "Address Sell signals first";
   }
 
@@ -145,7 +148,7 @@ export function rankingLabel(pick: Pick, allPicks: Pick[]): string | null {
     }
   }
 
-  // Strong hold — high-confidence hold (the AI is confident about NOT acting)
+  // Strong hold — high-confidence hold signal (engine threshold met for NOT acting)
   if (action === "hold" && pct >= 70) return "Strong hold";
 
   // Watchlist candidate — borderline hold (45-65%)
@@ -202,12 +205,12 @@ export function plainExplain(pick: Pick): string {
     if (cleaned.length > 24) return cleaned;
   }
 
-  // Fall back to honest per-action template
+  // Fall back to honest per-action template — observational, no AI agency
   switch (action) {
-    case "buy":  return "AI sees improving momentum and favorable risk/reward.";
-    case "sell": return "Risk is too high or trend is broken. AI suggests avoiding or exiting.";
-    case "trim": return "Momentum is weak and risk is rising. AI suggests reducing exposure instead of adding more.";
-    case "hold": return "Not attractive enough to buy today. Keep watching for a better entry.";
+    case "buy":  return "Engine signal: improving momentum, entry threshold met.";
+    case "sell": return "Engine signal: risk threshold breached or trend broken.";
+    case "trim": return "Engine signal: momentum weakening, risk rising — exposure reduction flagged.";
+    case "hold": return "Engine signal: no entry threshold met today.";
   }
 }
 
@@ -276,22 +279,22 @@ export function derivePriority(picks: Pick[]): PriorityResult | null {
 
   switch (action) {
     case "sell":
-      reason = "Risk is elevated and AI sees no remaining upside. Address this before reviewing other ideas.";
+      reason = "Risk threshold breached and no remaining upside flagged by the engine. Address before reviewing other signals.";
       ctaSecondary = "Review all sell signals";
       ctaSecondaryFilter = "sell";
       break;
     case "trim":
-      reason = "Momentum has weakened. Reducing exposure now protects gains and frees capital for cleaner setups.";
+      reason = "Momentum weakened past threshold. Reducing exposure protects gains and frees capital for new setups.";
       ctaSecondary = "Review all trims";
       ctaSecondaryFilter = "trim";
       break;
     case "buy":
-      reason = "Strongest entry setup of the day. Risk/reward looks favorable — review thesis before acting.";
-      ctaSecondary = "Review all buy ideas";
+      reason = "Strongest entry signal of the day by composite score. Review thesis before acting.";
+      ctaSecondary = "Review all buy signals";
       ctaSecondaryFilter = "buy";
       break;
     case "hold":
-      reason = "No urgent action — but this is the highest-conviction watchlist name today.";
+      reason = "No urgent action — highest-conviction watchlist row today by composite score.";
       ctaSecondary = "Review watchlist";
       ctaSecondaryFilter = "hold";
       break;

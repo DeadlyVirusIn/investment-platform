@@ -1,0 +1,784 @@
+/*
+ * ArthOS calm-mentor design tokens + layout.
+ *
+ * Visual convergence patch: re-tuned to the Magic Patterns reference
+ * palette (sand / ink / forest / coral / ochre) and Fraunces+Inter
+ * type stack. Truth constraints UNCHANGED — only visual tokens move.
+ *
+ * Hard locks still honored:
+ *  - no fake confidence / no fake real-time / no AI agency claims
+ *  - no glow, no hover lift, no startup-SaaS motion
+ *  - editorial serif reserved for moments of meaning
+ *  - mobile-first (390x844) + desktop (1280x800)
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..600;1,9..144,300..600&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+.today-root {
+  /* Surfaces — Magic Patterns sand scale */
+  --t-surface-paper:    #FAFAF7;   /* sand-50  */
+  --t-surface-elevated: #F4F1EA;   /* sand-100 */
+  --t-surface-sunken:   #E8E6DF;   /* sand-200 */
+
+  /* Ink — neutral, no green tint */
+  --t-ink-primary:    #0E0E0E;     /* ink-900 */
+  --t-ink-secondary:  #57534E;     /* ink-500 */
+  --t-ink-muted:      #78716C;     /* ink-400 */
+  --t-ink-faint:      #A8A29E;     /* ink-300 */
+
+  /* Single trust accent — deep forest */
+  --t-accent:         #163225;     /* forest-800 */
+  --t-accent-soft:    #DCE9DE;     /* forest-100 */
+  --t-accent-faint:   #F0F5F1;     /* forest-50  */
+
+  /* Status tones — calm, never theatrical */
+  --t-tone-up:        #1F4530;     /* forest-700 */
+  --t-tone-down:      #B05E4C;     /* coral-500  */
+  --t-tone-warn:      #C9A961;     /* ochre-400  */
+  --t-tone-neutral:   #78716C;
+
+  /* Borders — sand-200/300 hairlines */
+  --t-border-quiet:   #E8E6DF;     /* sand-200 */
+  --t-border-medium:  #D6D3C8;     /* sand-300 */
+
+  /* Spacing scale */
+  --t-1: 4px;
+  --t-2: 8px;
+  --t-3: 12px;
+  --t-4: 16px;
+  --t-6: 24px;
+  --t-8: 32px;
+  --t-12: 48px;
+  --t-16: 64px;
+  --t-24: 96px;
+
+  /* Type stack — Fraunces editorial, Inter UI, JetBrains Mono numeric */
+  --t-font-display: "Fraunces", "Source Serif 4", Georgia, ui-serif, serif;
+  --t-font-body:    "Inter", system-ui, -apple-system, sans-serif;
+  --t-font-mono:    "JetBrains Mono", ui-monospace, monospace;
+
+  /* Editorial radii — 2xl/3xl card feel */
+  --t-radius-sm: 6px;
+  --t-radius-md: 10px;
+  --t-radius-lg: 14px;
+  --t-radius-xl: 20px;
+
+  /* Premium soft shadows — never glowy */
+  --t-shadow-soft: 0 1px 2px rgba(14,14,14,0.04), 0 1px 1px rgba(14,14,14,0.02);
+  --t-shadow-card: 0 1px 3px rgba(14,14,14,0.04), 0 4px 16px -4px rgba(14,14,14,0.04);
+  --t-shadow-lift: 0 2px 8px rgba(14,14,14,0.04), 0 12px 32px -8px rgba(14,14,14,0.06);
+
+  /* Motion — calm cubic-bezier, never bouncy */
+  --t-motion: 240ms cubic-bezier(0.32, 0.72, 0, 1);
+
+  background: var(--t-surface-paper);
+  color: var(--t-ink-primary);
+  font-family: var(--t-font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "ss01", "cv11";
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Editorial serif treatment — opsz + SOFT axis tuning */
+.today-root [class*="page-title"],
+.today-root [class*="hero-identity"],
+.today-root [class*="path-title"],
+.today-root [class*="lesson-title"],
+.today-root [class*="term-title"],
+.today-root .mp-page-title {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  letter-spacing: -0.015em;
+  font-weight: 500;
+}
+
+/* ============================================================
+ * Dark-sand editorial theme.
+ *
+ * Inherits from <html data-theme="dark"> (set by useTheme hook in
+ * @/lib/ui/theme). Same token names as light-sand, retuned for a
+ * warm leather/ink palette — deep umber surfaces, bone ink, sage
+ * accent lifted for contrast. Explicitly NOT generic SaaS dark mode
+ * (no slate, no neon). Preserves calm reading + premium editorial
+ * feel.
+ *
+ * Goal: a reader who toggles light↔dark sees the same calm, just
+ * lit differently — no aesthetic context-switch.
+ * ============================================================ */
+:root[data-theme="dark"] .today-root {
+  /* Dark-sand inversion of the Magic Patterns palette — warm ink/leather */
+  --t-surface-paper:    #14110E;   /* deeper ink-leather */
+  --t-surface-elevated: #1C1917;   /* ink-800 */
+  --t-surface-sunken:   #0E0E0E;   /* ink-900 */
+
+  --t-ink-primary:    #F5F5F4;     /* ink-50  */
+  --t-ink-secondary:  #D6D3D1;     /* ink-200 */
+  --t-ink-muted:      #A8A29E;     /* ink-300 */
+  --t-ink-faint:      #57534E;     /* ink-500 */
+
+  --t-accent:         #8FB69A;     /* forest-300 lifted for dark */
+  --t-accent-soft:    #1F4530;     /* forest-700 */
+  --t-accent-faint:   #163225;     /* forest-800 */
+
+  --t-tone-up:        #8FB69A;     /* forest-300 */
+  --t-tone-down:      #C97D6B;     /* coral-400 */
+  --t-tone-warn:      #C9A961;     /* ochre-400 */
+  --t-tone-neutral:   #A8A29E;
+
+  --t-border-quiet:   #292524;     /* ink-700 */
+  --t-border-medium:  #44403C;     /* ink-600 */
+
+  --t-shadow-soft: 0 1px 2px rgba(0,0,0,0.5);
+  --t-shadow-card: 0 1px 3px rgba(0,0,0,0.4), 0 4px 16px -4px rgba(0,0,0,0.4);
+  --t-shadow-lift: 0 2px 8px rgba(0,0,0,0.5), 0 12px 32px -8px rgba(0,0,0,0.5);
+}
+
+.today-root *,
+.today-root *::before,
+.today-root *::after {
+  box-sizing: border-box;
+}
+
+.today-root a {
+  color: var(--t-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t-motion);
+}
+.today-root a:hover { border-bottom-color: var(--t-accent); }
+.today-root a:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* ============================================================
+ * Top nav — single calm row
+ * ============================================================ */
+.today-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px var(--t-12);
+  border-bottom: 1px solid var(--t-border-quiet);
+  background: color-mix(in srgb, var(--t-surface-paper) 85%, transparent);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+.today-nav-brand {
+  font-family: var(--t-font-display);
+  font-size: 18px;
+  letter-spacing: -0.01em;
+  color: var(--t-ink-primary);
+}
+
+/* ArthOS brand row — Sparkle mark + serif wordmark */
+.today-nav-brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  border-bottom: 0 !important;
+}
+.today-nav-brand-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--t-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.today-nav-brand-mark svg {
+  width: 14px;
+  height: 14px;
+  color: var(--t-surface-paper);
+}
+.today-nav-brand-name {
+  font-family: var(--t-font-display);
+  font-variation-settings: "opsz" 144;
+  font-size: 19px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--t-ink-primary);
+}
+.today-nav-links {
+  display: flex;
+  gap: var(--t-8);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.today-nav-link {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--t-ink-muted);
+  padding: 8px 14px;
+  border-radius: 999px;
+  border-bottom: 0 !important;
+  text-decoration: none;
+  transition: color var(--t-motion), background var(--t-motion);
+}
+.today-nav-link[data-active="true"] {
+  color: var(--t-ink-primary);
+  background: var(--t-surface-elevated);
+}
+.today-nav-link:hover {
+  color: var(--t-ink-primary);
+  background: var(--t-surface-elevated);
+}
+
+/* Theme toggle — minimal, calm, reads as "secondary control" */
+.today-nav-theme-toggle {
+  font-family: var(--t-font-body);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+  color: var(--t-ink-muted);
+  background: transparent;
+  border: 1px solid var(--t-border-quiet);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color var(--t-motion), border-color var(--t-motion),
+              background var(--t-motion);
+}
+.today-nav-theme-toggle:hover {
+  color: var(--t-ink-primary);
+  border-color: var(--t-border-medium);
+  background: var(--t-surface-elevated);
+}
+.today-nav-theme-toggle:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .today-nav {
+    padding: var(--t-4) var(--t-6);
+    flex-wrap: wrap;
+    gap: var(--t-3);
+  }
+  .today-nav-brand { font-size: 16px; }
+  .today-nav-links { gap: var(--t-4); flex-wrap: wrap; }
+  .today-nav-link { font-size: 14px; }
+  .today-nav-theme-toggle { font-size: 11px; padding: 3px 8px; }
+}
+
+/* ============================================================
+ * Page layout — reading column, generous breath
+ * ============================================================ */
+.today-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--t-12) var(--t-12) var(--t-16);
+}
+@media (max-width: 640px) {
+  .today-page {
+    padding: var(--t-8) var(--t-6) var(--t-12);
+  }
+}
+
+.today-section {
+  padding: var(--t-8) 0;
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-section:first-of-type { border-top: none; }
+.today-section-label {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: var(--t-ink-muted);
+  margin: 0 0 var(--t-4) 0;
+  font-weight: 500;
+}
+
+/* ============================================================
+ * Greeting + AI read (serif territory)
+ * ============================================================ */
+.today-greeting {
+  font-family: var(--t-font-display);
+  font-size: 22px;
+  line-height: 1.3;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-6) 0;
+}
+.today-ai-read {
+  font-family: var(--t-font-display);
+  font-size: 24px;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
+  color: var(--t-ink-primary);
+  margin: 0;
+  max-width: 640px;
+}
+.today-ai-meta {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  margin-top: var(--t-3);
+}
+
+/* ============================================================
+ * Portfolio — minimal: 1 number + 2 small lines + tiny spark
+ * ============================================================ */
+.today-portfolio {
+  display: flex;
+  align-items: baseline;
+  gap: var(--t-6);
+  flex-wrap: wrap;
+}
+.today-nav-value {
+  font-family: var(--t-font-display);
+  font-size: 38px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--t-ink-primary);
+  margin: 0;
+}
+.today-portfolio-spark {
+  opacity: 0.7;
+  height: 28px;
+  width: 90px;
+}
+.today-portfolio-lines {
+  margin-top: var(--t-3);
+  font-size: 14px;
+  color: var(--t-ink-secondary);
+  line-height: 1.6;
+}
+.today-portfolio-lines .today-portfolio-line {
+  display: block;
+}
+.today-portfolio-lines strong {
+  font-weight: 500;
+  color: var(--t-ink-primary);
+}
+
+/* ============================================================
+ * "One thing to look at" — reasoning first, prices quiet
+ * ============================================================ */
+.today-onething {
+  border: 1px solid var(--t-border-quiet);
+  border-radius: 12px;
+  background: var(--t-surface-elevated);
+  padding: var(--t-6);
+  transition: border-color var(--t-motion);
+}
+.today-onething:hover { border-color: var(--t-border-medium); }
+.today-onething:focus-within { border-color: var(--t-accent); }
+
+.today-onething-symbol {
+  font-family: var(--t-font-display);
+  font-size: 20px;
+  letter-spacing: -0.01em;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-2) 0;
+}
+.today-onething-reasoning {
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+  margin: 0;
+  max-height: calc(1.55em * 5);  /* max 5 lines per spec */
+  overflow: hidden;
+  position: relative;
+}
+.today-onething-signal {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-2);
+  margin-top: var(--t-4);
+  font-size: 13px;
+  color: var(--t-ink-secondary);
+}
+.today-onething-signal-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--t-tone-neutral);
+  display: inline-block;
+}
+.today-onething-signal[data-action="buy"]  .today-onething-signal-dot { background: var(--t-tone-up); }
+.today-onething-signal[data-action="sell"] .today-onething-signal-dot { background: var(--t-tone-down); }
+.today-onething-signal[data-action="trim"] .today-onething-signal-dot { background: var(--t-tone-warn); }
+.today-onething-signal[data-action="hold"] .today-onething-signal-dot { background: var(--t-tone-neutral); }
+
+.today-onething-prices {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  margin-top: var(--t-3);
+  font-variant-numeric: tabular-nums;
+}
+.today-onething-cta {
+  display: inline-block;
+  margin-top: var(--t-4);
+  font-size: 14px;
+  color: var(--t-accent);
+}
+
+/* ============================================================
+ * AI track record — journal style, equal weight losses
+ * ============================================================ */
+.today-track {
+  display: block;
+}
+.today-track-summary {
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-4) 0;
+}
+.today-track-summary .today-track-period { color: var(--t-ink-muted); }
+.today-track-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.today-track-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 80px;
+  gap: var(--t-3);
+  padding: var(--t-2) 0;
+  font-size: 14px;
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-track-row:first-child { border-top: none; }
+.today-track-when    { color: var(--t-ink-muted); }
+.today-track-symbol  { color: var(--t-ink-primary); }
+.today-track-outcome { text-align: right; font-variant-numeric: tabular-nums; color: var(--t-ink-secondary); }
+.today-track-outcome[data-tone="up"]   { color: var(--t-tone-up); }
+.today-track-outcome[data-tone="down"] { color: var(--t-tone-down); }
+
+/* ============================================================
+ * Learning card — strategic identity, not filler
+ * ============================================================ */
+.today-learn {
+  background: var(--t-surface-sunken);
+  border-radius: 12px;
+  padding: var(--t-6);
+}
+.today-learn-term {
+  font-family: var(--t-font-display);
+  font-size: 18px;
+  color: var(--t-ink-primary);
+  margin: 0 0 var(--t-3) 0;
+}
+.today-learn-def {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-secondary);
+  margin: 0;
+}
+.today-learn-cta {
+  display: inline-block;
+  margin-top: var(--t-4);
+  font-size: 14px;
+  color: var(--t-accent);
+}
+
+/* ============================================================
+ * Browse footer + Advanced expander (intentionally quiet)
+ * ============================================================ */
+.today-browse {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--t-4);
+  margin-top: var(--t-6);
+  font-size: 14px;
+  color: var(--t-ink-secondary);
+}
+.today-browse a {
+  color: var(--t-ink-secondary);
+  border-bottom: 1px solid transparent;
+}
+.today-browse a:hover {
+  color: var(--t-ink-primary);
+  border-bottom-color: var(--t-border-medium);
+}
+
+.today-advanced {
+  margin-top: var(--t-6);
+  border-top: 1px dashed var(--t-border-quiet);
+  padding-top: var(--t-4);
+}
+.today-advanced summary {
+  font-size: 12px;
+  color: var(--t-ink-faint);
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.today-advanced summary::-webkit-details-marker { display: none; }
+.today-advanced summary::before { content: "› "; }
+.today-advanced[open] summary::before { content: "⌄ "; }
+.today-advanced ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--t-3) 0 0 0;
+}
+.today-advanced li { padding: var(--t-1) 0; font-size: 13px; }
+.today-advanced a { color: var(--t-ink-muted); }
+
+/* ============================================================
+ * What changed recently — observational rows (PR-3)
+ * ============================================================ */
+.today-changed-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.today-changed-row {
+  display: grid;
+  grid-template-columns: 1fr auto 12px;
+  align-items: baseline;
+  gap: var(--t-3);
+  padding: var(--t-3) 0;
+  border-top: 1px solid var(--t-border-quiet);
+  font-size: 15px;
+  color: var(--t-ink-primary);
+  line-height: 1.5;
+}
+.today-changed-row:first-child { border-top: none; }
+.today-changed-text {
+  color: var(--t-ink-primary);
+}
+.today-changed-when {
+  color: var(--t-ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.today-changed-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--t-tone-neutral);
+  display: inline-block;
+}
+.today-changed-dot[data-tone="up"]   { background: var(--t-tone-up); }
+.today-changed-dot[data-tone="down"] { background: var(--t-tone-down); }
+
+@media (max-width: 640px) {
+  .today-changed-row {
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto;
+    gap: 2px var(--t-3);
+    font-size: 14px;
+  }
+  .today-changed-text { grid-column: 1 / 3; }
+  .today-changed-when { grid-row: 2; grid-column: 1; }
+  .today-changed-dot  { grid-row: 2; grid-column: 2; align-self: center; }
+}
+
+
+/* ============================================================
+ * Recent moves strip — 4-row journal (PR-3)
+ * ============================================================ */
+.today-moves-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.today-moves-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: var(--t-3);
+  padding: var(--t-2) 0;
+  font-size: 14px;
+  border-top: 1px solid var(--t-border-quiet);
+  align-items: baseline;
+}
+.today-moves-row:first-child { border-top: none; }
+.today-moves-when    { color: var(--t-ink-muted); font-size: 12px; }
+.today-moves-symbol  { color: var(--t-ink-primary); font-weight: 500; }
+.today-moves-outcome {
+  font-variant-numeric: tabular-nums;
+  color: var(--t-ink-secondary);
+  text-align: right;
+}
+.today-moves-outcome[data-tone="up"]   { color: var(--t-tone-up); }
+.today-moves-outcome[data-tone="down"] { color: var(--t-tone-down); }
+
+@media (max-width: 640px) {
+  .today-moves-row {
+    grid-template-columns: 70px 1fr auto;
+    font-size: 13px;
+  }
+}
+
+
+/* ============================================================
+ * Track record summary (PR-3)
+ * ============================================================ */
+.today-track-summary {
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--t-ink-primary);
+  margin: 0;
+}
+.today-track-summary .today-track-period { color: var(--t-ink-muted); }
+.today-track-summary .today-track-value {
+  font-variant-numeric: tabular-nums;
+  color: var(--t-ink-primary);
+}
+
+
+/* ============================================================
+ * Empty / honest-absence states
+ * ============================================================ */
+.today-empty {
+  font-size: 15px;
+  color: var(--t-ink-muted);
+  font-style: italic;
+}
+
+/* ============================================================
+ * Magic-Patterns editorial primitives
+ *
+ * Reusable composition tokens. JSX adopts these by class name.
+ * Behavior unchanged — only visual polish. No fake claims encoded.
+ * ============================================================ */
+
+/* Eyebrow label — small uppercase tag above page titles */
+.today-root .mp-eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--t-ink-muted);
+  font-weight: 500;
+  margin: 0 0 12px;
+}
+
+/* Section label — same flavor, tighter spacing */
+.today-root .mp-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--t-ink-muted);
+  font-weight: 500;
+  margin: 0 0 16px;
+}
+
+/* Page header — eyebrow + serif title + subtitle composition */
+.today-root .mp-page-header {
+  margin-bottom: 40px;
+}
+@media (min-width: 1024px) {
+  .today-root .mp-page-header {
+    margin-bottom: 48px;
+  }
+}
+.today-root .mp-page-title {
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--t-ink-primary);
+  margin: 0;
+  text-wrap: balance;
+}
+@media (min-width: 1024px) {
+  .today-root .mp-page-title {
+    font-size: 36px;
+  }
+}
+.today-root .mp-page-subtitle {
+  margin: 12px 0 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--t-ink-secondary);
+  max-width: 580px;
+  text-wrap: pretty;
+}
+@media (min-width: 1024px) {
+  .today-root .mp-page-subtitle {
+    font-size: 18px;
+  }
+}
+
+/* Editorial divide-y list — replaces card grids */
+.today-root .mp-divide-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--t-border-quiet);
+  border-bottom: 1px solid var(--t-border-quiet);
+}
+.today-root .mp-divide-list > li + li {
+  border-top: 1px solid var(--t-border-quiet);
+}
+.today-root .mp-divide-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 8px;
+  margin: 0 -8px;
+  border-radius: var(--t-radius-sm);
+  transition: background var(--t-motion);
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 0 !important;
+}
+.today-root .mp-divide-row:hover {
+  background: var(--t-surface-elevated);
+}
+
+/* Premium card surface — rounded, soft shadow, never glowy */
+.today-root .mp-card {
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  border-radius: var(--t-radius-lg);
+  padding: 24px;
+  box-shadow: var(--t-shadow-soft);
+  transition: box-shadow var(--t-motion), border-color var(--t-motion);
+}
+.today-root .mp-card:hover {
+  box-shadow: var(--t-shadow-card);
+}
+.today-root .mp-card-lift {
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  border-radius: var(--t-radius-xl);
+  padding: 32px;
+  box-shadow: var(--t-shadow-lift);
+}
+
+/* Editorial explainer — left-rule accent, no card chrome */
+.today-root .mp-explainer {
+  padding-left: 20px;
+  border-left: 2px solid var(--t-accent);
+}
+
+/* Reading-column meta row — "X min · category" */
+.today-root .mp-meta {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--t-ink-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Mono inline — for numbers / slugs */
+.today-root .mp-mono {
+  font-family: var(--t-font-mono);
+  font-feature-settings: "tnum", "ss01";
+  font-size: 0.92em;
+}
+
+/* ============================================================
+ * Accessibility — reduced motion
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .today-root *,
+  .today-root *::before,
+  .today-root *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}

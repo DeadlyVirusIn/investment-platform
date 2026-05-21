@@ -5,7 +5,9 @@
 
 export interface CommandBarData {
   totalNav: number | null;
-  openPnl: number | null;
+  openPnl: number | null;             // DEPRECATED alias of unrealizedPnl. Kept
+                                      // for any caller that hasn't migrated.
+                                      // New code MUST use unrealizedPnl.
   realizedPnl: number | null;
   totalReturnPct: number | null;
   monthlyPremium: number | null;
@@ -16,17 +18,27 @@ export interface CommandBarData {
   freshAt: string | null;
   // ---- Canonical paper-portfolio fields (Phase 13k data-truth fix) ----
   // These mirror /api/paper/summary so the Overview snapshot agrees
-  // with PortfolioTerminal byte-for-byte. Numbers above the line that
-  // overlap with these (totalNav, cashAvailable, openPnl,
-  // totalReturnPct) are now ALSO sourced from /api/paper/summary —
-  // /api/dashboard/summary is no longer the canonical source for
-  // portfolio numerics. Dashboard summary stays canonical only for
-  // posture / regime / risk-label / monthly premium fields that
-  // paper-summary does not expose.
-  moneyInvested: number | null;       // mark-to-market sum of open positions
+  // with PortfolioTerminal byte-for-byte. /api/dashboard/summary is no
+  // longer the canonical source for portfolio numerics. Dashboard
+  // summary stays canonical only for posture / regime / risk-label /
+  // monthly premium fields that paper-summary does not expose.
+  moneyInvested: number | null;       // DEPRECATED alias of holdingsValue.
+                                      // New code MUST use holdingsValue.
   openPositionsCount: number | null;
   dailyPnl: number | null;
-  unrealizedPnl: number | null;       // alias of openPnl from paper-summary
+  unrealizedPnl: number | null;       // canonical name for the MV − basis delta
+  // ---- Accounting-truth additions (Phase: trust-infra) ----
+  // Identity that must always hold:
+  //   totalNav − startingCapitalTotal == unrealizedPnl + realizedPnlCumulative
+  startingCapitalTotal: number | null;
+  realizedPnlCumulative: number | null;  // canonical realized P&L (aggregate)
+  costBasis: number | null;              // Σ qty * avg_cost over open positions
+  holdingsValue: number | null;          // canonical name; replaces moneyInvested
+  replayPositionsMarketValue: number | null;
+  replayRealizedPnlCumulative: number | null;   // cohesion polish — replay share of Total profit
+  portfolioCount: number | null;
+  portfolioCountLive: number | null;            // cohesion polish — starting_cash >= $5K
+  portfolioCountDemo: number | null;            // cohesion polish — starting_cash <  $5K
 }
 
 
@@ -124,6 +136,15 @@ export async function fetchCommandBar(): Promise<CommandBarData> {
   const paperDailyPnl       = asNum(paper?.daily_pnl);
   const paperOpenPositions  = asNum(paper?.open_positions_count);
   const paperFreshAt        = paper?.as_of_date as string | undefined;
+  // Accounting-truth fields exposed 2026-05-14 by /api/paper/summary.
+  const paperStartingCapital  = asNum(paper?.starting_capital_total);
+  const paperRealizedCum      = asNum(paper?.realized_pnl_cumulative);
+  const paperCostBasis        = asNum(paper?.cost_basis);
+  const paperReplayMv         = asNum(paper?.replay_positions_market_value);
+  const paperReplayRealizedCum = asNum(paper?.replay_realized_pnl_cumulative);
+  const paperPortfolioCount   = asNum(paper?.portfolio_count);
+  const paperPortfolioCountLive = asNum(paper?.portfolio_count_live);
+  const paperPortfolioCountDemo = asNum(paper?.portfolio_count_demo);
 
   // ---- Dev-mode source map + drift check (Phase 13k) ----
   // Logs which endpoint provided each numeric the first time the
@@ -166,11 +187,18 @@ export async function fetchCommandBar(): Promise<CommandBarData> {
       ?? asNum(dashPort.total_nav)
       ?? asNum(dash?.nav)
       ?? null,
+    // Deprecated alias; mirrors unrealizedPnl below. Kept so any caller
+    // still reading `openPnl` continues to receive the canonical value.
     openPnl: paperUnrealized
       ?? asNum(dashPnl.unrealized_pnl)
       ?? asNum(dashPnl.open_pnl)
       ?? null,
-    realizedPnl: asNum(dashPnl.realized_pnl) ?? null,
+    // CANONICAL realized P&L = aggregate across all active paper
+    // portfolios from /paper/summary. Falls back to /dashboard/summary
+    // (single portfolio) only in degraded mode.
+    realizedPnl: paperRealizedCum
+      ?? asNum(dashPnl.realized_pnl)
+      ?? null,
     totalReturnPct: paperReturnPct
       ?? asNum(dashPnl.total_return_pct)
       ?? asNum(dashPort.total_return_pct)
@@ -199,10 +227,23 @@ export async function fetchCommandBar(): Promise<CommandBarData> {
       ?? (dash?.generated_at as string | undefined)
       ?? null,
     // ---- Canonical paper-summary additions (Phase 13k) ----
+    // Deprecated alias of holdingsValue; same numeric (MV of open positions).
     moneyInvested: paperPositionsValue ?? null,
     openPositionsCount: paperOpenPositions ?? null,
     dailyPnl: paperDailyPnl ?? null,
     unrealizedPnl: paperUnrealized ?? null,
+    // ---- Accounting-truth additions (Phase: trust-infra) ----
+    // Sourced exclusively from /paper/summary. Identity must hold:
+    //   totalNav − startingCapitalTotal == unrealizedPnl + realizedPnlCumulative
+    startingCapitalTotal: paperStartingCapital ?? null,
+    realizedPnlCumulative: paperRealizedCum ?? null,
+    costBasis: paperCostBasis ?? null,
+    holdingsValue: paperPositionsValue ?? null,
+    replayPositionsMarketValue: paperReplayMv ?? null,
+    replayRealizedPnlCumulative: paperReplayRealizedCum ?? null,
+    portfolioCount: paperPortfolioCount ?? null,
+    portfolioCountLive: paperPortfolioCountLive ?? null,
+    portfolioCountDemo: paperPortfolioCountDemo ?? null,
   };
 }
 
@@ -438,6 +479,84 @@ export function deriveHealthRail(positions: PositionRow[], lifecycle: LifecycleT
     premiumToday,
     staleCount: 0,
     totalOpen: positions.length,
+  };
+}
+
+
+// ============================================================
+// Live NAV — Polygon delayed-quote mark-to-market (Phase 1a).
+// Source of truth for the "Live estimate" hero label. The official
+// snapshot value from /api/paper/summary continues to drive the
+// "Official close" secondary label. Both render side-by-side in
+// PortfolioSnapshot per the Polygon integration plan.
+// ============================================================
+
+export type FreshnessTier =
+  | "live"
+  | "live_partial"
+  | "fallback_eod"
+  | "fallback_cost";
+
+export interface LiveNavData {
+  liveEstimatedNav: number | null;
+  liveCash: number | null;
+  liveHoldings: number | null;
+  startingTotal: number | null;
+  unrealizedPnlTotal: number | null;
+  pricesAsOfEpoch: number | null;   // seconds since epoch
+  polygonStatus: "ok" | "error" | "unavailable" | null;
+  polygonError: string | null;
+  delayMinutes: number | null;
+  freshnessTier: FreshnessTier | null;
+  officialNavSnapshot: number | null;
+  driftPct: number | null;
+  nSymbolsTotal: number;
+  nSymbolsPricedLive: number;
+  nSymbolsPricedFallbackEod: number;
+  nSymbolsPricedFallbackCost: number;
+  nPortfoliosActive: number;
+  cachedAtEpoch: number | null;
+  cacheTtlSeconds: number | null;
+  cacheHit: boolean;
+}
+
+export async function fetchLiveNav(): Promise<LiveNavData | null> {
+  const raw = await safeFetch<Record<string, unknown>>("/api/paper/live-nav");
+  if (!raw) return null;
+  const num = (k: string): number | null => {
+    const v = raw[k];
+    if (v == null) return null;
+    const n = typeof v === "number" ? v : Number(v as string);
+    return Number.isFinite(n) ? n : null;
+  };
+  const status = (raw.polygon_status as string | undefined) ?? null;
+  const tierRaw = (raw.freshness_tier as string | undefined) ?? null;
+  const tier: FreshnessTier | null =
+    (tierRaw === "live" || tierRaw === "live_partial"
+     || tierRaw === "fallback_eod" || tierRaw === "fallback_cost")
+      ? tierRaw : null;
+  return {
+    liveEstimatedNav: num("live_estimated_nav"),
+    liveCash: num("live_cash"),
+    liveHoldings: num("live_holdings"),
+    startingTotal: num("starting_total"),
+    unrealizedPnlTotal: num("unrealized_pnl_total"),
+    pricesAsOfEpoch: num("prices_as_of_epoch"),
+    polygonStatus: (status === "ok" || status === "error" || status === "unavailable")
+      ? status as "ok" | "error" | "unavailable" : null,
+    polygonError: (raw.polygon_error as string | null) ?? null,
+    delayMinutes: num("delay_minutes"),
+    freshnessTier: tier,
+    officialNavSnapshot: num("official_nav_snapshot"),
+    driftPct: num("drift_pct"),
+    nSymbolsTotal: Math.trunc(num("n_symbols_total") ?? 0),
+    nSymbolsPricedLive: Math.trunc(num("n_symbols_priced_live") ?? 0),
+    nSymbolsPricedFallbackEod: Math.trunc(num("n_symbols_priced_fallback_eod") ?? 0),
+    nSymbolsPricedFallbackCost: Math.trunc(num("n_symbols_priced_fallback_cost") ?? 0),
+    nPortfoliosActive: Math.trunc(num("n_portfolios_active") ?? 0),
+    cachedAtEpoch: num("cached_at_epoch"),
+    cacheTtlSeconds: num("cache_ttl_seconds"),
+    cacheHit: Boolean(raw.cache_hit),
   };
 }
 

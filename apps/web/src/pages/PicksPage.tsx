@@ -267,7 +267,7 @@ export default function PicksPage() {
                 to="/action-queue"
                 eyebrow="Review AI Signals"
                 title="Today's recommendations"
-                metric={`${buyCount} buy · ${sellCount} sell · ${trimCount} trim · ${watchlistCount} hold`}
+                metric={`Actions: ${buyCount + sellCount + trimCount} · Watch-only: ${watchlistCount}`}
                 body="Grouped cards with plain-English thesis, confidence, and catalyst context for every active idea."
                 tone={buyCount > 0 ? "good" : sellCount > 0 ? "bad" : "default"}
               />

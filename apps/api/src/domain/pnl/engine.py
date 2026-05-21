@@ -177,15 +177,20 @@ def _prior_equity_snapshot(
     session: Session, portfolio_id: str, as_of: dt.date,
 ) -> Decimal | None:
     """Latest snapshot strictly before ``as_of``."""
+    # Phase L M079: canonical P&L — live-only.
     stmt = (
         select(PaperEquitySnapshot.total_equity)
         .where(
             PaperEquitySnapshot.portfolio_id == portfolio_id,
+            PaperEquitySnapshot.source == "live",
             PaperEquitySnapshot.snapshot_date < dt.datetime.combine(
                 as_of, dt.time(0, 0, 0, tzinfo=dt.timezone.utc),
             ),
         )
-        .order_by(desc(PaperEquitySnapshot.snapshot_date))
+        .order_by(
+            desc(PaperEquitySnapshot.snapshot_date),
+            desc(PaperEquitySnapshot.recorded_at),
+        )
         .limit(1)
     )
     row = session.execute(stmt).first()

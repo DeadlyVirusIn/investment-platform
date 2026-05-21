@@ -301,6 +301,7 @@ def alpha_lab(
     )[:10]
 
     # Paper portfolio aggregate from latest equity snapshot.
+    # Phase L M079: canonical alpha-lab summary — live-only.
     snap = db.execute(text("""
         SELECT DISTINCT ON (s.portfolio_id)
                s.snapshot_date, sum(s.total_equity)
@@ -309,7 +310,8 @@ def alpha_lab(
         FROM paper_equity_snapshot s
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
-        ORDER BY s.portfolio_id, s.snapshot_date DESC
+          AND s.source = 'live'
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
     """)).all()
     pending_n = _pending_count(today)
 

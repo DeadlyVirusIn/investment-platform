@@ -43,7 +43,7 @@ def _portfolio_stub(*, config_json: str | None = None, name: str = "p1"):
 
 def test_portfolio_max_open_falls_back_to_default():
     p = _portfolio_stub()
-    assert _portfolio_max_open(p) == 10  # DEFAULT_MAX_OPEN_POSITIONS
+    assert _portfolio_max_open(p) == 30  # DEFAULT_MAX_OPEN_POSITIONS
 
 
 def test_portfolio_max_open_uses_config_when_present():
@@ -55,12 +55,12 @@ def test_portfolio_max_open_uses_config_when_present():
 
 def test_portfolio_max_open_falls_back_on_bad_json():
     p = _portfolio_stub(config_json="not json")
-    assert _portfolio_max_open(p) == 10
+    assert _portfolio_max_open(p) == 30
 
 
 def test_portfolio_max_open_falls_back_when_key_missing():
     p = _portfolio_stub(config_json=json.dumps({"other": 1}))
-    assert _portfolio_max_open(p) == 10
+    assert _portfolio_max_open(p) == 30
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,9 @@ import {
 import {
   fmtUSD, fmtPct, toneForNumber,
 } from "@/components/ui/primitives";
+// Accounting truth primitive — locked terminology + identity-safe
+// rendering. Trust-infrastructure: single source for portfolio numerics.
+import AccountingStrip from "@/components/portfolio/AccountingStrip";
 import EquityDrawdownChart from "@/components/operator/EquityDrawdownChart";
 import Sparkline from "@/components/ui/Sparkline";
 import { cn } from "@/lib/cn";
@@ -81,8 +84,6 @@ export default function PortfolioTerminal() {
   const exposure = exposureFromSummary != null
     ? exposureFromSummary
     : exposureFromNotional;
-  const exposurePct = (summary && summary.equity > 0)
-    ? exposure / summary.equity : 0;
   const openPositionsCount = summary?.open_positions_count
     ?? openExecPositions.length;
 
@@ -166,10 +167,20 @@ export default function PortfolioTerminal() {
             <strong>{execSummary?.replay_trades_count ?? 0}</strong>{" "}
             recovered trades ·{" "}
             <strong>{execSummary?.replay_open_positions_count ?? 0}</strong>{" "}
-            recovered open positions. These were reconstructed from
-            backup data after a 2026-05-02 reset and are tagged in{" "}
-            <code>replay_recovery_manifest</code>. They are NOT live
-            trading activity and are hidden by default.
+            recovered open positions
+            {summary?.replay_positions_market_value != null
+             && summary.replay_positions_market_value > 0
+              ? <>
+                  {" "}contributing{" "}
+                  <strong>
+                    {fmtUSD(summary.replay_positions_market_value)}
+                  </strong>{" "}
+                  to account value
+                </>
+              : null}
+            . Reconstructed from backup data after a 2026-05-02 reset
+            and tagged in <code>replay_recovery_manifest</code>. They
+            are NOT live trading activity and are hidden by default.
           </div>
           <label className="u-caption flex items-center gap-2">
             <input
@@ -219,25 +230,46 @@ export default function PortfolioTerminal() {
         Today's numbers
       </div>
 
-      {/* STRIP — Commit 3 (Novice UX): plain-English labels.        */}
-      {/* Calculations and tone unchanged.                            */}
+      {/* HEADLINE + BREAKDOWN — canonical AccountingStrip primitive. */}
+      {/* Single source of truth for accounting presentation. The     */}
+      {/* underlying values are PaperSummary fields from              */}
+      {/* /api/paper/summary; this component does no math.            */}
+      <AccountingStrip
+        data={{
+          equity: summary?.equity ?? null,
+          cash: summary?.cash ?? null,
+          holdingsValue: markUnavailable ? null : exposure,
+          costBasis: summary?.cost_basis ?? null,
+          unrealizedPnl: summary?.unrealized_pnl ?? null,
+          realizedPnl: summary?.realized_pnl_cumulative ?? null,
+          totalReturnPct: summary?.total_return_pct ?? null,
+          dailyPnl: summary?.daily_pnl ?? null,
+          startingCapital: summary?.starting_capital_total ?? null,
+          portfolioCount: summary?.portfolio_count ?? null,
+          openPositionsCount,
+          replayPositionsMarketValue:
+            summary?.replay_positions_market_value ?? null,
+          replayRealizedPnlCumulative:
+            (summary as Record<string, unknown> | null)
+              ?.replay_realized_pnl_cumulative as number | null
+            ?? null,
+          asOf: summary?.as_of_date ?? null,
+        }}
+        variant="full"
+        equitySparkline={
+          <Sparkline values={equitySeries}
+                      ariaLabel="Account value history" />
+        }
+        returnSparkline={
+          <Sparkline values={returnSeries}
+                      ariaLabel="Total return history" />
+        }
+      />
+
+      {/* Biggest drop from peak — kept as separate row so it does    */}
+      {/* not compete with the truth grid above.                      */}
       <div className="u-card">
-        <div className="grid grid-cols-1 md:grid-cols-5 divide-x divide-b2">
-          <Strip label="Account value"
-            value={summary ? fmtUSD(summary.equity) : "—"}
-            sub={`Started with $100,000`}
-            spark={
-              <Sparkline values={equitySeries}
-                          ariaLabel="Account value history" />
-            } />
-          <Strip label="Total return"
-            value={fmtPct(summary?.total_return_pct)}
-            tone={toneForNumber(summary?.total_return_pct ?? 0)}
-            sub={`Since the system started`}
-            spark={
-              <Sparkline values={returnSeries}
-                          ariaLabel="Total return history" />
-            } />
+        <div className="grid grid-cols-1 md:grid-cols-1">
           <Strip label="Biggest drop from peak"
             value={fmtPct(summary?.max_drawdown_pct)}
             tone="neg"
@@ -247,18 +279,6 @@ export default function PortfolioTerminal() {
                           tone="neg"
                           ariaLabel="Drop-from-peak history" />
             } />
-          <Strip label="Available cash"
-            value={summary ? fmtUSD(summary.cash) : "—"}
-            sub={summary
-              ? `${((summary.cash / summary.equity) * 100).toFixed(0)}% of account value`
-              : "—"} />
-          <Strip label="Money invested"
-            value={markUnavailable
-              ? "Current price not available"
-              : fmtUSD(exposure)}
-            sub={markUnavailable
-              ? `${openPositionsCount} open · waiting for fresh price data`
-              : `${(exposurePct * 100).toFixed(1)}% invested · ${openPositionsCount} open`} />
         </div>
       </div>
 

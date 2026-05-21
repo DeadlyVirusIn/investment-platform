@@ -65,7 +65,7 @@ def test_strict_max_open_constant_unchanged():
     from apps.api.src.domain.paper_trading.paper_execution import (
         DEFAULT_MAX_OPEN_POSITIONS,
     )
-    assert DEFAULT_MAX_OPEN_POSITIONS == 10
+    assert DEFAULT_MAX_OPEN_POSITIONS == 30
 
 
 def test_diversification_helpers_present():

@@ -344,9 +344,11 @@ def _read_portfolio(session: Session) -> dt.datetime | None:
     )
     if ts is not None:
         return ts
+    # Phase L M079: live-only for canonical freshness.
     return _safe_max_ts(
         session,
-        "SELECT MAX(snapshot_date) FROM paper_equity_snapshot",
+        "SELECT MAX(snapshot_date) FROM paper_equity_snapshot "
+        "WHERE source = 'live'",
     )
 
 

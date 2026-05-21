@@ -549,7 +549,7 @@ function PatternsSection({ d }: { d: DType }) {
       )}
 
       <div>
-        <Label>Open P&L by holding-age bucket</Label>
+        <Label>Unrealized P&L by holding-age bucket</Label>
         <table className="u-table mt-2">
           <thead>
             <tr><th>Bucket</th>
@@ -579,7 +579,7 @@ function PatternsSection({ d }: { d: DType }) {
       </div>
 
       <div>
-        <Label>Open P&L by portfolio</Label>
+        <Label>Unrealized P&L by portfolio</Label>
         <table className="u-table mt-2">
           <thead>
             <tr><th>Portfolio</th>

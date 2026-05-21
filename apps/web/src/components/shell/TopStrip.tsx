@@ -69,15 +69,28 @@ export default function TopStrip() {
         label="NAV"
         slot="nav"
         className={cn("min-w-[120px]", navStale && "topstrip-cell-stale")}
-        tooltip={navTitle}
+        tooltip={
+          summary?.portfolio_count != null
+            ? `Aggregate across ${summary.portfolio_count} paper `
+              + `portfolio${summary.portfolio_count === 1 ? "" : "s"}. `
+              + (navTitle ?? "")
+            : navTitle
+        }
       >
         {summary ? fmtUSD(summary.equity) : "—"}
       </Cell>
       <Cell
-        label="Day P&L"
+        label="Today P&L"
         slot="day-pnl"
         className="min-w-[120px]"
-        tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
+        tooltip={
+          summary?.portfolio_count != null
+            ? `Aggregate across ${summary.portfolio_count} paper `
+              + `portfolio${summary.portfolio_count === 1 ? "" : "s"}. `
+              + "Values reflect simulated paper-trading results. "
+              + "They do not indicate future outcomes."
+            : "Values reflect simulated paper-trading results. They do not indicate future outcomes."
+        }
       >
         <span className={cn(
           "tabular-nums",
@@ -92,10 +105,14 @@ export default function TopStrip() {
         </span>
       </Cell>
       <Cell
-        label="Total Return"
+        label="Total return"
         slot="total-return"
         className="min-w-[110px]"
-        tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
+        tooltip={
+          "Total return = (NAV − starting capital) / starting capital. "
+          + "Aggregate across all active paper portfolios. "
+          + "Simulated paper-trading; not predictive of future outcomes."
+        }
       >
         <span className={`tabular-nums ${summary && summary.total_return_pct > 0
           ? "text-success" : summary && summary.total_return_pct < 0

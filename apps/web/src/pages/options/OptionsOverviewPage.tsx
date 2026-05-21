@@ -32,20 +32,64 @@ import OptionsResearchCandidates from
 import OptionsDoorwayStrip from
   "@/components/options/OptionsDoorwayStrip";
 
+// Copilot Phase A — Today-page hero + top-opportunity spotlight.
+// Both render from existing read-only endpoints. Zero execution
+// coupling. Existing components (PulseHero, ResearchCandidates,
+// DoorwayStrip) remain below as the secondary layer for now —
+// they will be consolidated in Phase B (Opportunities surface).
+import OptionsHeroPulse from
+  "@/components/options/copilot/OptionsHeroPulse";
+import OptionsOpportunitySpotlight from
+  "@/components/options/copilot/OptionsOpportunitySpotlight";
+import OptionsOrientationCard from
+  "@/components/options/copilot/OptionsOrientationCard";
+
 
 export default function OptionsOverviewPage() {
+  // H-refine: legacy widgets gated behind ?view=working. Default
+  // Today page = orientation + hero + spotlight only. The pre-Copilot
+  // research pulse / candidates / doorway strip remain reachable for
+  // engineers wanting the engine view without losing the components.
+  const showLegacy = (() => {
+    try {
+      return new URLSearchParams(window.location.search).get("view") === "working";
+    } catch {
+      return false;
+    }
+  })();
+
   return (
-    <div className="opt-overview" data-test="options-overview-page">
-      {/* 1. Research Pulse Hero — the make-or-break headline */}
-      <OptionsResearchPulseHero />
+    // Phase J — Today wrapped in `.opt-today` editorial container.
+    // Contained measure + asymmetric padding + section pacing. All Phase J
+    // typography and accent rules are scoped under this class so other
+    // surfaces remain on the existing H sans system until they earn their
+    // own art-direction pass.
+    <div
+      className="opt-overview opt-today"
+      data-test="options-overview-page"
+    >
+      {/* H.6 — first-visit orientation. Dismisses permanently. */}
+      <OptionsOrientationCard surface="today" />
 
-      {/* 2. Top 3 observations — equal-weight curated row */}
-      <OptionsResearchCandidates />
+      {/* Copilot hero — AI posture + premium environment + signal count */}
+      <OptionsHeroPulse />
 
-      {/* 3. Editorial doorway strip — three calm exits to depth */}
-      <OptionsDoorwayStrip />
+      {/* Top opportunities — Copilot card grid */}
+      <OptionsOpportunitySpotlight limit={3} />
 
-      {/* The page ends here. By design. */}
+      {showLegacy && (
+        <>
+          {/* ───── engineer view (?view=working) ────────────────── */}
+          {/* 1. Research Pulse Hero — quant-style headline (legacy)     */}
+          <OptionsResearchPulseHero />
+
+          {/* 2. Top 3 observations — equal-weight curated row (legacy) */}
+          <OptionsResearchCandidates />
+
+          {/* 3. Editorial doorway strip — three calm exits to depth     */}
+          <OptionsDoorwayStrip />
+        </>
+      )}
     </div>
   );
 }

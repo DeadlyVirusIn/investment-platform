@@ -21,44 +21,51 @@ function strategyHint(portfolio: string | null): string {
 }
 
 
-interface NextStep { text: string; tone: "good" | "warn" | "bad" | "info"; tooltip: string; }
+interface PositionState { text: string; tone: "good" | "warn" | "bad" | "info"; tooltip: string; }
 
 
-function nextStep(r: PositionRow): NextStep {
+// Cohesion polish: replaces the prior `nextStep()` function. The output
+// was a JS conditional on `return_pct` ("Lock partial gains", "Review
+// thesis") rendered as AI advice in a column titled "AI Next Step". It
+// is not AI — it is a deterministic threshold on a single number. We
+// keep the threshold-driven coloring (useful at a glance) but convert
+// the text to observational state, not imperative advice. Same pattern
+// Phase L UI-1 already enforced for PickModal rationale text.
+function positionState(r: PositionRow): PositionState {
   if (r.return_pct != null) {
     if (r.return_pct >= 100) return {
-      text: "Lock partial gains", tone: "warn",
-      tooltip: "Position has more than doubled. Consider selling part of the position to bank some profit.",
+      text: "Up 100% or more", tone: "warn",
+      tooltip: "Unrealized return is at or above +100% based on current marked price.",
     };
     if (r.return_pct >= 25) return {
-      text: "Hold and trail stop", tone: "good",
-      tooltip: "Position is comfortably profitable. Move your stop-loss up as price rises so gains are protected.",
+      text: "Up 25–100%", tone: "good",
+      tooltip: "Unrealized return is between +25% and +100% based on current marked price.",
     };
     if (r.return_pct <= -10) return {
-      text: "Review thesis", tone: "bad",
-      tooltip: "Position is down more than 10%. Re-read the original reason you entered — does it still apply?",
+      text: "Down 10% or more", tone: "bad",
+      tooltip: "Unrealized return is at or below −10% based on current marked price.",
     };
     if (r.return_pct < 0) return {
-      text: "Watch for reversal", tone: "warn",
-      tooltip: "Position is slightly underwater. Be ready to act if direction changes either way.",
+      text: "Below cost basis", tone: "warn",
+      tooltip: "Unrealized return is between 0% and −10% based on current marked price.",
     };
     return {
-      text: "Hold", tone: "good",
-      tooltip: "Position is roughly flat. Continue holding while the thesis remains intact.",
+      text: "Near entry", tone: "good",
+      tooltip: "Unrealized return is roughly flat versus cost basis.",
     };
   }
   if (r.unrealized_pnl != null) {
     if (r.unrealized_pnl > 0) return {
-      text: "Hold and monitor", tone: "good",
-      tooltip: "Position is profitable. Keep watching but no immediate action required.",
+      text: "In profit", tone: "good",
+      tooltip: "Unrealized P&L is positive versus cost basis.",
     };
     if (r.unrealized_pnl < 0) return {
-      text: "Review thesis", tone: "warn",
-      tooltip: "Position is down. Re-read the original reason you entered — does it still apply?",
+      text: "Below cost basis", tone: "warn",
+      tooltip: "Unrealized P&L is negative versus cost basis.",
     };
   }
   return {
-    text: "Needs price mark", tone: "info",
+    text: "Awaiting price", tone: "info",
     tooltip: "A current price is not available, so P&L cannot be computed yet.",
   };
 }
@@ -172,16 +179,16 @@ export default function PositionsTable() {
               {header("quantity", "Position")}
               {header("avg_cost", "Avg Cost")}
               {header("market_value", "Market Value")}
-              {header("unrealized_pnl", "Open P&L")}
+              {header("unrealized_pnl", "Unrealized P&L")}
               {header("return_pct", "Return")}
-              <th data-align="left">AI Next Step</th>
+              <th data-align="left">Position state</th>
             </tr>
           </thead>
           <tbody>
             {sorted.map(r => {
               const pnlTone = r.unrealized_pnl == null ? "" : r.unrealized_pnl > 0 ? "good" : r.unrealized_pnl < 0 ? "bad" : "";
               const retTone = r.return_pct == null ? "" : r.return_pct > 100 ? "warn" : r.return_pct > 0 ? "good" : r.return_pct < 0 ? "bad" : "";
-              const next = nextStep(r);
+              const next = positionState(r);
               return (
                 <tr key={r.position_id}>
                   <td data-align="left"><span className="pi-pos-symbol">{r.symbol}</span></td>

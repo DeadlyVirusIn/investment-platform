@@ -228,31 +228,44 @@ export default function Overview() {
       </div>
 
       {/* ================= 2. NAV STRIP — premium rail ================= */}
+      {/* Canonical accounting truth — labels locked to AccountingStrip. */}
+      {/* Total profit replaces "Total return so far" so the dollar      */}
+      {/* number (not just a %) anchors the hero. Aggregate framing     */}
+      {/* surfaces in the Account value sub-label when portfolio_count   */}
+      {/* is available.                                                  */}
       <section className="u-nav-strip">
         <div className="u-stat-strip"
              style={{ gridTemplateColumns: "2.2fr 1fr 1fr 1fr 1fr",
                       padding: 0, gap: "44px" }}>
-          {/* Commit 2 (Novice UX) — labels renamed to plain English. */}
-          {/* Calculations + sub-text data sources unchanged.         */}
-          <StatCell label="Account value"
+          <StatCell label="Account value (NAV)"
             value={summary ? fmtUSD(summary.equity) : "—"}
             sub={summary
-              ? `Available cash ${fmtUSD(summary.cash)}`
+              ? `${summary.portfolio_count != null
+                  ? `Across ${summary.portfolio_count} paper portfolio${summary.portfolio_count === 1 ? "" : "s"} · `
+                  : ""}Available cash ${fmtUSD(summary.cash)}`
               : "Waiting for first run"}
             size="mega"
             tone={toneForNumber(summary?.total_return_pct ?? 0)}
             glow />
-          <StatCell label="Today's change"
+          <StatCell label="Today P&L"
             value={summary ? fmtSignedCompact(summary.daily_pnl) : "—"}
             tone={toneForNumber(summary?.daily_pnl ?? 0)}
             sub={summary
               ? fmtPct(summary.daily_pnl / (summary.equity || 1) * 100, 3)
               : "n/a"}
             size="sec" />
-          <StatCell label="Total return so far"
-            value={fmtPct(summary?.total_return_pct)}
-            tone={toneForNumber(summary?.total_return_pct ?? 0)}
-            sub="Since the system started"
+          <StatCell label="Total profit"
+            value={(summary?.starting_capital_total != null
+                    && summary?.equity != null)
+              ? fmtSignedCompact(summary.equity - summary.starting_capital_total)
+              : "—"}
+            tone={toneForNumber(
+              summary?.starting_capital_total != null && summary?.equity != null
+                ? summary.equity - summary.starting_capital_total : 0,
+            )}
+            sub={summary?.total_return_pct != null
+              ? `${fmtPct(summary.total_return_pct)} since inception`
+              : "Since inception"}
             size="sec" />
           <StatCell label="Biggest drop from peak"
             value={fmtPct(summary?.max_drawdown_pct)}

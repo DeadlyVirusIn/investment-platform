@@ -13,11 +13,19 @@ export type TradeStatus = "open" | "closed" | "cancelled";
 
 export interface PaperSummary {
   as_of_date: string;           // YYYY-MM-DD
-  equity: number;
+  equity: number;               // = cash + positions_value (= NAV)
   cash: number;
   positions_value: number;      // mark-to-market sum of open positions
   unrealized_pnl?: number;
-  total_return_pct: number;     // cum_pct
+  // Accounting truth fields — added so the UI never hardcodes a
+  // starting figure and can display realized vs unrealized split.
+  // Identity that must always hold:
+  //   equity - starting_capital_total
+  //     == (unrealized_pnl ?? 0) + (realized_pnl_cumulative ?? 0)
+  starting_capital_total?: number;
+  realized_pnl_cumulative?: number;
+  cost_basis?: number;          // Σ qty * avg_cost over open positions
+  total_return_pct: number;     // cum_pct  ((equity − starting) / starting × 100)
   max_drawdown_pct: number;
   daily_pnl: number;
   regime: Regime;
@@ -25,6 +33,9 @@ export interface PaperSummary {
   open_positions_count: number;
   last_decision_ts: string;
   pipeline_status: "success" | "partial" | "failed";
+  portfolio_count?: number;
+  replay_trades_count?: number;
+  replay_positions_market_value?: number;
 }
 
 export interface CurrentState {

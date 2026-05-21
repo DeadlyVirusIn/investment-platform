@@ -1,0 +1,36 @@
+name: Phase L constitutional lints
+on:
+  pull_request:
+    branches: [main, phase-1/ledger]
+  push:
+    branches: [main]
+
+jobs:
+  lints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # All three checks use stdlib only. Lint scripts run standalone.
+      # Snapshot suite imports apps.api.src.reasoning.* — pure-Python
+      # subgraph (skeletons + envelope + generator + extractor +
+      # selector + populator + marker_assigner + uncertainty_markers),
+      # no SQLAlchemy or DB at module load.
+      - name: Forbidden-phrase lint
+        run: python infra/ci/constitutional_checklist/forbidden_phrases.py
+
+      - name: Resolver-anchor lint
+        run: python infra/ci/constitutional_checklist/resolver_anchor_lint.py
+
+      - name: Canary gateway lint
+        run: python infra/ci/constitutional_checklist/canary_gateway_lint.py
+
+      - name: Reasoning snapshot suite
+        env:
+          PYTHONPATH: .
+        run: python apps/api/tests/unit/test_reasoning_envelope_snapshots.py

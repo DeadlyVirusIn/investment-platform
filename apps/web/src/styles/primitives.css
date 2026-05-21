@@ -1,0 +1,246 @@
+/*
+ * Calm primitives — Button / Chip / Badge / Card classes scoped to
+ * `.today-root`. Token-driven. No global side effects.
+ *
+ * Legacy CSS (picks.css, index.css, portfolio.css) is unchanged.
+ * These classes only resolve when an ancestor carries `.today-root`,
+ * so any cascade leakage is impossible.
+ *
+ * Forbidden in this file:
+ *   - radial gradients
+ *   - box-shadow at rest
+ *   - transform on hover
+ *   - text-transform: uppercase
+ *   - hardcoded color values (must reference --t-* tokens)
+ */
+
+/* ============================================================
+ * Card — calm container
+ * ============================================================ */
+.today-root .calm-card {
+  background: var(--t-surface-elevated);
+  border: 1px solid var(--t-border-quiet);
+  border-radius: 12px;
+  padding: var(--t-6);
+  transition: border-color var(--t-motion);
+}
+.today-root .calm-card:hover { border-color: var(--t-border-medium); }
+.today-root .calm-card:focus-within { border-color: var(--t-accent); }
+.today-root .calm-card-quiet {
+  background: var(--t-surface-sunken);
+  border: 1px solid transparent;
+}
+
+
+/* ============================================================
+ * Button
+ * ============================================================ */
+.today-root .calm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-2);
+  padding: var(--t-2) var(--t-4);
+  font-family: var(--t-font-body);
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--t-ink-primary);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color var(--t-motion), border-color var(--t-motion),
+              background-color var(--t-motion);
+}
+.today-root .calm-btn:focus-visible {
+  outline: 2px solid var(--t-accent);
+  outline-offset: 2px;
+}
+
+/* primary */
+.today-root .calm-btn[data-variant="primary"] {
+  background: var(--t-accent);
+  color: var(--t-surface-elevated);
+  border-color: var(--t-accent);
+}
+.today-root .calm-btn[data-variant="primary"]:hover {
+  background: #244033;
+  border-color: #244033;
+}
+
+/* quiet */
+.today-root .calm-btn[data-variant="quiet"] {
+  color: var(--t-ink-secondary);
+}
+.today-root .calm-btn[data-variant="quiet"]:hover {
+  color: var(--t-ink-primary);
+  border-color: var(--t-border-medium);
+}
+
+/* ghost */
+.today-root .calm-btn[data-variant="ghost"] {
+  color: var(--t-ink-muted);
+}
+.today-root .calm-btn[data-variant="ghost"]:hover {
+  color: var(--t-ink-primary);
+}
+
+/* link — inline accent text, border-bottom on hover */
+.today-root .calm-btn[data-variant="link"] {
+  padding: 0;
+  color: var(--t-accent);
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+}
+.today-root .calm-btn[data-variant="link"]:hover {
+  border-bottom-color: var(--t-accent);
+}
+
+
+/* ============================================================
+ * Chip — small pill, tone-driven
+ * ============================================================ */
+.today-root .calm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-1);
+  padding: 2px var(--t-2);
+  font-size: 12px;
+  line-height: 1.4;
+  border-radius: 6px;
+  background: var(--t-surface-sunken);
+  color: var(--t-ink-secondary);
+  border: 1px solid transparent;
+  font-variant-numeric: tabular-nums;
+}
+.today-root .calm-chip[data-tone="trust"] {
+  background: var(--t-accent-faint);
+  color: var(--t-accent);
+}
+.today-root .calm-chip[data-tone="up"] {
+  background: rgba(61, 107, 91, 0.08);
+  color: var(--t-tone-up);
+}
+.today-root .calm-chip[data-tone="down"] {
+  background: rgba(168, 95, 77, 0.08);
+  color: var(--t-tone-down);
+}
+.today-root .calm-chip[data-tone="warn"] {
+  background: rgba(184, 130, 95, 0.08);
+  color: var(--t-tone-warn);
+}
+
+
+/* ============================================================
+ * Badge — dot + label (no background pill)
+ * ============================================================ */
+.today-root .calm-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--t-2);
+  font-size: 13px;
+  color: var(--t-ink-secondary);
+}
+.today-root .calm-badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--t-tone-neutral);
+  display: inline-block;
+}
+.today-root .calm-badge[data-tone="up"]   .calm-badge-dot { background: var(--t-tone-up); }
+.today-root .calm-badge[data-tone="down"] .calm-badge-dot { background: var(--t-tone-down); }
+.today-root .calm-badge[data-tone="warn"] .calm-badge-dot { background: var(--t-tone-warn); }
+.today-root .calm-badge[data-tone="trust"].calm-badge-dot { background: var(--t-accent); }
+
+
+/* ============================================================
+ * Calm row — list-item style for holdings tables
+ * ============================================================ */
+.today-root .calm-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: var(--t-3) 0;
+  border-top: 1px solid var(--t-border-quiet);
+  align-items: baseline;
+}
+.today-root .calm-row:first-of-type { border-top: none; }
+.today-root .calm-row-primary {
+  font-size: 16px;
+  color: var(--t-ink-primary);
+}
+.today-root .calm-row-secondary {
+  font-size: 13px;
+  color: var(--t-ink-muted);
+  margin-top: 2px;
+}
+.today-root .calm-row-value {
+  font-size: 15px;
+  color: var(--t-ink-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.today-root .calm-row-meta {
+  font-size: 12px;
+  color: var(--t-ink-muted);
+  text-align: right;
+  margin-top: 2px;
+}
+
+
+/* ============================================================
+ * PickModal calm variant — opt-in via data-shell="calm".
+ * Cascades only when the modal renders with `data-shell="calm"`.
+ * Legacy data-shell="legacy" (default) is fully untouched.
+ * ============================================================ */
+.pick-overlay[data-shell="calm"] {
+  background: rgba(247, 244, 236, 0.94);  /* warm scrim, not black */
+}
+.pick-overlay[data-shell="calm"] .pick-modal {
+  background: var(--t-surface-elevated, #FDFBF6);
+  color: var(--t-ink-primary, #1B2520);
+  border: 1px solid var(--t-border-quiet, #E5DFD0);
+  box-shadow: none;
+  transform: none !important;
+}
+.pick-overlay[data-shell="calm"][data-open="true"] .pick-modal {
+  transform: none !important;
+}
+.pick-overlay[data-shell="calm"] .pick-modal::before {
+  /* kill the radial-gradient top wash */
+  background: none !important;
+  height: 0 !important;
+}
+.pick-overlay[data-shell="calm"] .pick-modal-eyebrow,
+.pick-overlay[data-shell="calm"] .pick-modal-meta {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  color: var(--t-ink-muted, #8B928D);
+}
+.pick-overlay[data-shell="calm"] .pick-modal-action-badge {
+  background: var(--t-surface-sunken, #EFEBE0) !important;
+  color: var(--t-ink-primary, #1B2520) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--t-border-quiet, #E5DFD0) !important;
+}
+.pick-overlay[data-shell="calm"] .pick-card-action-tag,
+.pick-overlay[data-shell="calm"] .picks-tag {
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+
+/* ============================================================
+ * Accessibility — honor reduced motion (already in today.css for
+ * the page; reiterated here so primitives inherit the same rule
+ * even if loaded standalone).
+ * ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .today-root .calm-btn,
+  .today-root .calm-chip,
+  .today-root .calm-badge-dot,
+  .today-root .calm-card {
+    transition: none !important;
+  }
+}

@@ -90,22 +90,26 @@ export default function Performance() {
         </Card>
       )}
 
-      {/* Core stats */}
+      {/* Core stats — single-portfolio scope (/pnl/summary). Labels    */}
+      {/* match the canonical terminology lock; aggregate counterparts  */}
+      {/* live on /overview.                                            */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <StatCard
-          label="NAV"
+          label="Account value (NAV)"
           value={formatCurrency(s?.nav)}
+          secondary="Per-portfolio view"
         />
         <StatCard
-          label="Cumulative PnL"
+          label="Total P&L (cumulative)"
           value={formatSignedCurrency(s?.cumulative_pnl)}
           tone={
             n(s?.cumulative_pnl) !== null && n(s?.cumulative_pnl)! >= 0
               ? 'positive' : 'negative'
           }
+          secondary="Realized + Unrealized"
         />
         <StatCard
-          label="Unrealized PnL"
+          label="Unrealized P&L"
           value={formatSignedCurrency(s?.unrealized_pnl)}
           tone={
             n(s?.unrealized_pnl) !== null && n(s?.unrealized_pnl)! >= 0
@@ -113,7 +117,7 @@ export default function Performance() {
           }
         />
         <StatCard
-          label="Realized PnL"
+          label="Realized P&L"
           value={formatSignedCurrency(s?.realized_pnl)}
           secondary={
             s ? `${s.wins}W · ${s.losses}L · ${s.breakeven}BE` : undefined

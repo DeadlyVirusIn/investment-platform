@@ -71,6 +71,21 @@ import OptionsOpsPage        from '@/pages/options/OptionsOpsPage';
 import OptionsLabPage        from '@/pages/options/OptionsLabPage';
 // Phase 6b-3-i — Settings shell replaced by full Settings page
 import OptionsSettingsPage   from '@/pages/options/OptionsSettingsPage';
+// Phase B — Options Opportunities (lanes).
+import OptionsOpportunitiesPage from '@/pages/options/OptionsOpportunitiesPage';
+// Phase C — Options Position Intelligence (AI trade management).
+import OptionsPositionsPage from '@/pages/options/OptionsPositionsPage';
+// Phase D — Research universe + per-underlying conviction view.
+import OptionsResearchUniversePage from '@/pages/options/OptionsResearchUniversePage';
+import OptionsResearchUnderlyingPage from '@/pages/options/OptionsResearchUnderlyingPage';
+// Phase E — Journal unified timeline.
+import OptionsJournalUnifiedPage from '@/pages/options/OptionsJournalUnifiedPage';
+// Phase F — Strategy playbooks (educational depth).
+import OptionsPlaybookLibraryPage from '@/pages/options/OptionsPlaybookLibraryPage';
+import OptionsPlaybookDeepPage from '@/pages/options/OptionsPlaybookDeepPage';
+// Phase G — AI Strategy Approaches (meta-playbooks).
+import OptionsApproachLibraryPage from '@/pages/options/OptionsApproachLibraryPage';
+import OptionsApproachDeepPage from '@/pages/options/OptionsApproachDeepPage';
 
 // Phase 11Q — Pending T+1 Decisions diagnostic (read-only)
 import PendingT1Page                  from '@/pages/diagnostics/PendingT1';
@@ -82,10 +97,49 @@ import StrategiesPage                 from '@/pages/StrategiesPage';
 import SignalLabPage                  from '@/pages/SignalLabPage';
 import PortfolioIntelligencePage      from '@/pages/PortfolioIntelligencePage';
 
+// Frontend design adaptation PR-1 — parallel /today route mounting
+// the new calm-mentor shell. NOT inside <Shell> because TodayPage
+// renders its own minimal TodayNav and intentionally avoids the
+// operator chrome (TopStrip, MarketTicker, StatusRail, SideNav).
+// The legacy / route continues to redirect to /overview unchanged.
+import TodayPage from '@/pages/today/TodayPage';
+// PR-2 — calm Portfolio parallel route. Same shell-out pattern as
+// /today. Legacy /portfolio (PortfolioTerminal) remains intact.
+import TodayPortfolioPage from '@/pages/today/portfolio/TodayPortfolioPage';
+// PR-4 — calm Pick Detail parallel route. Legacy /overview PickModal
+// remains intact for /overview entry. Reachable from TodayPage's
+// "One thing to look at" card via /today/pick/:symbol.
+import PickDetailPage from '@/pages/today/pick/PickDetailPage';
+// PR-5A Phase A — Learn surfaces. All parallel routes; legacy pages
+// untouched. Lessons addressable by flat slug; paths/terms/concepts
+// each by their own slug.
+import LearnHomePage from '@/pages/learn/LearnHomePage';
+import LearnPathPage from '@/pages/learn/LearnPathPage';
+import LessonPage from '@/pages/learn/LessonPage';
+import TermPage from '@/pages/learn/TermPage';
+import ConceptPage from '@/pages/learn/ConceptPage';
+import GlossaryPage from '@/pages/learn/GlossaryPage';
+import ReflectionPage from '@/pages/learn/ReflectionPage';
+
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/overview" replace />} />
+
+      {/* PR-1 — parallel calm-mentor shell. Additive. Revertable. */}
+      <Route path="/today" element={<TodayPage />} />
+      {/* PR-2 — parallel calm holdings. Additive. Revertable. */}
+      <Route path="/today/portfolio" element={<TodayPortfolioPage />} />
+      {/* PR-4 — calm Pick Detail at /today/pick/:symbol. Additive. */}
+      <Route path="/today/pick/:symbol" element={<PickDetailPage />} />
+      {/* PR-5A Phase A — Learn surfaces. All additive. */}
+      <Route path="/learn"                          element={<LearnHomePage />} />
+      <Route path="/learn/path/:slug"              element={<LearnPathPage />} />
+      <Route path="/learn/lesson/:slug"            element={<LessonPage />} />
+      <Route path="/learn/term/:slug"               element={<TermPage />} />
+      <Route path="/learn/concept/:slug"            element={<ConceptPage />} />
+      <Route path="/learn/glossary"                 element={<GlossaryPage />} />
+      <Route path="/learn/reflection"               element={<ReflectionPage />} />
 
       <Route element={<Shell />}>
         {/* --- NEW 5-area product --- */}
@@ -128,12 +182,31 @@ export default function App() {
           {/* Phase 6b-3-b — new 7-surface workspace shells.
               All 12 legacy routes above remain reachable; these are
               ADDITIVE. Bodies land in 6b-3-{d..i}. */}
-          <Route path="research" element={<OptionsResearchPage />} />
-          <Route path="journal"  element={<OptionsJournalPage />} />
-          <Route path="learning" element={<OptionsLearningPage />} />
+          <Route path="research" element={<OptionsResearchUniversePage />} />
+          <Route path="journal"        element={<OptionsJournalUnifiedPage />} />
+          <Route path="journal/legacy" element={<OptionsJournalPage />} />
+          <Route path="learning"      element={<OptionsLearningPage />} />
+          {/* Phase F — Playbook library + per-strategy deep dive. */}
+          <Route path="learn"          element={<OptionsPlaybookLibraryPage />} />
+          <Route path="learn/:rule_id" element={<OptionsPlaybookDeepPage />} />
+          {/* Phase G — AI Approaches (meta-playbooks). */}
+          <Route path="approaches"        element={<OptionsApproachLibraryPage />} />
+          <Route path="approaches/:slug"  element={<OptionsApproachDeepPage />} />
           <Route path="lab"      element={<OptionsLabPage />} />
           <Route path="ops"      element={<OptionsOpsPage />} />
           <Route path="settings" element={<OptionsSettingsPage />} />
+          {/* Phase B — full Opportunities lanes surface. */}
+          <Route path="opportunities" element={<OptionsOpportunitiesPage />} />
+          {/* Phase C — AI position intelligence. */}
+          <Route path="positions" element={<OptionsPositionsPage />} />
+          {/* Phase D — Research universe + per-underlying deep dive.
+              Default /options/research → legacy workstation kept at
+              /options/research/legacy. Universe overview at
+              /options/research/universe; per-symbol at
+              /options/research/{symbol}. */}
+          <Route path="research/universe" element={<OptionsResearchUniversePage />} />
+          <Route path="research/legacy"   element={<OptionsResearchPage />} />
+          <Route path="research/:symbol"  element={<OptionsResearchUnderlyingPage />} />
         </Route>
 
         {/* Phase 11Q — Pending T+1 Decisions diagnostic (read-only) */}

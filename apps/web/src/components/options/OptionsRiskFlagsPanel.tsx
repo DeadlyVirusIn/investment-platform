@@ -40,9 +40,11 @@ export default function OptionsRiskFlagsPanel({
       <div className="rounded-md border border-zinc-800 bg-zinc-950/50 p-3 text-xs text-zinc-400">
         <p className="font-semibold text-zinc-200">Reading these flags</p>
         <p className="mt-1">
-          <strong>Assignment — simplified exit model:</strong> v1 paper engine
-          records assignment as a terminal event; final payoff is taken at
-          intrinsic value and no synthetic equity position is created.
+          <strong>Assignment — simplified exit model:</strong> the v1
+          design model records assignment as a terminal event; final
+          payoff is taken at intrinsic value and no synthetic equity
+          position is created. (Lifecycle dormant — no live or
+          simulated executions today.)
         </p>
         <p className="mt-1">
           <strong>Pin risk — outcome uncertain:</strong> Settlement within $0.05
