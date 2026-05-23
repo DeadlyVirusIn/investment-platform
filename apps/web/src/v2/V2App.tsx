@@ -24,6 +24,9 @@ import { Opportunities } from './pages/Opportunities';
 import { Catalysts } from './pages/Catalysts';
 import { FieldNotes } from './pages/FieldNotes';
 import { Watchlist } from './pages/Watchlist';
+// Lovable port (Phase 4) — academy + glossary index surfaces.
+import { AcademyPage } from './pages/AcademyPage';
+import { GlossaryIndex } from './pages/GlossaryIndex';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -48,6 +51,11 @@ function V2Surface() {
         <Route index element={<Navigate to="learn" replace />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
+        {/* Lovable port (Phase 4) — academy + glossary index. */}
+        <Route path="learn/stocks" element={<AcademyPage pathSlug="how-markets-actually-work" />} />
+        <Route path="learn/risk" element={<AcademyPage pathSlug="risk-literacy" />} />
+        <Route path="learn/options" element={<AcademyPage pathSlug="options-literacy" />} />
+        <Route path="learn/glossary" element={<GlossaryIndex />} />
         <Route path="today" element={<Briefing />} />
         <Route path="today/pick/:symbol" element={<PickPage />} />
         <Route path="opportunities" element={<Opportunities />} />

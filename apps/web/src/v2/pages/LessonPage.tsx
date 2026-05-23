@@ -11,6 +11,9 @@ import {
 } from '../chrome/ArthosChrome';
 import { getLesson, PATHS, getPosition } from '../data/arthosData';
 import { useUserPrefs } from '../state/UserPrefsContext';
+// Lovable port (Phase 5) — local-first reflection footer.
+import { ReflectionCapture } from '../components/ReflectionCapture';
+import { markLessonRead, useLessonRead } from '../lib/lesson-progress';
 
 export function LessonPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -132,6 +135,68 @@ export function LessonPage() {
               </motion.blockquote>
             );
           }
+          // Lovable port (Phase 3) — extended block types.
+          if (block.type === 'h2') {
+            return (
+              <motion.h2
+                key={i}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.04 + i * 0.03 }}
+                className="font-serif ink-primary text-[24px] leading-tight mt-10 mb-1"
+              >
+                {block.text}
+              </motion.h2>
+            );
+          }
+          if (block.type === 'list') {
+            return (
+              <motion.ul
+                key={i}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.04 + i * 0.03 }}
+                className="ink-primary leading-[1.7] text-[17px] space-y-2 list-disc pl-5 marker:ink-fainter"
+              >
+                {block.items.map((item, j) => (
+                  <li key={j}>
+                    <ParagraphWithTerms text={item} />
+                  </li>
+                ))}
+              </motion.ul>
+            );
+          }
+          if (block.type === 'callout') {
+            const toneRing =
+              block.tone === 'caution'
+                ? 'border-l-2 border-l-[var(--ink-muted)]'
+                : block.tone === 'reflect'
+                ? 'border-l-2 border-l-[var(--ink-fainter)]'
+                : 'border-l-2 border-l-[var(--ink-primary)]';
+            return (
+              <motion.aside
+                key={i}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.04 + i * 0.03 }}
+                className={`surface-drawer pl-5 pr-5 py-4 my-4 ${toneRing}`}
+              >
+                <div className="text-meta ink-fainter mb-1.5">
+                  {block.tone === 'caution'
+                    ? 'Caution'
+                    : block.tone === 'reflect'
+                    ? 'Pause'
+                    : 'Insight'}
+                </div>
+                <div className="font-serif ink-primary text-[18px] leading-snug mb-1.5">
+                  {block.title}
+                </div>
+                <div className="ink-muted leading-relaxed text-[15px]">
+                  <ParagraphWithTerms text={block.text} />
+                </div>
+              </motion.aside>
+            );
+          }
           return null;
         })}
       </article>
@@ -189,6 +254,12 @@ export function LessonPage() {
         </motion.section>
       )}
 
+      {/* Lovable port (Phase 5) — reflection block. Sits between
+          highlights and the connected-trade footer; local-only. */}
+      {slug && (
+        <ReflectionSection slug={slug} title={lesson.title} />
+      )}
+
       {connectedPosition && (
         <motion.section
           initial={{ opacity: 0, y: 6 }}
@@ -223,5 +294,36 @@ export function LessonPage() {
         </motion.section>
       )}
     </ArthosPage>
+  );
+}
+
+// Lovable port (Phase 5) — reflection footer with read-receipt toggle.
+// Split into its own function so the read-state hook stays scoped here.
+function ReflectionSection({ slug, title }: { slug: string; title: string }) {
+  const isRead = useLessonRead(slug);
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.45 }}
+      className="mt-20 pt-12 border-t border-hairline"
+    >
+      <div className="flex items-baseline justify-between mb-4 gap-3">
+        <MetaLabel>Reflect</MetaLabel>
+        <button
+          type="button"
+          onClick={() => markLessonRead(slug, !isRead)}
+          className="text-meta ink-fainter hover:ink-muted transition-colors"
+          aria-pressed={isRead}
+        >
+          {isRead ? '✓ Marked read' : 'Mark lesson read'}
+        </button>
+      </div>
+      <ReflectionCapture
+        kind="lesson-capture"
+        targetId={slug}
+        prompt={`What in "${title}" do you want to remember in a month?`}
+      />
+    </motion.section>
   );
 }
