@@ -1,0 +1,211 @@
+/* ──────────────────────────────────────────────────────────────
+ * V2 token system — scoped to .v2-root only.
+ *
+ * Coexistence rules:
+ *   1. All custom CSS variables (--surface-*, --ink-*, --hairline,
+ *      etc.) only resolve inside .v2-root. Existing app tokens
+ *      (--surface-1, --ink, --bg) remain untouched.
+ *   2. All custom utility classes (.ink-primary, .surface-drawer,
+ *      .text-meta, .card-elevated, .glossary-term, etc.) are scoped
+ *      to descendants of .v2-root. Outside that subtree they have
+ *      no rules.
+ *   3. Theme switching happens via [data-theme] on the .v2-root
+ *      element itself, never on <html>. ThemeContext mirrors the
+ *      state into v2-root via React.
+ *   4. Font import is global (Google Fonts can't be scoped). Same
+ *      Newsreader + Inter request already used elsewhere; no harm.
+ *   5. No @layer base styles that touch <body> or <html>. Body bg
+ *      is set by the .v2-root container only.
+ * ────────────────────────────────────────────────────────────── */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&display=swap');
+
+/* Type scale — these clamp() values are intrinsic, scoping not
+   required. Keep as :root for accessibility tools. */
+:root {
+  --v2-type-masthead: clamp(36px, 5vw, 56px);
+  --v2-type-headline: clamp(28px, 3.5vw, 40px);
+  --v2-type-subhead:  clamp(20px, 2.2vw, 24px);
+  --v2-type-body:     17px;
+  --v2-type-meta:     13px;
+}
+
+/* Default dark theme */
+.v2-root,
+.v2-root[data-theme="dark"] {
+  --surface-base:        #0F0D0A;
+  --surface-drawer:      #18140E;
+  --surface-elevated:    #1F1B14;
+  --surface-translucent: rgba(15, 13, 10, 0.92);
+  --backdrop:            rgba(15, 13, 10, 0.7);
+  --ink-primary:         #ECE6D8;
+  --ink-muted:           #B5AC9B;
+  --ink-fainter:         #7C7568;
+  --verdict-on-warm:     #F2E9D4;
+  --verdict-on-cool:     #DEE3E8;
+  --hairline:            rgba(236, 230, 216, 0.08);
+  --warm-glow:           rgba(242, 233, 212, 0.04);
+}
+
+.v2-root[data-theme="light"] {
+  --surface-base:        #FAF7EE;
+  --surface-drawer:      #F2EDDE;
+  --surface-elevated:    #FFFCF3;
+  --surface-translucent: rgba(250, 247, 238, 0.92);
+  --backdrop:            rgba(26, 22, 17, 0.45);
+  --ink-primary:         #1A1611;
+  --ink-muted:           #5C5346;
+  --ink-fainter:         #978B79;
+  --verdict-on-warm:     #2C1F0F;
+  --verdict-on-cool:     #1D2A33;
+  --hairline:            rgba(26, 22, 17, 0.10);
+  --warm-glow:           rgba(26, 22, 17, 0.02);
+}
+
+/* Container — applied to the v2 wrapper div */
+.v2-root {
+  background-color: var(--surface-base);
+  color: var(--ink-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: var(--v2-type-body);
+  line-height: 1.6;
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 100vh;
+  transition:
+    background-color 400ms cubic-bezier(0.32, 0.72, 0, 1),
+    color 400ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Polish pass — defensive overflow guard for all .v2-root descendants
+   that contain editorial paragraphs. word-wrap allows breaking long
+   unbreakable strings; hyphens auto adds natural break points. */
+.v2-root p,
+.v2-root li,
+.v2-root blockquote,
+.v2-root h1,
+.v2-root h2,
+.v2-root h3,
+.v2-root h4 {
+  overflow-wrap: anywhere;
+  word-wrap: break-word;
+}
+
+.v2-root *,
+.v2-root *::before,
+.v2-root *::after {
+  transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.v2-root a { color: inherit; text-decoration: none; }
+.v2-root input { color: inherit; }
+.v2-root ::selection {
+  background-color: var(--warm-glow);
+  color: var(--ink-primary);
+}
+
+/* Typography utilities */
+.v2-root .font-serif {
+  font-family: 'Newsreader', Georgia, serif;
+  font-variation-settings: "opsz" 32;
+}
+.v2-root .font-sans { font-family: 'Inter', system-ui, sans-serif; }
+.v2-root .font-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+.v2-root .text-masthead {
+  font-size: var(--v2-type-masthead);
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+}
+.v2-root .text-headline {
+  font-size: var(--v2-type-headline);
+  line-height: 1.12;
+  letter-spacing: -0.012em;
+}
+.v2-root .text-subhead {
+  font-size: var(--v2-type-subhead);
+  line-height: 1.25;
+  letter-spacing: -0.008em;
+}
+.v2-root .text-body {
+  font-size: var(--v2-type-body);
+  line-height: 1.6;
+}
+.v2-root .text-meta {
+  font-size: var(--v2-type-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Surface + ink utilities */
+.v2-root .surface-base     { background-color: var(--surface-base); }
+.v2-root .surface-drawer   { background-color: var(--surface-drawer); }
+.v2-root .surface-elevated { background-color: var(--surface-elevated); }
+.v2-root .ink-primary { color: var(--ink-primary); }
+.v2-root .ink-muted   { color: var(--ink-muted); }
+.v2-root .ink-fainter { color: var(--ink-fainter); }
+.v2-root .ink-warm    { color: var(--verdict-on-warm); }
+
+.v2-root .border-hairline { border-color: var(--hairline); }
+.v2-root .bg-hairline     { background-color: var(--hairline); }
+.v2-root .border-ink-primary { border-color: var(--ink-primary); }
+.v2-root .border-ink-muted   { border-color: var(--ink-muted); }
+.v2-root .border-ink-fainter { border-color: var(--ink-fainter); }
+
+.v2-root .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Polish pass — responsive caps so narrative widths never exceed
+   the viewport on small screens. Was the root cause of onboarding
+   mobile text overflow. */
+.v2-root .max-w-reading   { max-width: min(64ch, 100%); }
+.v2-root .max-w-narrative { max-width: min(60ch, 100%); }
+.v2-root .max-w-copy      { max-width: min(72ch, 100%); }
+
+.v2-root .glossary-term {
+  border-bottom: 1px dotted var(--ink-fainter);
+  cursor: help;
+  transition: border-color 200ms;
+}
+.v2-root .glossary-term:hover {
+  border-bottom-color: var(--ink-primary);
+}
+
+.v2-root .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+
+/* Soft elevated card with a barely-perceptible warm gradient */
+.v2-root .card-elevated {
+  background-color: var(--surface-drawer);
+  background-image: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface-drawer) 100%);
+  border-radius: 20px;
+  transition: background-color 400ms, transform 300ms;
+}
+
+/* Theme-aware subtle ring used for progress visuals */
+.v2-root .ring-track  { stroke: var(--hairline); }
+.v2-root .ring-active { stroke: var(--ink-primary); }
+
+/* Smooth color transitions across the theme switch */
+.v2-root header,
+.v2-root aside,
+.v2-root button,
+.v2-root .card-elevated,
+.v2-root .surface-drawer,
+.v2-root .surface-elevated {
+  transition: background-color 400ms cubic-bezier(0.32, 0.72, 0, 1),
+              border-color    400ms cubic-bezier(0.32, 0.72, 0, 1),
+              color           400ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* Accessibility — applied via UserPrefsContext */
+.v2-root.reduced-motion *,
+.v2-root.reduced-motion *::before,
+.v2-root.reduced-motion *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+}
+.v2-root.larger-text { font-size: 19px; }
+.v2-root.larger-text .text-body { font-size: 19px; }
