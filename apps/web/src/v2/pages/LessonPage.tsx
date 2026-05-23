@@ -77,10 +77,10 @@ export function LessonPage() {
   };
 
   return (
-    <ArthosPage maxWidth="max-w-reading">
+    <ArthosPage maxWidth="max-w-reading" topBarEyebrow="Learn">
       <Link
         to="/v2/learn"
-        className="text-meta ink-fainter hover:ink-muted mb-12 inline-flex items-center gap-1.5 transition-colors"
+        className="text-meta ink-fainter hover:ink-muted mb-8 inline-flex items-center gap-1.5 transition-colors"
       >
         <span aria-hidden>←</span> {path ? path.title : 'Learn'}
       </Link>
@@ -89,16 +89,22 @@ export function LessonPage() {
         initial={{ opacity: 0, y: 6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="mb-16"
+        className="mb-12"
       >
-        <MetaLabel>
-          {path?.tier} {path && '·'} {path?.title} {path && '·'} Lesson{' '}
-          {lesson.order}
-        </MetaLabel>
-        <h1 className="font-serif text-headline ink-primary mt-4 leading-[1.1] text-balance max-w-[22ch]">
+        <span
+          className="inline-block px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] mb-5"
+          style={{
+            backgroundColor:
+              'color-mix(in oklch, var(--brand) 14%, transparent)',
+            color: 'var(--brand)',
+          }}
+        >
+          {path ? `${path.title} · Lesson ${lesson.order}` : `Lesson ${lesson.order}`}
+        </span>
+        <h1 className="font-display text-4xl sm:text-5xl ink-primary leading-[1.05] mb-4 text-balance max-w-[22ch]">
           {lesson.title}
         </h1>
-        <div className="text-meta ink-fainter mt-5 flex items-center gap-4">
+        <div className="text-meta ink-fainter mt-4 flex items-center gap-4">
           <span>{lesson.readMinutes} min read</span>
           <span className="ink-fainter italic">
             · select text to save a highlight
@@ -106,7 +112,7 @@ export function LessonPage() {
         </div>
       </motion.header>
 
-      <article ref={articleRef} className="space-y-7">
+      <article ref={articleRef} className="prose-editorial space-y-7">
         {lesson.body.map((block, i) => {
           if (block.type === 'p') {
             return (
@@ -209,7 +215,7 @@ export function LessonPage() {
             exit={{ opacity: 0, y: -4, scale: 0.95 }}
             transition={{ duration: 0.18 }}
             onClick={handleSave}
-            className="fixed z-30 px-4 py-2 rounded-full font-serif text-[14px] shadow-2xl"
+            className="fixed z-30 px-4 py-2 rounded-full text-[13.5px] font-semibold tracking-tight shadow-2xl"
             style={{
               top: Math.max(8, selection.rect.top + window.scrollY - 48),
               left: Math.max(
@@ -219,8 +225,8 @@ export function LessonPage() {
                   selection.rect.left + selection.rect.width / 2 - 90
                 )
               ),
-              backgroundColor: 'var(--ink-primary)',
-              color: 'var(--surface-base)',
+              backgroundColor: 'var(--brand)',
+              color: 'var(--brand-foreground)',
             }}
           >
             Save highlight
@@ -277,10 +283,10 @@ export function LessonPage() {
           </p>
           <Link
             to={`/v2/try/${slug}`}
-            className="inline-flex items-center mt-5 px-5 py-3 rounded-full text-[13.5px] font-semibold tracking-tight transition-opacity hover:opacity-90"
+            className="inline-flex items-center justify-center gap-2 mt-5 h-11 px-5 rounded-full text-[13.5px] font-semibold tracking-tight transition-colors min-h-11 hover:opacity-92"
             style={{
-              backgroundColor: 'var(--ink-primary)',
-              color: 'var(--surface-base)',
+              backgroundColor: 'var(--brand)',
+              color: 'var(--brand-foreground)',
             }}
           >
             Try this idea as a paper trade →

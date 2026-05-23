@@ -28,10 +28,10 @@ export function PageHeader({
     <header className={cn('mb-8 lg:mb-12', className)}>
       {eyebrow && (
         <span
-          className="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-4"
+          className="inline-block px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] mb-5"
           style={{
             backgroundColor:
-              'color-mix(in oklch, var(--brand) 10%, transparent)',
+              'color-mix(in oklch, var(--brand) 14%, transparent)',
             color: 'var(--brand)',
           }}
         >

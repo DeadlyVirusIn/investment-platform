@@ -74,10 +74,10 @@ export function Onboarding() {
 
             <button
               onClick={finish}
-              className="px-7 py-3.5 rounded-full font-serif text-[17px] transition-opacity"
+              className="h-12 px-7 rounded-full text-[15px] font-semibold tracking-tight transition-colors hover:opacity-92"
               style={{
-                backgroundColor: 'var(--ink-primary)',
-                color: 'var(--surface-base)',
+                backgroundColor: 'var(--brand)',
+                color: 'var(--brand-foreground)',
               }}
             >
               Begin Day 1 →

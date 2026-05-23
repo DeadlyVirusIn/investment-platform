@@ -27,6 +27,7 @@ import {
   MetaLabel,
   ParagraphWithTerms,
 } from '../chrome/ArthosChrome';
+import { PageHeader } from '../components/ui/PageHeader';
 import {
   getLesson,
   getPosition,
@@ -82,20 +83,19 @@ function LoopRibbon({
       {steps.map((s) => {
         const done = state[s.key];
         return (
-          <li key={s.key} className="flex-1 flex flex-col gap-1 items-stretch">
+          <li key={s.key} className="flex-1 flex flex-col gap-1.5 items-stretch">
             <span
-              className="h-[3px] rounded-full transition-colors"
+              className="h-1 rounded-full transition-colors"
               style={{
-                backgroundColor: done
-                  ? 'var(--ink-primary)'
-                  : 'var(--hairline)',
+                backgroundColor: done ? 'var(--brand)' : 'var(--sage-light)',
               }}
               aria-hidden
             />
             <span
-              className="font-semibold uppercase tracking-[0.12em] truncate"
+              className="font-semibold uppercase tracking-[0.14em] truncate"
               style={{
-                color: done ? 'var(--ink-primary)' : 'var(--ink-fainter)',
+                fontSize: 10.5,
+                color: done ? 'var(--brand)' : 'var(--muted-foreground)',
               }}
             >
               {s.label}
@@ -253,17 +253,19 @@ export function TryFromLesson() {
       </Link>
 
       <FadeIn>
-        <MetaLabel>Try</MetaLabel>
-        <h1 className="font-serif ink-primary text-masthead leading-[1.05] mt-2 mb-5 max-w-[22ch]">
-          {existing
-            ? `You've opened a paper trade from "${lesson.title}."`
-            : `Try the idea from "${lesson.title}."`}
-        </h1>
-        <p className="ink-muted leading-relaxed text-[17px] max-w-narrative mb-12">
-          {existing
-            ? 'We mark this position daily. When the thesis resolves, come back to review.'
-            : 'Pre-filled from the lesson. Adjust the knobs if you want; open the position when you are ready.'}
-        </p>
+        <PageHeader
+          eyebrow="Try"
+          title={
+            existing
+              ? `You've opened a paper trade from "${lesson.title}."`
+              : `Try the idea from "${lesson.title}."`
+          }
+          description={
+            existing
+              ? 'We mark this position daily. When the thesis resolves, come back to review.'
+              : 'Pre-filled from the lesson. Adjust the knobs if you want; open the position when you are ready.'
+          }
+        />
       </FadeIn>
 
       <FadeIn delay={0.1}>
@@ -528,14 +530,15 @@ function KnobRow({
               type="button"
               onClick={() => onChange(i)}
               aria-pressed={active}
-              className="inline-flex items-center px-4 py-2 rounded-full text-meta transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink-muted)]"
+              className="inline-flex items-center px-4 py-2 rounded-full text-meta font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2"
               style={{
                 backgroundColor: active
-                  ? 'var(--ink-primary)'
-                  : 'var(--surface-drawer)',
+                  ? 'var(--brand)'
+                  : 'var(--sage-light)',
                 color: active
-                  ? 'var(--surface-base)'
-                  : 'var(--ink-muted)',
+                  ? 'var(--brand-foreground)'
+                  : 'var(--muted-foreground)',
+                ['--tw-ring-color' as string]: 'var(--ring)',
               }}
             >
               {p}

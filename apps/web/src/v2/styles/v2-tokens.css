@@ -259,9 +259,12 @@
 }
 .v2-root .card-highlight {
   background-color: var(--card);
-  border: 1px solid color-mix(in oklch, var(--brand) 25%, transparent);
+  border: 1px solid color-mix(in oklch, var(--brand) 40%, transparent);
   border-radius: 1rem;
-  box-shadow: 0 0 0 1px color-mix(in oklch, var(--brand) 10%, transparent);
+  /* Phase C.5 — boost ring visibility so the hero card on Today
+     actually reads as a hero. */
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--brand) 12%, transparent),
+              0 1px 2px color-mix(in oklch, var(--brand) 22%, transparent);
 }
 
 /* Theme-aware ring used for progress visuals */
