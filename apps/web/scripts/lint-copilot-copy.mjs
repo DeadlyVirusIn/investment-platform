@@ -19,8 +19,14 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("../src", import.meta.url).pathname;
+// Resolve scan root via fileURLToPath so Windows paths work. On Windows,
+// new URL(...).pathname produces "/C:/..." (with leading slash) which
+// breaks path.join — the lint then silently scans nothing and the
+// build passes locally while CI on Linux fails. fileURLToPath returns
+// the correct platform path on both.
+const ROOT = fileURLToPath(new URL("../src", import.meta.url));
 const COPILOT_DIRS = [
   join(ROOT, "lib", "copilot"),
   join(ROOT, "components", "copilot"),
