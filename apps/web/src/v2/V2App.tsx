@@ -21,6 +21,9 @@ import { PaperBook } from './pages/PaperBook';
 import { TrackRecord } from './pages/TrackRecord';
 import { LessonPage } from './pages/LessonPage';
 import { Opportunities } from './pages/Opportunities';
+import { Catalysts } from './pages/Catalysts';
+import { FieldNotes } from './pages/FieldNotes';
+import { Watchlist } from './pages/Watchlist';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -48,6 +51,9 @@ function V2Surface() {
         <Route path="today" element={<Briefing />} />
         <Route path="today/pick/:symbol" element={<PickPage />} />
         <Route path="opportunities" element={<Opportunities />} />
+        <Route path="catalysts" element={<Catalysts />} />
+        <Route path="field-notes" element={<FieldNotes />} />
+        <Route path="watchlist" element={<Watchlist />} />
         <Route path="portfolio" element={<PaperBook />} />
         <Route path="track-record" element={<TrackRecord />} />
         <Route path="*" element={<Navigate to="learn" replace />} />
