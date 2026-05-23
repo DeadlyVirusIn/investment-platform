@@ -108,6 +108,7 @@ const NAV_ITEMS = [
 ];
 
 const NAV_SECONDARY = [
+  { label: 'Reflections', to: '/v2/reflections' },
   { label: 'Notes', to: '/v2/field-notes' },
   { label: 'Watchlist', to: '/v2/watchlist' },
   { label: 'Methodology', to: '/v2/methodology' },

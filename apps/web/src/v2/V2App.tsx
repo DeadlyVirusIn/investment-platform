@@ -31,6 +31,9 @@ import { GlossaryIndex } from './pages/GlossaryIndex';
 import { StartHere } from './pages/StartHere';
 import { MePage } from './pages/MePage';
 import { Methodology } from './pages/Methodology';
+// UX Phase 3A — close-the-loop surfaces.
+import { TryFromLesson } from './pages/TryFromLesson';
+import { ReflectionsReview } from './pages/ReflectionsReview';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -57,6 +60,9 @@ function V2Surface() {
         <Route path="start" element={<StartHere />} />
         <Route path="me" element={<MePage />} />
         <Route path="methodology" element={<Methodology />} />
+        {/* UX Phase 3A — close-the-loop surfaces. */}
+        <Route path="try/:lessonSlug" element={<TryFromLesson />} />
+        <Route path="reflections" element={<ReflectionsReview />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}
