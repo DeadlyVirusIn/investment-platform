@@ -6,11 +6,13 @@
 // user drops into Today.
 
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { PromiseLine } from '../components/PromiseLine';
 
 export function Onboarding() {
   const { hasOnboarded, completeOnboarding } = useUserPrefs();
+  const navigate = useNavigate();
 
   // Screenshot bypass for headless capture.
   const skip =
@@ -22,6 +24,11 @@ export function Onboarding() {
   const finish = () => {
     // Provide neutral defaults; level/topics/time are unread in Phase A.
     completeOnboarding('building', [], '07:00');
+    // UX Phase 2 — drop the first-time visitor into the guided Day 1
+    // flow rather than the magazine-style Learn home. Returning visitors
+    // (hasOnboarded=true) skip this gate and land on whichever route
+    // they navigated to directly.
+    navigate('/v2/start');
   };
 
   return (
