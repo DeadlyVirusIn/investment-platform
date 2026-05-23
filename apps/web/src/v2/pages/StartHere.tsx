@@ -214,14 +214,14 @@ export function StartHere() {
             </div>
           </div>
           <div
-            className="h-[3px] rounded-full overflow-hidden"
-            style={{ backgroundColor: 'var(--hairline)' }}
+            className="h-1.5 rounded-full overflow-hidden"
+            style={{ backgroundColor: 'var(--sage-light)' }}
           >
             <div
               className="h-full transition-all duration-500"
               style={{
                 width: `${(doneCount / 4) * 100}%`,
-                backgroundColor: 'var(--ink-primary)',
+                backgroundColor: 'var(--brand)',
               }}
             />
           </div>

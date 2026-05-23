@@ -12,6 +12,7 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { PATHS, LESSONS, getLesson } from '../data/arthosData';
 import { useReadLessons, useFollowedDecisions } from '../lib/lesson-progress';
 import { useReflections } from '../lib/reflections';
@@ -112,51 +113,82 @@ export function MePage() {
   return (
     <ArthosPage maxWidth="max-w-3xl">
       <FadeIn>
-        <MetaLabel>Your ArthOS</MetaLabel>
-        <h1 className="font-serif ink-primary text-masthead leading-[1.05] mt-2 mb-3 max-w-[18ch]">
-          Day {day}
-        </h1>
-        {earliestIso ? (
-          <p className="ink-muted leading-relaxed text-[16px] mb-12">
-            You started {fmtDate(earliestIso)}.
-          </p>
-        ) : (
-          <p className="ink-muted leading-relaxed text-[16px] mb-12">
-            Nothing recorded yet. Open a lesson, write a reflection, or
-            follow a decision and your activity will land here.
-          </p>
-        )}
+        <div className="flex items-start gap-5 mb-6">
+          <div
+            className="rounded-full flex items-center justify-center shrink-0"
+            style={{
+              width: 64,
+              height: 64,
+              backgroundColor:
+                'color-mix(in oklch, var(--brand) 15%, transparent)',
+              color: 'var(--brand)',
+              fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+              fontStyle: 'italic',
+              fontSize: 30,
+              lineHeight: 1,
+              paddingTop: 4,
+            }}
+            aria-hidden
+          >
+            U
+          </div>
+          <div className="min-w-0 flex-1">
+            <span
+              className="inline-block px-3.5 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-[0.16em] mb-3"
+              style={{
+                backgroundColor:
+                  'color-mix(in oklch, var(--brand) 14%, transparent)',
+                color: 'var(--brand)',
+              }}
+            >
+              Your ArthOS
+            </span>
+            <h1 className="font-display text-4xl sm:text-5xl ink-primary leading-[1.05] mb-2">
+              Day {day}
+            </h1>
+            {earliestIso ? (
+              <p className="ink-muted leading-relaxed text-[16px]">
+                You started {fmtDate(earliestIso)}.
+              </p>
+            ) : (
+              <p className="ink-muted leading-relaxed text-[16px] max-w-narrative">
+                Nothing recorded yet. Open a lesson, write a reflection,
+                or follow a decision and your activity will land here.
+              </p>
+            )}
+          </div>
+        </div>
+        <div className="mb-12 sm:mb-16" />
       </FadeIn>
 
       <FadeIn delay={0.1}>
         <section className="mb-12 sm:mb-16">
           <MetaLabel>What you've done</MetaLabel>
-          <ul className="mt-4 space-y-px bg-hairline">
-            <li className="surface-drawer p-5 flex items-baseline justify-between gap-4">
-              <span className="ink-primary">Lessons read</span>
-              <span className="font-mono ink-muted tabular-nums">
-                {lessonsReadCount} of {totalLessons}
-              </span>
-            </li>
-            <li className="surface-drawer p-5 flex items-baseline justify-between gap-4">
-              <span className="ink-primary">Reflections written</span>
-              <span className="font-mono ink-muted tabular-nums">
-                {reflectionCount}
-              </span>
-            </li>
-            <li className="surface-drawer p-5 flex items-baseline justify-between gap-4">
-              <span className="ink-primary">Decisions followed</span>
-              <span className="font-mono ink-muted tabular-nums">
-                {followCount}
-              </span>
-            </li>
-            <li className="surface-drawer p-5 flex items-baseline justify-between gap-4">
-              <span className="ink-primary">Paper trades</span>
-              <span className="font-mono ink-muted tabular-nums">
-                {openPositions} open · {closedTrades} closed
-              </span>
-            </li>
-          </ul>
+          <SurfaceCard className="mt-4 p-0 overflow-hidden">
+            <ul>
+              {[
+                { label: 'Lessons read', value: `${lessonsReadCount} of ${totalLessons}` },
+                { label: 'Reflections written', value: `${reflectionCount}` },
+                { label: 'Decisions followed', value: `${followCount}` },
+                { label: 'Paper trades', value: `${openPositions} open · ${closedTrades} closed` },
+              ].map((row, i, arr) => (
+                <li
+                  key={row.label}
+                  className="px-5 py-4 sm:px-6 sm:py-5 flex items-baseline justify-between gap-4"
+                  style={
+                    i < arr.length - 1
+                      ? { borderBottom: '1px solid var(--border)' }
+                      : undefined
+                  }
+                >
+                  <span className="ink-primary">{row.label}</span>
+                  <span className="font-mono ink-muted tabular-nums">
+                    {row.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </SurfaceCard>
         </section>
       </FadeIn>
 
@@ -179,14 +211,14 @@ export function MePage() {
                       </span>
                     </div>
                     <div
-                      className="h-[3px] rounded-full overflow-hidden"
-                      style={{ backgroundColor: 'var(--hairline)' }}
+                      className="h-1.5 rounded-full overflow-hidden"
+                      style={{ backgroundColor: 'var(--sage-light)' }}
                     >
                       <div
                         className="h-full transition-all duration-500"
                         style={{
                           width: `${pct}%`,
-                          backgroundColor: 'var(--ink-primary)',
+                          backgroundColor: 'var(--brand)',
                         }}
                       />
                     </div>

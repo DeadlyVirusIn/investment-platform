@@ -9,7 +9,8 @@
 
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { ArthosPage } from '../chrome/ArthosChrome';
+import { PageHeader } from '../components/ui/PageHeader';
 
 function FadeIn({
   delay = 0,
@@ -64,15 +65,12 @@ export function Methodology() {
   return (
     <ArthosPage maxWidth="max-w-3xl">
       <FadeIn>
-        <MetaLabel>Methodology</MetaLabel>
-        <h1 className="font-serif ink-primary text-masthead leading-[1.05] mt-2 mb-5 max-w-[22ch]">
-          How ArthOS reaches its decisions
-        </h1>
-        <p className="ink-muted leading-relaxed text-[17px] max-w-narrative mb-3">
-          The rules are listed below. They are short on purpose. If you
-          can read the rule, you can read the trade.
-        </p>
-        <p className="ink-fainter leading-relaxed text-[14px] mb-12 sm:mb-16">
+        <PageHeader
+          eyebrow="Methodology"
+          title="How ArthOS reaches its decisions"
+          description="The rules are listed below. They are short on purpose. If you can read the rule, you can read the trade."
+        />
+        <p className="ink-fainter leading-relaxed text-[14px] -mt-4 mb-12 sm:mb-16">
           5 sections · about 4 minutes
         </p>
       </FadeIn>
