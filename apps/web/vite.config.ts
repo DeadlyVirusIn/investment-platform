@@ -28,7 +28,10 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        // Inside docker compose the api service is reachable via its
+        // service-name DNS (http://api:8000). On the Windows host it's
+        // localhost:8000. Override via VITE_API_PROXY_TARGET env var.
+        target: process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, '/api'),
       },

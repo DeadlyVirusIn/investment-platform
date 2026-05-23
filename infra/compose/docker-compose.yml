@@ -1,8 +1,10 @@
 version: "3.9"
 
-# NOTE: Run `cd apps/web && npm install && npm run dev` locally for the
-# frontend. The web service is intentionally excluded from this compose file
-# to keep the dev loop fast (HMR, no rebuild).
+# 2026-05-21 — web service now runs inside compose (`web` below) so
+# Vite dev server auto-resumes on PC/restart. Prior design required
+# manual `cd apps/web && npm run dev`; that broke continuity every
+# reboot. HMR preserved via bind-mount + chokidar polling (already
+# enabled in apps/web/vite.config.ts).
 
 services:
   db:
@@ -277,10 +279,43 @@ services:
     networks:
       - backend
 
+  # Vite dev server for the React frontend. Bind-mounts apps/web so
+  # source edits hot-reload via Vite's polling watcher (Windows-safe;
+  # polling configured in apps/web/vite.config.ts). node_modules is a
+  # named volume so the Linux container's install survives independent
+  # of the host's Windows-built modules.
+  #
+  # Soft `depends_on` (no condition) lets Learn-only routes load even
+  # when the API is still booting; Today/Pick/Portfolio routes will
+  # show their normal loading/error state until /api is healthy.
+  web:
+    image: node:20-alpine
+    restart: unless-stopped
+    working_dir: /app
+    environment:
+      # Chokidar polling (Vite watch) — required for bind-mount file
+      # events to propagate from Windows host into Linux container.
+      CHOKIDAR_USEPOLLING: "true"
+      WATCHPACK_POLLING: "true"
+      # Vite proxies /api to the api service over the compose network.
+      VITE_API_PROXY_TARGET: "http://api:8000"
+    command: sh -c "npm install --no-audit --no-fund --silent && npm run dev -- --host 0.0.0.0"
+    volumes:
+      - ../../apps/web:/app
+      - web_node_modules:/app/node_modules
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - api
+    networks:
+      - backend
+
 volumes:
   pgdata:
     driver: local
   worker_cron_tmp:
+    driver: local
+  web_node_modules:
     driver: local
 
 networks:
