@@ -15,19 +15,26 @@ export function PillButton({
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: 'primary' | 'ghost' | 'outline';
 }) {
+  // Phase A visual-parity — primary now uses brand color; outline +
+  // ghost use sage-light hover wash to match Lovable's universal
+  // hover pattern.
   const variantClass =
     variant === 'primary'
-      ? 'bg-[var(--ink-primary)] text-[var(--surface-base)] hover:opacity-90'
+      ? 'bg-[var(--brand)] text-[var(--brand-foreground)] hover:opacity-92'
       : variant === 'outline'
-      ? 'border border-[var(--hairline)] text-[var(--ink-primary)] hover:bg-[var(--surface-drawer)]'
-      : 'text-[var(--ink-muted)] hover:text-[var(--ink-primary)] hover:bg-[var(--surface-drawer)]';
+      ? 'border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--sage-light)]'
+      : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--sage-light)]';
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full text-[13.5px] font-semibold tracking-tight transition-colors min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ink-muted)]',
+        'inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full text-[13.5px] font-semibold tracking-tight transition-colors min-h-11 focus-visible:outline-none focus-visible:ring-2',
         variantClass,
         className,
       )}
+      style={{
+        // Brand-tinted focus ring per Lovable
+        ['--tw-ring-color' as string]: 'var(--ring)',
+      }}
       {...props}
     />
   );

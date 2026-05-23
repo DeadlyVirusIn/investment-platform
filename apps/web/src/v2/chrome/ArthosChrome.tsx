@@ -11,18 +11,231 @@
 // the click navigation is disabled in tier-1 because /v2/learn/term
 // is not yet ported.
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode, type ComponentType } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, Search } from 'lucide-react';
+import {
+  Sun,
+  Moon,
+  Search,
+  Sunrise,
+  NotebookPen,
+  BookOpen,
+  Compass,
+  Sparkles,
+  User,
+  type LucideProps,
+} from 'lucide-react';
 import { getTerm } from '../data/arthosData';
 import { useTheme } from './ThemeContext';
 import { useCommandPalette } from './CommandPalette';
 
+// Phase B visual-parity — nav item shape now carries an icon ref so
+// the new SideNav + restyled MobileBottomTab can render icon+label
+// rows matching Lovable. Labels follow the UX-Phase-2 vocabulary
+// (Trade Ideas, Practice Account, etc.).
+type IconComp = ComponentType<LucideProps>;
+
+interface NavItem {
+  label: string;
+  shortLabel?: string;
+  to: string;
+  icon: IconComp;
+  match: (path: string) => boolean;
+}
+
 // ──────────────────────────────────────────────────────────────
-// Top bar — sticks on scroll
+// BrandMark — small "A" tile in brand color. Used in SideNav + mobile
+// TopBar so the AI Investing Copilot identity is permanently visible.
 // ──────────────────────────────────────────────────────────────
-export function TopBar() {
+function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const px = size === 'sm' ? 28 : 32;
+  const fs = size === 'sm' ? 15 : 18;
+  return (
+    <span
+      className="rounded-md font-serif italic flex items-center justify-center leading-none"
+      style={{
+        width: px,
+        height: px,
+        fontSize: fs,
+        backgroundColor: 'var(--brand)',
+        color: 'var(--brand-foreground)',
+        paddingTop: '2px',
+        fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+      }}
+      aria-hidden
+    >
+      A
+    </span>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// SideNav — fixed 248px desktop nav. Phase B visual-parity primitive.
+// Brand mark + wordmark + "AI Investing Copilot" subtitle + 6
+// icon+label rows + user-tile + theme toggle at the bottom.
+// ──────────────────────────────────────────────────────────────
+export function SideNav() {
+  const location = useLocation();
+  const { theme, toggle } = useTheme();
+  return (
+    <aside
+      className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-[248px] flex-col backdrop-blur-xl"
+      style={{
+        backgroundColor:
+          'color-mix(in oklch, var(--surface) 80%, transparent)',
+        borderRight: '1px solid var(--border)',
+      }}
+    >
+      <Link
+        to="/v2/learn"
+        className="flex items-center gap-2.5 px-6 h-16 border-b"
+        style={{ borderColor: 'var(--border)' }}
+      >
+        <BrandMark />
+        <span className="flex flex-col leading-none">
+          <span
+            className="font-display ink-primary"
+            style={{
+              fontSize: 19,
+              letterSpacing: '-0.01em',
+              fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+            }}
+          >
+            ArthOS
+          </span>
+          <span
+            className="font-semibold uppercase mt-0.5"
+            style={{
+              fontSize: 9,
+              letterSpacing: '0.18em',
+              color: 'var(--muted-foreground)',
+            }}
+          >
+            AI Investing Copilot
+          </span>
+        </span>
+      </Link>
+
+      <nav className="flex-1 px-3 py-5 space-y-0.5">
+        <p
+          className="px-3 mb-2 font-semibold uppercase"
+          style={{
+            fontSize: 10,
+            letterSpacing: '0.16em',
+            color: 'var(--muted-foreground)',
+          }}
+        >
+          Workspace
+        </p>
+        {NAV_PRIMARY.map(({ to, label, icon: Icon, match }) => {
+          const active = match(location.pathname);
+          return (
+            <Link
+              key={to}
+              to={to}
+              className="flex items-center gap-3 px-3 h-10 rounded-lg font-medium transition-colors"
+              style={{
+                fontSize: 13.5,
+                backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                color: active
+                  ? 'var(--foreground)'
+                  : 'var(--muted-foreground)',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.backgroundColor =
+                    'color-mix(in oklch, var(--sage-light) 60%, transparent)';
+                  e.currentTarget.style.color = 'var(--foreground)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--muted-foreground)';
+                }
+              }}
+            >
+              <Icon
+                style={{
+                  width: 17,
+                  height: 17,
+                  color: active ? 'var(--brand)' : 'var(--muted-foreground)',
+                }}
+                strokeWidth={active ? 2.1 : 1.7}
+                aria-hidden
+              />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
+      </nav>
+
+      <div
+        className="px-3 py-4 flex items-center justify-between"
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
+        <Link
+          to="/v2/me"
+          className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md"
+          aria-label="Your ArthOS"
+        >
+          <div
+            className="rounded-full font-serif italic flex items-center justify-center"
+            style={{
+              width: 32,
+              height: 32,
+              fontSize: 14,
+              backgroundColor:
+                'color-mix(in oklch, var(--brand) 15%, transparent)',
+              color: 'var(--brand)',
+              fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+            }}
+          >
+            U
+          </div>
+          <div className="leading-tight">
+            <p
+              className="font-semibold ink-primary"
+              style={{ fontSize: 12.5 }}
+            >
+              You
+            </p>
+            <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>
+              Beginner track
+            </p>
+          </div>
+        </Link>
+        <button
+          onClick={toggle}
+          aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          className="p-2 rounded-md transition-colors"
+          style={{ color: 'var(--muted-foreground)' }}
+        >
+          {theme === 'dark' ? (
+            <Sun className="w-4 h-4" strokeWidth={1.5} />
+          ) : (
+            <Moon className="w-4 h-4" strokeWidth={1.5} />
+          )}
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Top bar — sticky chrome (mobile shows brand tile + wordmark +
+// subtitle; desktop shows category eyebrow only since SideNav
+// already carries identity). Optional progress prop reserved for
+// future lesson-progress integration.
+// ──────────────────────────────────────────────────────────────
+export function TopBar({
+  progress,
+  eyebrow = 'ArthOS',
+}: {
+  progress?: number;
+  eyebrow?: string;
+}) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { theme, toggle } = useTheme();
   const { open: openPalette } = useCommandPalette();
@@ -30,55 +243,106 @@ export function TopBar() {
   return (
     <>
       <header
-        className="sticky top-0 z-40 backdrop-blur-md"
-        style={{ backgroundColor: 'var(--surface-translucent)' }}
+        className="sticky top-0 z-30 backdrop-blur-md"
+        style={{
+          backgroundColor:
+            'color-mix(in oklch, var(--surface) 85%, transparent)',
+          borderBottom: '1px solid var(--border)',
+        }}
       >
-        <div className="border-b border-hairline">
-          <div className="max-w-6xl mx-auto px-5 sm:px-8 h-14 grid grid-cols-3 items-center">
-            <div />
-            <Link
-              to="/v2/learn"
-              className="font-serif ink-primary text-center"
-              style={{
-                fontSize: '21px',
-                letterSpacing: '0.01em',
-                fontWeight: 500,
-              }}
+        <div className="mx-auto w-full max-w-screen-md lg:max-w-[1080px] px-5 lg:px-10 h-14 lg:h-16 flex items-center justify-between gap-4">
+          {/* Mobile-only brand block (desktop handled by SideNav). */}
+          <Link to="/v2/learn" className="flex items-center gap-2 lg:hidden">
+            <BrandMark size="sm" />
+            <span className="flex flex-col leading-none">
+              <span
+                className="font-display ink-primary"
+                style={{
+                  fontSize: 17,
+                  letterSpacing: '-0.01em',
+                  fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+                }}
+              >
+                ArthOS
+              </span>
+              <span
+                className="font-semibold uppercase mt-0.5"
+                style={{
+                  fontSize: 9,
+                  letterSpacing: '0.18em',
+                  color: 'var(--muted-foreground)',
+                }}
+              >
+                AI Investing Copilot
+              </span>
+            </span>
+          </Link>
+
+          {/* Desktop-only eyebrow inside TopBar */}
+          <span
+            className="hidden lg:block font-semibold uppercase"
+            style={{
+              fontSize: 11,
+              letterSpacing: '0.18em',
+              color: 'var(--muted-foreground)',
+            }}
+          >
+            {eyebrow}
+          </span>
+
+          <div className="flex items-center gap-3">
+            {typeof progress === 'number' && (
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-1 w-20 sm:w-28 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'var(--sage-light)' }}
+                >
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width: `${Math.max(0, Math.min(100, progress))}%`,
+                      backgroundColor: 'var(--brand)',
+                    }}
+                  />
+                </div>
+                <span
+                  className="font-mono ink-muted tabular-nums"
+                  style={{ fontSize: 10 }}
+                >
+                  {Math.round(progress)}%
+                </span>
+              </div>
+            )}
+            <button
+              onClick={openPalette}
+              aria-label="Search"
+              className="ink-muted hover:ink-primary transition-colors p-2 inline-flex items-center gap-2"
             >
-              ArthOS
-            </Link>
-            <div className="flex justify-end items-center gap-1">
-              <button
-                onClick={openPalette}
-                aria-label="Search"
-                className="ink-muted hover:ink-primary transition-colors p-2 inline-flex items-center gap-2"
-              >
-                <Search className="w-4 h-4" strokeWidth={1.5} />
-                <kbd className="hidden sm:inline text-[10px] ink-fainter font-mono">
-                  ⌘K
-                </kbd>
-              </button>
-              <button
-                onClick={toggle}
-                aria-label={
-                  theme === 'dark' ? 'Switch to light' : 'Switch to dark'
-                }
-                className="ink-muted hover:ink-primary transition-colors p-2"
-              >
-                {theme === 'dark' ? (
-                  <Sun className="w-4 h-4" strokeWidth={1.5} />
-                ) : (
-                  <Moon className="w-4 h-4" strokeWidth={1.5} />
-                )}
-              </button>
-              <button
-                onClick={() => setDrawerOpen(true)}
-                aria-label="Open navigation"
-                className="ink-muted hover:ink-primary text-[18px] transition-colors px-2 py-2"
-              >
-                ≡
-              </button>
-            </div>
+              <Search className="w-4 h-4" strokeWidth={1.5} />
+              <kbd className="hidden sm:inline text-[10px] ink-fainter font-mono">
+                ⌘K
+              </kbd>
+            </button>
+            <button
+              onClick={toggle}
+              aria-label={
+                theme === 'dark' ? 'Switch to light' : 'Switch to dark'
+              }
+              className="ink-muted hover:ink-primary transition-colors p-2 lg:hidden"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4" strokeWidth={1.5} />
+              ) : (
+                <Moon className="w-4 h-4" strokeWidth={1.5} />
+              )}
+            </button>
+            <button
+              onClick={() => setDrawerOpen(true)}
+              aria-label="Open navigation"
+              className="ink-muted hover:ink-primary text-[18px] transition-colors px-2 py-2 lg:hidden"
+            >
+              ≡
+            </button>
           </div>
         </div>
       </header>
@@ -89,26 +353,59 @@ export function TopBar() {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Tier-1 nav — only routes that exist
+// Phase B — primary nav (SideNav + drawer + mobile bottom tab)
 // ──────────────────────────────────────────────────────────────
-// UX Phase 2 — renames per nav simplification roadmap. URLs stay
-// stable so deep-links continue working; only labels change.
-//   Opportunities → Trade Ideas
-//   Paper Book    → Practice Account
-//   Field Notes   → Notes
-//   Catalysts     → Coming Up
-const NAV_ITEMS = [
-  { label: "Today's Briefing", to: '/v2/today' },
-  { label: 'Trade Ideas', to: '/v2/opportunities' },
-  { label: 'Coming Up', to: '/v2/catalysts' },
-  { label: 'Learn', to: '/v2/learn' },
-  { label: 'Practice Account', to: '/v2/portfolio' },
-  { label: 'Track Record', to: '/v2/track-record' },
-  { label: 'Your ArthOS', to: '/v2/me' },
+// Six primary destinations matching Lovable's approved surfaces.
+// Journal is included as a slot; ArthOS has no /v2/journal route yet,
+// so the slot points at /v2/reflections (the user's local Decision
+// Journal in practice). Document the redirect for future migration:
+// when the Journal surface lands, swap the `to` here.
+const NAV_PRIMARY: NavItem[] = [
+  {
+    label: 'Today',
+    to: '/v2/today',
+    icon: Sunrise,
+    match: (p) => p.startsWith('/v2/today'),
+  },
+  {
+    label: 'Journal',
+    shortLabel: 'Journal',
+    to: '/v2/reflections',
+    icon: NotebookPen,
+    match: (p) => p.startsWith('/v2/reflections') || p.startsWith('/v2/journal'),
+  },
+  {
+    label: 'Practice',
+    to: '/v2/portfolio',
+    icon: BookOpen,
+    match: (p) =>
+      p.startsWith('/v2/portfolio') ||
+      p.startsWith('/v2/try') ||
+      p.startsWith('/v2/track-record'),
+  },
+  {
+    label: 'Learn',
+    to: '/v2/learn',
+    icon: Compass,
+    match: (p) =>
+      p === '/v2' || p.startsWith('/v2/learn') || p.startsWith('/v2/methodology'),
+  },
+  {
+    label: 'Opportunities',
+    shortLabel: 'Opps',
+    to: '/v2/opportunities',
+    icon: Sparkles,
+    match: (p) => p.startsWith('/v2/opportunities') || p.startsWith('/v2/catalysts'),
+  },
+  {
+    label: 'Me',
+    to: '/v2/me',
+    icon: User,
+    match: (p) => p.startsWith('/v2/me'),
+  },
 ];
 
 const NAV_SECONDARY = [
-  { label: 'Reflections', to: '/v2/reflections' },
   { label: 'Notes', to: '/v2/field-notes' },
   { label: 'Watchlist', to: '/v2/watchlist' },
   { label: 'Methodology', to: '/v2/methodology' },
@@ -166,25 +463,20 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
             </div>
 
             <nav className="flex flex-col gap-4 flex-1">
-              {NAV_ITEMS.map((item) => {
-                const isActive =
-                  location.pathname === item.to ||
-                  (item.to !== '/v2/learn' &&
-                    location.pathname.startsWith(item.to)) ||
-                  (item.to === '/v2/learn' &&
-                    (location.pathname === '/v2' ||
-                      location.pathname.startsWith('/v2/learn')));
+              {NAV_PRIMARY.map((item) => {
+                const isActive = item.match(location.pathname);
                 return (
                   <Link
                     key={item.to}
                     to={item.to}
                     onClick={onClose}
-                    className="font-serif text-[24px] ink-primary inline-flex items-baseline gap-3 w-fit"
+                    className="font-display text-[24px] ink-primary inline-flex items-baseline gap-3 w-fit"
                     style={
                       isActive
                         ? {
-                            borderBottom: '2px solid var(--ink-primary)',
+                            borderBottom: '2px solid var(--brand)',
                             paddingBottom: '2px',
+                            color: 'var(--brand)',
                           }
                         : undefined
                     }
@@ -196,7 +488,7 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                         style={{
                           width: '6px',
                           height: '6px',
-                          backgroundColor: 'var(--ink-primary)',
+                          backgroundColor: 'var(--brand)',
                         }}
                       />
                     )}
@@ -253,66 +545,64 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Mobile bottom tab
+// Mobile bottom tab — Phase B visual-parity rebuild.
+// 5 tabs: Today · Journal · Practice · Learn · Me. Icon + label,
+// top-pill active indicator, brand color on active state.
+// (Opportunities accessible via drawer on mobile.)
 // ──────────────────────────────────────────────────────────────
-// UX Phase 2 — bottom-tab nav rebalanced for novice journey.
-// "Trade Ideas" + "Coming Up" demoted to the slide-out drawer;
-// "Learn" + "Your ArthOS (Me)" promoted to the mobile-default surface
-// since those carry the daily-coach loop.
-const MOBILE_TABS = [
-  { label: 'Today', to: '/v2/today' },
-  { label: 'Learn', to: '/v2/learn' },
-  { label: 'Practice', to: '/v2/portfolio' },
-  { label: 'Me', to: '/v2/me' },
-];
+const MOBILE_TABS: NavItem[] = NAV_PRIMARY.filter(
+  (n) => n.label !== 'Opportunities',
+);
 
 export function MobileBottomTab() {
   const location = useLocation();
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-hairline pb-safe"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-30 pb-safe backdrop-blur-xl"
       style={{
-        backgroundColor: 'var(--surface-translucent)',
-        backdropFilter: 'blur(20px)',
+        backgroundColor:
+          'color-mix(in oklch, var(--surface) 92%, transparent)',
+        borderTop: '1px solid var(--border)',
       }}
     >
-      <div className="grid grid-cols-4 px-2 py-3">
-        {MOBILE_TABS.map((tab) => {
-          const isActive =
-            location.pathname === tab.to ||
-            (tab.to !== '/v2/learn' && location.pathname.startsWith(tab.to)) ||
-            (tab.to === '/v2/learn' &&
-              (location.pathname === '/v2' ||
-                location.pathname.startsWith('/v2/learn')));
+      <div className="max-w-screen-md mx-auto px-1 grid grid-cols-5">
+        {MOBILE_TABS.map(({ to, label, shortLabel, icon: Icon, match }) => {
+          const active = match(location.pathname);
+          const display = shortLabel ?? label;
           return (
             <Link
-              key={tab.to}
-              to={tab.to}
-              className="flex flex-col items-center justify-center text-meta ink-muted py-1 gap-1"
+              key={to}
+              to={to}
+              aria-label={display}
+              className="relative flex flex-col items-center justify-center gap-1 py-2.5 min-h-11 group"
             >
-              {isActive && (
+              {active && (
                 <span
                   aria-hidden
-                  className="block rounded-full"
-                  style={{
-                    width: '5px',
-                    height: '5px',
-                    backgroundColor: 'var(--ink-primary)',
-                  }}
+                  className="absolute top-0 left-1/2 -translate-x-1/2 h-0.5 w-8 rounded-full"
+                  style={{ backgroundColor: 'var(--brand)' }}
                 />
               )}
+              <Icon
+                style={{
+                  width: 18,
+                  height: 18,
+                  color: active ? 'var(--brand)' : 'var(--muted-foreground)',
+                  transition: 'color 200ms',
+                }}
+                strokeWidth={active ? 2 : 1.6}
+                aria-hidden
+              />
               <span
-                className={isActive ? 'ink-primary' : ''}
-                style={
-                  isActive
-                    ? {
-                        borderBottom: '2px solid var(--ink-primary)',
-                        paddingBottom: '2px',
-                      }
-                    : undefined
-                }
+                className="font-semibold"
+                style={{
+                  fontSize: 10,
+                  letterSpacing: '0.04em',
+                  color: active ? 'var(--brand)' : 'var(--muted-foreground)',
+                  transition: 'color 200ms',
+                }}
               >
-                {tab.label}
+                {display}
               </span>
             </Link>
           );
@@ -323,23 +613,38 @@ export function MobileBottomTab() {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Page shell — TopBar + content + MobileBottomTab
+// Page shell — Phase B visual-parity rebuild.
+// Layout: fixed SideNav (desktop) + lg:pl-[248px] body offset +
+// TopBar (sticky) + main content + MobileBottomTab (mobile only).
+// maxWidth prop kept for backward-compat but ignored — the canonical
+// Lovable layout caps at max-w-screen-md (mobile) / max-w-[1080px]
+// (desktop).
 // ──────────────────────────────────────────────────────────────
 export function ArthosPage({
   children,
-  maxWidth = 'max-w-6xl',
+  maxWidth,
+  topBarProgress,
+  topBarEyebrow,
 }: {
   children: ReactNode;
   maxWidth?: string;
+  topBarProgress?: number;
+  topBarEyebrow?: string;
 }) {
+  // maxWidth retained as opt-in override per page; default falls back
+  // to Lovable canonical widths.
+  const widthClass = maxWidth ?? 'max-w-screen-md lg:max-w-[1080px]';
   return (
     <div className="min-h-screen surface-base ink-primary">
-      <TopBar />
-      <main
-        className={`${maxWidth} mx-auto px-5 sm:px-8 pt-10 sm:pt-16 pb-32 md:pb-24`}
-      >
-        {children}
-      </main>
+      <SideNav />
+      <div className="lg:pl-[248px]">
+        <TopBar progress={topBarProgress} eyebrow={topBarEyebrow} />
+        <main
+          className={`mx-auto w-full ${widthClass} px-5 lg:px-10 pt-6 lg:pt-10 pb-32 lg:pb-16`}
+        >
+          {children}
+        </main>
+      </div>
       <MobileBottomTab />
     </div>
   );

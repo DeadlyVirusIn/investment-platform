@@ -1,580 +1,582 @@
-// V2 Today's Briefing — masthead + lede + WORKING narrative cards +
-// On the desk today (stocks + options) + portfolio snapshot rail.
+// V2 Today's Briefing — Phase C visual-parity rebuild.
+//
+// 8/4 desktop grid. Six cards. No editorial single-stream prose any
+// more — the AI Copilot answer to "what should I do today?" is
+// surfaced in structured cards with brand-tinted CTAs.
+//
+//   Main column (lg:col-span-8):
+//     • WhatChanged       — 3 most-recent updates
+//     • StrongestSetup    — top opportunity with RiskBadge + AcademyChips
+//     • NearestCatalyst   — earliest catalyst with date + days-away
+//
+//   Aside column (lg:col-span-4):
+//     • FollowedDecisions — useFollowedDecisions wired to journalEntries
+//     • WorthLearning     — daily lesson recommendation
+//     • PortfolioSummary  — equity + day-move + lifetime-move + position count
+//
+// All data sourced from existing arthosData / journal-data / state.
+// No new backend, no new tracking, no new APIs.
 
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import {
-  ArthosPage,
-  MetaLabel,
-  ParagraphWithTerms,
-} from '../chrome/ArthosChrome';
+import { ArrowRight, Calendar, Sparkles, BookOpen, Eye } from 'lucide-react';
+import { ArthosPage } from '../chrome/ArthosChrome';
+import { PageHeader } from '../components/ui/PageHeader';
+import { Section } from '../components/ui/Section';
+import { SurfaceCard } from '../components/ui/SurfaceCard';
+import { RiskBadge } from '../components/ui/RiskBadge';
+import { AcademyChips } from '../components/ui/AcademyChips';
 import {
   PORTFOLIO,
-  BRIEFING_AS_OF,
   WHAT_CHANGED_SINCE_YESTERDAY,
-  REVIEW_QUEUE,
-  FIELD_NOTES_TODAY,
-  FIELD_NOTES_CURATED_FROM,
-  getSymbolContext,
+  LESSONS,
 } from '../data/arthosData';
-import { MarketPulse } from '../components/MarketPulse';
-import { Salutation } from '../components/Salutation';
-import { TodayHero60s } from '../components/TodayHero60s';
-import { FirstPositionPanel } from '../components/FirstPositionPanel';
-import { CollapsibleOnMobile } from '../components/CollapsibleOnMobile';
-import { useUserPrefs } from '../state/UserPrefsContext';
+import {
+  opportunities,
+  journalEntries,
+  getEntry,
+} from '../data/journal-data';
+import { useFollowedDecisions } from '../lib/lesson-progress';
+import { useReadLessons } from '../lib/lesson-progress';
 
 function FadeIn({
   delay = 0,
   children,
+  className,
 }: {
   delay?: number;
   children: React.ReactNode;
+  className?: string;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay, ease: [0.32, 0.72, 0, 1] }}
+      transition={{ duration: 0.55, delay, ease: [0.32, 0.72, 0, 1] }}
+      className={className}
     >
       {children}
     </motion.div>
   );
 }
 
-interface WorkingItem {
-  headline: string;
-  body: string;
-  lessonSlug: string;
-  lessonTitle: string;
-  // Evidence chips appended at the bottom of each card so the
-  // narrative carries the *why* alongside the prose. Plain strings,
-  // no icons, no color coding — they read as captions.
-  evidence: {
-    signal: string;     // 'Six-week semicap momentum'
-    source: string;     // 'Sector relative-strength · Tiingo daily bars'
-    confidence: string; // 'we are reducing' / 'we are watching' / 'we would hold'
-  };
+function greeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 5) return 'Late evening';
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  if (hour < 21) return 'Good evening';
+  return 'Late evening';
 }
 
-const WORKING: WorkingItem[] = [
-  {
-    headline: 'We trimmed AMAT.',
-    body: "AMAT has run +4.1% over the last six sessions. The thesis hasn't changed — semicap momentum remains broad — but position size had drifted above the band we set when we opened it on Day 1. We sold a quarter of the position and parked the cash overnight.",
-    lessonSlug: 'why-great-investors-do-nothing-most-days',
-    lessonTitle: 'Why we trim winners, even when we still like them',
-    evidence: {
-      signal: 'Position weight at 5.2% vs sized 4.0% at entry',
-      source: 'Internal portfolio accounting + Tiingo daily bars',
-      confidence: 'we are reducing',
-    },
-  },
-  {
-    headline: 'We added to CME.',
-    body: 'CME was opened Tuesday as a half-position. Three sessions later, the original signal — exchange-operator momentum — has held without giving back. We used the AMAT cash to bring CME to a full position rather than open a new name. Concentration matters more than count.',
-    lessonSlug: 'what-is-a-signal',
-    lessonTitle: 'What is a signal?',
-    evidence: {
-      signal: 'Exchange-operator cohort momentum, 3 sessions held',
-      source: 'Sub-industry relative-strength · Tiingo daily bars',
-      confidence: 'we would hold',
-    },
-  },
-  {
-    headline: 'Twelve positions held through a quiet Friday.',
-    body: "The S&P moved less than half a percent. None of the ten other names triggered any rule we'd written for them. On days like this, the work is in resisting the urge to do anything — not because doing nothing is a strategy, but because doing something would be a strategy without a reason.",
-    lessonSlug: 'why-great-investors-do-nothing-most-days',
-    lessonTitle: 'Why great investors do nothing most days',
-    evidence: {
-      signal: 'Zero rules triggered across 12 open positions',
-      source: 'Position-level rule monitor · post-close evaluation',
-      confidence: 'we would hold',
-    },
-  },
-  {
-    headline: 'Momentum stayed broad.',
-    body: "Across the eleven sectors we track, momentum readings closed the week roughly where they began. There is no rotation visible in the data yet. We're watching the financials cohort, where the readings have been quietly compressing for two weeks — the kind of compression that often resolves into a move, but rarely tells us in advance which direction.",
-    lessonSlug: 'what-is-a-signal',
-    lessonTitle: 'How momentum signals compress before they resolve',
-    evidence: {
-      signal: 'Financials cohort 14-day momentum range tightened 38%',
-      source: 'GICS sector cohort scan · 21-day window',
-      confidence: 'we are watching',
-    },
-  },
-];
+// ──────────────────────────────────────────────────────────────
+// Main-column cards
+// ──────────────────────────────────────────────────────────────
 
-export function Briefing() {
-  const { watchlist } = useUserPrefs();
-
-  // Personalization spine — intersect watchlist with today's surfaces.
-  // Empty watchlist hides the whole panel; we don't upsell.
-  const watchedContexts = watchlist
-    .map((s) => getSymbolContext(s))
-    .filter(
-      (c) =>
-        c.mentionedInChangedToday ||
-        c.opportunityTier !== null ||
-        c.catalystsThisHorizon.length > 0 ||
-        c.held
-    );
-
+function WhatChangedCard() {
+  const items = WHAT_CHANGED_SINCE_YESTERDAY.slice(0, 3);
   return (
-    <ArthosPage maxWidth="max-w-6xl">
-      <div className="grid lg:grid-cols-[1fr_280px] gap-16 lg:gap-20">
-        <div className="min-w-0">
-          <FadeIn>
-            <header className="mb-8">
-              <h1 className="font-serif text-masthead ink-primary mb-3">
-                Today's Briefing
-              </h1>
-              <div className="text-meta ink-muted">
-                {PORTFOLIO.dateLong} · Edition #{PORTFOLIO.edition}
-              </div>
-            </header>
-          </FadeIn>
-
-          {/* MVP Phase A — Salutation + 60-second hero replace the
-              previous Pulse hero. Pulse moves below as a secondary panel. */}
-          <FadeIn delay={0.02}>
-            <Salutation />
-          </FadeIn>
-
-          <FadeIn delay={0.03}>
-            <TodayHero60s />
-          </FadeIn>
-
-          {/* MVP Phase A — First-position panel. Gated by paper-book state;
-              auto-dismisses after 7 days OR first close. */}
-          <FirstPositionPanel />
-
-          {/* Market Pulse — demoted from hero to secondary panel. */}
-          <FadeIn delay={0.035}>
-            <div className="mb-12">
-              <MarketPulse variant="strip" />
-            </div>
-          </FadeIn>
-
-          {/* Evidence: as-of stamp — what window the briefing reflects */}
-          <FadeIn delay={0.04}>
-            <div className="mb-16 sm:mb-20 max-w-copy">
-              <div className="flex items-baseline gap-3 mb-2">
-                <MetaLabel>As of</MetaLabel>
-                <span className="ink-primary text-[14px] tabular-nums">
-                  {BRIEFING_AS_OF.prettyDate}
-                </span>
-              </div>
-              <p className="ink-fainter text-[13px] leading-relaxed italic max-w-narrative">
-                {BRIEFING_AS_OF.windowDescription}
-              </p>
-            </div>
-          </FadeIn>
-
-          <FadeIn delay={0.06}>
-            <p
-              className="font-serif text-[22px] leading-[1.4] ink-primary max-w-copy mb-20 sm:mb-24"
-              style={{ fontVariationSettings: '"opsz" 32' }}
-            >
-              We held twelve positions through a quiet Friday. The portfolio is
-              up {PORTFOLIO.dayMovePct >= 0 ? '+' : ''}
-              {PORTFOLIO.dayMovePct}% on the day; momentum stayed broad. We
-              trimmed one name — AMAT — because position sizing had drifted,
-              and we used the freed cash to add to a half-position in CME we
-              opened Tuesday.
-            </p>
-          </FadeIn>
-
-          {/* Polish pass — collapse downstream sections on mobile behind
-              a single "Show full briefing" expand. Desktop renders all
-              children unchanged. */}
-          <CollapsibleOnMobile
-            label="Show full briefing"
-            hint="Watched · field notes · review · working"
-          >
-
-          {/* Watched names panel — Phase 3 personalization. Hidden if
-              watchlist is empty (we don't upsell). */}
-          {watchlist.length > 0 && (
-            <FadeIn delay={0.065}>
-              <section className="mb-16 sm:mb-20 max-w-copy">
-                <div className="flex items-baseline gap-3 mb-5">
-                  <span aria-hidden className="ink-primary text-[14px]">★</span>
-                  <MetaLabel>Your watched names today</MetaLabel>
-                  <span className="text-meta ink-fainter ml-auto tabular-nums">
-                    {watchedContexts.length} of {watchlist.length}
-                  </span>
-                </div>
-                {watchedContexts.length === 0 ? (
-                  <p className="font-serif italic ink-muted text-[16px] leading-relaxed">
-                    {watchlist.length}{' '}
-                    {watchlist.length === 1 ? 'name' : 'names'} on your list,
-                    nothing triggered today.
-                  </p>
-                ) : (
-                  <ul className="space-y-px bg-hairline">
-                    {watchedContexts.map((c) => (
-                      <li
-                        key={c.symbol}
-                        className="surface-base py-5 flex items-baseline justify-between gap-5 flex-wrap"
-                      >
-                        <div className="flex items-baseline gap-3 shrink-0 w-32">
-                          <span aria-hidden className="ink-primary text-[12px]">★</span>
-                          <span className="font-mono ink-primary text-[14px]">
-                            {c.symbol}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="ink-primary text-[14px] leading-snug mb-1.5">
-                            {c.mentionedInChangedToday
-                              ? c.changedToday?.headline
-                              : c.opportunityTier === 'strongest-setups'
-                                ? `Strongest setup today — ${c.opportunity?.actionLabel}`
-                                : c.opportunityTier === 'setups-forming'
-                                  ? `Forming setup — ${c.opportunity?.actionLabel}`
-                                  : c.opportunityTier === 'tracking'
-                                    ? `We're tracking — ${c.tracking?.oneLineSetup}`
-                                    : c.held
-                                      ? `Held · Day ${c.position?.dayHeld}`
-                                      : 'Mentioned in today\'s briefing'}
-                          </div>
-                          {c.catalystsThisHorizon.length > 0 && (
-                            <div className="text-meta ink-fainter">
-                              Catalyst:{' '}
-                              <Link
-                                to="/v2/catalysts"
-                                className="ink-muted hover:ink-primary transition-colors"
-                              >
-                                {c.catalystsThisHorizon[0].title} ·{' '}
-                                {c.catalystsThisHorizon[0].prettyDate}
-                              </Link>
-                            </div>
-                          )}
-                        </div>
-                        <Link
-                          to={
-                            c.held
-                              ? `/v2/today/pick/${c.symbol}`
-                              : c.opportunityTier
-                                ? '/v2/opportunities'
-                                : '/v2/watchlist'
-                          }
-                          className="text-meta ink-muted hover:ink-primary transition-colors shrink-0"
-                        >
-                          Open →
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            </FadeIn>
-          )}
-
-          {/* Field Notes today — Phase 5. Top 3 + see-all link. */}
-          <FadeIn delay={0.062}>
-            <section className="mb-16 sm:mb-20 max-w-copy">
-              <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-                <span aria-hidden className="ink-primary text-[14px]">✦</span>
-                <MetaLabel>Field notes today</MetaLabel>
-                <span className="text-meta ink-fainter ml-auto tabular-nums">
-                  {FIELD_NOTES_TODAY.length} of{' '}
-                  {FIELD_NOTES_CURATED_FROM} candidates
-                </span>
-              </div>
-              {(() => {
-                const portfolio = FIELD_NOTES_TODAY.filter(
-                  (n) => n.impact === 'portfolio'
-                ).length;
-                const considering = FIELD_NOTES_TODAY.filter(
-                  (n) => n.impact === 'considering'
-                ).length;
-                const regime = FIELD_NOTES_TODAY.filter(
-                  (n) => n.impact === 'regime'
-                ).length;
-                const summary = [
-                  portfolio > 0 ? `${portfolio} affect what you hold` : null,
-                  considering > 0
-                    ? `${considering} affect what you're considering`
-                    : null,
-                  regime > 0 ? `${regime} regime` : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ');
-                return (
-                  <p className="ink-muted text-[14px] leading-relaxed mb-5">
-                    {summary || 'Nothing material today.'}
-                  </p>
-                );
-              })()}
-
-              <ul className="space-y-px bg-hairline">
-                {FIELD_NOTES_TODAY.slice(0, 4).map((n) => (
-                  <li
-                    key={n.id}
-                    className="surface-base py-5 flex items-baseline gap-5 flex-wrap"
-                  >
-                    <span className="font-mono ink-fainter text-[12px] tabular-nums w-20 shrink-0">
-                      {n.prettyTime}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-baseline gap-3 mb-1 flex-wrap">
-                        {n.symbol && (
-                          <span className="font-mono ink-primary text-[13px]">
-                            {n.symbol}
-                          </span>
-                        )}
-                        <span className="text-meta ink-fainter">
-                          {n.kindLabel}
-                        </span>
-                      </div>
-                      <div className="ink-primary text-[14px] leading-snug">
-                        {n.headline}
-                      </div>
-                    </div>
-                    <Link
-                      to="/v2/field-notes"
-                      className="text-meta ink-muted hover:ink-primary transition-colors shrink-0 ml-auto"
-                    >
-                      Read →
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-
-              {FIELD_NOTES_TODAY.length > 4 && (
-                <div className="mt-5">
-                  <Link
-                    to="/v2/field-notes"
-                    className="text-meta ink-muted hover:ink-primary transition-colors inline-flex items-center gap-1.5"
-                  >
-                    See all {FIELD_NOTES_TODAY.length} field notes{' '}
-                    <span aria-hidden>→</span>
-                  </Link>
-                </div>
-              )}
-            </section>
-          </FadeIn>
-
-          {/* Review Queue panel — Phase 1: theses due for re-read */}
-          <FadeIn delay={0.07}>
-            <section className="mb-16 sm:mb-20 max-w-copy">
-              <div className="flex items-baseline gap-3 mb-5">
-                <span aria-hidden className="ink-primary text-[14px]">✦</span>
-                <MetaLabel>Review queue — this week</MetaLabel>
-              </div>
-              {(() => {
-                const due = REVIEW_QUEUE.filter((r) => r.daysFromToday <= 7);
-                if (due.length === 0) {
-                  return (
-                    <p className="font-serif italic ink-muted text-[16px] leading-relaxed">
-                      No theses up for re-read this week.
-                    </p>
-                  );
-                }
-                return (
-                  <ul className="space-y-px bg-hairline">
-                    {due.map((r) => (
-                      <li
-                        key={r.symbol}
-                        className="surface-base py-5 flex items-baseline gap-5 flex-wrap"
-                      >
-                        <div className="flex items-baseline gap-3 shrink-0 w-44">
-                          <span className="font-mono text-[12px] ink-fainter tabular-nums">
-                            {r.dueDate}
-                          </span>
-                          {r.daysFromToday <= 0 && (
-                            <span className="text-[10px] ink-primary border border-hairline rounded-full px-2 py-0.5 tabular-nums uppercase tracking-wider">
-                              due
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-baseline gap-3 mb-1.5">
-                            <span className="font-mono ink-primary text-[14px]">
-                              {r.symbol}
-                            </span>
-                            <span className="ink-muted text-[13px] truncate">
-                              {r.company}
-                            </span>
-                          </div>
-                          <p className="ink-muted text-[13px] leading-relaxed">
-                            {r.reason}
-                          </p>
-                        </div>
-                        <Link
-                          to={`/v2/today/pick/${r.symbol}`}
-                          className="text-meta ink-muted hover:ink-primary transition-colors shrink-0 ml-auto"
-                        >
-                          Open →
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                );
-              })()}
-            </section>
-          </FadeIn>
-
-          {/* Evidence: What changed since yesterday — habit-forming hook */}
-          <FadeIn delay={0.08}>
-            <section className="mb-20 sm:mb-24 max-w-copy">
-              <MetaLabel>What changed since yesterday</MetaLabel>
-              <ul className="mt-6 space-y-6">
-                {WHAT_CHANGED_SINCE_YESTERDAY.map((c, i) => (
-                  <li key={i} className="flex items-baseline gap-5">
-                    <span
-                      aria-hidden
-                      className="ink-fainter text-[13px] tabular-nums font-mono w-6 shrink-0 mt-1"
-                    >
-                      {String(i + 1).padStart(2, '0')}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
-                        <span className="ink-primary text-[15px] leading-snug">
-                          {c.headline}
-                        </span>
-                        {c.symbol && (
-                          <span className="font-mono ink-fainter text-[12px]">
-                            {c.symbol}
-                          </span>
-                        )}
-                      </div>
-                      <p className="ink-muted text-[14px] leading-relaxed max-w-narrative">
-                        {c.body}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </FadeIn>
-
-          <div className="space-y-16 sm:space-y-20 mb-20">
-            {WORKING.map((item, i) => (
-              <FadeIn key={i} delay={0.1 + i * 0.04}>
-                <article className="max-w-copy">
-                  <h2 className="font-serif text-subhead ink-primary mb-4">
-                    {item.headline}
-                  </h2>
-                  <p className="ink-muted leading-relaxed mb-5">
-                    <ParagraphWithTerms text={item.body} />
-                  </p>
-
-                  {/* Evidence chips — signal · source · confidence */}
-                  <dl className="grid sm:grid-cols-3 gap-x-6 gap-y-3 pt-5 mb-5 border-t border-hairline text-[12px]">
-                    <div>
-                      <dt className="text-meta ink-fainter mb-1">Signal</dt>
-                      <dd className="ink-primary leading-snug">
-                        {item.evidence.signal}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-meta ink-fainter mb-1">Source</dt>
-                      <dd className="ink-muted leading-snug">
-                        {item.evidence.source}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt className="text-meta ink-fainter mb-1">Stance</dt>
-                      <dd className="ink-primary italic leading-snug">
-                        {item.evidence.confidence}
-                      </dd>
-                    </div>
-                  </dl>
-
-                  <Link
-                    to={`/v2/learn/lesson/${item.lessonSlug}`}
-                    className="text-meta ink-muted hover:ink-primary inline-flex items-center gap-2 transition-colors"
-                  >
-                    Read the lesson behind this <span aria-hidden>→</span>
-                  </Link>
-                </article>
-              </FadeIn>
-            ))}
-          </div>
-
-          {/* MVP Phase A — `On the desk today` removed. Setups now live
-              canonically on Opportunities; the 60-second hero surfaces the
-              strongest one with Place inline. Brief link below carries
-              users to Opps without competing with the hero. */}
-          <FadeIn delay={0.24}>
-            <section className="mb-24 max-w-copy">
-              <div className="border-t border-hairline pt-8">
-                <Link
-                  to="/v2/opportunities"
-                  className="text-meta ink-muted hover:ink-primary inline-flex items-center gap-2 transition-colors"
-                >
-                  See all of today's setups on Opportunities →
-                </Link>
-              </div>
-            </section>
-          </FadeIn>
-
-          <FadeIn delay={0.3}>
-            <div className="border-t border-hairline pt-12">
-              <p className="font-serif italic ink-muted text-[18px] leading-relaxed max-w-narrative">
-                The next briefing is Monday morning. Until then, the portfolio
-                is held.
-              </p>
-            </div>
-          </FadeIn>
-
-          </CollapsibleOnMobile>
-        </div>
-
-        <aside className="hidden lg:block sticky top-24 self-start">
-          <div className="surface-drawer p-7">
-            <MetaLabel>Portfolio snapshot</MetaLabel>
-            <div className="mt-5 mb-6">
-              <div className="font-serif text-[28px] ink-primary tabular-nums leading-none mb-2">
-                $
-                {PORTFOLIO.equity.toLocaleString(undefined, {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                })}
-              </div>
-              <div className="text-[13px] ink-muted tabular-nums">
-                <span className="ink-primary">
-                  {PORTFOLIO.dayMovePct >= 0 ? '▲' : '▼'}
-                </span>{' '}
-                {PORTFOLIO.dayMovePct >= 0 ? '+' : ''}
-                {PORTFOLIO.dayMovePct.toFixed(2)}% on the day
-              </div>
-              <div className="text-[13px] ink-fainter tabular-nums mt-1">
-                {PORTFOLIO.lifetimeMovePct >= 0 ? '+' : ''}
-                {PORTFOLIO.lifetimeMovePct.toFixed(2)}% since Day 1
-              </div>
-            </div>
-
-            <div className="text-meta ink-fainter mb-3">12 positions</div>
-            <ul className="space-y-2.5">
-              {PORTFOLIO.positions.map((p) => {
-                const move = ((p.current - p.costBasis) / p.costBasis) * 100;
-                return (
-                  <li key={p.symbol}>
-                    <Link
-                      to={`/v2/today/pick/${p.symbol}`}
-                      className="flex items-baseline justify-between gap-3 text-[13px] hover:ink-primary transition-colors"
-                    >
-                      <span className="font-mono ink-primary tabular-nums w-12 shrink-0">
-                        {p.symbol}
-                      </span>
-                      <span className="ink-fainter text-[11px] flex-1 truncate">
-                        Day {p.dayHeld}
-                      </span>
-                      <span className="ink-muted tabular-nums">
-                        {move >= 0 ? '+' : ''}
-                        {move.toFixed(1)}%
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        </aside>
+    <SurfaceCard variant="muted">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles className="size-4 ink-brand" aria-hidden />
+        <p
+          className="font-semibold uppercase"
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.16em',
+            color: 'var(--muted-foreground)',
+          }}
+        >
+          What changed
+        </p>
       </div>
+      <ul className="space-y-4">
+        {items.map((c, i) => (
+          <li key={i} className="flex items-baseline gap-4">
+            <span
+              aria-hidden
+              className="font-mono tabular-nums shrink-0 mt-0.5"
+              style={{
+                fontSize: 11,
+                color: 'var(--muted-foreground)',
+                width: 18,
+              }}
+            >
+              {String(i + 1).padStart(2, '0')}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2 mb-1 flex-wrap">
+                <span
+                  className="ink-primary leading-snug"
+                  style={{ fontSize: 14.5 }}
+                >
+                  {c.headline}
+                </span>
+                {c.symbol && (
+                  <span
+                    className="font-mono tabular-nums"
+                    style={{ fontSize: 11, color: 'var(--muted-foreground)' }}
+                  >
+                    {c.symbol}
+                  </span>
+                )}
+              </div>
+              <p
+                className="ink-muted leading-relaxed max-w-narrative"
+                style={{ fontSize: 13 }}
+              >
+                {c.body}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </SurfaceCard>
+  );
+}
 
+function StrongestSetupCard() {
+  const top = opportunities[0];
+  const entry = top ? getEntry(top.journalId) : null;
+  if (!top || !entry) return null;
+  return (
+    <SurfaceCard variant="highlight">
+      <div className="flex items-center gap-2 mb-4">
+        <Sparkles className="size-4 ink-brand" aria-hidden />
+        <p
+          className="font-semibold uppercase"
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.16em',
+            color: 'var(--brand)',
+          }}
+        >
+          Strongest setup
+        </p>
+      </div>
+      <div className="flex items-baseline gap-3 mb-3 flex-wrap">
+        <span
+          className="font-mono ink-primary tabular-nums"
+          style={{ fontSize: 18 }}
+        >
+          {top.ticker}
+        </span>
+        <RiskBadge risk={top.risk} />
+      </div>
+      <p
+        className="font-display ink-primary leading-snug mb-3 max-w-narrative"
+        style={{ fontSize: 20 }}
+      >
+        {top.thesis}
+      </p>
+      <p
+        className="ink-muted leading-relaxed mb-4 max-w-narrative"
+        style={{ fontSize: 14 }}
+      >
+        {top.edge}
+      </p>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <AcademyChips academies={top.academies} />
+        <span
+          className="font-mono tabular-nums"
+          style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
+        >
+          {top.daysToCatalyst}d to catalyst
+        </span>
+      </div>
+      <Link
+        to={`/v2/today/pick/${top.ticker}`}
+        className="inline-flex items-center gap-2 transition-colors"
+        style={{
+          fontSize: 13,
+          color: 'var(--brand)',
+          fontWeight: 600,
+        }}
+      >
+        Read the working <ArrowRight className="size-3.5" aria-hidden />
+      </Link>
+    </SurfaceCard>
+  );
+}
+
+function NearestCatalystCard() {
+  const sorted = [...opportunities].sort(
+    (a, b) => a.daysToCatalyst - b.daysToCatalyst,
+  );
+  const nearest = sorted[0];
+  const entry = nearest ? getEntry(nearest.journalId) : null;
+  if (!nearest || !entry) return null;
+  const catalyst = entry.catalysts[0];
+  return (
+    <SurfaceCard>
+      <div className="flex items-center gap-2 mb-4">
+        <Calendar
+          className="size-4"
+          style={{ color: 'var(--muted-foreground)' }}
+          aria-hidden
+        />
+        <p
+          className="font-semibold uppercase"
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.16em',
+            color: 'var(--muted-foreground)',
+          }}
+        >
+          Nearest catalyst
+        </p>
+      </div>
+      <div className="flex items-baseline gap-3 mb-2 flex-wrap">
+        <span
+          className="font-mono ink-primary tabular-nums"
+          style={{ fontSize: 16 }}
+        >
+          {nearest.ticker}
+        </span>
+        <span
+          className="font-mono tabular-nums"
+          style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
+        >
+          · {catalyst?.date}
+        </span>
+      </div>
+      <p
+        className="font-display ink-primary leading-snug mb-3 max-w-narrative"
+        style={{ fontSize: 19 }}
+      >
+        {catalyst?.label ?? 'Upcoming catalyst'}
+      </p>
+      <p
+        className="ink-muted leading-relaxed mb-4"
+        style={{ fontSize: 13.5 }}
+      >
+        <span
+          className="font-mono tabular-nums"
+          style={{ color: 'var(--brand)' }}
+        >
+          {nearest.daysToCatalyst} {nearest.daysToCatalyst === 1 ? 'day' : 'days'}
+        </span>{' '}
+        away — the moment the thesis behind {nearest.ticker} resolves.
+      </p>
+      <Link
+        to={`/v2/today/pick/${nearest.ticker}`}
+        className="inline-flex items-center gap-2 transition-colors"
+        style={{ fontSize: 13, color: 'var(--muted-foreground)' }}
+      >
+        Open the position →
+      </Link>
+    </SurfaceCard>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Aside cards
+// ──────────────────────────────────────────────────────────────
+
+function FollowedDecisionsCard() {
+  const followed = useFollowedDecisions();
+  const entries = followed
+    .map((id) => getEntry(id))
+    .filter((e): e is NonNullable<ReturnType<typeof getEntry>> => Boolean(e));
+  if (entries.length === 0) return null;
+  return (
+    <SurfaceCard>
+      <div className="flex items-center gap-2 mb-3">
+        <Eye className="size-4 ink-brand" aria-hidden />
+        <p
+          className="font-semibold uppercase"
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.16em',
+            color: 'var(--muted-foreground)',
+          }}
+        >
+          Following
+        </p>
+      </div>
+      <ul className="space-y-2.5">
+        {entries.slice(0, 4).map((e) => {
+          const pending = e.status === 'active' && !e.outcome;
+          return (
+            <li key={e.id}>
+              <Link
+                to={`/v2/reflections`}
+                className="group block -mx-2 px-2 py-2 rounded-lg transition-colors"
+                style={{
+                  backgroundColor: 'transparent',
+                }}
+                onMouseEnter={(ev) => {
+                  ev.currentTarget.style.backgroundColor =
+                    'color-mix(in oklch, var(--sage-light) 50%, transparent)';
+                }}
+                onMouseLeave={(ev) => {
+                  ev.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span
+                    className="font-mono font-semibold"
+                    style={{ fontSize: 11, color: 'var(--muted-foreground)' }}
+                  >
+                    {e.ticker}
+                  </span>
+                  {pending && (
+                    <span
+                      className="font-bold uppercase"
+                      style={{
+                        fontSize: 10,
+                        letterSpacing: '0.12em',
+                        color: 'var(--brand)',
+                      }}
+                    >
+                      · pending outcome
+                    </span>
+                  )}
+                </div>
+                <p
+                  className="ink-primary leading-snug"
+                  style={{ fontSize: 13 }}
+                >
+                  {e.headline}
+                </p>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </SurfaceCard>
+  );
+}
+
+function WorthLearningCard() {
+  // Pick first unread lesson; fall back to first lesson if all read.
+  const readSlugs = new Set(useReadLessons());
+  const lesson = LESSONS.find((l) => !readSlugs.has(l.slug)) ?? LESSONS[0];
+  if (!lesson) return null;
+  return (
+    <SurfaceCard variant="muted">
+      <div className="flex items-center gap-2 mb-3">
+        <BookOpen className="size-4 ink-brand" aria-hidden />
+        <p
+          className="font-semibold uppercase"
+          style={{
+            fontSize: 11,
+            letterSpacing: '0.16em',
+            color: 'var(--muted-foreground)',
+          }}
+        >
+          Worth learning
+        </p>
+      </div>
+      <p
+        className="font-display ink-primary leading-snug mb-2"
+        style={{ fontSize: 17 }}
+      >
+        {lesson.title}
+      </p>
+      <p
+        className="ink-muted leading-relaxed mb-3 max-w-narrative"
+        style={{ fontSize: 13 }}
+      >
+        {lesson.abstract}
+      </p>
+      <Link
+        to={`/v2/learn/lesson/${lesson.slug}`}
+        className="inline-flex items-center gap-1.5"
+        style={{
+          fontSize: 12,
+          color: 'var(--brand)',
+          fontWeight: 600,
+        }}
+      >
+        {lesson.readMinutes} min read →
+      </Link>
+    </SurfaceCard>
+  );
+}
+
+function PortfolioSummaryCard() {
+  return (
+    <SurfaceCard>
+      <p
+        className="font-semibold uppercase mb-3"
+        style={{
+          fontSize: 11,
+          letterSpacing: '0.16em',
+          color: 'var(--muted-foreground)',
+        }}
+      >
+        Portfolio
+      </p>
+      <div className="mb-3">
+        <div
+          className="font-display ink-primary tabular-nums leading-none mb-2"
+          style={{ fontSize: 28 }}
+        >
+          $
+          {PORTFOLIO.equity.toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          })}
+        </div>
+        <div
+          className="font-mono tabular-nums"
+          style={{ fontSize: 12.5 }}
+        >
+          <span
+            style={{
+              color:
+                PORTFOLIO.dayMovePct >= 0
+                  ? 'var(--brand)'
+                  : 'var(--destructive)',
+            }}
+          >
+            {PORTFOLIO.dayMovePct >= 0 ? '▲' : '▼'}{' '}
+            {PORTFOLIO.dayMovePct >= 0 ? '+' : ''}
+            {PORTFOLIO.dayMovePct.toFixed(2)}%
+          </span>{' '}
+          <span style={{ color: 'var(--muted-foreground)' }}>on the day</span>
+        </div>
+        <div
+          className="font-mono tabular-nums mt-1"
+          style={{ fontSize: 11.5, color: 'var(--muted-foreground)' }}
+        >
+          {PORTFOLIO.lifetimeMovePct >= 0 ? '+' : ''}
+          {PORTFOLIO.lifetimeMovePct.toFixed(2)}% since Day 1
+        </div>
+      </div>
+      <div
+        className="font-semibold uppercase mb-2.5"
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.12em',
+          color: 'var(--muted-foreground)',
+        }}
+      >
+        {PORTFOLIO.positions.length} positions
+      </div>
+      <ul className="space-y-1.5">
+        {PORTFOLIO.positions.slice(0, 6).map((p) => {
+          const move = ((p.current - p.costBasis) / p.costBasis) * 100;
+          return (
+            <li key={p.symbol}>
+              <Link
+                to={`/v2/today/pick/${p.symbol}`}
+                className="flex items-baseline justify-between gap-3 transition-colors"
+                style={{ fontSize: 12.5 }}
+              >
+                <span
+                  className="font-mono ink-primary tabular-nums shrink-0"
+                  style={{ width: 48 }}
+                >
+                  {p.symbol}
+                </span>
+                <span
+                  className="flex-1 truncate"
+                  style={{ fontSize: 11, color: 'var(--muted-foreground)' }}
+                >
+                  Day {p.dayHeld}
+                </span>
+                <span
+                  className="font-mono tabular-nums"
+                  style={{
+                    color:
+                      move >= 0 ? 'var(--brand)' : 'var(--destructive)',
+                  }}
+                >
+                  {move >= 0 ? '+' : ''}
+                  {move.toFixed(1)}%
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <Link
+        to="/v2/portfolio"
+        className="inline-flex items-center gap-1.5 mt-4 transition-colors"
+        style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
+      >
+        See practice account →
+      </Link>
+    </SurfaceCard>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// Today shell
+// ──────────────────────────────────────────────────────────────
+export function Briefing() {
+  return (
+    <ArthosPage topBarEyebrow="Today">
+      <FadeIn>
+        <PageHeader
+          eyebrow={greeting()}
+          title={
+            <>
+              A calm read on
+              <br />
+              the day ahead.
+            </>
+          }
+          description="No tickers to chase. Your AI copilot walks you through what changed, the strongest setup, the nearest catalyst, and one thing worth learning today."
+        />
+      </FadeIn>
+
+      <Section>
+        <div className="grid gap-5 lg:gap-6 lg:grid-cols-12">
+          <div className="lg:col-span-8 space-y-5 lg:space-y-6">
+            <FadeIn delay={0.05}>
+              <WhatChangedCard />
+            </FadeIn>
+            <FadeIn delay={0.1}>
+              <StrongestSetupCard />
+            </FadeIn>
+            <FadeIn delay={0.15}>
+              <NearestCatalystCard />
+            </FadeIn>
+          </div>
+
+          <aside className="lg:col-span-4 space-y-5 lg:space-y-6">
+            <FadeIn delay={0.2}>
+              <FollowedDecisionsCard />
+            </FadeIn>
+            <FadeIn delay={0.25}>
+              <WorthLearningCard />
+            </FadeIn>
+            <FadeIn delay={0.3}>
+              <PortfolioSummaryCard />
+            </FadeIn>
+          </aside>
+        </div>
+      </Section>
+
+      {/* Trust footer — methodology link reaffirms the AI Copilot
+          category every page. */}
+      <FadeIn delay={0.4}>
+        <div
+          className="mt-12 pt-8 flex flex-wrap items-center justify-between gap-3"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <Link
+            to="/v2/methodology"
+            className="inline-flex items-center gap-1.5 transition-colors"
+            style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
+          >
+            How ArthOS works →
+          </Link>
+          <p
+            className="italic"
+            style={{ fontSize: 11.5, color: 'var(--muted-foreground)' }}
+          >
+            Practice only · nothing real is at stake · not financial advice
+          </p>
+        </div>
+      </FadeIn>
+
+      {/* Journal-data import keeps the journalEntries source alive
+          for downstream surfaces (FollowedDecisionsCard uses getEntry). */}
+      <noscript>{journalEntries.length}</noscript>
     </ArthosPage>
   );
 }

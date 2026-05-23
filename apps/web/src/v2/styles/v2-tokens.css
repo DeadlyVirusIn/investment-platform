@@ -1,27 +1,28 @@
 /* ──────────────────────────────────────────────────────────────
  * V2 token system — scoped to .v2-root only.
  *
- * Coexistence rules:
- *   1. All custom CSS variables (--surface-*, --ink-*, --hairline,
- *      etc.) only resolve inside .v2-root. Existing app tokens
- *      (--surface-1, --ink, --bg) remain untouched.
- *   2. All custom utility classes (.ink-primary, .surface-drawer,
- *      .text-meta, .card-elevated, .glossary-term, etc.) are scoped
- *      to descendants of .v2-root. Outside that subtree they have
- *      no rules.
- *   3. Theme switching happens via [data-theme] on the .v2-root
- *      element itself, never on <html>. ThemeContext mirrors the
- *      state into v2-root via React.
- *   4. Font import is global (Google Fonts can't be scoped). Same
- *      Newsreader + Inter request already used elsewhere; no harm.
- *   5. No @layer base styles that touch <body> or <html>. Body bg
- *      is set by the .v2-root container only.
+ * Phase A visual-parity rewrite (2026-05-23):
+ *   - Light-first default (was dark-first)
+ *   - OKLCH "Serene Sage" palette ported from wise-start-bloom
+ *   - Adds brand color (sage green) — primary CTA + active states
+ *   - Adds sage-light hover wash, accent (sand), destructive (clay)
+ *   - Adds Instrument Serif (display) + Fraunces (editorial accents)
+ *     + JetBrains Mono (numerics) on top of existing Inter + Newsreader
+ *   - Existing token names (--surface-base, --ink-primary, --hairline,
+ *     etc.) preserved + remapped so existing pages continue rendering.
+ *     New tokens (--brand, --sage, --sage-light, --card, --accent,
+ *     --destructive, --ring) added for the new primitives.
+ *   - prose-editorial drop-cap utility added.
+ *
+ * Coexistence rules unchanged:
+ *   1. All custom CSS variables only resolve inside .v2-root.
+ *   2. Theme switching happens via [data-theme] on .v2-root.
+ *   3. No @layer base styles touching <body> / <html>.
  * ────────────────────────────────────────────────────────────── */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500&family=JetBrains+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&display=swap');
 
-/* Type scale — these clamp() values are intrinsic, scoping not
-   required. Keep as :root for accessibility tools. */
+/* Type scale */
 :root {
   --v2-type-masthead: clamp(36px, 5vw, 56px);
   --v2-type-headline: clamp(28px, 3.5vw, 40px);
@@ -30,42 +31,93 @@
   --v2-type-meta:     13px;
 }
 
-/* Default dark theme */
+/* ──────────────────────────────────────────────────────────────
+ * LIGHT THEME (default — Phase A flipped from dark-first)
+ * ────────────────────────────────────────────────────────────── */
 .v2-root,
-.v2-root[data-theme="dark"] {
-  --surface-base:        #0F0D0A;
-  --surface-drawer:      #18140E;
-  --surface-elevated:    #1F1B14;
-  --surface-translucent: rgba(15, 13, 10, 0.92);
-  --backdrop:            rgba(15, 13, 10, 0.7);
-  --ink-primary:         #ECE6D8;
-  --ink-muted:           #B5AC9B;
-  --ink-fainter:         #7C7568;
-  --verdict-on-warm:     #F2E9D4;
-  --verdict-on-cool:     #DEE3E8;
-  --hairline:            rgba(236, 230, 216, 0.08);
-  --warm-glow:           rgba(242, 233, 212, 0.04);
-}
-
 .v2-root[data-theme="light"] {
-  --surface-base:        #FAF7EE;
-  --surface-drawer:      #F2EDDE;
-  --surface-elevated:    #FFFCF3;
-  --surface-translucent: rgba(250, 247, 238, 0.92);
-  --backdrop:            rgba(26, 22, 17, 0.45);
-  --ink-primary:         #1A1611;
-  --ink-muted:           #5C5346;
-  --ink-fainter:         #978B79;
-  --verdict-on-warm:     #2C1F0F;
-  --verdict-on-cool:     #1D2A33;
-  --hairline:            rgba(26, 22, 17, 0.10);
-  --warm-glow:           rgba(26, 22, 17, 0.02);
+  /* Lovable Serene Sage palette — OKLCH */
+  --background:          oklch(0.985 0.005 90);
+  --surface:             oklch(0.985 0.005 90);
+  --foreground:          oklch(0.18 0.01 80);
+  --card:                oklch(1 0 0);
+  --card-foreground:     var(--foreground);
+  --muted:               oklch(0.94 0.008 100);
+  --muted-foreground:    oklch(0.45 0.01 90);
+  --brand:               oklch(0.38 0.05 150);
+  --brand-foreground:    oklch(0.985 0.005 90);
+  --sage:                oklch(0.55 0.04 150);
+  --sage-light:          oklch(0.92 0.012 130);
+  --accent:              oklch(0.74 0.09 65);
+  --accent-foreground:   oklch(0.18 0.01 80);
+  --destructive:         oklch(0.55 0.18 25);
+  --destructive-foreground: oklch(0.985 0.005 90);
+  --border:              oklch(0.18 0.01 80 / 8%);
+  --input:               oklch(0.18 0.01 80 / 12%);
+  --ring:                oklch(0.38 0.05 150 / 40%);
+  --popover:             oklch(1 0 0);
+  --popover-foreground:  var(--foreground);
+
+  /* Legacy V2 token aliases — keep existing pages rendering until
+     they migrate to the new primitives. */
+  --surface-base:        var(--background);
+  --surface-drawer:      var(--card);
+  --surface-elevated:    var(--muted);
+  --surface-translucent: oklch(0.985 0.005 90 / 0.92);
+  --backdrop:            oklch(0.18 0.01 80 / 0.45);
+  --ink-primary:         var(--foreground);
+  --ink-muted:           var(--muted-foreground);
+  --ink-fainter:         oklch(0.55 0.01 90);
+  --verdict-on-warm:     oklch(0.20 0.03 60);
+  --verdict-on-cool:     oklch(0.18 0.01 80);
+  --hairline:            var(--border);
+  --warm-glow:           oklch(0.18 0.01 80 / 0.02);
 }
 
-/* Container — applied to the v2 wrapper div */
+/* ──────────────────────────────────────────────────────────────
+ * DARK THEME — secondary, available via toggle
+ * ────────────────────────────────────────────────────────────── */
+.v2-root[data-theme="dark"] {
+  --background:          oklch(0.16 0.008 80);
+  --surface:             oklch(0.16 0.008 80);
+  --foreground:          oklch(0.96 0.005 90);
+  --card:                oklch(0.21 0.01 90);
+  --card-foreground:     var(--foreground);
+  --muted:               oklch(0.23 0.01 90);
+  --muted-foreground:    oklch(0.72 0.01 90);
+  --brand:               oklch(0.78 0.07 150);
+  --brand-foreground:    oklch(0.16 0.008 80);
+  --sage:                oklch(0.62 0.045 150);
+  --sage-light:          oklch(0.28 0.015 140);
+  --accent:              oklch(0.78 0.09 65);
+  --accent-foreground:   oklch(0.16 0.008 80);
+  --destructive:         oklch(0.65 0.18 25);
+  --destructive-foreground: oklch(0.96 0.005 90);
+  --border:              oklch(1 0 0 / 10%);
+  --input:               oklch(1 0 0 / 14%);
+  --ring:                oklch(0.78 0.07 150 / 50%);
+  --popover:             oklch(0.21 0.01 90);
+  --popover-foreground:  var(--foreground);
+
+  /* Legacy V2 aliases — dark variants */
+  --surface-base:        var(--background);
+  --surface-drawer:      var(--card);
+  --surface-elevated:    var(--muted);
+  --surface-translucent: oklch(0.16 0.008 80 / 0.92);
+  --backdrop:            oklch(0.16 0.008 80 / 0.7);
+  --ink-primary:         var(--foreground);
+  --ink-muted:           var(--muted-foreground);
+  --ink-fainter:         oklch(0.55 0.01 90);
+  --verdict-on-warm:     oklch(0.95 0.02 80);
+  --verdict-on-cool:     oklch(0.94 0.005 230);
+  --hairline:            var(--border);
+  --warm-glow:           oklch(1 0 0 / 0.04);
+}
+
+/* Container */
 .v2-root {
-  background-color: var(--surface-base);
-  color: var(--ink-primary);
+  background-color: var(--surface);
+  color: var(--foreground);
   font-family: 'Inter', system-ui, sans-serif;
   font-size: var(--v2-type-body);
   line-height: 1.6;
@@ -80,9 +132,7 @@
     color 400ms cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* Polish pass — defensive overflow guard for all .v2-root descendants
-   that contain editorial paragraphs. word-wrap allows breaking long
-   unbreakable strings; hyphens auto adds natural break points. */
+/* Defensive overflow guard */
 .v2-root p,
 .v2-root li,
 .v2-root blockquote,
@@ -103,17 +153,34 @@
 .v2-root a { color: inherit; text-decoration: none; }
 .v2-root input { color: inherit; }
 .v2-root ::selection {
-  background-color: var(--warm-glow);
-  color: var(--ink-primary);
+  background-color: color-mix(in oklch, var(--brand) 18%, transparent);
+  color: var(--foreground);
 }
 
-/* Typography utilities */
-.v2-root .font-serif {
-  font-family: 'Newsreader', Georgia, serif;
-  font-variation-settings: "opsz" 32;
+/* ──────────────────────────────────────────────────────────────
+ * Typography utilities (Phase A — three-tier serif system)
+ * ────────────────────────────────────────────────────────────── */
+
+/* Display serif — Instrument Serif. Reserved for masthead h1/h2. */
+.v2-root .font-display {
+  font-family: 'Instrument Serif', ui-serif, Georgia, serif;
+  font-weight: 400;
 }
-.v2-root .font-sans { font-family: 'Inter', system-ui, sans-serif; }
-.v2-root .font-mono { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+/* Editorial serif — Fraunces. Reserved for drop-cap + pullquote. */
+.v2-root .font-editorial {
+  font-family: 'Fraunces', ui-serif, Georgia, serif;
+  font-optical-sizing: auto;
+}
+/* Legacy alias — existing pages use .font-serif. Map to Instrument
+   Serif so unmigrated pages also pick up the new display face. */
+.v2-root .font-serif {
+  font-family: 'Instrument Serif', 'Newsreader', ui-serif, Georgia, serif;
+  font-weight: 400;
+}
+.v2-root .font-sans  { font-family: 'Inter', system-ui, sans-serif; }
+.v2-root .font-mono  {
+  font-family: 'JetBrains Mono', ui-monospace, "SF Mono", Menlo, monospace;
+}
 
 .v2-root .text-masthead {
   font-size: var(--v2-type-masthead);
@@ -141,25 +208,28 @@
 }
 
 /* Surface + ink utilities */
-.v2-root .surface-base     { background-color: var(--surface-base); }
-.v2-root .surface-drawer   { background-color: var(--surface-drawer); }
-.v2-root .surface-elevated { background-color: var(--surface-elevated); }
-.v2-root .ink-primary { color: var(--ink-primary); }
-.v2-root .ink-muted   { color: var(--ink-muted); }
+.v2-root .surface-base     { background-color: var(--surface); }
+.v2-root .surface-drawer   { background-color: var(--card); }
+.v2-root .surface-elevated { background-color: var(--muted); }
+.v2-root .surface-card     { background-color: var(--card); }
+.v2-root .surface-muted    { background-color: color-mix(in oklch, var(--sage-light) 40%, transparent); }
+.v2-root .ink-primary { color: var(--foreground); }
+.v2-root .ink-muted   { color: var(--muted-foreground); }
 .v2-root .ink-fainter { color: var(--ink-fainter); }
 .v2-root .ink-warm    { color: var(--verdict-on-warm); }
+.v2-root .ink-brand   { color: var(--brand); }
 
-.v2-root .border-hairline { border-color: var(--hairline); }
-.v2-root .bg-hairline     { background-color: var(--hairline); }
-.v2-root .border-ink-primary { border-color: var(--ink-primary); }
-.v2-root .border-ink-muted   { border-color: var(--ink-muted); }
+.v2-root .border-hairline { border-color: var(--border); }
+.v2-root .bg-hairline     { background-color: var(--border); }
+.v2-root .border-ink-primary { border-color: var(--foreground); }
+.v2-root .border-ink-muted   { border-color: var(--muted-foreground); }
 .v2-root .border-ink-fainter { border-color: var(--ink-fainter); }
+.v2-root .border-brand    { border-color: var(--brand); }
+.v2-root .bg-brand        { background-color: var(--brand); }
+.v2-root .bg-sage-light   { background-color: var(--sage-light); }
 
 .v2-root .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* Polish pass — responsive caps so narrative widths never exceed
-   the viewport on small screens. Was the root cause of onboarding
-   mobile text overflow. */
 .v2-root .max-w-reading   { max-width: min(64ch, 100%); }
 .v2-root .max-w-narrative { max-width: min(60ch, 100%); }
 .v2-root .max-w-copy      { max-width: min(72ch, 100%); }
@@ -170,33 +240,64 @@
   transition: border-color 200ms;
 }
 .v2-root .glossary-term:hover {
-  border-bottom-color: var(--ink-primary);
+  border-bottom-color: var(--brand);
 }
 
 .v2-root .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
 
-/* Soft elevated card with a barely-perceptible warm gradient */
+/* SurfaceCard primitive classes (used by <SurfaceCard> component) */
 .v2-root .card-elevated {
-  background-color: var(--surface-drawer);
-  background-image: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface-drawer) 100%);
-  border-radius: 20px;
-  transition: background-color 400ms, transform 300ms;
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  transition: background-color 300ms, border-color 300ms, transform 300ms;
+}
+.v2-root .card-muted {
+  background-color: color-mix(in oklch, var(--sage-light) 40%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+}
+.v2-root .card-highlight {
+  background-color: var(--card);
+  border: 1px solid color-mix(in oklch, var(--brand) 25%, transparent);
+  border-radius: 1rem;
+  box-shadow: 0 0 0 1px color-mix(in oklch, var(--brand) 10%, transparent);
 }
 
-/* Theme-aware subtle ring used for progress visuals */
-.v2-root .ring-track  { stroke: var(--hairline); }
-.v2-root .ring-active { stroke: var(--ink-primary); }
+/* Theme-aware ring used for progress visuals */
+.v2-root .ring-track  { stroke: var(--sage-light); }
+.v2-root .ring-active { stroke: var(--brand); }
 
 /* Smooth color transitions across the theme switch */
 .v2-root header,
 .v2-root aside,
 .v2-root button,
 .v2-root .card-elevated,
+.v2-root .card-muted,
+.v2-root .card-highlight,
 .v2-root .surface-drawer,
 .v2-root .surface-elevated {
   transition: background-color 400ms cubic-bezier(0.32, 0.72, 0, 1),
               border-color    400ms cubic-bezier(0.32, 0.72, 0, 1),
               color           400ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* prose-editorial — editorial reading surface, drop-cap brand-tinted */
+.v2-root .prose-editorial {
+  font-family: 'Inter', system-ui, sans-serif;
+  color: var(--foreground);
+  font-size: 1.0625rem;
+  line-height: 1.75;
+}
+.v2-root .prose-editorial > p { margin-bottom: 1.25em; }
+.v2-root .prose-editorial > p:first-of-type::first-letter {
+  font-family: 'Fraunces', ui-serif, Georgia, serif;
+  font-weight: 400;
+  float: left;
+  font-size: 3.75em;
+  line-height: 0.85;
+  padding: 0.1em 0.12em 0 0;
+  color: var(--brand);
 }
 
 /* Accessibility — applied via UserPrefsContext */
