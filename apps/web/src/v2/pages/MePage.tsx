@@ -235,9 +235,120 @@ export function MePage() {
                 </div>
               )}
             </div>
+            <Link
+              to="/v2/reflections"
+              className="inline-flex items-center mt-4 text-meta ink-fainter hover:ink-muted transition-colors"
+            >
+              See all reflections →
+            </Link>
           </section>
         </FadeIn>
       )}
+
+      {/* UX Phase 3A — Learning loops. For each lesson the user has
+          read, surface any paper trade opened from it (via
+          originLessonSlug). Closes the read→reflect→try→track loop
+          visibly on the personal hub. */}
+      {(() => {
+        const loopsByLesson = new Map<
+          string,
+          { positions: typeof paper.positions; history: typeof paper.history }
+        >();
+        const allLessonSlugs = new Set<string>(lessonsRead);
+        for (const p of paper.positions) {
+          if (p.originLessonSlug) allLessonSlugs.add(p.originLessonSlug);
+        }
+        for (const h of paper.history) {
+          if (h.originLessonSlug) allLessonSlugs.add(h.originLessonSlug);
+        }
+        for (const slug of allLessonSlugs) {
+          loopsByLesson.set(slug, {
+            positions: paper.positions.filter(
+              (p) => p.originLessonSlug === slug,
+            ),
+            history: paper.history.filter(
+              (h) => h.originLessonSlug === slug,
+            ),
+          });
+        }
+        const loops = Array.from(loopsByLesson.entries())
+          .map(([slug, data]) => ({ slug, lesson: getLesson(slug), ...data }))
+          .filter((x) => x.lesson)
+          .sort((a, b) =>
+            (a.lesson?.title ?? '').localeCompare(b.lesson?.title ?? ''),
+          );
+        if (loops.length === 0) return null;
+        return (
+          <FadeIn delay={0.32}>
+            <section className="mb-12 sm:mb-16">
+              <MetaLabel>Your learning loops</MetaLabel>
+              <ul className="mt-4 space-y-px bg-hairline">
+                {loops.map((loop) => {
+                  const reflected = reflections.some(
+                    (r) =>
+                      r.kind === 'lesson-capture' &&
+                      r.targetId === loop.slug,
+                  );
+                  const tried =
+                    loop.positions.length + loop.history.length > 0;
+                  const reviewed = loop.history.length > 0;
+                  return (
+                    <li key={loop.slug}>
+                      <Link
+                        to={`/v2/try/${loop.slug}`}
+                        className="block surface-drawer p-5 sm:p-6 hover:opacity-90 transition-opacity"
+                      >
+                        <div className="font-serif ink-primary text-[17px] leading-snug mb-2 max-w-narrative">
+                          {loop.lesson!.title}
+                        </div>
+                        <div className="text-meta ink-fainter flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span
+                            style={{
+                              color: 'var(--ink-muted)',
+                            }}
+                          >
+                            ✓ Read
+                          </span>
+                          <span
+                            style={{
+                              color: reflected
+                                ? 'var(--ink-muted)'
+                                : 'var(--ink-fainter)',
+                            }}
+                          >
+                            {reflected ? '✓' : '·'} Reflected
+                          </span>
+                          <span
+                            style={{
+                              color: tried
+                                ? 'var(--ink-muted)'
+                                : 'var(--ink-fainter)',
+                            }}
+                          >
+                            {tried ? '✓' : '·'} Tried
+                            {tried
+                              ? ` (${loop.positions.length} open, ${loop.history.length} closed)`
+                              : ''}
+                          </span>
+                          <span
+                            style={{
+                              color: reviewed
+                                ? 'var(--ink-muted)'
+                                : 'var(--ink-fainter)',
+                            }}
+                          >
+                            {reviewed ? '✓' : '·'} Reviewed
+                          </span>
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          </FadeIn>
+        );
+      })()}
 
       {(openPositions > 0 || closedTrades > 0) && (
         <FadeIn delay={0.35}>

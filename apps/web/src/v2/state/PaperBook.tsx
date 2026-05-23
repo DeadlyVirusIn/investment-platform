@@ -34,6 +34,10 @@ export interface PaperPosition {
   target?: string;
   invalidate?: string;
   openedAt: number;
+  // UX Phase 3A — optional pointer back to the lesson that produced
+  // this trade. Set by /v2/try/:lessonSlug when openFromRec is called.
+  // Existing positions without it continue loading fine.
+  originLessonSlug?: string;
 }
 
 export interface PaperHistoryEntry {
@@ -44,6 +48,10 @@ export interface PaperHistoryEntry {
   pnlPct: number;
   daysHeld: number;
   closedAt: number;
+  // UX Phase 3A — carried over from PaperPosition on close so the
+  // learning-loop chain on /v2/me and /v2/learn/lesson/:slug can show
+  // outcomes alongside the lessons that produced them.
+  originLessonSlug?: string;
 }
 
 interface PaperBookState {
@@ -65,7 +73,8 @@ interface PaperBookValue extends PaperBookState {
   realizedPnL: number;
   openFromRec: (
     rec: Recommendation,
-    quantity?: number
+    quantity?: number,
+    originLessonSlug?: string,
   ) => { ok: boolean; reason?: string };
   closePosition: (id: string) => void;
   resetBook: () => void;
@@ -139,7 +148,11 @@ export function PaperBookProvider({ children }: { children: ReactNode }) {
   }, [state.positions.length]);
 
   const openFromRec = useCallback(
-    (rec: Recommendation, quantityOverride?: number) => {
+    (
+      rec: Recommendation,
+      quantityOverride?: number,
+      originLessonSlug?: string,
+    ) => {
       if (!rec.placeable || !rec.side || rec.entryPrice === undefined) {
         return {
           ok: false,
@@ -185,6 +198,7 @@ export function PaperBookProvider({ children }: { children: ReactNode }) {
         target: rec.target,
         invalidate: rec.invalidate,
         openedAt: Date.now(),
+        originLessonSlug: originLessonSlug ?? rec.lessonSlug,
       };
       setState((prev) => ({
         ...prev,
@@ -215,6 +229,7 @@ export function PaperBookProvider({ children }: { children: ReactNode }) {
         pnlPct,
         daysHeld,
         closedAt: Date.now(),
+        originLessonSlug: p.originLessonSlug,
       };
       return {
         ...prev,

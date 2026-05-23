@@ -260,6 +260,34 @@ export function LessonPage() {
         <ReflectionSection slug={slug} title={lesson.title} />
       )}
 
+      {/* UX Phase 3A — Try-this-idea CTA. Bridges Read→Reflect into
+          Try→Track→Review via /v2/try/:lessonSlug. */}
+      {slug && lesson.connectedSymbol && (
+        <motion.section
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.47 }}
+          className="mt-16 pt-10 border-t border-hairline"
+        >
+          <MetaLabel>Try this idea</MetaLabel>
+          <p className="mt-3 ink-muted leading-relaxed text-[15px] max-w-narrative">
+            This lesson connects to {lesson.connectedSymbol}. Open a
+            paper trade with the thesis already filled in — nothing real
+            is at stake.
+          </p>
+          <Link
+            to={`/v2/try/${slug}`}
+            className="inline-flex items-center mt-5 px-5 py-3 rounded-full text-[13.5px] font-semibold tracking-tight transition-opacity hover:opacity-90"
+            style={{
+              backgroundColor: 'var(--ink-primary)',
+              color: 'var(--surface-base)',
+            }}
+          >
+            Try this idea as a paper trade →
+          </Link>
+        </motion.section>
+      )}
+
       {connectedPosition && (
         <motion.section
           initial={{ opacity: 0, y: 6 }}
