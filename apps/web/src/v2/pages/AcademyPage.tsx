@@ -16,6 +16,16 @@ import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { PATHS, getLessonsForPath } from '../data/arthosData';
 import { useLessonRead } from '../lib/lesson-progress';
 
+// Path slug → /v2/learn/<route> mapping. Only paths listed here have a
+// registered route in V2App.tsx; the "Continue exploring" footer
+// filters against this map so users never land on a 404. Add a path
+// here when its academy route ships.
+const ACADEMY_ROUTE_BY_PATH: Record<string, string> = {
+  'how-markets-actually-work': 'stocks',
+  'risk-literacy': 'risk',
+  'options-literacy': 'options',
+};
+
 function FadeIn({
   delay = 0,
   children,
@@ -137,18 +147,12 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
         <div className="mt-20 pt-10 border-t border-hairline">
           <MetaLabel>Continue exploring</MetaLabel>
           <div className="mt-4 flex flex-wrap gap-3">
-            {PATHS.filter((p) => p.slug !== pathSlug).map((p) => (
+            {PATHS.filter(
+              (p) => p.slug !== pathSlug && ACADEMY_ROUTE_BY_PATH[p.slug],
+            ).map((p) => (
               <Link
                 key={p.slug}
-                to={`/v2/learn/${
-                  p.slug === 'how-markets-actually-work'
-                    ? 'stocks'
-                    : p.slug === 'risk-literacy'
-                    ? 'risk'
-                    : p.slug === 'options-literacy'
-                    ? 'options'
-                    : p.slug
-                }`}
+                to={`/v2/learn/${ACADEMY_ROUTE_BY_PATH[p.slug]}`}
                 className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
               >
                 {p.title}
