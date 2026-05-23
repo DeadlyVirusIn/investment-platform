@@ -27,6 +27,10 @@ import { Watchlist } from './pages/Watchlist';
 // Lovable port (Phase 4) — academy + glossary index surfaces.
 import { AcademyPage } from './pages/AcademyPage';
 import { GlossaryIndex } from './pages/GlossaryIndex';
+// UX Phase 2 — guided coach surfaces.
+import { StartHere } from './pages/StartHere';
+import { MePage } from './pages/MePage';
+import { Methodology } from './pages/Methodology';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -49,6 +53,10 @@ function V2Surface() {
       <Onboarding />
       <Routes>
         <Route index element={<Navigate to="learn" replace />} />
+        {/* UX Phase 2 — guided coach surfaces. */}
+        <Route path="start" element={<StartHere />} />
+        <Route path="me" element={<MePage />} />
+        <Route path="methodology" element={<Methodology />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}

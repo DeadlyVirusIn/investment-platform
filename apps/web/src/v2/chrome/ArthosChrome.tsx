@@ -91,18 +91,26 @@ export function TopBar() {
 // ──────────────────────────────────────────────────────────────
 // Tier-1 nav — only routes that exist
 // ──────────────────────────────────────────────────────────────
+// UX Phase 2 — renames per nav simplification roadmap. URLs stay
+// stable so deep-links continue working; only labels change.
+//   Opportunities → Trade Ideas
+//   Paper Book    → Practice Account
+//   Field Notes   → Notes
+//   Catalysts     → Coming Up
 const NAV_ITEMS = [
   { label: "Today's Briefing", to: '/v2/today' },
-  { label: 'Opportunities', to: '/v2/opportunities' },
-  { label: 'Catalysts', to: '/v2/catalysts' },
+  { label: 'Trade Ideas', to: '/v2/opportunities' },
+  { label: 'Coming Up', to: '/v2/catalysts' },
   { label: 'Learn', to: '/v2/learn' },
-  { label: 'Paper book', to: '/v2/portfolio' },
+  { label: 'Practice Account', to: '/v2/portfolio' },
   { label: 'Track Record', to: '/v2/track-record' },
+  { label: 'Your ArthOS', to: '/v2/me' },
 ];
 
 const NAV_SECONDARY = [
-  { label: 'Field Notes', to: '/v2/field-notes' },
+  { label: 'Notes', to: '/v2/field-notes' },
   { label: 'Watchlist', to: '/v2/watchlist' },
+  { label: 'Methodology', to: '/v2/methodology' },
 ];
 
 function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -246,11 +254,15 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 // ──────────────────────────────────────────────────────────────
 // Mobile bottom tab
 // ──────────────────────────────────────────────────────────────
+// UX Phase 2 — bottom-tab nav rebalanced for novice journey.
+// "Trade Ideas" + "Coming Up" demoted to the slide-out drawer;
+// "Learn" + "Your ArthOS (Me)" promoted to the mobile-default surface
+// since those carry the daily-coach loop.
 const MOBILE_TABS = [
   { label: 'Today', to: '/v2/today' },
-  { label: 'Opps', to: '/v2/opportunities' },
-  { label: 'Catalysts', to: '/v2/catalysts' },
   { label: 'Learn', to: '/v2/learn' },
+  { label: 'Practice', to: '/v2/portfolio' },
+  { label: 'Me', to: '/v2/me' },
 ];
 
 export function MobileBottomTab() {
