@@ -20,6 +20,7 @@ import { PickPage } from './pages/PickPage';
 import { PaperBook } from './pages/PaperBook';
 import { TrackRecord } from './pages/TrackRecord';
 import { LessonPage } from './pages/LessonPage';
+import { Opportunities } from './pages/Opportunities';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -46,6 +47,7 @@ function V2Surface() {
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         <Route path="today" element={<Briefing />} />
         <Route path="today/pick/:symbol" element={<PickPage />} />
+        <Route path="opportunities" element={<Opportunities />} />
         <Route path="portfolio" element={<PaperBook />} />
         <Route path="track-record" element={<TrackRecord />} />
         <Route path="*" element={<Navigate to="learn" replace />} />
