@@ -82,10 +82,20 @@ import StrategiesPage                 from '@/pages/StrategiesPage';
 import SignalLabPage                  from '@/pages/SignalLabPage';
 import PortfolioIntelligencePage      from '@/pages/PortfolioIntelligencePage';
 
+// Tier-1 V2 surface (MagicPatterns port). Coexists at /v2/* —
+// existing routes untouched. Remove this import + Route line to
+// fully revert.
+import V2App from '@/v2/V2App';
+
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/overview" replace />} />
+
+      {/* Tier-1 V2 surface — additive, scoped under .v2-root for
+          token isolation. Defaults to /v2/learn. */}
+      <Route path="/v2/*" element={<V2App />} />
+
 
       <Route element={<Shell />}>
         {/* --- NEW 5-area product --- */}
