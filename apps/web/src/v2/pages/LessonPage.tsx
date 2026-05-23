@@ -11,6 +11,9 @@ import {
 } from '../chrome/ArthosChrome';
 import { getLesson, PATHS, getPosition } from '../data/arthosData';
 import { useUserPrefs } from '../state/UserPrefsContext';
+// Lovable port (Phase 5) — local-first reflection footer.
+import { ReflectionCapture } from '../components/ReflectionCapture';
+import { markLessonRead, useLessonRead } from '../lib/lesson-progress';
 
 export function LessonPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -251,6 +254,12 @@ export function LessonPage() {
         </motion.section>
       )}
 
+      {/* Lovable port (Phase 5) — reflection block. Sits between
+          highlights and the connected-trade footer; local-only. */}
+      {slug && (
+        <ReflectionSection slug={slug} title={lesson.title} />
+      )}
+
       {connectedPosition && (
         <motion.section
           initial={{ opacity: 0, y: 6 }}
@@ -285,5 +294,36 @@ export function LessonPage() {
         </motion.section>
       )}
     </ArthosPage>
+  );
+}
+
+// Lovable port (Phase 5) — reflection footer with read-receipt toggle.
+// Split into its own function so the read-state hook stays scoped here.
+function ReflectionSection({ slug, title }: { slug: string; title: string }) {
+  const isRead = useLessonRead(slug);
+  return (
+    <motion.section
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.45 }}
+      className="mt-20 pt-12 border-t border-hairline"
+    >
+      <div className="flex items-baseline justify-between mb-4 gap-3">
+        <MetaLabel>Reflect</MetaLabel>
+        <button
+          type="button"
+          onClick={() => markLessonRead(slug, !isRead)}
+          className="text-meta ink-fainter hover:ink-muted transition-colors"
+          aria-pressed={isRead}
+        >
+          {isRead ? '✓ Marked read' : 'Mark lesson read'}
+        </button>
+      </div>
+      <ReflectionCapture
+        kind="lesson-capture"
+        targetId={slug}
+        prompt={`What in "${title}" do you want to remember in a month?`}
+      />
+    </motion.section>
   );
 }
