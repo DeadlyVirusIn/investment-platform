@@ -250,7 +250,7 @@ export default function PortfolioTerminal() {
           replayPositionsMarketValue:
             summary?.replay_positions_market_value ?? null,
           replayRealizedPnlCumulative:
-            (summary as Record<string, unknown> | null)
+            (summary as unknown as Record<string, unknown> | null)
               ?.replay_realized_pnl_cumulative as number | null
             ?? null,
           asOf: summary?.as_of_date ?? null,
