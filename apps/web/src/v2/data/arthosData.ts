@@ -24,8 +24,12 @@ export interface Lesson {
 }
 
 export type LessonBlock =
-{type: 'p';text: string;} // paragraph; supports <term:slug>…</term> markup
-| {type: 'pullquote';text: string;};
+| {type: 'p';text: string;} // paragraph; supports <term:slug>…</term> markup
+| {type: 'pullquote';text: string;}
+// Lovable port (Phase 3): richer block types for academy lessons.
+| {type: 'h2';text: string;}
+| {type: 'callout';tone: 'insight' | 'caution' | 'reflect';title: string;text: string;}
+| {type: 'list';items: string[];};
 
 export interface GlossaryTerm {
   slug: string;
@@ -658,7 +662,9 @@ export const PATHS: Path[] = [
   lessonSlugs: [
   'what-is-a-stock',
   'why-prices-move-when-nothing-happens',
-  'what-is-a-signal']
+  'what-is-a-signal',
+  'reading-a-thesis',
+  'catalysts-and-timing']
 
 },
 {
@@ -667,7 +673,24 @@ export const PATHS: Path[] = [
   title: 'Risk literacy',
   synopsis:
   'Risk is not the loss. Risk is what you cannot recover from. Five lessons on drawdown, stops, and the math of staying in the game.',
-  lessonSlugs: ['why-great-investors-do-nothing-most-days']
+  lessonSlugs: [
+  'why-great-investors-do-nothing-most-days',
+  'position-sizing-rule',
+  'drawdown-recovery-math',
+  'exiting-when-wrong']
+
+},
+{
+  slug: 'options-literacy',
+  tier: 'Skill',
+  title: 'Options literacy',
+  synopsis:
+  'Precise tools for trading direction, time, and volatility. Earned access — finish Risk first.',
+  lessonSlugs: [
+  'options-as-leverage',
+  'implied-vs-realized',
+  'defined-risk-spreads']
+
 },
 {
   slug: 'portfolio-psychology',
@@ -791,6 +814,319 @@ export const LESSONS: Lesson[] = [
     text: "When the price changes, what changed is the market's collective estimate of that future stream. Sometimes the estimate gets sharper. Often it gets noisier. The investor's job is to know which is which."
   }]
 
+},
+// ────────────────────────────────────────────────────────────────────
+// Lovable port (Phase 3) — academy lessons, voice retuned to ArthOS.
+// Schema extended: blocks now include h2, callout, list (see LessonBlock).
+// ────────────────────────────────────────────────────────────────────
+{
+  slug: 'reading-a-thesis',
+  pathSlug: 'how-markets-actually-work',
+  order: 4,
+  title: 'How to read (and write) a thesis',
+  abstract: 'A thesis is a falsifiable claim — not a hope. If you can\'t write what would prove you wrong, you don\'t have one.',
+  readMinutes: 5,
+  read: false,
+  connectedSymbol: 'NVDA',
+  body: [
+  {
+    type: 'p',
+    text: "Every position in this portfolio starts with a thesis. Learning to read one is the fastest way to evaluate whether to follow a call — or to write your own."
+  },
+  {
+    type: 'h2',
+    text: 'Three parts of a clean thesis'
+  },
+  {
+    type: 'list',
+    items: [
+    'A claim — what you believe will happen',
+    'A reason — why it should happen',
+    'A break point — what would prove you wrong']
+
+  },
+  {
+    type: 'callout',
+    tone: 'insight',
+    title: 'The break point matters most',
+    text: 'Without a written break point, every dip is room for hope. With one, the exit decision is already made — you just wait to see if you were right.'
+  },
+  {
+    type: 'p',
+    text: "When the reason you bought no longer holds, the right move is almost never to wait for price to confirm. Price confirms slowly. The thesis already told you."
+  },
+  {
+    type: 'pullquote',
+    text: "A thesis you can't break is a thesis you can't trust."
+  },
+  {
+    type: 'callout',
+    tone: 'caution',
+    title: 'Common mistake',
+    text: 'Keeping a position because you are up. Profit is not a thesis. Exit on logic, not on PnL.'
+  }]
+
+},
+{
+  slug: 'catalysts-and-timing',
+  pathSlug: 'how-markets-actually-work',
+  order: 5,
+  title: 'Catalysts: the calendar that moves prices',
+  abstract: 'Most price moves are random. The few that are not cluster around catalysts you can see coming.',
+  readMinutes: 4,
+  read: false,
+  connectedSymbol: 'AMAT',
+  body: [
+  {
+    type: 'p',
+    text: 'Earnings, macro prints, product launches — these are the visible reasons price changes. Most days, none of them happen. On the days they do, the move is rarely random.'
+  },
+  {
+    type: 'h2',
+    text: 'Four catalyst types'
+  },
+  {
+    type: 'list',
+    items: [
+    'Earnings — the quarterly truth-test',
+    'Macro — inflation, jobs, central bank decisions',
+    'Product — launches, approvals, design wins',
+    'Guidance — analyst days and capital-markets updates']
+
+  },
+  {
+    type: 'p',
+    text: 'A catalyst gives a thesis a deadline. It is the moment to check whether the reasoning held — not the moment to discover what the reasoning was.'
+  },
+  {
+    type: 'callout',
+    tone: 'reflect',
+    title: 'Look ahead',
+    text: "What is the next catalyst for the largest position you'd consider owning? If you don't know, you are not ready to size it."
+  }]
+
+},
+{
+  slug: 'position-sizing-rule',
+  pathSlug: 'risk-literacy',
+  order: 2,
+  title: 'Position sizing is the whole game',
+  abstract: 'Being right small and wrong big is how careers end. Size for the loss you can survive, not the gain you can imagine.',
+  readMinutes: 5,
+  read: false,
+  connectedSymbol: 'BRK.B',
+  body: [
+  {
+    type: 'p',
+    text: "Investors obsess over what to buy. The harder, more important question is how much. <term:position-sizing>Position sizing</term> decides whether being right matters."
+  },
+  {
+    type: 'h2',
+    text: 'The one-percent floor'
+  },
+  {
+    type: 'p',
+    text: 'Risk no more than about 1% of the portfolio per idea, measured on the distance between entry and the invalidation point. This is not a law. It is a floor — the floor that keeps you in the game long enough to learn.'
+  },
+  {
+    type: 'callout',
+    tone: 'insight',
+    title: 'Concentration is not conviction',
+    text: "When we <term:trim>trim</term> a winner, we are not reversing the view. We are sizing it. Conviction stays. Concentration comes down."
+  },
+  {
+    type: 'pullquote',
+    text: "Size for the loss you can survive, not the gain you can imagine."
+  },
+  {
+    type: 'callout',
+    tone: 'caution',
+    title: 'When in doubt',
+    text: 'When conviction and concentration get tangled, the answer is almost always smaller — not out.'
+  }]
+
+},
+{
+  slug: 'drawdown-recovery-math',
+  pathSlug: 'risk-literacy',
+  order: 3,
+  title: 'Drawdowns: the math you would rather not know',
+  abstract: 'Losses and recoveries are asymmetric. Down 50% means you need plus 100% to break even.',
+  readMinutes: 4,
+  read: false,
+  connectedSymbol: 'AMAT',
+  body: [
+  {
+    type: 'p',
+    text: "A <term:drawdown>drawdown</term> is not just a number. It is the asymmetry the math of recovery imposes on every account: the deeper the dip, the steeper the climb out."
+  },
+  {
+    type: 'h2',
+    text: 'The recovery table'
+  },
+  {
+    type: 'list',
+    items: [
+    '−10% loss → +11% to recover',
+    '−20% loss → +25% to recover',
+    '−50% loss → +100% to recover',
+    '−75% loss → +300% to recover']
+
+  },
+  {
+    type: 'p',
+    text: 'Avoiding the worst losses matters more than catching the best winners. The portfolio that never falls 50% does not need a 100% year to feel whole.'
+  },
+  {
+    type: 'callout',
+    tone: 'reflect',
+    title: 'Pause here',
+    text: "What is the largest single-day drop you have actually lived through with real money on the line? That is your real risk tolerance — not what a questionnaire says."
+  }]
+
+},
+{
+  slug: 'exiting-when-wrong',
+  pathSlug: 'risk-literacy',
+  order: 4,
+  title: 'Exiting cleanly when you are wrong',
+  abstract: 'An honest exit is worth more than a clever entry. Every mistake-log entry is a tuition bill.',
+  readMinutes: 5,
+  read: false,
+  connectedSymbol: 'KRE',
+  body: [
+  {
+    type: 'p',
+    text: 'Every closed position with a loss is a tuition bill paid to the next position. Read them with the same care you would read a winning trade.'
+  },
+  {
+    type: 'h2',
+    text: 'Three exit triggers'
+  },
+  {
+    type: 'list',
+    items: [
+    'Thesis broken — the reason no longer holds',
+    'Stop hit — price moved beyond the line we drew',
+    'Better opportunity — capital has a higher use elsewhere']
+
+  },
+  {
+    type: 'callout',
+    tone: 'insight',
+    title: 'Exit on logic, not on price',
+    text: 'When the second-order assumption breaks — when the thing the thesis quietly depended on stops being true — close the position. Do not wait for price to confirm what the call already said.'
+  },
+  {
+    type: 'pullquote',
+    text: "The honest exit is the one that does not require a story."
+  }]
+
+},
+{
+  slug: 'options-as-leverage',
+  pathSlug: 'options-literacy',
+  order: 1,
+  title: 'Options are leverage, not lottery tickets',
+  abstract: 'Calls and puts are precise tools. Used carelessly, they are expensive ones. Options trade time, not just direction.',
+  readMinutes: 6,
+  read: false,
+  connectedSymbol: 'NVDA',
+  body: [
+  {
+    type: 'p',
+    text: 'Before you trade your first option, understand what you are buying: a contract that gives you the right — not the obligation — to act, before a specific date.'
+  },
+  {
+    type: 'h2',
+    text: 'Two contracts, two directions'
+  },
+  {
+    type: 'list',
+    items: [
+    'A call gives you the right to buy — bullish exposure',
+    'A put gives you the right to sell — bearish or protective exposure']
+
+  },
+  {
+    type: 'callout',
+    tone: 'caution',
+    title: 'Time decays. Always.',
+    text: 'Every option loses value every day, all else equal. You are not just betting on direction — you are betting on it happening in time.'
+  },
+  {
+    type: 'pullquote',
+    text: "An option is a position with a deadline."
+  }]
+
+},
+{
+  slug: 'implied-vs-realized',
+  pathSlug: 'options-literacy',
+  order: 2,
+  title: 'Implied vs realized — the only edge worth chasing',
+  abstract: 'When the market prices a bigger move than usually happens, premium-sellers eat. The spread is the edge.',
+  readMinutes: 6,
+  read: false,
+  connectedSymbol: 'NVDA',
+  body: [
+  {
+    type: 'p',
+    text: 'Most option edges reduce to one question: is implied volatility rich or cheap relative to what tends to actually happen?'
+  },
+  {
+    type: 'h2',
+    text: 'The percentile case'
+  },
+  {
+    type: 'p',
+    text: 'When the implied move sits in the 78th percentile of trailing implieds, that is a structural setup — not a directional view. Premium-selling expressions get cleaner the further into the upper tail you go.'
+  },
+  {
+    type: 'callout',
+    tone: 'insight',
+    title: 'The spread is the edge',
+    text: 'If the option market is pricing a 7% move and the stock has historically moved 5% in that window, selling the premium is selling the spread. The trade is not about direction — it is about the gap.'
+  },
+  {
+    type: 'pullquote',
+    text: "Sell when premium is rich; buy when it is cheap. The rest is execution."
+  }]
+
+},
+{
+  slug: 'defined-risk-spreads',
+  pathSlug: 'options-literacy',
+  order: 3,
+  title: 'Defined-risk spreads: capping the worst case',
+  abstract: 'Naked options can lose multiples of premium. Spreads define your worst case up front — at the cost of capping your best case too.',
+  readMinutes: 5,
+  read: false,
+  connectedSymbol: 'NVDA',
+  body: [
+  {
+    type: 'p',
+    text: 'A spread structure is two options of the same type, opened together, with one offsetting the other. The result is a position whose worst case is a known dollar number — not a theoretical multiple.'
+  },
+  {
+    type: 'h2',
+    text: 'The trade-off in one line'
+  },
+  {
+    type: 'p',
+    text: 'You give up uncapped upside in exchange for a known maximum loss. For most beginners, that trade is worth making every time.'
+  },
+  {
+    type: 'callout',
+    tone: 'reflect',
+    title: 'Stop and ask',
+    text: 'Of the last five paper trades you have opened, could you have stated the maximum loss in one number before clicking? If not, the structure is the problem.'
+  },
+  {
+    type: 'pullquote',
+    text: "Trade structures whose worst case you can name before you click."
+  }]
+
 }];
 
 
@@ -882,6 +1218,159 @@ export const GLOSSARY: GlossaryTerm[] = [
   }],
 
   lessonRefs: ['what-is-a-signal']
+},
+// ────────────────────────────────────────────────────────────────────
+// Lovable port (Phase 3) — academy glossary terms, voice retuned.
+// ────────────────────────────────────────────────────────────────────
+{
+  slug: 'thesis',
+  term: 'thesis',
+  shortDefinition: 'The written reason a position is open — claim, reason, and break point.',
+  longDefinition:
+  'A thesis names what you believe, why it should happen, and what would prove you wrong. Without the break point, every dip becomes room for hope. With it, the exit is already decided.',
+  body:
+  'A thesis is the written reason a position is on. It names a claim, a reason that claim should hold, and the specific evidence that would falsify it. The third part is the one most beginners skip — and the one that matters most when the position moves against them.',
+  examples: [
+  {
+    symbol: 'NVDA',
+    date: '2026-05-22',
+    outcome:
+    'Trimmed semis exposure when hyperscaler-capex thesis remained intact but concentration drifted past 5%.'
+  }],
+
+  lessonRefs: ['reading-a-thesis', 'exiting-when-wrong']
+},
+{
+  slug: 'catalyst',
+  term: 'catalyst',
+  shortDefinition: 'A specific event expected to move a price — earnings, macro print, product launch.',
+  longDefinition:
+  'A catalyst is a dated event that gives a thesis a deadline and a moment to be checked. Earnings, macro prints, regulatory decisions, product launches. Without a catalyst, a thesis is a slow-burn opinion; with one, it has a verification point.',
+  body:
+  "Catalysts cluster in time and matter unequally. Earnings cluster ahead of macro prints. Product launches cluster around design wins. The skill is not in spotting every catalyst — it is in knowing which ones the position you hold actually depends on.",
+  examples: [
+  {
+    symbol: 'NVDA',
+    date: '2026-05-28',
+    outcome:
+    'Nvidia FQ1 earnings was the dated catalyst behind the semis sizing call.'
+  }],
+
+  lessonRefs: ['catalysts-and-timing']
+},
+{
+  slug: 'position-sizing',
+  term: 'position sizing',
+  shortDefinition: 'How much of the portfolio a single idea is allowed to risk.',
+  longDefinition:
+  "Position sizing is the most underrated lever in investing. A great idea sized wrong becomes a small win or a career-ending loss. The right size for a thesis is usually smaller than the size emotion wants to take.",
+  body:
+  'Position sizing decides whether being right matters. Sized too large, a position becomes hard to hold through ordinary volatility. Sized too small, it becomes irrelevant to the outcome. Most of the work in this portfolio happens here — not in stock selection.',
+  examples: [
+  {
+    symbol: 'NVDA',
+    date: '2026-05-22',
+    outcome:
+    'Trimmed from 8% to 4.5% — kept directional exposure without exceeding 5% per name into a catalyst cluster.'
+  }],
+
+  lessonRefs: ['position-sizing-rule', 'drawdown-recovery-math']
+},
+{
+  slug: 'earnings',
+  term: 'earnings',
+  shortDefinition: 'Quarterly reports — the cleanest test of a thesis.',
+  longDefinition:
+  'Every public company reports earnings four times a year. The print plus the guidance is where most stock-specific repricing happens. Earnings clusters compress catalyst risk into a few-day window.',
+  body:
+  'An earnings print is a thesis verification event with a calendar date. The number itself matters less than the guidance attached and the questions answered on the call. A position sized through an earnings cluster is a position sized for the variance of three or four such events, not one.',
+  examples: [
+  {
+    symbol: 'NVDA',
+    date: '2026-05-28',
+    outcome: 'Three back-to-back semis prints over five trading days created a catalyst cluster.'
+  }],
+
+  lessonRefs: ['catalysts-and-timing']
+},
+{
+  slug: 'multiple',
+  term: 'multiple',
+  shortDefinition: 'What investors pay per dollar of earnings.',
+  longDefinition:
+  'A 20x multiple means investors are paying $20 today for $1 of annual earnings. Multiples expand and contract with mood, growth expectations, and rates — sometimes more than the underlying earnings ever do.',
+  body:
+  'Two companies with identical earnings can trade at very different prices because the market awards them different multiples. The multiple is the part of the price that has nothing to do with this quarter — it is the part that is about every future quarter, discounted.',
+  examples: [],
+  lessonRefs: []
+},
+{
+  slug: 'call',
+  term: 'call option',
+  shortDefinition: 'The right to buy at a set price, before a date.',
+  longDefinition:
+  'A call gives you the right — not the obligation — to buy 100 shares at the strike price before expiry. Bullish exposure with the downside capped at the premium paid.',
+  body:
+  'Calls express directional views with leverage. The upside scales with the underlying; the downside is bounded by the premium. The trade-off is time: every day the contract loses value, all else equal. Calls are the simplest options instrument and the one beginners most often misuse.',
+  examples: [],
+  lessonRefs: ['options-as-leverage', 'defined-risk-spreads']
+},
+{
+  slug: 'put',
+  term: 'put option',
+  shortDefinition: 'The right to sell at a set price, before a date.',
+  longDefinition:
+  "Puts are insurance or bearish bets. Used as insurance, they cap how much you can lose on a stock you already own; used directionally, they express a downside view with bounded loss.",
+  body:
+  'A put is the mirror of a call. It pays when the underlying falls below the strike before expiry. As insurance on a long position, it converts uncapped downside into a defined one — for a known cost.',
+  examples: [],
+  lessonRefs: ['options-as-leverage', 'defined-risk-spreads']
+},
+{
+  slug: 'iv',
+  term: 'implied volatility',
+  shortDefinition: "The market's forecast of how much a stock will move.",
+  longDefinition:
+  'Implied volatility is the expected-move number baked into option prices. High IV means premium is rich — sellers get paid more. Low IV means premium is cheap — buyers get optionality for less. The skill is reading which side of that trade the current pricing favors.',
+  body:
+  'Implied volatility is a forecast — not a guarantee. The history of options trading is in the gap between what was implied and what was realized. When that gap is wide and persistent, structural edge appears for one side or the other.',
+  examples: [
+  {
+    symbol: 'NVDA',
+    date: '2026-05-22',
+    outcome: "Straddle implied ~7.4% vs realized 4.9% trailing 30 days."
+  }],
+
+  lessonRefs: ['implied-vs-realized']
+},
+{
+  slug: 'straddle',
+  term: 'straddle',
+  shortDefinition: 'Buying (or selling) both a call and a put at the same strike.',
+  longDefinition:
+  "A straddle expresses a view on volatility — not direction. Long straddles profit from a big move either way; short straddles profit from a stock that does not move much.",
+  body:
+  'The straddle is the cleanest volatility expression in the options book. Long, it pays when realized exceeds implied. Short, it pays when realized stays inside implied. It is a directionally neutral way to take a view on whether the market is over- or under-estimating future movement.',
+  examples: [
+  {
+    symbol: 'NVDA',
+    date: '2026-05-22',
+    outcome:
+    'Straddle pricing at the 78th percentile of trailing IV made premium-selling the cleaner expression.'
+  }],
+
+  lessonRefs: ['implied-vs-realized']
+},
+{
+  slug: 'mean-reversion',
+  term: 'mean reversion',
+  shortDefinition: "Prices that ran a long way fast tend to retrace part of the move.",
+  longDefinition:
+  'Mean reversion is the empirical tendency for prices that have moved far in a short time to retrace some of that move — particularly when the move was not matched by an equivalent change in fundamentals. It is the mirror of momentum, and the two coexist on different horizons.',
+  body:
+  'A real mean-reversion setup requires both an extreme move and a clear reason that the move was unjustified — not just the move alone. Most trades beginners call mean reversion are momentum trades taken in the wrong direction.',
+  examples: [],
+  lessonRefs: []
 }];
 
 
