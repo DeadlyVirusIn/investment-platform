@@ -8,11 +8,10 @@
 // Hard rules:
 //   * Heroes: ≤100 chars, exactly one sentence, observed never authored.
 //   * Synthesis sentences: deterministic grammar templates, no LLM.
-//   * Banned conjunctions: because, due to, driven by, as a result,
-//     which means, so, hence, therefore.
-//   * Banned vocabulary: AI / model / I noticed / we think / market wants
-//     / likely / expected to / should / 🚀 / 🔥 / hot pick / streak /
-//     personalised for you (full list in scripts/lint-copilot-copy.mjs).
+//   * Banned conjunctions and banned vocabulary lists both live in
+//     scripts/lint-copilot-copy.mjs (see BANNED_TOKENS). That script
+//     is the authoritative enumeration; keep this comment block
+//     free of literal banned tokens so the lint does not flag itself.
 
 import type {
   ConfidenceBand,
@@ -33,7 +32,7 @@ export const COPILOT_BRAND = {
   seeTheWorkingIntro:
     "Where every claim above comes from. Open as much as you want.",
   readOnlyFooter:
-    "AI-generated research and paper-trading guidance · educational use only · "
+    "Automated research and paper-trading guidance · educational use only · "
     + "nothing on this page places live orders · not financial advice.",
 } as const;
 
@@ -258,9 +257,9 @@ export const HOLDINGS_COPY = {
     "Exit levels not yet computed for this position. "
     + "See the working for the raw inputs.",
   // UX-4 lock 1 — every working-detail link consolidated to a single
-  // "See the working →" affordance. Banned phrasings intentionally
-  // removed: "Read the full reasoning", "Trade review", and any
-  // AI-rationale wording. The lint enforces this.
+  // "See the working →" affordance. Banned phrasings — the older
+  // reasoning-link copy and trade-review wording — were retired in
+  // favour of the single phrase; the lint enforces this.
   detailLinkSeeWorking: "See the working",
   recoveredChip: "recovered",
   recoveredTooltip:

@@ -74,8 +74,8 @@ export interface TodayLineInput {
   todayYMD: string;
   /** Local hour 0..23. Used for greeting slot selection. */
   localHour: number;
-  /** "calm" | "trending" | "choppy" | "stress" — or anything
-   *  unknown to omit the regime second sentence entirely. */
+  /** "calm" | "trending" | "choppy" | "stress" — or anything */ // lint-copilot-allow-line — domain regime enum
+  /**  unknown to omit the regime second sentence entirely. */
   regimeLabel?: string | null;
   /** True when the daily loop's most recent run failed. */
   pipelineFailed?: boolean;
@@ -377,7 +377,7 @@ function _calmRegimePhrase(label: string | null | undefined): string | null {
   if (!label) return null;
   const k = label.toLowerCase();
   if (k === "calm") return "calm";
-  if (k === "trending") return "directional";
+  if (k === "trending") return "directional"; // lint-copilot-allow-line — domain regime key
   if (k === "choppy") return "uneven";
   if (k === "stress") return "unsettled";
   return null;
