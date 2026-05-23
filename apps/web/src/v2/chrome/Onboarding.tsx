@@ -43,20 +43,29 @@ export function Onboarding() {
           style={{ backgroundColor: 'var(--surface-base)' }}
         >
           <div className="w-full max-w-2xl">
-            <div className="text-meta ink-fainter mb-4">Welcome</div>
+            <div
+              className="inline-block px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest mb-5"
+              style={{
+                backgroundColor: 'color-mix(in oklch, var(--brand) 12%, transparent)',
+                color: 'var(--brand)',
+              }}
+            >
+              Welcome
+            </div>
             <h2 className="font-serif text-masthead ink-primary leading-[1.05] mb-7 max-w-[20ch]">
-              ArthOS, briefly.
+              Your AI Investing Copilot.
             </h2>
 
             <p className="ink-muted leading-relaxed text-[17px] mb-4 max-w-narrative">
-              Every weekday we publish a briefing — the actual decisions of a
-              model portfolio, written as editorial prose. Every concept
-              inside links to a lesson that teaches the idea behind it.
+              ArthOS walks you through one investing idea every day. We read
+              the market, write the thesis, and explain the reasoning in
+              plain English — so you build the investing instincts a great
+              copilot needs.
             </p>
             <p className="ink-muted leading-relaxed text-[17px] mb-10 max-w-narrative">
-              No real money. We don't promise returns. We promise literacy —
-              by Day 90, you'll understand how an investor thinks about risk,
-              sizing, and the days when there's nothing to do.
+              Nothing real is at stake. We don't promise returns. We promise
+              literacy — by Day 90, you'll understand how an investor thinks
+              about risk, sizing, and the days when there's nothing to do.
             </p>
 
             <div className="mb-12 max-w-narrative">
