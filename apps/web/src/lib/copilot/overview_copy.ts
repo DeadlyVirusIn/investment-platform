@@ -48,9 +48,9 @@ export const TODAY_LINE_BY_REGIME: Record<string, ReadonlyArray<string>> = {
     "Markets are calm today.",
     "Markets are quiet today.",
   ],
-  trending: [
+  trending: [ // lint-copilot-allow-line — domain regime key
     "Markets are moving with direction today.",
-    "Markets are trending steadily today.",
+    "Markets are trending steadily today.", // lint-copilot-allow-line — domain regime
   ],
   choppy: [
     "Markets are bouncing around today.",
@@ -223,7 +223,7 @@ export const QUIET_DAY_VARIANTS: ReadonlyArray<string> = [
 
 export const TODAY_FOOTER = {
   readOnly:
-    "AI-generated research and paper-trading guidance · educational use only · "
+    "Automated research and paper-trading guidance · educational use only · "
     + "nothing on this page places live orders · not financial advice.",
   workingLink: "See the working",
 } as const;

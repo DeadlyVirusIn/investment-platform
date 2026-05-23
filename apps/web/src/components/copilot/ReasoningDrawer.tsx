@@ -213,7 +213,7 @@ export default function ReasoningDrawer({ card, isOpen, onClose }: ReasoningDraw
               <footer className="ux11-drawer-section" data-test="ux11-section-footer">
                 <p style={{ fontSize: "var(--ux10-fs-meta)", color: "var(--ux10-fg-tertiary)" }}>
                   Engine v0.x · last retrained pending Phase 11G wiring.
-                  AI-generated research signal · paper trading only · educational use only · not financial advice.
+                  Automated research signal · paper trading only · educational use only · not financial advice.
                 </p>
               </footer>
             </>

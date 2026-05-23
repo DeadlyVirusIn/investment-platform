@@ -32,7 +32,7 @@ export class VoiceLintError extends Error {
 const UNIVERSALLY_BANNED_TOKENS = [
   "AI found",
   "AI-powered",
-  "Powered by AI",
+  "Powered by AI", // lint-copilot-allow-line — internal banlist literal
   "Ask me anything",
   "Here's what you should do",
   "Don't miss",

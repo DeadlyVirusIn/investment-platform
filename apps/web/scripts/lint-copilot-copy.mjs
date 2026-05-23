@@ -19,8 +19,13 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const ROOT = new URL("../src", import.meta.url).pathname;
+// Resolve scan root via fileURLToPath so Windows paths work. On Windows,
+// new URL(...).pathname produces "/C:/..." (leading slash) which breaks
+// path.join — the lint then silently scans nothing locally and only
+// fires on Linux CI.
+const ROOT = fileURLToPath(new URL("../src", import.meta.url));
 const COPILOT_DIRS = [
   join(ROOT, "lib", "copilot"),
   join(ROOT, "components", "copilot"),
@@ -93,9 +98,17 @@ const BANNED_TOKENS = [
 
 let bad = 0;
 
+// Test fixtures intentionally contain banned tokens to verify the
+// filtering layer rejects them. Skip __tests__ directories entirely;
+// the lint targets rendered UI source, not test data.
+function isTestDir(name) {
+  return name === "__tests__";
+}
+
 function walk(dir) {
   const entries = readdirSync(dir);
   for (const e of entries) {
+    if (isTestDir(e)) continue;
     const p = join(dir, e);
     const st = statSync(p);
     if (st.isDirectory()) {
@@ -103,6 +116,8 @@ function walk(dir) {
     } else if (
       st.isFile()
       && (p.endsWith(".ts") || p.endsWith(".tsx") || p.endsWith(".css"))
+      && !p.endsWith(".test.ts")
+      && !p.endsWith(".test.tsx")
     ) {
       lint(p);
     }
@@ -133,6 +148,13 @@ function lint(file) {
           || lower.includes("anti-")
         ) {
           continue; // doc reference — OK
+        }
+        // Per-line opt-out marker. Use sparingly — only when a literal
+        // banned token must appear in source (e.g. inside an internal
+        // banlist array or in domain-vocab keys that overlap the
+        // marketing-hype banlist).
+        if (line.includes("lint-copilot-allow-line")) {
+          continue;
         }
         const rel = file.replace(ROOT, "src");
         console.error(
