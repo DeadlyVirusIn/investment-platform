@@ -44,8 +44,27 @@ workstreams close it:
 | 1 | Decision Desk | Opportunities becomes "what should I do today?" |
 | 2 | Mentor Profile | Me becomes a relationship document |
 | 3 | Contextual Learning | Lessons emerge from behavior, not browsing |
-| 4 | Trust Engine | Arth proves itself with outcomes |
+| 4 | Trust Engine + Arth Report Card | Arth proves itself with outcomes; new `/v2/arth` first-class surface |
 | 5 | Intelligence Audit | Honest map of where Arth is dumb vs. smart |
+
+### Three direction-reset mandates (applied throughout)
+
+1. **Trust + Decision Quality come before the relationship layer.**
+   Sequence is 2A → 2B (Trust + Report Card) → 2C (Decision Desk) →
+   2D (Contextual Learning) → 2E (Mentor Profile) → 2F (Trust v2).
+   Mentor Profile is deliberately late: patterns only earn user trust
+   after Arth has already proven himself with outcomes.
+
+2. **Every recommendation must explicitly answer 5 questions:**
+   Why this idea? · Why not the alternatives? · Why now? ·
+   What would invalidate it? · How similar ideas performed historically.
+   No card ships without all five.
+
+3. **Learning is embedded in decisions/outcomes/skips/wins/losses/
+   mind-changes.** The Learn page becomes primarily an archive of
+   concepts encountered elsewhere — not a discovery destination.
+   A user who never opens `/v2/learn` still builds a real competence
+   map through inline encounters.
 
 ---
 
@@ -121,19 +140,31 @@ Every hero card must answer seven questions structurally:
 │ {actionLabel + paragraph from Recommendation}           │
 │                                                          │
 │ ─────────────────────────────────────────────────────── │
-│ WHY NOW              WHY NOT THE          WHAT COULD    │
-│                      OTHERS?              INVALIDATE?   │
+│ WHY THIS IDEA      WHY NOT THE         WHY NOW          │
+│                    ALTERNATIVES?                        │
 │                                                          │
-│ - IV in bottom       - TSLA: credit       - AAPL close  │
-│   quartile             too small            below $168  │
-│ - Bullish gamma      - SPY: time          - IV expand   │
-│   flip yesterday       decay 60% done       above 30%   │
-│ - Earnings 4w out                                       │
+│ - Defined-risk     - TSLA: credit     - IV in bottom    │
+│   structure          too small           quartile       │
+│ - Liquid spread    - SPY: 60% time    - Bullish gamma   │
+│ - Tight bid/ask      decay already      flip yesterday  │
+│                                       - Earnings 4w out │
+│                                                          │
+│ ─────────────────────────────────────────────────────── │
+│ WHAT COULD INVALIDATE IT                                │
+│ - AAPL daily close below $168                           │
+│ - IV expansion above 30%                                │
+│ - Broad SPY breakdown below 50-DMA                      │
+│                                                          │
+│ ─────────────────────────────────────────────────────── │
+│ HOW SIMILAR IDEAS HAVE PERFORMED                        │
+│ My last 7 long-call spreads at IV<25%ile:               │
+│   4 wins (avg +1.6%) · 2 losses (avg -2.3%)             │
+│   · 1 expired flat                                      │
+│ Avg hold: 7 days. [See those calls →]                   │
 │                                                          │
 │ ─────────────────────────────────────────────────────── │
 │ Expected hold: 6-12 days                                │
-│ Confidence: medium (I'd risk a normal size, not a       │
-│             larger one)                                 │
+│ Confidence: medium (normal size — not a larger one)     │
 │                                                          │
 │ [Paper trade]  [Save]  [Skip — tell me why]             │
 │                                                          │
@@ -143,21 +174,43 @@ Every hero card must answer seven questions structurally:
 └─────────────────────────────────────────────────────────┘
 ```
 
-Required information density (seven questions):
+Required information density (the five non-negotiable answers,
+per user mandate — every recommendation must explicitly answer):
 
 | # | Question | Field | Required? |
 |---|---|---|---|
-| 1 | What is it? | symbol + structure + thesis | yes |
-| 2 | Why now? | why_now (3 bullets) | yes |
-| 3 | Why not the alternatives? | why_not_others (per other rec) | yes |
-| 4 | What could invalidate? | invalidate_conditions[] | yes |
-| 5 | Expected holding period? | hold_estimate_days | yes |
-| 6 | How confident is Arth? | confidence_level (words) | yes |
-| 7 | What does Arth want me to pick first? | is_arth_pick | yes |
+| 1 | **Why this idea?** | why_this_idea (3 bullets) | yes |
+| 2 | **Why not the alternatives?** | why_not_others (per other rec) | yes |
+| 3 | **Why now?** | why_now (3 bullets — timing signals) | yes |
+| 4 | **What would invalidate it?** | invalidate_conditions[] | yes |
+| 5 | **How similar ideas performed historically?** | historical_performance | yes |
+
+Plus the additional decision-support fields:
+
+| # | Question | Field | Required? |
+|---|---|---|---|
+| 6 | What is it? | symbol + structure + thesis | yes |
+| 7 | Expected holding period? | hold_estimate_days_min/max | yes |
+| 8 | How confident is Arth? | confidence_level (words, not numbers) | yes |
+| 9 | What does Arth want me to pick first? | is_arth_pick | yes |
 
 Plus the two existing copilot affordances:
 - WhyForYou personalization line
 - Decision row (paper trade / save / skip-with-reason)
+
+The **historical performance** row is sourced from the same data the
+Trust Engine + Arth Report Card use (Phase 2B). Each rec carries a
+`historical_cohort_key` — a coarse classification of the setup
+(e.g. `"long_call_spread_low_iv"`, `"short_credit_spread_high_iv"`,
+`"directional_long_breakout"`) — and the resolver runs `historicalCohort(key)`
+against the closed-decision archive at render time.
+
+Empty-cohort case (early days, N < 5 closed calls of this type):
+```
+HOW SIMILAR IDEAS HAVE PERFORMED
+I've only made 2 calls like this so far. Too early to claim a
+pattern. [See those calls →]
+```
 
 ### Secondary cards (ALSO CONSIDER)
 
@@ -229,8 +282,11 @@ make something up. Read a lesson instead, or come back tomorrow.
 hold_estimate_days_min: number
 hold_estimate_days_max: number
 confidence_level: 'low' | 'medium' | 'high'
-why_now: string[]                  // up to 3 bullets
+why_this_idea: string[]            // up to 3 bullets — qualities of the idea
+why_now: string[]                  // up to 3 bullets — timing signals
+why_not_others: { rec_id, reason }[]   // per alternative
 invalidate_conditions: string[]    // 1-3 bullets
+historical_cohort_key: string      // classifier for cohort lookup
 is_arth_pick: boolean              // ★ marker
 ```
 
@@ -259,7 +315,7 @@ MVP, derived from confidence + alignment with user patterns later.
 
 | Step | Item | Effort |
 |---|---|---|
-| 1.5.1 | Extend `Recommendation` interface with 6 new fields | 0.5d |
+| 1.5.1 | Extend `Recommendation` interface with 9 new fields | 0.5d |
 | 1.5.2 | Seed all 5 entries in `TODAYS_DESK` with the new fields | 0.5d |
 | 1.5.3 | Build `DecisionDeskHero` component (the 7-question card) | 1d |
 | 1.5.4 | Build `AlternativeRow` (collapsed secondary) | 0.5d |
@@ -483,9 +539,18 @@ Arth has no role.
 
 ## 3.2 Target state — Emergent Learning
 
+**Principle: Learning is embedded directly in decisions, outcomes,
+skips, wins, losses, and mind-changes. The Learn page is primarily
+an archive of concepts encountered elsewhere — not a destination
+for browsing.**
+
+A user who never visits `/v2/learn` should still develop a real
+competence map, because every relevant lesson surfaces inline at the
+moment of encounter. The Learn page is where they go to REVIEW what
+they've already met, not to discover new concepts.
+
 Lessons are surfaced **in the moment a concept is encountered or a
-mistake is made**. The Learn page becomes the archive — the source
-of learning is wherever the user is in the loop.
+mistake is made** — never as a stand-alone library destination.
 
 Three teaching tiers (from architecture):
 
@@ -660,7 +725,7 @@ copywriting another ~1-2d that can run in parallel with eng work.
 
 ---
 
-# TASK 4 — Trust Engine
+# TASK 4 — Trust Engine + Arth Report Card
 
 ## 4.1 Why this matters most
 
@@ -671,6 +736,11 @@ recommendations are noise.
 
 Current state: zero trust surfaces. Arth makes calls; user has no
 evidence any of them ever worked.
+
+Per the direction reset, Trust + Decision Quality must be established
+**before** the relationship layer is expanded. This task therefore
+elevates a new first-class surface — the **Arth Report Card** —
+alongside the per-card trust strips and per-Today trust banner.
 
 ## 4.2 Components of the Trust Layer
 
@@ -841,40 +911,185 @@ What flipped:
 [Take Arth's exit]  [Hold anyway — tell me why]
 ```
 
-### 4.4.6 Track Record page rebuild
+### 4.4.6 ARTH REPORT CARD — first-class surface (NEW)
 
-Becomes the Trust Dashboard:
+Route: `/v2/arth` (sibling to /v2/today, /v2/journal, /v2/me).
+Sidenav promotion: appears as **"Arth's Report Card"** above the Me tile.
+
+This is **the primary trust surface**. It is where Arth shows the work
+the user is being asked to trust. Track Record (§4.4.7) becomes a
+subsection of this page rather than a separate destination.
+
+Required sections (top → bottom):
 
 ```
-ARTH'S TRACK RECORD
+─────────────────────────────────────────────────────────────────
+ARTH'S REPORT CARD
+Updated {timestamp} · {N} closed calls · {M} open calls
+─────────────────────────────────────────────────────────────────
 
-30-day window
-  8 calls · 5 wins · 3 losses · accuracy 62%
-  current streak: 2 wins
+[Arth] {voiced summary keyed to current sample size}
 
-CONFIDENCE CALIBRATION
-  High:    0 of 0  (no high-conf calls yet)
-  Medium:  4 of 5  (80%) ← right calibration
-  Low:     1 of 2  (50%) ← roughly right
+  N >= 30 closed:
+    "Last 30 days: 18 calls, 11 wins, 6 losses, 1 expired.
+     Accuracy 65%. My medium-confidence calls run hot at 73%;
+     my low-confidence calls are roughly coin-flip. I'm
+     calibrated within tolerance — but read on, the losses
+     are the part worth your attention."
 
-YOUR OUTCOMES
-  When you followed me: +3.2% paper, 4 trades
-  If you'd followed all my calls: +4.1% paper
-  When you skipped my calls: 3 of 4 would have been winners
-    (I'm noting this — your skip filter might be too tight)
+  N >= 10 closed:
+    "Small sample so far: 12 calls, 7 wins, 4 losses, 1 open.
+     Accuracy reads 64% but I wouldn't trust that number until
+     30 closes. Read the losses first — they're more honest
+     than the wins."
 
-ALL PAST CALLS  (chronological)
-  May 24 · AAPL · medium · followed · open
-  May 23 · TSLA · low    · skipped  · would have lost
-  May 22 · XLE  · high   · followed · +1.2% in 6d
-  May 21 · MSFT · medium · skipped  · would have won
-  May 20 · NVDA · medium · followed · -2.1% in 4d
-  ...
+  N < 10 closed:
+    "Too early to claim anything. {N} closed calls so far.
+     I'm publishing this anyway because you should see how
+     I'm thinking — not so you can score me yet."
+
+─────────────────────────────────────────────────────────────────
+1. RECOMMENDATION HISTORY
+─────────────────────────────────────────────────────────────────
+Chronological log. Newest first.
+
+May 24 · AAPL · medium · followed · open · day 1
+May 23 · TSLA · low    · skipped  · still open  · would be -0.3%
+May 22 · XLE  · high   · followed · CLOSED +1.2% in 6d ✓ Right
+May 21 · MSFT · medium · skipped  · would have won (+2.1%)
+May 20 · NVDA · medium · followed · CLOSED -2.1% in 4d ✗ Wrong
+...
+[Filter: All / Followed / Skipped / Wins / Losses]
+[Sort: Newest / Largest win / Largest loss / By confidence]
+
+─────────────────────────────────────────────────────────────────
+2. WINS AND LOSSES
+─────────────────────────────────────────────────────────────────
+30-day window:
+  ✓ 5 wins  ·  avg +1.4%  ·  longest hold 9d
+  ✗ 3 losses ·  avg -1.8%  ·  longest hold 5d
+  ○ 0 expired (no theta-bleed yet)
+
+Win/loss ratio: 1.67 (5/3)
+Expectancy per call: +0.39% (mean PnL across all closed)
+Current streak: 2 wins
+
+[Show full PnL distribution chart →]
+
+─────────────────────────────────────────────────────────────────
+3. CONFIDENCE CALIBRATION
+─────────────────────────────────────────────────────────────────
+              calls   closed   wins   accuracy   target
+  HIGH        2       0        —      —          85%+
+  MEDIUM      6       5        4      80%        65-75% ✓
+  LOW         4       3        1      33%        45-55% ✗ (too
+                                                       generous?)
+
+[Arth] My medium calls are calibrated. My low-confidence calls
+are running too hot — I may be marking too many calls "low"
+when they're actually high-risk. I'll re-baseline after the
+next 5 closes.
+
+─────────────────────────────────────────────────────────────────
+4. CONFIDENCE ACCURACY (over time, last 90 days bucketed weekly)
+─────────────────────────────────────────────────────────────────
+[Sparkline: accuracy %, weekly, with confidence bands]
+Week of May 17: 5 closes, 3 wins (60%)
+Week of May 10: 4 closes, 3 wins (75%)
+Week of May 03: 2 closes, 1 win (50%)
+...
+
+─────────────────────────────────────────────────────────────────
+5. BEST AND WORST CALLS
+─────────────────────────────────────────────────────────────────
+BEST CALL (last 30 days)
+  XLE · long · high confidence · closed +1.2% in 6d
+  Thesis at the time: "Crack spreads widened without equity
+                       follow-through."
+  What actually happened: Equity caught up on EIA print. Held
+                          target, exited at +1.2%.
+  Why it worked: I called both the catalyst and the timing.
+  [Re-read thesis →]
+
+WORST CALL (last 30 days)
+  NVDA · long · medium confidence · closed -2.1% in 4d
+  Thesis at the time: "Bullish gamma, IV bottom quartile."
+  What actually happened: Earnings guide cut, IV exploded,
+                          spread evaporated.
+  Why it didn't work: I underweighted forward guidance risk.
+  Lesson I learned: When earnings is < 6 weeks out, IV
+                    quartile rank is less reliable.
+  [Re-read thesis →]   [See the lesson I drew →]
+
+─────────────────────────────────────────────────────────────────
+6. LESSONS ARTH LEARNED FROM MISTAKES
+─────────────────────────────────────────────────────────────────
+Visible record of how Arth updated his own thinking. Pure honesty.
+
+May 20 — After NVDA -2.1%
+  I now down-weight low-IV setups when earnings is <6w out.
+  Next time I see this pattern, I'll flag earnings risk
+  explicitly before recommending.
+  [What I changed →]
+
+May 12 — After TSLA short stopped at +0.4% (correctly)
+  I held the invalidate line. I'll keep using daily-close-above
+  as the stop trigger — intraday stops are too noisy.
+  [What I confirmed →]
+
+May 03 — After XLE early-exit on partial fill
+  I now show partial-fill confirmation BEFORE recommending
+  "hold target" — the user thought they were full, weren't.
+  [What I fixed →]
+
+[See all process updates →]
+
+─────────────────────────────────────────────────────────────────
+7. YOUR OUTCOMES (vs hypothetical)
+─────────────────────────────────────────────────────────────────
+When you followed me: +3.2% paper, 4 trades
+If you'd followed every call: +4.1% paper, 8 trades
+When you skipped me: 3 of 4 skips were winners (so far)
+  ← I'm noting this. Your skip filter may be too tight.
+  [See the skips →]
+
+─────────────────────────────────────────────────────────────────
+8. PROCESS TRANSPARENCY
+─────────────────────────────────────────────────────────────────
+- Every recommendation carries an audit trace.  [How I think →]
+- Mind changes are logged.   [Every time I flipped a view →]
+- Filtered candidates are visible.   [What I left out today →]
+- This page updates after every trade closes.  No edits to
+  past entries.
+
+─────────────────────────────────────────────────────────────────
 ```
 
-### 4.4.7 Honesty moments
+Voice rules on the Report Card surface:
+- Arth talks about himself honestly, never defensively.
+- Wins are stated plainly, not celebrated.
+- Losses come **first** in the Best/Worst pair where appropriate.
+- "Lessons I learned" is the section that most earns trust — it
+  proves Arth updates rather than just optimizing his metrics.
+- Sample-size honesty modes (N<5, N<10, N<30, N>=30) gate which
+  metrics surface as numbers vs. honest disclaimers.
 
-When metrics are not yet meaningful:
+### 4.4.7 Honesty modes (gating)
+
+The Report Card never lies about its sample size. Per-metric gating:
+
+| Metric | Threshold to render as number | Below threshold |
+|---|---|---|
+| Accuracy | N >= 10 closed | "Too early — N closed so far" |
+| Calibration | N >= 5 per confidence level | Hide that confidence row entirely |
+| Streak | always shown | — |
+| Best/Worst calls | N >= 3 closed | Render single most-recent close instead |
+| Lessons learned | N >= 1 mistake | Hide section |
+| User outcomes vs hypothetical | N >= 5 closed | Hide section |
+
+### 4.4.8 Embedded honesty samples
+
+When inline metric panels run with insufficient sample size:
 
 ```
 ACCURACY: too early to tell.
@@ -899,10 +1114,13 @@ YOUR FOLLOW RATE: 67% (4 of 6) — typical for week 2.
 | 4.5.5 | Persist audit trace per recommendation (mock for now, real later) | 0.5d |
 | 4.5.6 | `ClosedTradeRetrospective` — fires on close | 1d |
 | 4.5.7 | `MindChangeCard` — detect + render flips | 1d |
-| 4.5.8 | Rebuild Track Record as Trust Dashboard | 1.5d |
-| 4.5.9 | Honesty-mode rendering for small N | 0.5d |
+| 4.5.8 | **`/v2/arth` Report Card page (first-class surface)** — sections 1-8 per §4.4.6 | 2d |
+| 4.5.9 | `historicalCohort()` resolver — feeds recommendation cards (Task 1) AND Report Card best/worst | 0.5d |
+| 4.5.10 | "Lessons Arth learned" data type + manual seed of 3-5 examples | 0.5d |
+| 4.5.11 | Honesty-mode rendering for small N (per metric gating table) | 0.5d |
+| 4.5.12 | Sidenav promotion — add Arth Report Card tab | 0.25d |
 
-**Total: ~7.5 days**
+**Total: ~9.25 days**
 
 Two backend requests (deferred, mocked for now):
 - `/recommendations/audit-trace/{id}` — returns the recorded trace
@@ -975,42 +1193,53 @@ reasoning, contextual teaching — is still missing.
 | Phase | Name | Tasks delivered | Cumulative score |
 |---|---|---|---|
 | Today | Arth MVP (PR #14) | See/Decide/Practice/Reflect/Remember loop on Today + Journal | 7.0 |
-| 2A | Patterns Foundation | Pattern engine + competence map data | 7.3 |
-| 2B | Trust MVP | Trust banner, audit trace, closed-trade retro, mind-change card | 8.2 |
-| 2C | Mentor Profile (Me) | Task 2 full | 8.6 |
-| 2D | Decision Desk (Opportunities) | Task 1 full | 8.9 |
-| 2E | Contextual Learning | Task 3 full | 9.3 |
-| 2F | Trust v2 | Calibration + user outcomes + Trust Dashboard | 9.5 |
+| **2A** | **Pattern Foundation** | Pattern engine + competence map data + historical-cohort indexing | 7.2 |
+| **2B** | **Trust MVP + Report Card** | Trust banner, audit trace, closed-trade retro, mind-change card, `/v2/arth` first-class Report Card surface | 8.2 |
+| **2C** | **Decision Desk (Opportunities)** | Task 1 full — every rec answers all 5 mandated questions (incl. historical performance) | 8.7 |
+| **2D** | **Contextual Learning** | Task 3 full — lessons embedded in decisions/outcomes/skips/wins/losses/mind-changes. Learn page = archive. | 9.1 |
+| **2E** | **Mentor Profile (Me)** | Task 2 full — patterns + strengths + repeated mistakes + competence + relationship voice | 9.4 |
+| **2F** | **Trust v2** | Confidence-cohort calibration + user-outcomes-vs-hypothetical + reflective retros across closed positions | 9.6 |
+
+**Reorder rationale (per user direction reset):**
+- Trust + Decision Quality must be established **before** the
+  relationship layer is expanded.
+- Mentor Profile (formerly 2C) is moved to 2E because patterns surface
+  meaningfully only after recommendation history + outcomes accumulate
+  in 2B + 2C.
+- Decision Desk (formerly 2D) is moved up to 2C because every recommendation
+  now must answer 5 mandated questions including historical performance —
+  that data dependency lives in 2B's outcome tracking.
 
 ## Effort estimates
 
 | Phase | Effort | Critical dependencies |
 |---|---|---|
 | 2A | 2 days | (none) |
-| 2B | 7.5 days | 2A |
-| 2C | 4.5 days | 2A |
-| 2D | 5.5 days | (none — can parallel) |
-| 2E | 6 days | 2A + Task 4 audit trace |
-| 2F | 4 days | 2B + ~30 closed positions |
+| 2B | 9.25 days | 2A |
+| 2C | 5.5 days | 2B (uses historical-cohort resolver from §4.5.9) |
+| 2D | 6 days | 2B (audit trace + outcome data) + 2C (decision desk structure) |
+| 2E | 4.5 days | 2A + 2B (Mentor Profile cites Report Card data) |
+| 2F | 4 days | ~30 closed positions accumulated |
 
-**Total Phase 2: ~29 working days** (~6 calendar weeks, single-track).
+**Total Phase 2: ~31.25 working days** (~6.5 calendar weeks, single-track).
 
-Parallelization possible:
+Parallelization:
 - 2A is critical path — must ship first.
-- 2C + 2D can run in parallel after 2A.
-- 2B can run in parallel with 2C / 2D.
-- 2E depends on 2B's audit trace.
-- 2F depends on accumulated closed-position data — runs later.
+- 2B is critical path — must ship before 2C/2D/2E.
+- 2D depends on 2C (skip → lesson + outcome → lesson uses Decision Desk skip-reason chips).
+- 2E can run in parallel with 2D once 2B has landed.
+- 2F waits for accumulated closed-position data — runs later.
 
-Compressed schedule: ~4 calendar weeks with two parallel tracks.
+Compressed schedule: ~5 calendar weeks with two parallel tracks
+once 2B lands.
 
-## Priority ranking (single-track if forced to choose order)
+## Priority ranking (single-track sequence)
 
-1. **2A Patterns Foundation** — invisible plumbing, unblocks 4 of 5 tasks
-2. **2B Trust MVP** — biggest user-perceived gap
-3. **2D Decision Desk** — biggest visible-product gap on a primary surface
-4. **2C Mentor Profile** — second-biggest relationship surface gap
-5. **2E Contextual Learning** — closes the loop between behavior and education
+1. **2A Pattern Foundation** — invisible plumbing, unblocks 2B/2C/2E
+2. **2B Trust MVP + Report Card** — Arth earns trust before expanding the relationship layer
+3. **2C Decision Desk** — every rec answers the 5 mandated questions
+4. **2D Contextual Learning** — lessons embedded in decisions and outcomes
+5. **2E Mentor Profile** — relationship layer built on top of established trust + decisions + learning
 6. **2F Trust v2** — calibration earns its place after data exists
 
 ## Out of scope for Phase 2
@@ -1026,12 +1255,12 @@ These wait for Phase 3:
 
 | Phase | Acceptance criteria |
 |---|---|
-| 2A | Pattern observations surface in dev console after 5 events; competence entries populate from event log |
-| 2B | Trust banner visible on Today; tap audit trace renders 7 stages; closed paper trade triggers retrospective; mind-change card appears when briefing diff detected |
-| 2C | Me page shows 5 of 7 mentor profile sections fully populated after 14 days of synthetic use |
-| 2D | Opportunities page has THE ONE + ALSO CONSIDER + WATCHING + PASSED ON; hero card carries all 7 required answers |
-| 2E | Skip-with-reason "earnings risk" triggers inline primer; closed paper trade fires outcome lesson on next session; concept tap shows 30s popover |
-| 2F | Calibration shows per-confidence accuracy; user outcomes-vs-hypothetical visible; >=10 past calls in Track Record |
+| 2A | Pattern observations surface in dev console after 5 events; competence entries populate from event log; historical-cohort key resolves per recommendation |
+| 2B | Trust banner visible on Today; tap audit trace renders 7 stages; closed paper trade triggers retrospective; mind-change card appears when briefing diff detected; **`/v2/arth` Report Card route ships with sections 1-8, sample-size honesty modes, and "Lessons Arth learned" subsection** |
+| 2C | Opportunities page has THE ONE + ALSO CONSIDER + WATCHING + PASSED ON; hero card explicitly answers all 5 mandated questions (Why this idea / Why not alternatives / Why now / What invalidates / Historical performance); historical-cohort row renders honest "too early" mode when N<5 |
+| 2D | Skip-with-reason "earnings risk" triggers inline primer; closed paper trade fires outcome lesson on next session; concept tap shows 30s popover; Learn page is reframed as competence archive (earned vs queued) — no longer a content discovery surface |
+| 2E | Me page shows 6 of 9 mentor profile sections fully populated after 14 days of synthetic use; pattern observations editable; reflections quoted verbatim; Report Card data cited inline |
+| 2F | Calibration shows per-confidence accuracy; user outcomes-vs-hypothetical visible on Report Card; >=10 past calls in Report Card history |
 
 ## What ships after Phase 2
 
@@ -1079,16 +1308,26 @@ Those are Phase 3 or later.
 
 ## Decision request
 
-Before any 2A code starts, confirm:
+Before any 2A code starts, confirm (REVISED per direction reset):
 
-1. The six-task sequence (2A → 2B → 2D || 2C → 2E → 2F) is approved.
-2. Critical path is **2A → 2B**. Other tasks can land in any order
-   after 2A; 2E depends on 2B audit trace.
-3. Backend changes are limited to two future endpoints
+1. **The reordered six-task sequence is approved**:
+   2A Pattern Foundation → 2B Trust MVP + Arth Report Card →
+   2C Decision Desk → 2D Contextual Learning → 2E Mentor Profile →
+   2F Trust v2.
+2. **Critical path** is **2A → 2B → 2C**. 2D + 2E can run in
+   parallel after 2C. 2F waits for accumulated outcome data.
+3. **Every recommendation card must answer all 5 mandated questions**
+   (Why this idea / Why not alternatives / Why now / What invalidates /
+   Historical performance). No card ships without all five.
+4. **Arth Report Card** lands as a first-class `/v2/arth` route in 2B
+   (sidenav promoted above Me tile).
+5. **Learn is reframed as an archive** in 2D. Lessons surface inline
+   in Today/Opportunities/Practice/Journal at the moment of encounter.
+6. Backend changes are limited to two future endpoints
    (`/arth/voice`, `/arth/sync`) — neither in Phase 2 scope.
-4. LLM-powered voice deferred to Phase 3 (continue with hand-templated
+7. LLM-powered voice deferred to Phase 3 (continue with hand-templated
    copy + variable substitution).
-5. Authoring 20 primers + 10 lessons (Task 3) is queued as a separate
-   content workstream parallel to engineering.
+8. Authoring 20 primers + 10 lessons + 3-5 "lessons Arth learned"
+   examples queued as a content workstream parallel to engineering.
 
 Once confirmed: open Phase 2A implementation worktree.
