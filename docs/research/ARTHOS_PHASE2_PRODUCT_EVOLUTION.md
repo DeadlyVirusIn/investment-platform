@@ -47,7 +47,7 @@ workstreams close it:
 | 4 | Trust Engine + Arth Report Card | Arth proves itself with outcomes; new `/v2/arth` first-class surface |
 | 5 | Intelligence Audit | Honest map of where Arth is dumb vs. smart |
 
-### Three direction-reset mandates (applied throughout)
+### Direction-reset mandates (applied throughout)
 
 1. **Trust + Decision Quality come before the relationship layer.**
    Sequence is 2A → 2B (Trust + Report Card) → 2C (Decision Desk) →
@@ -55,16 +55,32 @@ workstreams close it:
    Mentor Profile is deliberately late: patterns only earn user trust
    after Arth has already proven himself with outcomes.
 
-2. **Every recommendation must explicitly answer 5 questions:**
+2. **Every recommendation must explicitly answer 6 questions:**
    Why this idea? · Why not the alternatives? · Why now? ·
-   What would invalidate it? · How similar ideas performed historically.
-   No card ships without all five.
+   What would invalidate it? · How similar ideas performed historically? ·
+   **Why not cash?**  No card ships without all six.
 
 3. **Learning is embedded in decisions/outcomes/skips/wins/losses/
    mind-changes.** The Learn page becomes primarily an archive of
    concepts encountered elsewhere — not a discovery destination.
    A user who never opens `/v2/learn` still builds a real competence
    map through inline encounters.
+
+4. **Pattern Engine Guardrails (final refinement):** no personality
+   conclusions, observable behaviors only, minimum 5 observations
+   before display, confidence visible, every pattern disputable.
+   See §2 Editability/Guardrails sections for the full contract.
+
+5. **Cash is a first-class decision.** Arth is allowed to conclude
+   "cash is the call today" when no setup has sufficient edge over
+   the risk-free rate. The Decision Desk has an empty-day variant
+   that is explicit, not silent. `held_cash` is a tracked decision
+   action in Report Card.
+
+6. **Recommendation Expectancy is the headline metric** on the Report
+   Card — more meaningful than accuracy alone. Reports: win rate,
+   avg winner, avg loser, expectancy per call. Per-confidence-bucket
+   and per-historical-cohort views too.
 
 ---
 
@@ -160,7 +176,15 @@ Every hero card must answer seven questions structurally:
 │ My last 7 long-call spreads at IV<25%ile:               │
 │   4 wins (avg +1.6%) · 2 losses (avg -2.3%)             │
 │   · 1 expired flat                                      │
-│ Avg hold: 7 days. [See those calls →]                   │
+│ Avg hold: 7 days. Expectancy +0.4% per call.            │
+│ [See those calls →]                                     │
+│                                                          │
+│ ─────────────────────────────────────────────────────── │
+│ WHY NOT CASH?                                           │
+│ Holding cash earns ~5.2% annualized (1m T-bill) — about │
+│ 0.014% per day risk-free. Expected edge here over 6-12  │
+│ days is meaningfully above that, AND defined-risk means │
+│ max loss is bounded. I'd take this over cash today.     │
 │                                                          │
 │ ─────────────────────────────────────────────────────── │
 │ Expected hold: 6-12 days                                │
@@ -184,6 +208,7 @@ per user mandate — every recommendation must explicitly answer):
 | 3 | **Why now?** | why_now (3 bullets — timing signals) | yes |
 | 4 | **What would invalidate it?** | invalidate_conditions[] | yes |
 | 5 | **How similar ideas performed historically?** | historical_performance | yes |
+| 6 | **Why not cash?** | why_not_cash (1-2 sentence comparison vs holding cash) | yes |
 
 Plus the additional decision-support fields:
 
@@ -262,17 +287,69 @@ META — earnings in 3 days, IV crush risk
 The honesty pass. Each rejection links a lesson + acknowledges
 patterns observed about the user.
 
-### Empty-day variant
+### Empty-day variant — "Cash is the call"
 
-If nothing passes the filter today:
+The Decision Desk has an explicit empty-day state. Cash is treated as
+a legitimate decision Arth can recommend, not a fallback to silence.
+
+When nothing passes the filter (no setup beats holding cash):
 
 ```
-[Arth] Nothing clean today. I'd rather show you nothing than
-make something up. Read a lesson instead, or come back tomorrow.
+[Arth] Cash is the call today.
+
+Nothing I'm looking at has enough edge over the T-bill rate to
+justify the risk. Sitting in cash earns ~5.2% annualized,
+risk-free. That's the bar today's setups need to clear, and
+they don't.
+
+WHY NOT THE ALTERNATIVES?
+- AAPL spread: edge thin, IV not stretched enough
+- TSLA short: catalyst fuzzy, would need 5%+ move to pay
+- SPY credit: 60% of decay already worked through
+
+WHAT WOULD CHANGE THIS?
+- AAPL IV drops below 22%ile (-3 vol points)
+- TSLA inventory print Thursday confirms thesis
+- Fresh setup outside this universe
+
+[Hold cash]  [Show me what I passed on anyway]
 
 [Suggested lesson based on what you've been working on]
-[Tomorrow's watch list — what I expect to surface next]
 ```
+
+The `[Hold cash]` action is a first-class decision. It records a
+`Decision { action: 'held_cash', ... }` so Arth's track record can
+later show "I called cash 4 times this month — would have been 3 wins
+and 1 missed move."
+
+### Why-Not-Cash on EVERY recommendation
+
+Even when a setup is recommended, every hero card includes the
+Why-Not-Cash row. Per the user mandate, every recommendation must
+explicitly compare itself against doing nothing. The resolver:
+
+```
+resolveWhyNotCash(rec, market):
+  daily_cash_yield = current_1m_tbill_rate / 252         // e.g. 0.014%/d
+  expected_edge_over_hold = rec.expected_return_per_day
+                           - daily_cash_yield * rec.hold_estimate_days_max
+
+  if expected_edge_over_hold > 0 and rec.confidence >= 'medium':
+    return "Holding cash earns ~{X}% annualized. Expected edge here
+            over {N} days is meaningfully above that. I'd take this
+            over cash today."
+
+  if expected_edge_over_hold > 0 and rec.confidence == 'low':
+    return "Edge is thin vs cash ({X}% annualized risk-free). I'd
+            size smaller than usual, or skip and wait for cleaner."
+
+  if expected_edge_over_hold <= 0:
+    return "Edge does not clear the cash bar. I'm still flagging this
+            because the structure is interesting, but if you only act
+            on edge-positive ideas — skip today."
+```
+
+Confidence + edge-vs-cash combine into the hero card's overall posture.
 
 ## 1.4 Data requirements
 
@@ -287,6 +364,7 @@ why_now: string[]                  // up to 3 bullets — timing signals
 why_not_others: { rec_id, reason }[]   // per alternative
 invalidate_conditions: string[]    // 1-3 bullets
 historical_cohort_key: string      // classifier for cohort lookup
+expected_return_per_day_bp: number // for Why-Not-Cash resolver
 is_arth_pick: boolean              // ★ marker
 ```
 
@@ -454,6 +532,40 @@ Every memory item has an inline edit affordance:
   - "Yes, that's me" → promotes to "Declared filter"
   - "No, I had reasons" → reduces confidence + Arth voices
     "Got it. I'll stop weighing this for a while."
+
+### Pattern Engine Guardrails — non-negotiable
+
+Per the final-refinement directive, the pattern engine operates under
+five hard constraints:
+
+1. **No personality-style conclusions.** Arth never says "you ARE
+   conservative," "you ARE risk-averse," "you ARE patient." He always
+   says "you HAVE skipped X of Y earnings setups." Behavior, not
+   identity.
+
+2. **Surface only observable behaviors.** Every pattern note is
+   anchored to a counted, named, dated event. If Arth cannot point
+   to specific events, the pattern is not surfaced.
+
+3. **Minimum 5 observations before displaying a pattern.** Below 5,
+   the inference exists internally (used for filter tuning) but is
+   not visible to the user. At 5-9 observations, surfaced with
+   `confidence: 'low'` and a "still figuring this out" hedge.
+   At 10+, surfaced with `confidence: 'medium'`. At 20+ with
+   `confidence: 'high'`.
+
+4. **Confidence is always visible.** Every surfaced pattern carries
+   one of three hedge words: "I think", "It looks like", "I'm sure"
+   — mapped from low/medium/high. Numbers are not shown to the user.
+
+5. **Every pattern is disputable.** Every surfaced pattern card has
+   the confirm/dispute pair (per editability section above). Disputed
+   patterns drop two confidence tiers immediately and pause for 30
+   days before being re-evaluated.
+
+Implementation contract: any new pattern category added in Phase 2 or
+later must satisfy all five guardrails before shipping. PR review
+checklist includes them.
 
 ### Tone rules
 
@@ -971,10 +1083,51 @@ May 20 · NVDA · medium · followed · CLOSED -2.1% in 4d ✗ Wrong
   ○ 0 expired (no theta-bleed yet)
 
 Win/loss ratio: 1.67 (5/3)
-Expectancy per call: +0.39% (mean PnL across all closed)
 Current streak: 2 wins
 
 [Show full PnL distribution chart →]
+
+─────────────────────────────────────────────────────────────────
+2b. RECOMMENDATION EXPECTANCY
+─────────────────────────────────────────────────────────────────
+Per the user mandate, this is the most meaningful number on the
+Report Card. Accuracy alone is misleading — a 70% win rate that
+averages +0.1% wins and -3.0% losses is a losing system. Expectancy
+shows the truth.
+
+OVERALL EXPECTANCY (last 30 days, 8 closes)
+  Win rate:           62.5% (5 of 8)
+  Average winner:     +1.4%
+  Average loser:      -1.8%
+  Expectancy per call: +0.20%
+    = (0.625 × +1.4) + (0.375 × -1.8)
+    = +0.875 + (-0.675)
+    = +0.20% per call, taken on a normal-size basis
+
+[Arth] Expectancy is the number to watch. If this stays positive
+across enough samples, my recommendations have edge. If it goes
+negative, you should stop following me regardless of what win
+rate says. Currently positive but small — I'd want to see >+0.5%
+sustained before claiming real edge.
+
+BY CONFIDENCE BUCKET
+                  win rate   avg win   avg loss   expectancy
+  HIGH conf       —          —         —          — (no closes)
+  MEDIUM conf     80% (4/5)  +1.5%     -1.2%      +0.96%
+  LOW conf        33% (1/3)  +1.2%     -2.1%      -1.00%   ⚠
+
+[Arth] My low-confidence calls have negative expectancy. That's
+useful information — when I tell you a call is low-confidence,
+treat it as "I'm flagging this but it's not edge-positive yet."
+Likely safe to skip those by default.
+
+BY HISTORICAL COHORT (≥3 closes per cohort)
+                              wins/total   expectancy
+  long_call_spread_low_iv     3/4          +0.92%
+  short_credit_spread_high_iv 2/3          +0.31%
+  directional_long_breakout   0/1          (insufficient sample)
+
+[Show all cohorts →]
 
 ─────────────────────────────────────────────────────────────────
 3. CONFIDENCE CALIBRATION
@@ -1119,8 +1272,10 @@ YOUR FOLLOW RATE: 67% (4 of 6) — typical for week 2.
 | 4.5.10 | "Lessons Arth learned" data type + manual seed of 3-5 examples | 0.5d |
 | 4.5.11 | Honesty-mode rendering for small N (per metric gating table) | 0.5d |
 | 4.5.12 | Sidenav promotion — add Arth Report Card tab | 0.25d |
+| 4.5.13 | **Expectancy compute + per-confidence-bucket + per-cohort views** | 0.75d |
+| 4.5.14 | **Why-Not-Cash resolver + cash-as-decision in PaperBook** | 0.5d |
 
-**Total: ~9.25 days**
+**Total: ~10.5 days**
 
 Two backend requests (deferred, mocked for now):
 - `/recommendations/audit-trace/{id}` — returns the recorded trace
@@ -1215,13 +1370,13 @@ reasoning, contextual teaching — is still missing.
 | Phase | Effort | Critical dependencies |
 |---|---|---|
 | 2A | 2 days | (none) |
-| 2B | 9.25 days | 2A |
+| 2B | 10.5 days | 2A |
 | 2C | 5.5 days | 2B (uses historical-cohort resolver from §4.5.9) |
 | 2D | 6 days | 2B (audit trace + outcome data) + 2C (decision desk structure) |
 | 2E | 4.5 days | 2A + 2B (Mentor Profile cites Report Card data) |
 | 2F | 4 days | ~30 closed positions accumulated |
 
-**Total Phase 2: ~31.25 working days** (~6.5 calendar weeks, single-track).
+**Total Phase 2: ~32.5 working days** (~6.5 calendar weeks, single-track).
 
 Parallelization:
 - 2A is critical path — must ship first.
@@ -1255,9 +1410,9 @@ These wait for Phase 3:
 
 | Phase | Acceptance criteria |
 |---|---|
-| 2A | Pattern observations surface in dev console after 5 events; competence entries populate from event log; historical-cohort key resolves per recommendation |
-| 2B | Trust banner visible on Today; tap audit trace renders 7 stages; closed paper trade triggers retrospective; mind-change card appears when briefing diff detected; **`/v2/arth` Report Card route ships with sections 1-8, sample-size honesty modes, and "Lessons Arth learned" subsection** |
-| 2C | Opportunities page has THE ONE + ALSO CONSIDER + WATCHING + PASSED ON; hero card explicitly answers all 5 mandated questions (Why this idea / Why not alternatives / Why now / What invalidates / Historical performance); historical-cohort row renders honest "too early" mode when N<5 |
+| 2A | Pattern observations surface in dev console only when N>=5 (per Guardrail #3); each carries confidence + dispute affordance hooks; competence entries populate from event log; historical-cohort key resolves per recommendation |
+| 2B | Trust banner visible on Today; tap audit trace renders 7 stages; closed paper trade triggers retrospective; mind-change card appears when briefing diff detected; **`/v2/arth` Report Card route ships with sections 1-8, sample-size honesty modes, "Lessons Arth learned" subsection, Recommendation Expectancy panel (overall + per-confidence-bucket + per-cohort)** |
+| 2C | Opportunities page has THE ONE + ALSO CONSIDER + WATCHING + PASSED ON; hero card explicitly answers all **6** mandated questions (Why this idea / Why not alternatives / Why now / What invalidates / Historical performance / **Why not cash**); historical-cohort row renders honest "too early" mode when N<5; **empty-day "Cash is the call" variant renders when no setup beats the cash bar** |
 | 2D | Skip-with-reason "earnings risk" triggers inline primer; closed paper trade fires outcome lesson on next session; concept tap shows 30s popover; Learn page is reframed as competence archive (earned vs queued) — no longer a content discovery surface |
 | 2E | Me page shows 6 of 9 mentor profile sections fully populated after 14 days of synthetic use; pattern observations editable; reflections quoted verbatim; Report Card data cited inline |
 | 2F | Calibration shows per-confidence accuracy; user outcomes-vs-hypothetical visible on Report Card; >=10 past calls in Report Card history |
