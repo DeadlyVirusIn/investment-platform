@@ -36,6 +36,8 @@ import { TryFromLesson } from './pages/TryFromLesson';
 import { ReflectionsReview } from './pages/ReflectionsReview';
 // Arth MVP — Journal (Remember chapter — conversation log).
 import { JournalPage } from './pages/JournalPage';
+// Phase 2B — Arth Report Card (Trust + first-class transparency surface).
+import { ArthReportCard } from './pages/ArthReportCard';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -67,6 +69,8 @@ function V2Surface() {
         <Route path="reflections" element={<ReflectionsReview />} />
         {/* Arth MVP — Journal route, the Remember chapter surface. */}
         <Route path="journal" element={<JournalPage />} />
+        {/* Phase 2B — Arth Report Card. */}
+        <Route path="arth" element={<ArthReportCard />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}

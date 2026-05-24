@@ -24,6 +24,7 @@ import {
   Compass,
   Sparkles,
   User,
+  Award,
   type LucideProps,
 } from 'lucide-react';
 import { getTerm } from '../data/arthosData';
@@ -397,6 +398,13 @@ const NAV_PRIMARY: NavItem[] = [
     to: '/v2/opportunities',
     icon: Sparkles,
     match: (p) => p.startsWith('/v2/opportunities') || p.startsWith('/v2/catalysts'),
+  },
+  {
+    label: 'Report Card',
+    shortLabel: 'Report',
+    to: '/v2/arth',
+    icon: Award,
+    match: (p) => p.startsWith('/v2/arth'),
   },
   {
     label: 'Me',

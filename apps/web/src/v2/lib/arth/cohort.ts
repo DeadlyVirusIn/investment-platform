@@ -73,11 +73,13 @@ export interface CohortStats {
 
 const SUFFICIENT_SAMPLE = 5;
 
-/** Compute per-cohort stats from closed decisions. */
+/** Compute per-cohort stats from closed decisions.
+ *  Phase 2B M1 cleanup — cohort is now a first-class field on Decision,
+ *  no casts. */
 export function cohortStats(cohort: CohortKey): CohortStats {
   const decisions = listDecisions();
   const inCohort = decisions.filter(
-    (d) => (d as Decision & { cohort?: string }).cohort === cohort && d.outcome,
+    (d) => d.cohort === cohort && d.outcome,
   );
   return summarize(cohort, inCohort);
 }
@@ -87,7 +89,7 @@ export function allCohortStats(): CohortStats[] {
   const groups: Record<string, Decision[]> = {};
   for (const d of decisions) {
     if (!d.outcome) continue;
-    const key = (d as Decision & { cohort?: string }).cohort ?? 'uncategorized';
+    const key = d.cohort;
     groups[key] = groups[key] ?? [];
     groups[key].push(d);
   }

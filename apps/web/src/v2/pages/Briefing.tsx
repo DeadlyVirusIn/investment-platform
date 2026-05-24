@@ -41,6 +41,7 @@ import { useReadLessons } from '../lib/lesson-progress';
 // Arth MVP — hero card replaces StrongestSetupCard; opening at top.
 import { ArthOpening } from '../components/ArthOpening';
 import { ArthHeroCard } from '../components/ArthHeroCard';
+import { TrustBanner } from '../components/TrustBanner';
 import { generateBriefing } from '../lib/arth/briefing';
 import { todayKey } from '../lib/arth/storage';
 import { useStreak } from '../lib/arth/streak';
@@ -540,6 +541,10 @@ export function Briefing() {
 
       <FadeIn delay={0.02}>
         <ArthOpening />
+      </FadeIn>
+
+      <FadeIn delay={0.03}>
+        <TrustBanner />
       </FadeIn>
 
       <Section>

@@ -12,7 +12,7 @@ import { ArthVoice } from '../chrome/ArthVoice';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { usePaperBook } from '../state/PaperBook';
 import { saveReflection } from '../lib/reflections';
-import { logEvent } from '../lib/arth/events';
+import { dispatch } from '../lib/arth/dispatcher';
 import { addMemory, useMemoryNotes } from '../lib/arth/memory';
 import { recordDecision, decisionForToday } from '../lib/arth/decisions';
 import { resolveWhyForYou } from '../lib/arth/whyForYou';
@@ -26,6 +26,10 @@ const SKIP_REASONS = [
   'Not interested in this name',
   'Bad timing',
 ];
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function ArthHeroCard({ rec }: { rec: Recommendation }) {
   const { watchlist, topics, level } = useUserPrefs();
@@ -53,12 +57,14 @@ export function ArthHeroCard({ rec }: { rec: Recommendation }) {
       return;
     }
     recordDecision({
+      rec,                                   // M1: cohort derived from rec
       rec_id: rec.symbol,
       symbol: rec.symbol,
       action: 'paper_traded',
       thesis_snapshot: rec.paragraph,
     });
-    logEvent('decide', 'card_paper_traded', rec.symbol);
+    dispatch('decide', 'card_paper_traded', rec.symbol, undefined,
+      { idempotency_key: `paper-${rec.symbol}-${today()}` });   // M2
     addMemory({
       category: 'seen',
       text: `You opened a paper trade on ${rec.symbol} (${rec.actionLabel}).`,
@@ -70,12 +76,14 @@ export function ArthHeroCard({ rec }: { rec: Recommendation }) {
 
   function onSave() {
     recordDecision({
+      rec,
       rec_id: rec.symbol,
       symbol: rec.symbol,
       action: 'saved',
       thesis_snapshot: rec.paragraph,
     });
-    logEvent('decide', 'card_saved', rec.symbol);
+    dispatch('decide', 'card_saved', rec.symbol, undefined,
+      { idempotency_key: `saved-${rec.symbol}-${today()}` });
     addMemory({
       category: 'seen',
       text: `You saved ${rec.symbol} for later — I'll surface it again tomorrow if it still holds.`,
@@ -91,13 +99,15 @@ export function ArthHeroCard({ rec }: { rec: Recommendation }) {
 
   function onSkipSubmit(reason: string) {
     recordDecision({
+      rec,
       rec_id: rec.symbol,
       symbol: rec.symbol,
       action: 'skipped',
       skip_reason: reason,
       thesis_snapshot: rec.paragraph,
     });
-    logEvent('decide', 'card_skipped', rec.symbol, { reason });
+    dispatch('decide', 'card_skipped', rec.symbol, { reason },
+      { idempotency_key: `skip-${rec.symbol}-${today()}` });
     addMemory({
       category: 'patterns',
       text: `You skipped ${rec.symbol} — reason: ${reason}.`,
@@ -109,7 +119,7 @@ export function ArthHeroCard({ rec }: { rec: Recommendation }) {
       prompt: `Why I skipped ${rec.symbol}`,
       body: reason,
     });
-    logEvent('reflect', 'reflection_written', rec.symbol);
+    dispatch('reflect', 'reflection_written', rec.symbol);
     setSkipReason(reason);
     setDoneAction('skipped');
     setStage('done');
@@ -126,7 +136,7 @@ export function ArthHeroCard({ rec }: { rec: Recommendation }) {
       prompt: `What I expect from ${rec.symbol}`,
       body: reflectionText.trim(),
     });
-    logEvent('reflect', 'reflection_written', rec.symbol);
+    dispatch('reflect', 'reflection_written', rec.symbol);
     addMemory({
       category: 'seen',
       text: `You wrote a one-line reflection when opening ${rec.symbol}.`,
