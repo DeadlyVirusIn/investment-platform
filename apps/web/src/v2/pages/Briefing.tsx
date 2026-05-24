@@ -42,6 +42,7 @@ import { useReadLessons } from '../lib/lesson-progress';
 import { ArthOpening } from '../components/ArthOpening';
 import { ArthHeroCard } from '../components/ArthHeroCard';
 import { TrustBanner } from '../components/TrustBanner';
+import { TodayLessonSlot } from '../components/TodayLessonSlot';
 import { generateBriefing } from '../lib/arth/briefing';
 import { todayKey } from '../lib/arth/storage';
 import { useStreak } from '../lib/arth/streak';
@@ -545,6 +546,12 @@ export function Briefing() {
 
       <FadeIn delay={0.03}>
         <TrustBanner />
+      </FadeIn>
+
+      {/* Phase 2D — contextual lesson surfaced when a pattern fires
+          or a streak milestone hits. Renders nothing when no trigger. */}
+      <FadeIn delay={0.04}>
+        <TodayLessonSlot />
       </FadeIn>
 
       <Section>

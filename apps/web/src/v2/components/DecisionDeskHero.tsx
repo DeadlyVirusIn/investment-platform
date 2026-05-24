@@ -25,7 +25,10 @@ import { recordDecision, decisionForToday } from '../lib/arth/decisions';
 import { resolveWhyForYou } from '../lib/arth/whyForYou';
 import { resolveWhyNotCash } from '../lib/arth/whyNotCash';
 import { classifyCohort, cohortStats, sufficientSample } from '../lib/arth/cohort';
+import { lessonForSkipReason } from '../lib/arth/lessonRecommender';
+import { InlineLessonCard } from './InlineLessonCard';
 import type { Recommendation } from '../data/arthosData';
+import type { LessonHit } from '../lib/arth/lessonRecommender';
 
 const SKIP_REASONS = [
   'Too risky',
@@ -59,6 +62,8 @@ export function DecisionDeskHero({
   const [doneAction, setDoneAction] = useState<string | null>(
     existing?.action ?? null,
   );
+  // Phase 2D — contextual lesson surfaced after skip-with-reason.
+  const [lessonHit, setLessonHit] = useState<LessonHit | null>(null);
 
   const why = resolveWhyForYou({ rec, watchlist, topics, level, memory });
   const cash = resolveWhyNotCash(rec);
@@ -118,6 +123,9 @@ export function DecisionDeskHero({
       body: reason,
     });
     dispatch('reflect', 'reflection_written', rec.symbol);
+    // Phase 2D — surface a contextual lesson tied to the skip reason.
+    const hit = lessonForSkipReason(reason);
+    if (hit) setLessonHit(hit);
     setDoneAction('skipped');
     setStage('done');
   }
@@ -290,6 +298,13 @@ export function DecisionDeskHero({
           <DoneState action={doneAction} symbol={rec.symbol} />
         )}
       </div>
+
+      {/* Phase 2D — contextual lesson chained after skip-with-reason. */}
+      {lessonHit && stage === 'done' && (
+        <div className="mt-5">
+          <InlineLessonCard hit={lessonHit} onDismiss={() => setLessonHit(null)} />
+        </div>
+      )}
     </SurfaceCard>
   );
 }
