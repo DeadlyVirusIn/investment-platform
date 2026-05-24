@@ -11,7 +11,6 @@
 //
 //   Aside column (lg:col-span-4):
 //     • FollowedDecisions — useFollowedDecisions wired to journalEntries
-//     • WorthLearning     — daily lesson recommendation
 //     • PortfolioSummary  — equity + day-move + lifetime-move + position count
 //
 // All data sourced from existing arthosData / journal-data / state.
@@ -19,7 +18,7 @@
 
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArrowRight, Calendar, Sparkles, BookOpen, Eye } from 'lucide-react';
+import { ArrowRight, Calendar, Sparkles, Eye } from 'lucide-react';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Section } from '../components/ui/Section';
@@ -29,7 +28,6 @@ import { AcademyChips } from '../components/ui/AcademyChips';
 import {
   PORTFOLIO,
   WHAT_CHANGED_SINCE_YESTERDAY,
-  LESSONS,
 } from '../data/arthosData';
 import {
   opportunities,
@@ -37,15 +35,15 @@ import {
   getEntry,
 } from '../data/journal-data';
 import { useFollowedDecisions } from '../lib/lesson-progress';
-import { useReadLessons } from '../lib/lesson-progress';
 // Arth MVP — hero card replaces StrongestSetupCard; opening at top.
 import { ArthOpening } from '../components/ArthOpening';
-import { ArthHeroCard } from '../components/ArthHeroCard';
+import { DecisionDeskHero } from '../components/DecisionDeskHero';
 import { TrustBanner } from '../components/TrustBanner';
 import { TodayLessonSlot } from '../components/TodayLessonSlot';
 import { generateBriefing } from '../lib/arth/briefing';
 import { todayKey } from '../lib/arth/storage';
 import { useStreak } from '../lib/arth/streak';
+import { TODAYS_DESK } from '../data/arthosData';
 
 function FadeIn({
   delay = 0,
@@ -356,53 +354,6 @@ function FollowedDecisionsCard() {
   );
 }
 
-function WorthLearningCard() {
-  // Pick first unread lesson; fall back to first lesson if all read.
-  const readSlugs = new Set(useReadLessons());
-  const lesson = LESSONS.find((l) => !readSlugs.has(l.slug)) ?? LESSONS[0];
-  if (!lesson) return null;
-  return (
-    <SurfaceCard variant="muted">
-      <div className="flex items-center gap-2 mb-3">
-        <BookOpen className="size-4 ink-brand" aria-hidden />
-        <p
-          className="font-semibold uppercase"
-          style={{
-            fontSize: 11,
-            letterSpacing: '0.16em',
-            color: 'var(--muted-foreground)',
-          }}
-        >
-          Worth learning
-        </p>
-      </div>
-      <p
-        className="font-display ink-primary leading-snug mb-2"
-        style={{ fontSize: 17 }}
-      >
-        {lesson.title}
-      </p>
-      <p
-        className="ink-muted leading-relaxed mb-3 max-w-narrative"
-        style={{ fontSize: 13 }}
-      >
-        {lesson.abstract}
-      </p>
-      <Link
-        to={`/v2/learn/lesson/${lesson.slug}`}
-        className="inline-flex items-center gap-1.5"
-        style={{
-          fontSize: 12,
-          color: 'var(--brand)',
-          fontWeight: 600,
-        }}
-      >
-        {lesson.readMinutes} min read →
-      </Link>
-    </SurfaceCard>
-  );
-}
-
 function PortfolioSummaryCard() {
   return (
     <SurfaceCard>
@@ -554,11 +505,26 @@ export function Briefing() {
         <TodayLessonSlot />
       </FadeIn>
 
+      {/* Today Hero Migration — DecisionDeskHero is now the canonical
+          "THE ONE" surface across the product. ArthHeroCard kept only
+          as fallback when heroRec is somehow missing. WhatChanged +
+          NearestCatalyst remain directly below the hero (per user
+          direction — they are not collapsed). WorthLearning removed
+          from sidebar — TodayLessonSlot above already covers it. */}
       <Section>
         <div className="grid gap-5 lg:gap-6 lg:grid-cols-12">
           <div className="lg:col-span-8 space-y-5 lg:space-y-6">
             <FadeIn delay={0.1}>
-              {heroRec ? <ArthHeroCard rec={heroRec} /> : <StrongestSetupCard />}
+              {heroRec ? (
+                <DecisionDeskHero
+                  rec={heroRec}
+                  allRecs={[...TODAYS_DESK.stocks, ...TODAYS_DESK.options].filter(
+                    (r) => r.placeable,
+                  )}
+                />
+              ) : (
+                <StrongestSetupCard />
+              )}
             </FadeIn>
             <FadeIn delay={0.05}>
               <WhatChangedCard />
@@ -571,9 +537,6 @@ export function Briefing() {
           <aside className="lg:col-span-4 space-y-5 lg:space-y-6">
             <FadeIn delay={0.2}>
               <FollowedDecisionsCard />
-            </FadeIn>
-            <FadeIn delay={0.25}>
-              <WorthLearningCard />
             </FadeIn>
             <FadeIn delay={0.3}>
               <PortfolioSummaryCard />

@@ -16,7 +16,6 @@ import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
-import { DecisionDeskHero } from '../components/DecisionDeskHero';
 import { TrustBanner } from '../components/TrustBanner';
 import { TODAYS_DESK, TRACKING_NAMES, PASSED_ON_TODAY,
          type Recommendation } from '../data/arthosData';
@@ -58,33 +57,33 @@ export function Opportunities() {
     <ArthosPage topBarEyebrow="Opportunities">
       <PageHeader
         eyebrow="Opportunities"
-        title={<>What should I do<br />today?</>}
-        description="One hero idea, ranked alternatives, names I'm watching, and what I passed on. Every recommendation answers six questions and compares itself to holding cash."
+        title={<>The rest of<br />the desk.</>}
+        description="My favorite idea today lives on Today. This page is for everything else: alternatives ranked next, names I'm watching, and what I passed on with the reason."
       />
 
       <div className="mb-6">
         <TrustBanner />
       </div>
 
+      <div className="mb-8">
+        <ArthVoice mode="advisory">
+          Today's hero (<Link to="/v2/today" style={{ color: 'var(--brand)', fontWeight: 600 }}>see it here</Link>) is the one I'd start with. The cards below are the rest of what I'm looking at — alternatives if the hero isn't for you, names I'm waiting on, and what didn't clear the bar.
+        </ArthVoice>
+      </div>
+
       {cashCalls ? (
         <CashIsTheCall recs={placeable} />
       ) : (
-        <>
-          <Section number="01" title="My favorite idea today">
-            {hero && <DecisionDeskHero rec={hero} allRecs={placeable} />}
+        alternatives.length > 0 && (
+          <Section number="01" title="Also consider">
+            <div className="space-y-3">
+              {alternatives.map((r) => <AlternativeCard key={r.symbol} rec={r} />)}
+            </div>
           </Section>
-
-          {alternatives.length > 0 && (
-            <Section number="02" title="Also consider">
-              <div className="space-y-3">
-                {alternatives.map((r) => <AlternativeCard key={r.symbol} rec={r} />)}
-              </div>
-            </Section>
-          )}
-        </>
+        )
       )}
 
-      <Section number="03" title="Worth watching">
+      <Section number="02" title="Worth watching">
         {TRACKING_NAMES.length === 0 ? (
           <ArthVoice mode="advisory">Nothing on the waiting list right now.</ArthVoice>
         ) : (
@@ -220,7 +219,7 @@ function PassForNow() {
   const [open, setOpen] = useState(false);
   if (PASSED_ON_TODAY.length === 0) return null;
   return (
-    <Section number="04" title="Pass for now">
+    <Section number="03" title="Pass for now">
       <button onClick={() => setOpen((o) => !o)} className="ink-muted mb-3" style={{
         fontSize: 13, textDecoration: 'underline', textUnderlineOffset: 3,
       }}>
