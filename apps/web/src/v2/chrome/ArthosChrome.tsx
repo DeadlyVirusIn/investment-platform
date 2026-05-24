@@ -371,9 +371,9 @@ const NAV_PRIMARY: NavItem[] = [
   {
     label: 'Journal',
     shortLabel: 'Journal',
-    to: '/v2/reflections',
+    to: '/v2/journal',
     icon: NotebookPen,
-    match: (p) => p.startsWith('/v2/reflections') || p.startsWith('/v2/journal'),
+    match: (p) => p.startsWith('/v2/journal') || p.startsWith('/v2/reflections'),
   },
   {
     label: 'Practice',

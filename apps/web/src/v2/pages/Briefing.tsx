@@ -38,6 +38,12 @@ import {
 } from '../data/journal-data';
 import { useFollowedDecisions } from '../lib/lesson-progress';
 import { useReadLessons } from '../lib/lesson-progress';
+// Arth MVP — hero card replaces StrongestSetupCard; opening at top.
+import { ArthOpening } from '../components/ArthOpening';
+import { ArthHeroCard } from '../components/ArthHeroCard';
+import { generateBriefing } from '../lib/arth/briefing';
+import { todayKey } from '../lib/arth/storage';
+import { useStreak } from '../lib/arth/streak';
 
 function FadeIn({
   delay = 0,
@@ -504,9 +510,18 @@ function PortfolioSummaryCard() {
 }
 
 // ──────────────────────────────────────────────────────────────
-// Today shell
+// Today shell — Arth MVP wiring
+// Arth opening at top + ArthHeroCard replacing StrongestSetupCard.
+// Existing sibling cards (WhatChanged / NearestCatalyst / sidebar) kept.
 // ──────────────────────────────────────────────────────────────
 export function Briefing() {
+  const streak = useStreak();
+  const briefing = generateBriefing({
+    todayKey: todayKey(),
+    streakDay: streak.current_day || 1,
+  });
+  const heroRec = briefing.hero;
+
   return (
     <ArthosPage topBarEyebrow="Today">
       <FadeIn>
@@ -523,14 +538,18 @@ export function Briefing() {
         />
       </FadeIn>
 
+      <FadeIn delay={0.02}>
+        <ArthOpening />
+      </FadeIn>
+
       <Section>
         <div className="grid gap-5 lg:gap-6 lg:grid-cols-12">
           <div className="lg:col-span-8 space-y-5 lg:space-y-6">
+            <FadeIn delay={0.1}>
+              {heroRec ? <ArthHeroCard rec={heroRec} /> : <StrongestSetupCard />}
+            </FadeIn>
             <FadeIn delay={0.05}>
               <WhatChangedCard />
-            </FadeIn>
-            <FadeIn delay={0.1}>
-              <StrongestSetupCard />
             </FadeIn>
             <FadeIn delay={0.15}>
               <NearestCatalystCard />

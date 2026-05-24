@@ -34,6 +34,8 @@ import { Methodology } from './pages/Methodology';
 // UX Phase 3A — close-the-loop surfaces.
 import { TryFromLesson } from './pages/TryFromLesson';
 import { ReflectionsReview } from './pages/ReflectionsReview';
+// Arth MVP — Journal (Remember chapter — conversation log).
+import { JournalPage } from './pages/JournalPage';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -63,6 +65,8 @@ function V2Surface() {
         {/* UX Phase 3A — close-the-loop surfaces. */}
         <Route path="try/:lessonSlug" element={<TryFromLesson />} />
         <Route path="reflections" element={<ReflectionsReview />} />
+        {/* Arth MVP — Journal route, the Remember chapter surface. */}
+        <Route path="journal" element={<JournalPage />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}
