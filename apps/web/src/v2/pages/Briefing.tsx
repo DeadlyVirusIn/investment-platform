@@ -26,7 +26,6 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { AcademyChips } from '../components/ui/AcademyChips';
 import {
-  PORTFOLIO,
   WHAT_CHANGED_SINCE_YESTERDAY,
 } from '../data/arthosData';
 import {
@@ -44,6 +43,7 @@ import { generateBriefing } from '../lib/arth/briefing';
 import { todayKey } from '../lib/arth/storage';
 import { useStreak } from '../lib/arth/streak';
 import { TODAYS_DESK } from '../data/arthosData';
+import { usePaperSummary } from '@/lib/operator/hooks';
 
 function FadeIn({
   delay = 0,
@@ -354,7 +354,18 @@ function FollowedDecisionsCard() {
   );
 }
 
+// Phase X — Portfolio sidebar reads the same backend snapshot as the
+// top rail (usePaperSummary → /paper/summary), so the two never show
+// different equities. No static/demo money. Per-position rows were
+// removed (the summary endpoint has no per-position breakdown and the
+// old list was demo data) — real positions live on the practice page.
 function PortfolioSummaryCard() {
+  const { data: summary, isLoading } = usePaperSummary();
+  const equity = summary?.equity ?? null;
+  const dayPnl = summary?.daily_pnl ?? null;
+  const totalRet = summary?.total_return_pct ?? null;
+  const posCount = summary?.open_positions_count ?? null;
+
   return (
     <SurfaceCard>
       <p
@@ -365,92 +376,69 @@ function PortfolioSummaryCard() {
           color: 'var(--muted-foreground)',
         }}
       >
-        Portfolio
+        Practice portfolio
       </p>
-      <div className="mb-3">
-        <div
-          className="font-display ink-primary tabular-nums leading-none mb-2"
-          style={{ fontSize: 28 }}
-        >
-          $
-          {PORTFOLIO.equity.toLocaleString(undefined, {
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0,
-          })}
+      {equity == null ? (
+        <div className="ink-muted" style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+          {isLoading
+            ? 'Loading the practice account…'
+            : 'Practice account is unavailable right now.'}
         </div>
-        <div
-          className="font-mono tabular-nums"
-          style={{ fontSize: 12.5 }}
-        >
-          <span
-            style={{
-              color:
-                PORTFOLIO.dayMovePct >= 0
-                  ? 'var(--brand)'
-                  : 'var(--destructive)',
-            }}
-          >
-            {PORTFOLIO.dayMovePct >= 0 ? '▲' : '▼'}{' '}
-            {PORTFOLIO.dayMovePct >= 0 ? '+' : ''}
-            {PORTFOLIO.dayMovePct.toFixed(2)}%
-          </span>{' '}
-          <span style={{ color: 'var(--muted-foreground)' }}>on the day</span>
-        </div>
-        <div
-          className="font-mono tabular-nums mt-1"
-          style={{ fontSize: 11.5, color: 'var(--muted-foreground)' }}
-        >
-          {PORTFOLIO.lifetimeMovePct >= 0 ? '+' : ''}
-          {PORTFOLIO.lifetimeMovePct.toFixed(2)}% since Day 1
-        </div>
-      </div>
-      <div
-        className="font-semibold uppercase mb-2.5"
-        style={{
-          fontSize: 10,
-          letterSpacing: '0.12em',
-          color: 'var(--muted-foreground)',
-        }}
-      >
-        {PORTFOLIO.positions.length} positions
-      </div>
-      <ul className="space-y-1.5">
-        {PORTFOLIO.positions.slice(0, 6).map((p) => {
-          const move = ((p.current - p.costBasis) / p.costBasis) * 100;
-          return (
-            <li key={p.symbol}>
-              <Link
-                to={`/v2/today/pick/${p.symbol}`}
-                className="flex items-baseline justify-between gap-3 transition-colors"
-                style={{ fontSize: 12.5 }}
-              >
+      ) : (
+        <>
+          <div className="mb-3">
+            <div
+              className="font-display ink-primary tabular-nums leading-none mb-2"
+              style={{ fontSize: 28 }}
+            >
+              $
+              {equity.toLocaleString(undefined, {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              })}
+            </div>
+            {dayPnl != null && (
+              <div className="font-mono tabular-nums" style={{ fontSize: 12.5 }}>
                 <span
-                  className="font-mono ink-primary tabular-nums shrink-0"
-                  style={{ width: 48 }}
-                >
-                  {p.symbol}
-                </span>
-                <span
-                  className="flex-1 truncate"
-                  style={{ fontSize: 11, color: 'var(--muted-foreground)' }}
-                >
-                  Day {p.dayHeld}
-                </span>
-                <span
-                  className="font-mono tabular-nums"
                   style={{
                     color:
-                      move >= 0 ? 'var(--brand)' : 'var(--destructive)',
+                      dayPnl > 0
+                        ? 'var(--brand)'
+                        : dayPnl < 0
+                          ? 'var(--destructive)'
+                          : 'var(--muted-foreground)',
                   }}
                 >
-                  {move >= 0 ? '+' : ''}
-                  {move.toFixed(1)}%
-                </span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+                  {dayPnl > 0 ? '▲ +' : dayPnl < 0 ? '▼ −' : ''}$
+                  {Math.abs(dayPnl).toFixed(2)}
+                </span>{' '}
+                <span style={{ color: 'var(--muted-foreground)' }}>on the day</span>
+              </div>
+            )}
+            {totalRet != null && (
+              <div
+                className="font-mono tabular-nums mt-1"
+                style={{ fontSize: 11.5, color: 'var(--muted-foreground)' }}
+              >
+                {totalRet >= 0 ? '+' : ''}
+                {totalRet.toFixed(2)}% since inception
+              </div>
+            )}
+          </div>
+          {posCount != null && (
+            <div
+              className="font-semibold uppercase mb-2.5"
+              style={{
+                fontSize: 10,
+                letterSpacing: '0.12em',
+                color: 'var(--muted-foreground)',
+              }}
+            >
+              {posCount} open position{posCount === 1 ? '' : 's'}
+            </div>
+          )}
+        </>
+      )}
       <Link
         to="/v2/portfolio"
         className="inline-flex items-center gap-1.5 mt-4 transition-colors"

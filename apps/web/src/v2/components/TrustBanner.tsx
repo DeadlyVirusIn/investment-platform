@@ -1,13 +1,20 @@
-// Phase 2B — Compact trust banner for Today.
-// Voiced + honest about sample size.
+// Phase X — TrustBanner reads the backend, not localStorage.
+//   • "Arth's record"  = backend recommendations (published calls)
+//   • "practice book"  = backend paper-portfolio return
+//   • personal decisions/reflections stay local (Mentor Profile) and are
+//     deliberately NOT counted here as Arth's record.
+// Never shows "0 calls" when the engine has live recommendations — the
+// count comes straight from /recommendations.
 
 import { Link } from 'react-router-dom';
-import { computeTrustMetrics, accuracyPhrase, expectancyPhrase } from '../lib/arth/trustMetrics';
-import { useDecisions } from '../lib/arth/decisions';
+import { useRecommendations, usePaperSummary } from '@/lib/operator/hooks';
 
 export function TrustBanner() {
-  useDecisions();                  // subscribe so it re-renders on decisions
-  const m = computeTrustMetrics();
+  const { data: recs, isLoading: recsLoading } = useRecommendations();
+  const { data: summary } = usePaperSummary();
+
+  const callCount = recs?.recommendations?.length ?? null;
+  const totalRet = summary?.total_return_pct ?? null;
 
   return (
     <div className="flex items-baseline gap-3 flex-wrap mb-6 py-3 px-4 rounded-2xl"
@@ -17,13 +24,19 @@ export function TrustBanner() {
          }}>
       <span className="font-semibold uppercase" style={{
         fontSize: 10, letterSpacing: '0.16em', color: 'var(--brand)',
-      }}>Arth's last 30 days</span>
+      }}>Arth's record</span>
       <span className="ink-primary" style={{ fontSize: 13 }}>
-        {accuracyPhrase(m)}
+        {callCount == null
+          ? (recsLoading
+              ? "Loading Arth's published calls…"
+              : "Arth's record is unavailable right now.")
+          : callCount === 0
+            ? 'No calls published yet.'
+            : `${callCount} call${callCount === 1 ? '' : 's'} live — closed-outcome accuracy builds as positions resolve.`}
       </span>
-      {m.total_closed > 0 && (
+      {totalRet != null && (
         <span className="font-mono ink-muted" style={{ fontSize: 12 }}>
-          · {expectancyPhrase(m)}
+          · practice book {totalRet >= 0 ? '+' : ''}{totalRet.toFixed(2)}%
         </span>
       )}
       <Link to="/v2/arth"
