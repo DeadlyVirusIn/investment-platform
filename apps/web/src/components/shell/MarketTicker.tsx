@@ -93,6 +93,13 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
     );
   }
 
+  // -------- Market closed: real snapshot, no live session --------
+  // The tape carries no session flag; derive "closed" when no quote has
+  // a source timestamp (weekend / pre-open snapshot). Show last close and
+  // suppress the 0.00% change rows so it doesn't read as a dead feed.
+  const marketClosed =
+    data.quotes.length > 0 && data.quotes.every((q) => q.quote_ts == null);
+
   // -------- Real quotes --------
   // Duplicate for seamless scroll loop. With only 3 symbols the
   // duplicated set fills the visible width comfortably.
@@ -100,8 +107,8 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
 
   return (
     <div
-      className={containerCls}
-      data-tape-state="live"
+      className={cn(containerCls, marketClosed && "u-market-ticker--closed")}
+      data-tape-state={marketClosed ? "closed" : "live"}
       data-tape-source={data.source ?? undefined}
       data-tape-kind={kind}
     >
@@ -111,6 +118,7 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
             key={`${q.symbol}-${i}`}
             q={q}
             compact={isCompact}
+            closed={marketClosed}
             // Holdings symbols never carry minute-bar history (cycle
             // cost). For combined-tape, per-quote suppression is
             // driven by the absence of `q.history` rather than the
@@ -120,7 +128,24 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
           />
         ))}
       </div>
-      {!isCompact && (
+      {marketClosed && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute", right: 0, top: 0, bottom: 0, zIndex: 3,
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "0 14px 0 24px",
+            fontSize: 9, fontWeight: 700, letterSpacing: "0.18em",
+            textTransform: "uppercase", color: "var(--muted-foreground)",
+            background:
+              "linear-gradient(90deg, transparent 0%, color-mix(in oklch, var(--card) 92%, transparent) 35%, var(--card) 100%)",
+            whiteSpace: "nowrap", pointerEvents: "none", userSelect: "none",
+          }}
+        >
+          {isCompact ? "Market closed" : "Market closed · last close"}
+        </div>
+      )}
+      {!isCompact && !marketClosed && (
         <div className="u-ticker-delay-chip" aria-hidden="true">
           {`${data.max_delay_minutes ?? 15}m delayed · ${data.source ?? "polygon"}`}
         </div>
@@ -131,10 +156,11 @@ export default function MarketTicker({ mode = "full", kind = "macro" }: MarketTi
 
 
 function TickerItem({
-  q, compact, suppressSpark = false,
+  q, compact, closed = false, suppressSpark = false,
 }: {
   q: TapeQuote;
   compact: boolean;
+  closed?: boolean;
   suppressSpark?: boolean;
 }) {
   const change = q.change_abs;
@@ -177,7 +203,7 @@ function TickerItem({
       {!compact && !suppressSpark && q.history && q.history.length > 1 && (
         <Sparkline points={q.history} tone={sparkTone} />
       )}
-      {!compact && (
+      {!compact && !closed && (
         <span className={cn("u-ticker-chg", toneCls)}>
           {arrow}{" "}
           {change != null
@@ -188,7 +214,7 @@ function TickerItem({
             : ""}
         </span>
       )}
-      {compact && pct != null && (
+      {compact && !closed && pct != null && (
         <span className={cn("u-ticker-chg", toneCls)}>
           {arrow} {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
         </span>
