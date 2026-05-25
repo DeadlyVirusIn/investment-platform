@@ -496,6 +496,14 @@ class PaperTrade(Base):
 
 
 class PaperEquitySnapshot(Base):
+    """Phase L M079 — immutable + source-tagged equity snapshots.
+
+    Truth contract (see docs/research/M083_CANONICAL_SEMANTIC.md):
+      - `source='live'` is canonical truth for user-facing reads
+      - replay/backfill/operator_manual are audit-only
+      - storage immutability: existing rows are never modified by replay
+      - presentation immutability: user-facing readers MUST filter source='live'
+    """
     __tablename__ = "paper_equity_snapshot"
 
     id: Mapped[str]              = mapped_column(String(36), primary_key=True, default=_uuid)
@@ -513,9 +521,18 @@ class PaperEquitySnapshot(Base):
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+    # Phase L M079: write timestamp (immutability anchor).
+    recorded_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    # Phase L M079: source discriminator (truth contract).
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="live")
 
     __table_args__ = (
-        UniqueConstraint("portfolio_id", "snapshot_date", name="uq_paper_equity_snapshot"),
+        UniqueConstraint(
+            "portfolio_id", "snapshot_date", "source", "recorded_at",
+            name="uq_paper_equity_snapshot",
+        ),
     )
 
 
