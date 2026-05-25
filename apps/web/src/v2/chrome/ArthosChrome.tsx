@@ -24,11 +24,13 @@ import {
   Compass,
   Sparkles,
   User,
+  Award,
   type LucideProps,
 } from 'lucide-react';
 import { getTerm } from '../data/arthosData';
 import { useTheme } from './ThemeContext';
 import { useCommandPalette } from './CommandPalette';
+import { V2Rail } from './V2Rail';
 
 // Phase B visual-parity — nav item shape now carries an icon ref so
 // the new SideNav + restyled MobileBottomTab can render icon+label
@@ -370,9 +372,9 @@ const NAV_PRIMARY: NavItem[] = [
   {
     label: 'Journal',
     shortLabel: 'Journal',
-    to: '/v2/reflections',
+    to: '/v2/journal',
     icon: NotebookPen,
-    match: (p) => p.startsWith('/v2/reflections') || p.startsWith('/v2/journal'),
+    match: (p) => p.startsWith('/v2/journal') || p.startsWith('/v2/reflections'),
   },
   {
     label: 'Practice',
@@ -396,6 +398,13 @@ const NAV_PRIMARY: NavItem[] = [
     to: '/v2/opportunities',
     icon: Sparkles,
     match: (p) => p.startsWith('/v2/opportunities') || p.startsWith('/v2/catalysts'),
+  },
+  {
+    label: 'Report Card',
+    shortLabel: 'Report',
+    to: '/v2/arth',
+    icon: Award,
+    match: (p) => p.startsWith('/v2/arth'),
   },
   {
     label: 'Me',
@@ -635,9 +644,14 @@ export function ArthosPage({
   // to Lovable canonical widths.
   const widthClass = maxWidth ?? 'max-w-screen-md lg:max-w-[1080px]';
   return (
-    <div className="min-h-screen surface-base ink-primary">
+    <div className="v2-has-rail min-h-screen surface-base ink-primary">
       <SideNav />
       <div className="lg:pl-[248px]">
+        {/* Vision-lock #9 — ArthOS market cockpit rail must remain
+            visible above main page content. Sticky stack composed of
+            TopStrip + MarketTicker + StatusRail. Restyled to the V2
+            sage/brand system via v2-rail.css. */}
+        <V2Rail />
         <TopBar progress={topBarProgress} eyebrow={topBarEyebrow} />
         <main
           className={`mx-auto w-full ${widthClass} px-5 lg:px-10 pt-6 lg:pt-10 pb-32 lg:pb-16`}

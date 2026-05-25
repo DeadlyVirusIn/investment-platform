@@ -560,6 +560,19 @@ export interface Recommendation {
   entryPrice?: number; // numeric entry per share (stock) or per contract (option, in dollars)
   defaultQuantity?: number; // suggested shares or contracts
   maxLossPerContract?: number; // options only — dollars at risk per contract
+
+  // Phase 2C — Decision Desk fields. Every rec must answer 6 questions.
+  why_this_idea?: string[];                   // qualities of the idea (3 bullets max)
+  why_now?: string[];                         // timing signals (3 bullets max)
+  why_not_others?: { rec_id: string; reason: string }[];
+  invalidate_conditions?: string[];           // 1-3 bullets — what breaks it
+  hold_estimate_days_min?: number;
+  hold_estimate_days_max?: number;
+  confidence_level?: 'low' | 'medium' | 'high';
+  confidence_supporting?: string[];           // evidence backing the confidence
+  confidence_limiting?: string[];             // factors capping the confidence
+  expected_return_per_day_bp?: number;        // basis points/day for Why-Not-Cash
+  is_arth_pick?: boolean;                     // marks "My favorite idea today"
 }
 
 export const TODAYS_DESK: {
@@ -572,7 +585,7 @@ export const TODAYS_DESK: {
     kind: 'stock',
     actionLabel: 'Opening a short on TSLA at $172',
     paragraph:
-    "We're opening a quarter-position short on TSLA at $172. European port inventory has risen against a flat production schedule — historically a setup that has preceded margin pressure on a one-to-three-month horizon. The target is $148; we step out above $182 on a daily close.",
+    "Arth's read: European port inventory has built up against a flat production schedule. Historically that combination has preceded margin pressure on a 1-3 month horizon. Short a quarter-position, exit above $182 daily close.",
     entry: 'Short $172',
     target: '$148',
     invalidate: 'Daily close above $182',
@@ -581,7 +594,42 @@ export const TODAYS_DESK: {
     placeable: true,
     side: 'short',
     entryPrice: 172.0,
-    defaultQuantity: 12
+    defaultQuantity: 12,
+
+    why_this_idea: [
+      'Inventory pile-up at European ports is concrete + measurable',
+      'Margin compression has historically followed this signal within 60 days',
+      'Short bias matches a market that is broadly extended',
+    ],
+    why_now: [
+      'Port telemetry just refreshed — inventory at 92nd %ile of last 2y',
+      'Production schedule confirmed flat through Q3 (company guidance)',
+      'Implied vol modest — short risk priced fairly',
+    ],
+    why_not_others: [
+      { rec_id: 'AAPL', reason: 'AAPL spread is bullish — opposite directional bet' },
+      { rec_id: 'SPY', reason: 'SPY credit spread has 60% of decay already worked through' },
+    ],
+    invalidate_conditions: [
+      'Daily close above $182',
+      'Company announces production cut (would clear the inventory)',
+      'Broad market melt-up — equity beta overrides single-name thesis',
+    ],
+    hold_estimate_days_min: 30,
+    hold_estimate_days_max: 90,
+    confidence_level: 'medium',
+    confidence_supporting: [
+      'Inventory data is measurable + recent',
+      'Same setup printed 3 winning shorts in the last 18 months',
+      'Stop is defined and tight ($10 of risk per share)',
+    ],
+    confidence_limiting: [
+      'Multi-month horizon — many things can change before catalyst',
+      'TSLA is sentiment-driven; news risk can override fundamentals',
+      'Sample of similar setups is small (3 wins, 2 losses, N=5)',
+    ],
+    expected_return_per_day_bp: 8,         // ~+8 bp/d expected
+    is_arth_pick: false,                   // AAPL gets the pick
   },
   {
     symbol: 'NVDA',
@@ -614,10 +662,10 @@ export const TODAYS_DESK: {
   {
     symbol: 'AAPL',
     kind: 'option',
-    actionLabel: 'Buying the AAPL $175 / $180 call spread',
+    actionLabel: 'Buy the AAPL $175 / $180 call spread',
     contract: 'AAPL $175 / $180 Call Spread · Exp May 17',
     paragraph:
-    "We're buying the AAPL $175 / $180 call spread for a debit of $3.40. Implied volatility on the targeted expiry sits in the bottom quartile of the trailing year — upside exposure is unusually inexpensive. The maximum loss is the debit, known up front.",
+    "Arth's read: Implied volatility on the targeted expiry sits in the bottom quartile of the trailing year — upside exposure is unusually inexpensive right now. The maximum loss is the $3.40 debit, known up front.",
     entry: '$3.40 debit',
     target: '$5.00 max spread',
     invalidate: 'AAPL daily close below $168',
@@ -626,15 +674,50 @@ export const TODAYS_DESK: {
     side: 'long-option',
     entryPrice: 3.4,
     defaultQuantity: 4,
-    maxLossPerContract: 340
+    maxLossPerContract: 340,
+
+    why_this_idea: [
+      'Defined-risk structure — max loss = $340 per spread, known up front',
+      'IV cheap relative to historical range (bottom quartile)',
+      'Reward-to-risk is ~1.5× ($1.60 max win vs $3.40 max loss)',
+    ],
+    why_now: [
+      'AAPL IV at 22%ile of trailing year — premium is unusually cheap',
+      'Bullish gamma flip yesterday (dealer hedging now buys dips)',
+      'Earnings 4 weeks out — IV expansion ahead, not behind us',
+    ],
+    why_not_others: [
+      { rec_id: 'TSLA', reason: 'TSLA short is a longer-horizon thesis with looser stop' },
+      { rec_id: 'SPY',  reason: 'SPY credit spread has 60% of decay already worked through' },
+    ],
+    invalidate_conditions: [
+      'AAPL daily close below $168',
+      'IV expansion above 30%ile (premium gets too rich)',
+      'Broad SPY breakdown below the 50-DMA',
+    ],
+    hold_estimate_days_min: 6,
+    hold_estimate_days_max: 12,
+    confidence_level: 'medium',
+    confidence_supporting: [
+      'IV percentile is mechanical + replicable',
+      'Defined-risk caps the downside',
+      'Similar setups (long-call-spread, low IV) returned +0.92% expectancy in the last 7',
+    ],
+    confidence_limiting: [
+      'Earnings catalyst is 4 weeks out — guidance risk is unknown',
+      "I'm relying on IV staying cheap; macro shock could expand it",
+      "The historical cohort sample is still small (4 closes, 3 wins)",
+    ],
+    expected_return_per_day_bp: 18,         // ~+18 bp/d expected from spread decay
+    is_arth_pick: true,                     // THE ONE
   },
   {
     symbol: 'SPY',
     kind: 'option',
-    actionLabel: 'Selling the SPY $540 / $548 call spread for premium',
+    actionLabel: 'Sell the SPY $540 / $548 call spread for premium',
     contract: 'SPY $540 / $548 Call Spread (sold) · Exp May 31',
     paragraph:
-    "We're selling the SPY $540 / $548 call spread for a credit of $4.30. Realized volatility has run below implied for three weeks running. We want that decay to come to us. The maximum loss is the spread width less the credit — known up front.",
+    "Arth's read: Realized volatility has run below implied for three weeks. Selling premium harvests the gap. Max loss is the spread width less the credit — known up front.",
     entry: '$4.30 credit',
     target: 'Decay to $2.00',
     invalidate: 'SPY daily close above $545',
@@ -643,7 +726,41 @@ export const TODAYS_DESK: {
     side: 'short-option',
     entryPrice: 4.3,
     defaultQuantity: 5,
-    maxLossPerContract: 370
+    maxLossPerContract: 370,
+
+    why_this_idea: [
+      'Sells premium when realized vol < implied vol',
+      'Defined-risk: spread width $8 minus $4.30 credit = $3.70 max loss per contract',
+      'Theta works in your favor every day SPY stays below $540',
+    ],
+    why_now: [
+      'Realized vol has trailed implied for 3 weeks running',
+      'SPY trading sideways inside a tight 5% range',
+      'No major macro catalysts in the next 2 weeks',
+    ],
+    why_not_others: [
+      { rec_id: 'AAPL', reason: 'AAPL spread is bullish + cheap-IV — opposite vol-regime bet' },
+      { rec_id: 'TSLA', reason: 'TSLA short is single-name; SPY credit is index-level' },
+    ],
+    invalidate_conditions: [
+      'SPY daily close above $545',
+      'Realized vol catches up to implied (the edge evaporates)',
+      'Spike in VIX above 22 (signals regime change)',
+    ],
+    hold_estimate_days_min: 10,
+    hold_estimate_days_max: 21,
+    confidence_level: 'low',
+    confidence_supporting: [
+      'Vol gap is measurable + persistent so far',
+      'Defined-risk structure',
+    ],
+    confidence_limiting: [
+      '60% of time-decay is already gone — late entry',
+      'Tail risk on a sharp SPY breakout above $548',
+      'Cohort short_credit_spread has only 1 closed call so far (insufficient sample)',
+    ],
+    expected_return_per_day_bp: 5,
+    is_arth_pick: false,
   }]
 
 };

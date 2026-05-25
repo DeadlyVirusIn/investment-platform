@@ -1,0 +1,321 @@
+/* ──────────────────────────────────────────────────────────────
+ * V2 Rail — scoped re-theme of legacy TopStrip + MarketTicker +
+ * StatusRail components when mounted inside the V2 surface.
+ *
+ * All selectors are scoped to .v2-rail-root so the legacy operator
+ * shell at / and /portfolio is unchanged. Vision-lock #9 — Lovable
+ * shell must coexist with the ArthOS market cockpit.
+ *
+ * The three rail components themselves are not modified. This file
+ * overrides the legacy classes they emit (.topstrip-root,
+ * .u-market-ticker, .u-status-rail, etc.) with the V2 sage/brand
+ * tokens.
+ * ────────────────────────────────────────────────────────────── */
+
+.v2-rail-root {
+  position: sticky;
+  top: 0;
+  z-index: 35;
+  background: color-mix(in oklch, var(--card) 92%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  backdrop-filter: blur(10px) saturate(140%);
+  border-bottom: 1px solid var(--border);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* TopBar (Lovable header) sits below rail. Both share the same
+   scroll parent so we offset TopBar's sticky-top by the rail height
+   to stack cleanly instead of overlapping. */
+.v2-has-rail .v2-rail-root + header {
+  top: 102px !important;
+  z-index: 25 !important;
+}
+
+@media (max-width: 767px) {
+  .v2-has-rail .v2-rail-root + header {
+    top: 76px !important;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * TopStrip — cell row with NAV / P&L / Return / Regime /
+ *            Engine / Health
+ * ────────────────────────────────────────────────────────────── */
+.v2-rail-root .topstrip-root {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  border-bottom: 1px solid var(--border);
+}
+
+.v2-rail-root .topstrip-root > * + * {
+  border-left: 1px solid var(--border);
+}
+
+.v2-rail-root .topstrip-cell {
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+}
+
+.v2-rail-root .topstrip-cell .u-caption-2 {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.v2-rail-root .topstrip-cell > div:last-child {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+.v2-rail-root .topstrip-cell-stale > div:last-child {
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+
+/* Engine cell falsy-fire text — stays visible per vision-lock #9 */
+.v2-rail-root .topstrip-cell .text-fg-3 {
+  color: var(--muted-foreground);
+  font-style: italic;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 12px;
+}
+
+/* Numeric tone overrides */
+.v2-rail-root .topstrip-cell .text-success { color: var(--brand); }
+.v2-rail-root .topstrip-cell .text-danger  { color: var(--destructive); }
+.v2-rail-root .topstrip-cell .text-fg      { color: var(--foreground); }
+
+/* Pills — Regime / Engine / Health */
+.v2-rail-root .topstrip-cell [class*="u-pill"],
+.v2-rail-root .topstrip-cell .u-chip {
+  background: color-mix(in oklch, var(--brand) 14%, transparent);
+  color: var(--brand);
+  border: 1px solid color-mix(in oklch, var(--brand) 22%, transparent);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.v2-rail-root .topstrip-cell [data-tone="warning"],
+.v2-rail-root .topstrip-cell .u-pill-warning {
+  background: color-mix(in oklch, var(--accent) 18%, transparent);
+  color: var(--accent-foreground);
+  border-color: color-mix(in oklch, var(--accent) 32%, transparent);
+}
+
+.v2-rail-root .topstrip-cell [data-tone="danger"],
+.v2-rail-root .topstrip-cell .u-pill-danger {
+  background: color-mix(in oklch, var(--destructive) 14%, transparent);
+  color: var(--destructive);
+  border-color: color-mix(in oklch, var(--destructive) 28%, transparent);
+}
+
+/* Hide legacy toggle cluster + last-run in V2 (controls live on
+   Lovable TopBar; rail is information-only per decision 1). */
+.v2-rail-root .topstrip-toggles {
+  display: none !important;
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * MarketTicker — compact combined tape
+ * ────────────────────────────────────────────────────────────── */
+.v2-rail-root .u-market-ticker {
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  height: 28px;
+  padding: 0 12px;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums slashed-zero;
+  color: var(--foreground);
+}
+
+.v2-rail-root .u-market-ticker--disabled .u-market-ticker-disabled-text {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.v2-rail-root .u-ticker-item {
+  padding: 0 14px;
+  border-right: 1px solid var(--border);
+}
+
+.v2-rail-root .u-ticker-sym {
+  color: var(--muted-foreground);
+  font-weight: 600;
+  margin-right: 6px;
+  letter-spacing: 0.02em;
+}
+
+.v2-rail-root .u-ticker-px {
+  color: var(--foreground);
+  margin-right: 6px;
+}
+
+.v2-rail-root .u-ticker-chg.is-pos { color: var(--brand); }
+.v2-rail-root .u-ticker-chg.is-neg { color: var(--destructive); }
+
+/* ──────────────────────────────────────────────────────────────
+ * StatusRail — NOW / NEXT / RISK
+ * ────────────────────────────────────────────────────────────── */
+.v2-rail-root .u-status-rail {
+  display: flex;
+  align-items: stretch;
+  height: 30px;
+  background: transparent;
+  border-bottom: none;
+}
+
+.v2-rail-root .u-status-seg {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.v2-rail-root .u-status-seg + .u-status-seg {
+  border-left: 1px solid var(--border);
+}
+
+.v2-rail-root .u-status-seg-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+.v2-rail-root .u-status-seg-value {
+  font-size: 11.5px;
+  color: var(--foreground);
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.v2-rail-root .u-status-seg.is-pos    .u-status-seg-value { color: var(--brand); }
+.v2-rail-root .u-status-seg.is-neg    .u-status-seg-value { color: var(--destructive); }
+.v2-rail-root .u-status-seg.is-warn   .u-status-seg-value { color: var(--accent-foreground); }
+.v2-rail-root .u-status-seg.is-accent .u-status-seg-value { color: var(--foreground); }
+
+/* ──────────────────────────────────────────────────────────────
+ * Mobile collapse — < 768px
+ *
+ * Visible (always): NAV cell, Health cell, market tape, NOW segment.
+ * Hidden (in disclosure sheet): TODAY P&L, TOTAL RETURN, REGIME,
+ *   ENGINE, NEXT, RISK.
+ * ────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .v2-rail-root .topstrip-cell[data-slot="day-pnl"],
+  .v2-rail-root .topstrip-cell[data-slot="total-return"],
+  .v2-rail-root .topstrip-cell[data-slot="regime"],
+  .v2-rail-root .topstrip-cell[data-slot="engine"] {
+    display: none;
+  }
+
+  .v2-rail-root .topstrip-cell[data-slot="nav"] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .v2-rail-root .topstrip-cell[data-slot="health"] {
+    flex: 0 0 auto;
+  }
+
+  /* Show only NOW on mobile; NEXT + RISK move into disclosure. */
+  .v2-rail-root .u-status-rail .u-status-seg:not(:first-child) {
+    display: none;
+  }
+  .v2-rail-root .u-status-rail .u-status-seg:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+ * Disclosure trigger + sheet
+ * ────────────────────────────────────────────────────────────── */
+.v2-rail-disclosure-trigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 0 14px;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 14px;
+  cursor: pointer;
+  transition: color 160ms ease;
+}
+
+.v2-rail-disclosure-trigger:hover {
+  color: var(--foreground);
+}
+
+@media (max-width: 767px) {
+  .v2-rail-disclosure-trigger {
+    display: inline-flex;
+  }
+}
+
+.v2-rail-disclosure-sheet {
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 18px 14px;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  animation: v2RailSheetIn 180ms ease;
+}
+
+@keyframes v2RailSheetIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.v2-rail-disclosure-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 5px 0;
+  border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+}
+
+.v2-rail-disclosure-row:last-child {
+  border-bottom: none;
+}
+
+.v2-rail-disclosure-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.v2-rail-disclosure-value {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-size: 12.5px;
+  color: var(--foreground);
+}
+
+.v2-rail-disclosure-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}

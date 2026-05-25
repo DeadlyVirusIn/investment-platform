@@ -31,9 +31,15 @@ import { GlossaryIndex } from './pages/GlossaryIndex';
 import { StartHere } from './pages/StartHere';
 import { MePage } from './pages/MePage';
 import { Methodology } from './pages/Methodology';
+// Phase 2E — Mentor Profile replaces the old metric dashboard at /v2/me.
+import { MentorProfile } from './pages/MentorProfile';
 // UX Phase 3A — close-the-loop surfaces.
 import { TryFromLesson } from './pages/TryFromLesson';
 import { ReflectionsReview } from './pages/ReflectionsReview';
+// Arth MVP — Journal (Remember chapter — conversation log).
+import { JournalPage } from './pages/JournalPage';
+// Phase 2B — Arth Report Card (Trust + first-class transparency surface).
+import { ArthReportCard } from './pages/ArthReportCard';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -58,11 +64,19 @@ function V2Surface() {
         <Route index element={<Navigate to="learn" replace />} />
         {/* UX Phase 2 — guided coach surfaces. */}
         <Route path="start" element={<StartHere />} />
-        <Route path="me" element={<MePage />} />
+        {/* Phase 2E — Mentor Profile is /v2/me. Legacy MePage moved to
+            /v2/me-legacy for backstop comparison; primary route serves
+            the relationship document. */}
+        <Route path="me" element={<MentorProfile />} />
+        <Route path="me-legacy" element={<MePage />} />
         <Route path="methodology" element={<Methodology />} />
         {/* UX Phase 3A — close-the-loop surfaces. */}
         <Route path="try/:lessonSlug" element={<TryFromLesson />} />
         <Route path="reflections" element={<ReflectionsReview />} />
+        {/* Arth MVP — Journal route, the Remember chapter surface. */}
+        <Route path="journal" element={<JournalPage />} />
+        {/* Phase 2B — Arth Report Card. */}
+        <Route path="arth" element={<ArthReportCard />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}
