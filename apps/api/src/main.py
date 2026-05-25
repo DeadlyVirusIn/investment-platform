@@ -31,6 +31,9 @@ from apps.api.src.api.alpha_rules import (
 )
 from apps.api.src.api.gates import router as gates_router
 from apps.api.src.api.paper_runs import router as paper_runs_router
+# P3 backend reconciliation — paper_live + paper_funnel (from backend-snapshot-2c08697).
+from apps.api.src.api.paper_live import router as paper_live_router
+from apps.api.src.api.paper_funnel import router as paper_funnel_router
 from apps.api.src.api.alpha_calibration import (
     router as alpha_calibration_router,
 )
@@ -231,6 +234,8 @@ for _router in (
     alpha_thresholds_router,
     gates_router,
     paper_runs_router,
+    paper_live_router,
+    paper_funnel_router,
     alpha_calibration_router,
     alpha_context_router,
     alpha_similarity_router,
