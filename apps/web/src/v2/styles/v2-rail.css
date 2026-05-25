@@ -165,6 +165,34 @@
 .v2-rail-root .u-ticker-chg.is-pos { color: var(--brand); }
 .v2-rail-root .u-ticker-chg.is-neg { color: var(--destructive); }
 
+/* ── Phase X — theme-correct ticker fades + dark contrast ──────────
+ * Operator (index.css) hardcodes the edge/toggle/chip fade to navy
+ * rgba(10,15,28) and ships a `:root[data-theme="light"]` chip override.
+ * V2 carries its theme on `.v2-root[data-theme]`, NOT on :root, so that
+ * light override mis-fires under V2 dark → the white right-edge mask.
+ * Re-fade to the V2 surface token (theme-aware) and out-specify the
+ * stray :root override (the `.u-market-ticker .u-ticker-delay-chip`
+ * descendant selector ties its specificity and wins on later source). */
+.v2-rail-root .u-market-ticker::before {
+  background: linear-gradient(90deg, var(--card) 12%, transparent 100%);
+}
+.v2-rail-root .u-market-ticker::after {
+  background: linear-gradient(270deg, var(--card) 12%, transparent 100%);
+}
+.v2-rail-root .u-ticker-toggle {
+  background: linear-gradient(90deg, transparent 0%,
+    color-mix(in oklch, var(--card) 94%, transparent) 35%, var(--card) 100%);
+}
+.v2-rail-root .u-market-ticker .u-ticker-delay-chip {
+  background: linear-gradient(90deg, transparent 0%,
+    color-mix(in oklch, var(--card) 92%, transparent) 35%, var(--card) 100%);
+  color: color-mix(in oklch, var(--foreground) 55%, var(--muted-foreground));
+}
+/* Lift small tape glyphs off the faint muted token in dark mode. */
+.v2-rail-root .u-ticker-sym {
+  color: color-mix(in oklch, var(--foreground) 72%, var(--muted-foreground));
+}
+
 /* ──────────────────────────────────────────────────────────────
  * StatusRail — NOW / NEXT / RISK
  * ────────────────────────────────────────────────────────────── */
