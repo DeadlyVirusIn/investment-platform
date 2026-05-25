@@ -1,0 +1,26 @@
+[
+  {
+    "name": "stop_below_anchor",
+    "label": "price closes below the anchor level",
+    "domain": "equities,options",
+    "description": "Position closes when the price breaches a defined anchor (recent low, moving average, or breakout level)."
+  },
+  {
+    "name": "thesis_signal_flips",
+    "label": "the trigger signal that opened the position has now flipped against us",
+    "domain": "equities,options",
+    "description": "Position closes when the same signal that justified entry now reads the opposite direction."
+  },
+  {
+    "name": "volatility_collapse",
+    "label": "implied volatility collapses back into normal range",
+    "domain": "options",
+    "description": "Options position closes when IV mean-reverts, eliminating the edge the position was sized for."
+  },
+  {
+    "name": "regime_break",
+    "label": "the regime backdrop the trade depended on has broken",
+    "domain": "equities",
+    "description": "Position closes when the prevailing regime classification flips away from the trade's required backdrop."
+  }
+]

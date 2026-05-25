@@ -1,0 +1,74 @@
+[
+  {
+    "name": "breadth_broadening",
+    "domain": "breadth",
+    "label": "breadth broadening",
+    "description": "Market breadth widening — more names participating in the move beyond a narrow leadership."
+  },
+  {
+    "name": "breadth_narrowing",
+    "domain": "breadth",
+    "label": "breadth narrowing",
+    "description": "Fewer names driving the index; leadership is concentrating."
+  },
+  {
+    "name": "momentum_3w_positive",
+    "domain": "momentum",
+    "label": "3-week momentum positive",
+    "description": "3-week return is positive and consistent — directional drift up."
+  },
+  {
+    "name": "momentum_3w_negative",
+    "domain": "momentum",
+    "label": "3-week momentum negative",
+    "description": "3-week return is negative and consistent — directional drift down."
+  },
+  {
+    "name": "iv_compression",
+    "domain": "iv",
+    "label": "IV compression",
+    "description": "Implied volatility is falling — option premium getting cheaper."
+  },
+  {
+    "name": "iv_expansion",
+    "domain": "iv",
+    "label": "IV expansion",
+    "description": "Implied volatility is rising — option premium getting richer."
+  },
+  {
+    "name": "volume_confirmation",
+    "domain": "volume",
+    "label": "volume confirmation",
+    "description": "Volume supports the direction of the price action."
+  },
+  {
+    "name": "volume_divergence",
+    "domain": "volume",
+    "label": "volume divergence",
+    "description": "Volume disagrees with price action — moves on thin participation."
+  },
+  {
+    "name": "catalyst_proximate_earnings",
+    "domain": "catalyst",
+    "label": "earnings catalyst nearby",
+    "description": "An earnings event falls within the typical trade horizon."
+  },
+  {
+    "name": "catalyst_proximate_macro",
+    "domain": "catalyst",
+    "label": "macro catalyst nearby",
+    "description": "A macro event (FOMC, CPI, NFP, etc.) falls within the typical trade horizon."
+  },
+  {
+    "name": "macro_tailwind",
+    "domain": "macro",
+    "label": "macro tailwind",
+    "description": "Macro environment is supportive of the trade direction."
+  },
+  {
+    "name": "macro_headwind",
+    "domain": "macro",
+    "label": "macro headwind",
+    "description": "Macro environment is unsupportive of the trade direction."
+  }
+]
