@@ -39,6 +39,19 @@ export function useCurrentState() {
   });
 }
 
+// Phase X — backend recommendation count for the V2 TrustBanner.
+// Source of truth for "Arth's published calls"; replaces the old
+// localStorage decision count so the banner never reads 0 when the
+// engine has live recommendations.
+export function useRecommendations() {
+  return useQuery<{ recommendations: unknown[] }>({
+    queryKey: ["recommendations"],
+    queryFn: () => apiGet<{ recommendations: unknown[] }>("/recommendations"),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
 export function usePaperEquity(from?: string, to?: string) {
   const qs = new URLSearchParams();
   if (from) qs.set("from", from);
