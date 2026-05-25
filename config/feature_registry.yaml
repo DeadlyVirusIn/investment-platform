@@ -1,0 +1,159 @@
+# Feature Registry — Phase DL2
+# Single source of truth for feature status.
+# CI enforces strategy layer may only import features flagged status=production.
+
+version: "1.0.0"
+last_updated: "2026-04-23"
+
+# ---------------------------------------------------------------------------
+# PRODUCTION — wired into Engine A / Engine B / selector
+# ---------------------------------------------------------------------------
+
+features:
+  - name: d10y_5d
+    feature_version: v1.0.0
+    source: FRED:DGS10
+    availability_lag_days: 5
+    availability: "daily T+1 (FRED daily publish ~16:30 ET)"
+    status: production
+    contributes_to: [rates_calm]
+    notes: "Phase 19 finding — cleanest cross-asset separator"
+
+  - name: rates_calm
+    feature_version: v1.0.0
+    source: features.d10y_5d
+    availability_lag_days: 5
+    availability: "daily T+1"
+    status: production
+    contributes_to: [gates_favorable, engine_b_entry]
+
+  - name: credit_stable
+    feature_version: v1.0.0
+    source: "FRED:BAMLH0A0HYM2 (primary) / yfinance:HYG (fallback pre-2023-04)"
+    availability_lag_days: 20
+    availability: "daily T+1"
+    status: production
+    contributes_to: [gates_favorable, engine_b_entry]
+    notes: "Phase 22 top-2, OOS t=+2.35"
+
+  - name: vrp_supportive
+    feature_version: v1.0.0
+    source: "yfinance:^VIX, SPY realized-variance"
+    availability_lag_days: 126
+    availability: "daily T+1"
+    status: production
+    contributes_to: [gates_favorable]
+    notes: "Gate input only; not in Phase 22 top-2"
+
+  - name: liquidity_expanding
+    feature_version: v1.0.0
+    source: "FRED:WALCL - WTREGEN - RRPONTSYD"
+    availability_lag_days: 20
+    availability: "weekly Thursday T+1"
+    status: production
+    contributes_to: [gates_favorable]
+
+  - name: gates_favorable
+    feature_version: v1.0.0
+    source: "sum of 4 production gates"
+    availability_lag_days: 126
+    availability: "daily T+1"
+    status: production
+    contributes_to: [stress_regime, directional_regime]
+
+  - name: p15_entry
+    feature_version: v1.0.0
+    source: "ES OHLC (price_bar)"
+    availability_lag_days: 50
+    availability: "daily T+0 close"
+    status: production
+    contributes_to: [engine_a_entry]
+    notes: "Phase 15 mean-reversion trigger (ATR10/ATR50, vol, z_score)"
+
+  # ---------------------------------------------------------------------------
+  # CANDIDATE — evaluated but not deployed
+  # ---------------------------------------------------------------------------
+  - name: ts_ratio
+    feature_version: v0.1.0
+    source: "yfinance:^VIX / ^VIX3M"
+    availability_lag_days: 0
+    availability: "daily T+1"
+    status: candidate
+    contributes_to: []
+    notes: "Phase X2 overlay FAILED; retained for evaluation"
+
+  - name: cot_extreme_flag
+    feature_version: v0.1.0
+    source: "CFTC COT weekly"
+    availability_lag_days: 3
+    availability: "Tuesday T+1 (Friday data + 3-day lag)"
+    status: candidate
+    contributes_to: []
+    notes: "Ingest pending; not yet evaluated"
+
+  # ---------------------------------------------------------------------------
+  # DIAGNOSTIC — logged only, never wired to strategy
+  # ---------------------------------------------------------------------------
+  - name: gex_sign
+    feature_version: v0.1.0
+    source: "SqueezeMetrics free CSV (SPX aggregate dealer gamma)"
+    availability_lag_days: 0
+    availability: "daily T+1"
+    status: diagnostic
+    contributes_to: []
+    notes: "Phase X3 FAIL — removes winning trades"
+
+  - name: sign_sum_5
+    feature_version: v0.1.0
+    source: "derived from ES close"
+    availability_lag_days: 5
+    availability: "daily T+0"
+    status: diagnostic
+    contributes_to: []
+    notes: "Phase X FAIL — conflates healthy drift with liquidation"
+
+
+contexts:
+  # PRODUCTION
+  - name: stress_regime
+    logic_version: v1.0.0
+    status: production
+    source_features: [gates_favorable]
+    logic_description: "gates_favorable <= 1  (Phase 21 frozen)"
+    logic_fingerprint: "stress:gates_fav<=1:v1.0.0"
+
+  - name: directional_regime
+    logic_version: v1.0.0
+    status: production
+    source_features: [gates_favorable]
+    logic_description: "gates_favorable >= 2  (Phase 21 frozen)"
+    logic_fingerprint: "directional:gates_fav>=2:v1.0.0"
+
+  # CANDIDATE
+  - name: backwardation_flag
+    logic_version: v0.1.0
+    status: candidate
+    source_features: [ts_ratio]
+    logic_description: "ts_ratio > 1 (VIX/VIX3M backwardation)"
+    logic_fingerprint: "backwardation:ts_ratio>1:v0.1.0"
+
+  # DIAGNOSTIC
+  - name: gex_context_flag
+    logic_version: v0.1.0
+    status: diagnostic
+    source_features: [gex_sign]
+    logic_description: "gex_sign < 0 (NEG_GEX). Phase X3 FAIL."
+    logic_fingerprint: "gex_neg:v0.1.0"
+
+  - name: cot_context_flag
+    logic_version: v0.1.0
+    status: diagnostic
+    source_features: [cot_extreme_flag]
+    logic_description: "COT positioning flagged as extreme"
+    logic_fingerprint: "cot_extreme:v0.1.0"
+
+
+decision_versions:
+  engine_a: "engineA-v1.0.0"     # P15 on stress regime
+  engine_b: "engineB-v1.0.0"     # credit_stable AND rates_calm on directional
+  selector: "selector-v1.0.0"    # gates_favorable <=1 vs >=2
