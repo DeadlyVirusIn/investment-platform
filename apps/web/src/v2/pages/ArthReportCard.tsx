@@ -8,8 +8,8 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { useDecisions, type Decision } from '../lib/arth/decisions';
 import {
-  computeTrustMetrics, accuracyPhrase, expectancyPhrase,
-  TH_BEST_WORST, TH_USER_OUTCOMES, type CalibrationRow,
+  computeTrustMetrics,
+  TH_BEST_WORST, TH_USER_OUTCOMES,
 } from '../lib/arth/trustMetrics';
 import { allCohortStats, sufficientSample, type CohortStats } from '../lib/arth/cohort';
 import { ARTH_LESSONS_SEED } from '../lib/arth/lessonsLearned';

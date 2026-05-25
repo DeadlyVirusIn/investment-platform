@@ -15,7 +15,7 @@ import { useEffect, useRef } from 'react';
 import {
   usePaperSummary, useCurrentState, useAnomalySummary,
 } from '@/lib/operator/hooks';
-import { fmtUSD, fmtPct } from '@/components/ui/primitives';
+import { fmtPct } from '@/components/ui/primitives';
 
 export function V2RailDisclosure({ onClose }: { onClose: () => void }) {
   const { data: summary } = usePaperSummary();

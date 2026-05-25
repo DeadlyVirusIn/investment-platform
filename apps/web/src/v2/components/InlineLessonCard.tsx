@@ -202,7 +202,7 @@ export function InlineLessonCard({
                 }}>
                 Submit
               </button>
-              {picked && status !== 'learned' && picked !== hit.lesson.check_answer_correct && (
+              {picked && picked !== hit.lesson.check_answer_correct && (
                 <span className="ink-muted ml-3 italic" style={{ fontSize: 12 }}>
                   Not quite. Re-read the lesson and try again.
                 </span>

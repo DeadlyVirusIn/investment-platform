@@ -5,11 +5,10 @@
 // honesty modes. Only runs in demo mode (URL `?seedReportCard=1`)
 // to avoid polluting real user data.
 
-import { listDecisions, recordDecision, closeDecision,
+import { listDecisions,
          type Decision, type DecisionConfidence } from './decisions';
 import { writeVersioned } from './storage';
 import { KEYS } from './storage';
-import { classifyCohort } from './cohort';
 import type { Recommendation } from '../../data/arthosData';
 
 interface Seed {

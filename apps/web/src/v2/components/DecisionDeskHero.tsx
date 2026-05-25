@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
-import { ArthVoice, ArthGlyph } from '../chrome/ArthVoice';
+import { ArthVoice } from '../chrome/ArthVoice';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { usePaperBook } from '../state/PaperBook';
 import { saveReflection } from '../lib/reflections';
@@ -44,10 +44,10 @@ function today(): string {
 }
 
 export function DecisionDeskHero({
-  rec, allRecs,
+  rec,
 }: {
   rec: Recommendation;
-  allRecs: Recommendation[];
+  allRecs?: Recommendation[];
 }) {
   const { watchlist, topics, level } = useUserPrefs();
   const memory = useMemoryNotes();
