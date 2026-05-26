@@ -203,9 +203,13 @@ def _closed_trade_pnls(
 def _load_equity_curve(
     session: Session, portfolio_id: str
 ) -> list[EquityPoint]:
+    # Phase L M079: equity curve is canonical user-facing — live-only.
     stmt = (
         select(PaperEquitySnapshot)
-        .where(PaperEquitySnapshot.portfolio_id == portfolio_id)
+        .where(
+            PaperEquitySnapshot.portfolio_id == portfolio_id,
+            PaperEquitySnapshot.source == "live",
+        )
         .order_by(PaperEquitySnapshot.snapshot_date.asc())
     )
     points: list[EquityPoint] = []

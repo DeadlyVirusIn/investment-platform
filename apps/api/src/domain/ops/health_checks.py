@@ -157,12 +157,14 @@ def check_duplicate_execution(
 def check_equity_snapshot(
     session: Session, as_of: dt.date,
 ) -> tuple[bool, dict]:
+    # Phase L M079: health check requires at least one live snapshot.
     count = session.execute(
         select(func.count()).select_from(PaperEquitySnapshot).where(
             PaperEquitySnapshot.snapshot_date == as_of,
+            PaperEquitySnapshot.source == "live",
         )
     ).scalar_one()
-    return count > 0, {"snapshots_on_date": int(count)}
+    return count > 0, {"live_snapshots_on_date": int(count)}
 
 
 # ---------------------------------------------------------------------------

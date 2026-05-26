@@ -142,15 +142,20 @@ def _yesterday_snapshot(
 ) -> tuple[Decimal | None, int | None]:
     """(nav, position_count) at the most recent equity snapshot strictly
     before ``today``. Position count is inferred as rows open at snapshot."""
+    # Phase L M079: canonical user-facing briefing — live-only.
     stmt = (
         select(PaperEquitySnapshot)
         .where(
             PaperEquitySnapshot.portfolio_id == portfolio_id,
+            PaperEquitySnapshot.source == "live",
             PaperEquitySnapshot.snapshot_date < dt.datetime.combine(
                 today, dt.time(0, 0, 0, tzinfo=dt.timezone.utc),
             ),
         )
-        .order_by(desc(PaperEquitySnapshot.snapshot_date))
+        .order_by(
+            desc(PaperEquitySnapshot.snapshot_date),
+            desc(PaperEquitySnapshot.recorded_at),
+        )
         .limit(1)
     )
     snap = session.scalars(stmt).first()

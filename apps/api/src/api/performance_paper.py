@@ -3217,6 +3217,7 @@ def paper_risk_dashboard(
     excl_pt = _excl(include_replay, "paper_trade", "pt")
 
     # 1. Latest snapshot per active portfolio -------------------------
+    # Phase L M079: canonical user-facing performance — live-only.
     snap_rows = db.execute(text("""
         SELECT DISTINCT ON (s.portfolio_id)
                s.portfolio_id, p.name AS portfolio_name,
@@ -3226,7 +3227,8 @@ def paper_risk_dashboard(
         FROM paper_equity_snapshot s
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
-        ORDER BY s.portfolio_id, s.snapshot_date DESC
+          AND s.source = 'live'
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
     """)).mappings().all()
 
     has_snapshots = bool(snap_rows)
@@ -3343,6 +3345,7 @@ def paper_risk_dashboard(
     ]
 
     # 6. Max drawdown from total daily equity -----------------------
+    # Phase L M079: canonical drawdown — live-only.
     dd_row = db.execute(text("""
         WITH series AS (
             SELECT s.snapshot_date::date AS d,
@@ -3350,6 +3353,7 @@ def paper_risk_dashboard(
             FROM paper_equity_snapshot s
             JOIN paper_portfolio p ON p.id = s.portfolio_id
             WHERE p.is_active = TRUE
+              AND s.source = 'live'
             GROUP BY s.snapshot_date::date
             ORDER BY 1
         ),

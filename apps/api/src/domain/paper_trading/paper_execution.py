@@ -20,7 +20,7 @@ from apps.api.src.db.models import (
 )
 
 
-DEFAULT_MAX_OPEN_POSITIONS = 10
+DEFAULT_MAX_OPEN_POSITIONS = 30
 DEFAULT_SIZING_PCT = Decimal("0.10")   # 10% of equity per position
 
 # Paper-only cash-aware sizing. When the equity-based target exceeds
