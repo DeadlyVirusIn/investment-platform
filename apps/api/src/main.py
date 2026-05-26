@@ -52,6 +52,15 @@ from apps.api.src.api.v2_promotion import router as v2_promotion_router
 from apps.api.src.options.routes_readonly import router as options_readonly_router
 from apps.api.src.options.routes_analytics import router as options_analytics_router
 from apps.api.src.api.options_shadow import router as options_shadow_router
+# P5a backend reconciliation — options subsystem routers (telemetry/read;
+# canary engine NOT ported — OPTIONS_CANARY_ENABLED defaults false).
+from apps.api.src.options.canary.routes import router as options_canary_router
+from apps.api.src.options.opportunities.routes import router as options_opportunities_router
+from apps.api.src.options.positions.routes import router as options_positions_router
+from apps.api.src.options.research.routes import router as options_research_router
+from apps.api.src.options.journal.routes import router as options_journal_router
+from apps.api.src.options.playbooks.routes import router as options_playbooks_router
+from apps.api.src.options.ai_playbooks.routes import router as options_ai_playbooks_router
 from apps.api.src.api.auth_me import router as auth_me_router
 from apps.api.src.api.research import router as research_router
 from apps.api.src.api.safe_gate_evolution import (
@@ -248,6 +257,13 @@ for _router in (
     options_readonly_router,
     options_analytics_router,
     options_shadow_router,
+    options_canary_router,
+    options_opportunities_router,
+    options_positions_router,
+    options_research_router,
+    options_journal_router,
+    options_playbooks_router,
+    options_ai_playbooks_router,
     auth_me_router,
     safe_gate_evolution_router,
     insights_router,
