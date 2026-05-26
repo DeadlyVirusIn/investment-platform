@@ -476,7 +476,11 @@ def run_rebalance(
         entries.append(outcome)
 
     # 4. End-of-run equity snapshot
-    snapshot_equity_now(session, portfolio, as_of=submitted_at)
+    # P6a (M079): snapshot_equity_now now requires an explicit source.
+    # The live rebalance path writes a live snapshot. (Deployed image
+    # still calls this without source — latent TypeError if reached;
+    # this compatibility update fixes it under the required-source API.)
+    snapshot_equity_now(session, portfolio, as_of=submitted_at, source="live")
 
     return RebalanceReport(
         portfolio_id=portfolio.id,

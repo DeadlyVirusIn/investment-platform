@@ -165,54 +165,73 @@ def compute_equity_breakdown(
     }
 
 
+_ALLOWED_SNAPSHOT_SOURCES = frozenset(
+    {"live", "replay", "backfill", "operator_manual"}
+)
+
+
 def snapshot_equity_now(
     session: Session,
     portfolio: PaperPortfolio,
     *,
     as_of: dt.datetime | None = None,
+    source: str,
 ) -> PaperEquitySnapshot:
-    """Write (or upsert) an equity snapshot for today (UTC) by default."""
+    """Phase L M079 — append an equity snapshot (no UPSERT).
+
+    Truth contract: every call MUST specify `source` explicitly.
+    Existing historical rows are never modified; this function appends
+    a new row with the current `recorded_at`. Canonical user-facing
+    readers MUST filter `source='live'` to honor presentation
+    immutability (docs/research/M083_CANONICAL_SEMANTIC.md).
+
+    Raises ValueError if source is not one of the allowed values.
+    """
+    if source not in _ALLOWED_SNAPSHOT_SOURCES:
+        raise ValueError(
+            f"snapshot_equity_now: source must be one of "
+            f"{sorted(_ALLOWED_SNAPSHOT_SOURCES)}, got {source!r}"
+        )
+
     now = as_of or dt.datetime.now(dt.timezone.utc)
     snapshot_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
     breakdown = compute_equity_breakdown(session, portfolio)
 
-    existing = session.scalars(
-        select(PaperEquitySnapshot).where(
-            PaperEquitySnapshot.portfolio_id == portfolio.id,
-            PaperEquitySnapshot.snapshot_date == snapshot_date,
-        )
-    ).first()
-
-    if existing is None:
-        snap = PaperEquitySnapshot(
-            portfolio_id=portfolio.id,
-            snapshot_date=snapshot_date,
-            cash=breakdown["cash"],
-            positions_value=breakdown["positions_value"],
-            total_equity=breakdown["total_equity"],
-            unrealized_pnl=breakdown["unrealized_pnl"],
-            realized_pnl_cumulative=breakdown["realized_pnl_cumulative"],
-        )
-        session.add(snap)
-    else:
-        existing.cash = breakdown["cash"]
-        existing.positions_value = breakdown["positions_value"]
-        existing.total_equity = breakdown["total_equity"]
-        existing.unrealized_pnl = breakdown["unrealized_pnl"]
-        existing.realized_pnl_cumulative = breakdown["realized_pnl_cumulative"]
-        snap = existing
-
+    snap = PaperEquitySnapshot(
+        portfolio_id=portfolio.id,
+        snapshot_date=snapshot_date,
+        cash=breakdown["cash"],
+        positions_value=breakdown["positions_value"],
+        total_equity=breakdown["total_equity"],
+        unrealized_pnl=breakdown["unrealized_pnl"],
+        realized_pnl_cumulative=breakdown["realized_pnl_cumulative"],
+        recorded_at=dt.datetime.now(dt.timezone.utc),
+        source=source,
+    )
+    session.add(snap)
     session.flush()
     return snap
 
 
 def get_equity_curve(
-    session: Session, portfolio_id: str, limit: int = 365
+    session: Session,
+    portfolio_id: str,
+    limit: int = 365,
+    *,
+    source: str = "live",
 ) -> list[PaperEquitySnapshot]:
+    """Canonical equity-curve reader.
+
+    Phase L M079: defaults to `source='live'` (presentation immutability).
+    Forensic / operator callers may pass another source explicitly.
+    """
     stmt = (
         select(PaperEquitySnapshot)
-        .where(PaperEquitySnapshot.portfolio_id == portfolio_id)
+        .where(
+            PaperEquitySnapshot.portfolio_id == portfolio_id,
+            PaperEquitySnapshot.source == source,
+        )
         .order_by(PaperEquitySnapshot.snapshot_date.asc())
         .limit(limit)
     )

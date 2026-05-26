@@ -49,7 +49,13 @@ PORTFOLIO_ID = "default"
 # informational only and do not subtract from headline equity.
 
 def _latest_active_snapshots(db: Session) -> list[Any]:
-    """Latest paper_equity_snapshot row per active portfolio."""
+    """Latest paper_equity_snapshot row per active portfolio.
+
+    Phase L M079: filters source='live' (canonical truth contract).
+    Ordered by (snapshot_date DESC, recorded_at DESC) so that within a
+    single date, the most-recently-written live row wins (handles
+    intraday recompute scenarios cleanly).
+    """
     return db.execute(text("""
         SELECT DISTINCT ON (s.portfolio_id)
                s.portfolio_id, s.snapshot_date, s.total_equity,
@@ -58,7 +64,8 @@ def _latest_active_snapshots(db: Session) -> list[Any]:
         FROM paper_equity_snapshot s
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
-        ORDER BY s.portfolio_id, s.snapshot_date DESC
+          AND s.source = 'live'
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
     """)).fetchall()
 
 
@@ -66,7 +73,10 @@ def _prev_day_snapshots(
     db: Session, latest_date: dt.date,
 ) -> dict[str, float]:
     """Per-portfolio total_equity on the day strictly before
-    `latest_date`. Used to compute daily P&L."""
+    `latest_date`. Used to compute daily P&L.
+
+    Phase L M079: filters source='live'; presentation immutability.
+    """
     rows = db.execute(text("""
         SELECT DISTINCT ON (s.portfolio_id)
                s.portfolio_id, s.total_equity
@@ -74,7 +84,8 @@ def _prev_day_snapshots(
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
           AND s.snapshot_date < :d
-        ORDER BY s.portfolio_id, s.snapshot_date DESC
+          AND s.source = 'live'
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
     """), {"d": latest_date}).fetchall()
     return {r.portfolio_id: float(r.total_equity) for r in rows}
 
@@ -101,6 +112,21 @@ def paper_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
         SELECT coalesce(sum(starting_cash), 0)
         FROM paper_portfolio WHERE is_active = TRUE
     """)).scalar() or 0)
+
+    # Cohesion polish: split portfolio_count into live vs demo.
+    # Heuristic: starting_cash < $5,000 → demo (covers api-test,
+    # eq-curve-test fixtures created at $1K). Replace heuristic with
+    # an explicit `paper_portfolio.kind` column when a real portfolio
+    # legitimately starts under $5K.
+    counts_row = db.execute(text("""
+        SELECT
+          count(*) FILTER (WHERE starting_cash >= 5000)  AS n_live,
+          count(*) FILTER (WHERE starting_cash <  5000)  AS n_demo
+        FROM paper_portfolio
+        WHERE is_active = TRUE
+    """)).first()
+    portfolio_count_live = int(counts_row.n_live) if counts_row else 0
+    portfolio_count_demo = int(counts_row.n_demo) if counts_row else 0
 
     # Pick latest snapshot_date across all portfolios as the
     # report date — every active portfolio is snapshotted on the
@@ -162,12 +188,87 @@ def paper_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
         db.rollback()
         replay_trades = 0
 
+    # Replay-flagged open-position market value contribution. Lets
+    # the UI quantify how much of `positions_value` is rebuilt from
+    # the 2026-05-02 wipe vs live activity. Graceful degrade if
+    # manifest table absent (test harness).
+    try:
+        replay_positions_mv = float(db.execute(text("""
+            SELECT coalesce(sum(pos.quantity * pb.close), 0)
+            FROM paper_position pos
+            JOIN paper_portfolio p ON p.id = pos.portfolio_id
+            JOIN LATERAL (
+              SELECT close FROM price_bar
+              WHERE asset_id = pos.asset_id AND timeframe = '1d'
+              ORDER BY ts DESC LIMIT 1
+            ) pb ON TRUE
+            WHERE pos.is_open = TRUE AND p.is_active = TRUE
+              AND EXISTS (
+                SELECT 1 FROM replay_recovery_manifest m
+                WHERE m.entity_type='paper_position'
+                  AND m.entity_id = pos.id::text
+              )
+        """)).scalar() or 0)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        replay_positions_mv = 0.0
+
+    # Realized P&L cumulative across active portfolios. Sources from
+    # `paper_trade.realized_pnl`, the canonical column for closed-trade
+    # P&L. Equivalent identity must hold:
+    #   total_profit = realized + unrealized
+    #   total_profit ≡ equity − starting_capital_total
+    realized_pnl_cumulative = float(db.execute(text("""
+        SELECT coalesce(sum(t.realized_pnl), 0)
+        FROM paper_trade t
+        JOIN paper_portfolio p ON p.id = t.portfolio_id
+        WHERE p.is_active = TRUE
+    """)).scalar() or 0)
+
+    # Cohesion polish: surface the replay-flagged share of cumulative
+    # realized P&L so the UI can explicitly attribute the headline
+    # Total profit. Same graceful-degrade pattern as `replay_trades`.
+    try:
+        replay_realized_pnl_cumulative = float(db.execute(text("""
+            SELECT coalesce(sum(t.realized_pnl), 0)
+            FROM paper_trade t
+            JOIN paper_portfolio p ON p.id = t.portfolio_id
+            WHERE p.is_active = TRUE
+              AND EXISTS (
+                SELECT 1 FROM replay_recovery_manifest m
+                WHERE m.entity_type='paper_trade'
+                  AND m.entity_id = t.id::text
+              )
+        """)).scalar() or 0)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        replay_realized_pnl_cumulative = 0.0
+
+    # Cost basis of currently-open positions across active portfolios.
+    # Lets the UI present "Holdings value" (MV) and "Cost basis"
+    # separately rather than conflating them under a single
+    # "Money invested" label.
+    cost_basis = float(db.execute(text("""
+        SELECT coalesce(sum(pos.quantity * pos.avg_cost), 0)
+        FROM paper_position pos
+        JOIN paper_portfolio p ON p.id = pos.portfolio_id
+        WHERE pos.is_open = TRUE AND p.is_active = TRUE
+    """)).scalar() or 0)
+
     return {
         "as_of_date": as_of_d.isoformat(),
         "equity": total_equity,
         "cash": total_cash,
         "positions_value": total_pos,
         "unrealized_pnl": total_upnl,
+        # Canonical denominator for total_return_pct. Exposed so the UI
+        # never hardcodes a starting figure.
+        "starting_capital_total": starting_total,
+        # Cumulative realized P&L across active portfolios. Identity:
+        # equity - starting_capital_total == unrealized_pnl + realized_pnl_cumulative.
+        "realized_pnl_cumulative": realized_pnl_cumulative,
+        # Sum of (qty * avg_cost) for OPEN positions. NOT mark-to-market.
+        "cost_basis": cost_basis,
         "total_return_pct": total_return_pct,
         "max_drawdown_pct": 0.0,  # computed in /paper/equity series
         "daily_pnl": daily_pnl,
@@ -180,6 +281,10 @@ def paper_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
         "pipeline_status": "success",
         "portfolio_count": len(latest_rows),
         "replay_trades_count": int(replay_trades),
+        "replay_positions_market_value": replay_positions_mv,
+        "replay_realized_pnl_cumulative": replay_realized_pnl_cumulative,
+        "portfolio_count_live": portfolio_count_live,
+        "portfolio_count_demo": portfolio_count_demo,
     }
 
 
@@ -241,6 +346,12 @@ def paper_equity(
     auto_trader fills."""
     start = dt.date.fromisoformat(from_) if from_ else dt.date(2020, 1, 1)
     end = dt.date.fromisoformat(to) if to else dt.date.today()
+    # Phase L M079: equity curve is canonical user-facing; filter source='live'.
+    # NOTE: aggregation safe because at most one live row per portfolio per
+    # snapshot_date (the live writer uses INSERT-new-row per write event,
+    # but a single trading day produces a single live snapshot in practice).
+    # If intraday recompute introduces multiple live rows per date, this
+    # aggregation will need to first deduplicate via DISTINCT ON.
     rows = db.execute(text("""
         SELECT s.snapshot_date::date AS d,
                sum(s.total_equity) AS equity,
@@ -248,6 +359,7 @@ def paper_equity(
         FROM paper_equity_snapshot s
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
+          AND s.source = 'live'
           AND s.snapshot_date::date BETWEEN :s AND :e
         GROUP BY d
         ORDER BY d

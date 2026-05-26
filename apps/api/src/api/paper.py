@@ -192,7 +192,8 @@ def post_snapshot(
     portfolio = get_portfolio(session, portfolio_id)
     if portfolio is None:
         raise HTTPException(status_code=404, detail="portfolio not found")
-    snap = snapshot_equity_now(session, portfolio)
+    # Phase L M079: operator-triggered snapshot via API → operator_manual.
+    snap = snapshot_equity_now(session, portfolio, source="operator_manual")
     session.commit()
     return _jsonable({
         "snapshot_id": snap.id,

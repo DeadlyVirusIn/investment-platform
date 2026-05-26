@@ -171,7 +171,8 @@ def replay_pending_for_date(
                     original_date, dt.time(22, 0),
                     tzinfo=dt.timezone.utc,
                 )
-                snapshot_equity_now(session, portfolio, as_of=snap_at)
+                # Phase L M079: pending-replay is by definition replay; tag accordingly.
+                snapshot_equity_now(session, portfolio, as_of=snap_at, source="replay")
                 session.commit()
 
                 p_decisions = len(result.decisions)
