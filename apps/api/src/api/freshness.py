@@ -136,11 +136,15 @@ def _human_age(hours: float | None) -> str:
 
 
 def _classify_recommendations(hours: float | None) -> str:
+    # RC4: recommendations regenerate on a ~24h cadence (daily 02:30 UTC
+    # job). The prior 16h fresh threshold was tighter than the cadence,
+    # so a perfectly healthy daily cycle read 'degraded' for ~8h every
+    # day. Align to 24h + ~2h grace; degraded out to ~2x cadence.
     if hours is None:
         return _STATUS_UNKNOWN
-    if hours < 16:
+    if hours < 26:
         return _STATUS_FRESH
-    if hours <= 30:
+    if hours <= 50:
         return _STATUS_DEGRADED
     return _STATUS_STALE
 
@@ -335,19 +339,19 @@ def _read_recommendations(session: Session) -> dt.datetime | None:
 
 
 def _read_portfolio(session: Session) -> dt.datetime | None:
-    """Prefer paper_run_log.finished_at when available; fall back to
-    paper_equity_snapshot.snapshot_date."""
-    ts = _safe_max_ts(
-        session,
-        "SELECT MAX(finished_at) FROM paper_run_log "
-        "WHERE status = 'success'",
-    )
-    if ts is not None:
-        return ts
-    # Phase L M079: live-only for canonical freshness.
+    """Portfolio valuation freshness = newest live equity snapshot's
+    recorded_at (the wall-clock instant the book was valued).
+
+    RC2: do NOT gate on whole-pipeline paper_run_log.status='success'.
+    pipeline_status flips to 'partial' if ANY step warns (e.g. an
+    incidental FRED/macro or shadow-eval warn), so that filter starves
+    this channel even when the portfolio step itself valued the book.
+    RC3: do NOT use snapshot_date — it is a DATE, promoted to UTC
+    midnight, inflating age by up to +24h vs the real valuation time.
+    Phase L M079: live-only for canonical freshness."""
     return _safe_max_ts(
         session,
-        "SELECT MAX(snapshot_date) FROM paper_equity_snapshot "
+        "SELECT MAX(recorded_at) FROM paper_equity_snapshot "
         "WHERE source = 'live'",
     )
 

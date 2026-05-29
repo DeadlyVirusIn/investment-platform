@@ -1,0 +1,142 @@
+"""Canonical practice-portfolio endpoints (Phase A).
+
+GET /api/paper/canonical/stock — the ONE canonical stock practice
+portfolio (settings.CANONICAL_STOCK_PORTFOLIO_ID). No aggregation across
+active portfolios; test/demo fixtures are never included. M079 invariant:
+only paper_equity_snapshot rows with source='live' are read.
+
+Read-only. No writes, no migration.
+"""
+
+from __future__ import annotations
+
+import datetime as dt
+from typing import Any
+
+from fastapi import APIRouter, Depends
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from apps.api.src.config import settings
+from apps.api.src.db import get_session
+
+# Reuse the freshness SLA classifier so the portfolio freshness band
+# matches the rest of the product (intraday vs overnight tiers).
+from apps.api.src.api.freshness import (
+    _classify_portfolio,
+    _hours_since,
+    _is_market_hours,
+    _now_utc,
+)
+
+router = APIRouter(prefix="/paper/canonical", tags=["paper-canonical"])
+
+
+def _iso(ts: dt.datetime | dt.date | None) -> str | None:
+    if ts is None:
+        return None
+    if isinstance(ts, dt.datetime):
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=dt.timezone.utc)
+        return ts.isoformat()
+    return ts.isoformat()
+
+
+@router.get("/stock")
+def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
+    """Single-portfolio canonical contract for the stock practice book."""
+    pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+    now = _now_utc()
+
+    portfolio = db.execute(
+        text("SELECT name, starting_cash FROM paper_portfolio WHERE id = :pid"),
+        {"pid": pid},
+    ).first()
+
+    # Latest live snapshot for THIS portfolio only (M079: source='live').
+    snap = db.execute(
+        text("""
+            SELECT id, snapshot_date, total_equity, cash, positions_value,
+                   unrealized_pnl, realized_pnl_cumulative, recorded_at
+            FROM paper_equity_snapshot
+            WHERE portfolio_id = :pid AND source = 'live'
+            ORDER BY snapshot_date DESC, recorded_at DESC
+            LIMIT 1
+        """),
+        {"pid": pid},
+    ).first()
+
+    open_positions = db.execute(
+        text("""
+            SELECT count(*) FROM paper_position
+            WHERE portfolio_id = :pid AND is_open = TRUE
+        """),
+        {"pid": pid},
+    ).scalar() or 0
+
+    if portfolio is None or snap is None:
+        # Honest empty contract — never fabricate. Portfolio missing or no
+        # live snapshot yet.
+        return {
+            "portfolio_id": pid,
+            "name": portfolio.name if portfolio is not None else None,
+            "nav": None, "cash": None, "positions_value": None,
+            "realized_pnl": None, "unrealized_pnl": None, "daily_pnl": None,
+            "starting_capital": (
+                float(portfolio.starting_cash) if portfolio is not None else None
+            ),
+            "total_return_pct": None,
+            "open_positions_count": int(open_positions),
+            "as_of": None,
+            "freshness": "unknown",
+            "source_snapshot_id": None,
+            "source": "live",
+            "status": "no_live_snapshot",
+        }
+
+    nav = float(snap.total_equity)
+    starting = float(portfolio.starting_cash or 0)
+    as_of = snap.snapshot_date
+
+    # Daily P&L = nav - prior live snapshot's nav (this portfolio only).
+    prev = db.execute(
+        text("""
+            SELECT total_equity FROM paper_equity_snapshot
+            WHERE portfolio_id = :pid AND source = 'live'
+              AND snapshot_date < :as_of
+            ORDER BY snapshot_date DESC, recorded_at DESC
+            LIMIT 1
+        """),
+        {"pid": pid, "as_of": as_of},
+    ).scalar()
+    daily_pnl = (nav - float(prev)) if prev is not None else None
+
+    total_return_pct = (
+        ((nav - starting) / starting) * 100.0 if starting > 0 else None
+    )
+
+    # RC3: freshness measured from recorded_at (the actual valuation
+    # instant), not snapshot_date promoted to midnight (which inflated
+    # age by up to +24h). `as_of` below still reports the trading date
+    # for display — only the staleness math changes.
+    hours = _hours_since(snap.recorded_at)
+    freshness = _classify_portfolio(hours, _is_market_hours(now))
+
+    return {
+        "portfolio_id": pid,
+        "name": portfolio.name,
+        "nav": nav,
+        "cash": float(snap.cash),
+        "positions_value": float(snap.positions_value),
+        "realized_pnl": float(snap.realized_pnl_cumulative or 0),
+        "unrealized_pnl": float(snap.unrealized_pnl or 0),
+        "daily_pnl": daily_pnl,
+        "starting_capital": starting,
+        "total_return_pct": total_return_pct,
+        "open_positions_count": int(open_positions),
+        "as_of": _iso(as_of),
+        "freshness": freshness,
+        "source_snapshot_id": str(snap.id),
+        "source": "live",
+        "status": "live",
+    }

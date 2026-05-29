@@ -183,10 +183,12 @@ def test_classifiers_handle_none_gracefully():
 
 def test_classifiers_apply_correct_thresholds():
     from apps.api.src.api import freshness as f
-    # recommendations: <16 fresh, 16-30 degraded, >30 stale
+    # recommendations: <26 fresh, 26-50 degraded, >50 stale (RC4 —
+    # aligned to the ~24h daily recommendation cadence + grace).
     assert f._classify_recommendations(1.0) == "fresh"
-    assert f._classify_recommendations(20.0) == "degraded"
-    assert f._classify_recommendations(50.0) == "stale"
+    assert f._classify_recommendations(20.0) == "fresh"
+    assert f._classify_recommendations(40.0) == "degraded"
+    assert f._classify_recommendations(60.0) == "stale"
 
     # ml: <7d fresh, 7-14d degraded, >14d stale
     assert f._classify_ml(24.0) == "fresh"
