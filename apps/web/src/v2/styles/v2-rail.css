@@ -186,11 +186,11 @@
 .v2-rail-root .u-market-ticker .u-ticker-delay-chip {
   background: linear-gradient(90deg, transparent 0%,
     color-mix(in oklch, var(--card) 92%, transparent) 35%, var(--card) 100%);
-  color: color-mix(in oklch, var(--foreground) 55%, var(--muted-foreground));
+  color: color-mix(in oklch, var(--foreground) 72%, var(--muted-foreground));
 }
 /* Lift small tape glyphs off the faint muted token in dark mode. */
 .v2-rail-root .u-ticker-sym {
-  color: color-mix(in oklch, var(--foreground) 72%, var(--muted-foreground));
+  color: color-mix(in oklch, var(--foreground) 85%, var(--muted-foreground));
 }
 
 /* ──────────────────────────────────────────────────────────────
