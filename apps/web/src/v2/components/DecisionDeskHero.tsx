@@ -24,7 +24,6 @@ import { addMemory, useMemoryNotes } from '../lib/arth/memory';
 import { recordDecision, decisionForToday } from '../lib/arth/decisions';
 import { resolveWhyForYou } from '../lib/arth/whyForYou';
 import { resolveWhyNotCash } from '../lib/arth/whyNotCash';
-import { classifyCohort, cohortStats, sufficientSample } from '../lib/arth/cohort';
 import { lessonForSkipReason } from '../lib/arth/lessonRecommender';
 import { InlineLessonCard } from './InlineLessonCard';
 import type { Recommendation } from '../data/arthosData';
@@ -67,8 +66,6 @@ export function DecisionDeskHero({
 
   const why = resolveWhyForYou({ rec, watchlist, topics, level, memory });
   const cash = resolveWhyNotCash(rec);
-  const cohortKey = classifyCohort(rec);
-  const cohort = cohortStats(cohortKey);
 
   // ── Action handlers ─────────────────────────────────────────────
   function onFollow() {
@@ -193,23 +190,12 @@ export function DecisionDeskHero({
       <div className="mt-5" style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
         <p className="font-semibold uppercase mb-2" style={{
           fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
-        }}>How similar ideas have performed</p>
-        {sufficientSample(cohort) ? (
-          <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.55 }}>
-            My last {cohort.closes} {cohortKey.replace(/_/g, ' ')} setups:&nbsp;
-            <strong>{cohort.wins} wins</strong> (avg +{cohort.avg_win_pct.toFixed(1)}%)
-            · <strong>{cohort.losses} losses</strong> (avg {cohort.avg_loss_pct.toFixed(1)}%)
-            {cohort.expired > 0 && <> · {cohort.expired} expired</>}.
-            &nbsp;Avg hold {cohort.avg_hold_days.toFixed(1)} days. Expectancy&nbsp;
-            <strong>{cohort.expectancy_pct >= 0 ? '+' : ''}{cohort.expectancy_pct.toFixed(2)}%</strong>
-            &nbsp;per call.
-          </p>
-        ) : (
-          <p className="ink-muted italic" style={{ fontSize: 13 }}>
-            I've only made {cohort.closes} call{cohort.closes === 1 ? '' : 's'} like this so far.
-            Too early to claim a pattern.
-          </p>
-        )}
+        }}>Track record for setups like this</p>
+        <p className="ink-muted italic" style={{ fontSize: 13, lineHeight: 1.55 }}>
+          No verified closed-outcome history for this kind of setup yet. I won't
+          show a win rate or expectancy I can't back with resolved trades — this
+          is the live engine's read, not a historical track record.
+        </p>
       </div>
 
       <div className="mt-5" style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>

@@ -1,254 +1,150 @@
-// Phase 2C — Opportunities as Decision Desk.
+// Opportunities — P0 LIVE rewire. The full desk, ranked from the LIVE
+// recommendation engine (useTodaysRecommendations → GET /recommendations).
+// NO TODAYS_DESK / TRACKING_NAMES / PASSED_ON_TODAY static literals.
 //
-// Structure:
-//   - Arth opening + trust banner
-//   - MY FAVORITE IDEA TODAY        (THE ONE)        ← hero with 6 answers
-//   - ALSO CONSIDER                  (alternatives)   ← ranked, compact
-//   - WORTH WATCHING                 (waiting list)   ← waiting-on condition
-//   - PASS FOR NOW                   (passed-on)      ← collapsed by default
-//
-// Empty-day variant: "Cash is the call today" when nothing clears the
-// risk-free bar with non-low confidence.
+//   01 Top opportunity     — effective-Buy, confidence-ranked
+//   02 Also consider       — remaining actionable Buys
+//   03 Passed for now      — Trim (engine said reduce/avoid)
+// Empty-day variant derives from /recommendations/diagnostics.
 
-import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
-import { TODAYS_DESK, TRACKING_NAMES, PASSED_ON_TODAY,
-         type Recommendation } from '../data/arthosData';
-import { resolveWhyNotCash, cashIsTheCall,
-         RISK_FREE_ANNUAL_PCT } from '../lib/arth/whyNotCash';
-import { recordDecision } from '../lib/arth/decisions';
-import { dispatch } from '../lib/arth/dispatcher';
-import { addMemory } from '../lib/arth/memory';
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function rankRecs(recs: Recommendation[]): Recommendation[] {
-  const rank = (r: Recommendation): number => {
-    const isPick = r.is_arth_pick ? 100 : 0;
-    const conf = r.confidence_level === 'high' ? 30 :
-                 r.confidence_level === 'medium' ? 20 :
-                 r.confidence_level === 'low' ? 10 : 0;
-    const edge = r.expected_return_per_day_bp ?? 0;
-    const inverseHoldFloor =
-      r.hold_estimate_days_min ? (100 - Math.min(r.hold_estimate_days_min, 90)) / 100 : 0;
-    return isPick + conf + edge / 10 + inverseHoldFloor;
-  };
-  return [...recs].sort((a, b) => rank(b) - rank(a));
-}
+import {
+  useTodaysRecommendations,
+  useRecommendationDiagnostics,
+  effectiveAction,
+  confidenceNum,
+  type RecApi,
+} from '@/lib/operator/hooks';
 
 export function Opportunities() {
-  const placeable = useMemo(
-    () => [...TODAYS_DESK.stocks, ...TODAYS_DESK.options].filter((r) => r.placeable),
-    [],
-  );
-  const ranked = useMemo(() => rankRecs(placeable), [placeable]);
-  const hero = ranked.find((r) => r.is_arth_pick) ?? ranked[0];
-  const alternatives = ranked.filter((r) => r.symbol !== hero?.symbol);
-  const cashCalls = cashIsTheCall(placeable);
+  const { data, isLoading, isError } = useTodaysRecommendations();
+  const { data: diag } = useRecommendationDiagnostics();
+  const recs: RecApi[] = data?.recommendations ?? [];
+
+  const byConf = (a: RecApi, b: RecApi) => confidenceNum(b) - confidenceNum(a);
+  const buys = recs.filter((r) => effectiveAction(r) === 'Buy').sort(byConf);
+  const trims = recs.filter((r) => effectiveAction(r) === 'Trim').sort(byConf);
+  const hero = buys[0];
+  const alsoConsider = buys.slice(1);
+  const dist = diag?.action_distribution ?? {};
+  const evaluated = diag?.total ?? null;
 
   return (
     <ArthosPage topBarEyebrow="Opportunities">
       <PageHeader
         eyebrow="Opportunities"
         title={<>The rest of<br />the desk.</>}
-        description="My favorite idea today lives on Today. This page is for everything else: alternatives ranked next, names I'm watching, and what I passed on with the reason."
+        description="Everything the engine surfaced today — ranked by confidence, sourced live. The strongest also leads Today."
       />
 
-      <div className="mb-6">
-        <TrustBanner />
-      </div>
+      <div className="mb-6"><TrustBanner /></div>
 
-      <div className="mb-8">
-        <ArthVoice mode="advisory">
-          Today's hero (<Link to="/v2/today" style={{ color: 'var(--brand)', fontWeight: 600 }}>see it here</Link>) is the one I'd start with. The cards below are the rest of what I'm looking at — alternatives if the hero isn't for you, names I'm waiting on, and what didn't clear the bar.
-        </ArthVoice>
-      </div>
-
-      {cashCalls ? (
-        <CashIsTheCall recs={placeable} />
-      ) : (
-        alternatives.length > 0 && (
-          <Section number="01" title="Also consider">
-            <div className="space-y-3">
-              {alternatives.map((r) => <AlternativeCard key={r.symbol} rec={r} />)}
-            </div>
-          </Section>
-        )
+      {isLoading && (
+        <SurfaceCard variant="muted" className="p-6">
+          <p className="ink-muted" style={{ fontSize: 14 }}>Loading the desk…</p>
+        </SurfaceCard>
+      )}
+      {isError && (
+        <SurfaceCard variant="default" className="p-6">
+          <p style={{ fontSize: 14, color: 'var(--destructive)', fontWeight: 600 }}>
+            Couldn't load recommendations right now.
+          </p>
+        </SurfaceCard>
       )}
 
-      <Section number="02" title="Worth watching">
-        {TRACKING_NAMES.length === 0 ? (
-          <ArthVoice mode="advisory">Nothing on the waiting list right now.</ArthVoice>
-        ) : (
-          <SurfaceCard variant="default" className="p-5">
-            <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {TRACKING_NAMES.slice(0, 6).map((n) => (
-                <li key={n.symbol} className="py-3 grid grid-cols-[80px_1fr_auto] items-baseline gap-3">
-                  <span className="font-mono ink-primary" style={{ fontSize: 13 }}>{n.symbol}</span>
-                  <span className="ink-primary" style={{ fontSize: 13 }}>{n.oneLineSetup}</span>
-                  <span className="ink-muted italic" style={{ fontSize: 12 }}>
-                    Waiting for: {n.whatToWatch}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {TRACKING_NAMES.length > 6 && (
-              <p className="ink-muted mt-3 text-right" style={{ fontSize: 12 }}>
-                {TRACKING_NAMES.length - 6} more in the queue.
-              </p>
-            )}
-          </SurfaceCard>
-        )}
-      </Section>
+      {data && (
+        <>
+          {buys.length === 0 ? (
+            <Section number="01" title="Cash is the call today">
+              <SurfaceCard variant="highlight" className="p-7">
+                <ArthVoice mode="opening">
+                  {evaluated != null
+                    ? `${evaluated} recommendations evaluated today; none cleared the Buy threshold (${dist['Hold'] ?? 0} Hold, ${dist['Trim'] ?? 0} Trim). I'd rather show you nothing than manufacture a trade.`
+                    : 'No actionable Buy recommendations right now.'}
+                </ArthVoice>
+              </SurfaceCard>
+            </Section>
+          ) : (
+            <>
+              <Section number="01" title="Top opportunity">
+                {hero && <RecCard rec={hero} featured />}
+              </Section>
+              {alsoConsider.length > 0 && (
+                <Section number="02" title="Also consider">
+                  <div className="space-y-3">
+                    {alsoConsider.map((r) => <RecCard key={r.id} rec={r} />)}
+                  </div>
+                </Section>
+              )}
+            </>
+          )}
 
-      <PassForNow />
+          <Section number="03" title="Passed for now">
+            {trims.length === 0 ? (
+              <ArthVoice mode="advisory">Nothing flagged to trim today.</ArthVoice>
+            ) : (
+              <SurfaceCard variant="default" className="p-5">
+                <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
+                  {trims.slice(0, 8).map((r) => (
+                    <li key={r.id} className="py-3 grid grid-cols-[90px_1fr_auto] items-baseline gap-3">
+                      <Link to={`/v2/today/pick/${r.symbol}`} className="font-mono ink-primary" style={{ fontSize: 13 }}>
+                        {r.symbol}
+                      </Link>
+                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{r.thesis ?? 'Reduce / avoid.'}</span>
+                      <span className="ink-muted italic" style={{ fontSize: 12 }}>
+                        {r.confidence_label} {confidenceNum(r).toFixed(0)}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {trims.length > 8 && (
+                  <p className="ink-muted mt-3 text-right" style={{ fontSize: 12 }}>
+                    {trims.length - 8} more flagged to trim.
+                  </p>
+                )}
+              </SurfaceCard>
+            )}
+          </Section>
+        </>
+      )}
     </ArthosPage>
   );
 }
 
-// ───────────────────────────────────────────────────────────────────
+function fresh(rec: RecApi): boolean {
+  if (rec.stale_data) return false;
+  if (!rec.generated_at) return true;
+  const h = (Date.now() - new Date(rec.generated_at).getTime()) / 3600_000;
+  return !(Number.isFinite(h) && h > 30);
+}
 
-function AlternativeCard({ rec }: { rec: Recommendation }) {
-  const why = rec.why_not_others?.[0]?.reason;
-  const cash = resolveWhyNotCash(rec);
+function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
+  const action = effectiveAction(rec) ?? 'Hold';
   return (
-    <SurfaceCard variant="default" className="p-5">
+    <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
-        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: 16 }}>
-          {rec.symbol}
-        </span>
-        <span className="ink-muted" style={{ fontSize: 13 }}>{rec.actionLabel}</span>
+        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: 16 }}>{rec.symbol}</span>
+        <span className="ink-muted" style={{ fontSize: 13 }}>{action}</span>
       </div>
       <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
-        <SmallChip>{rec.confidence_level ?? 'medium'} conf</SmallChip>
-        {rec.hold_estimate_days_min && rec.hold_estimate_days_max && (
-          <SmallChip>~{rec.hold_estimate_days_min}-{rec.hold_estimate_days_max}d</SmallChip>
-        )}
-        <SmallChip tone={cash.mode === 'clears_bar' ? 'pos'
-                  : cash.mode === 'thin_edge' ? 'muted' : 'neg'}>
-          {cash.mode === 'clears_bar' ? 'beats cash'
-            : cash.mode === 'thin_edge' ? 'thin edge'
-            : "doesn't beat cash"}
-        </SmallChip>
+        <SmallChip>{rec.confidence_label ?? 'Medium'} · {confidenceNum(rec).toFixed(0)}</SmallChip>
+        <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'fresh' : 'stale'}</SmallChip>
       </div>
-      {why && (
-        <p className="ink-muted italic" style={{ fontSize: 13, lineHeight: 1.5 }}>
-          Why I have it lower: {why}
-        </p>
+      {rec.thesis && (
+        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{rec.thesis}</p>
       )}
-      <p className="ink-primary mt-3" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
-        {rec.paragraph}
-      </p>
-      <p className="ink-muted mt-3" style={{ fontSize: 12 }}>
-        Open this for the full 6-question breakdown.
-      </p>
+      <Link to={`/v2/today/pick/${rec.symbol}`} className="inline-block mt-3"
+        style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
+        Full reasoning →
+      </Link>
     </SurfaceCard>
   );
 }
-
-// ───────────────────────────────────────────────────────────────────
-
-function CashIsTheCall({ recs }: { recs: Recommendation[] }) {
-  const [held, setHeld] = useState(false);
-  function onHoldCash() {
-    recordDecision({
-      rec_id: 'CASH',
-      symbol: 'CASH',
-      action: 'held_cash',
-      thesis_snapshot: `No setup beat the cash bar today (${RISK_FREE_ANNUAL_PCT}% annualized risk-free).`,
-      cohort: 'uncategorized',
-    });
-    dispatch('decide', 'card_saved', 'CASH', { mode: 'held_cash' },
-      { idempotency_key: `cash-${today()}` });
-    addMemory({
-      category: 'seen',
-      text: `You held cash today — Arth couldn't find a setup that beat the risk-free rate.`,
-      source: 'decision',
-    });
-    setHeld(true);
-  }
-  return (
-    <Section number="01" title="My favorite idea today">
-      <SurfaceCard variant="highlight" className="p-7">
-        <p className="font-semibold uppercase mb-2" style={{
-          fontSize: 11, letterSpacing: '0.14em', color: 'var(--brand)',
-        }}>★ Cash is the call</p>
-        <ArthVoice mode="opening">
-          Nothing I'm looking at has enough edge over the T-bill rate to justify the risk. Holding cash earns ~{RISK_FREE_ANNUAL_PCT}% annualized, risk-free. That's the bar today's setups need to clear, and they don't. I'd rather show you nothing than make something up.
-        </ArthVoice>
-        <div className="mt-6">
-          <p className="font-semibold uppercase mb-2" style={{
-            fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
-          }}>Why not the alternatives?</p>
-          <ul className="space-y-1.5">
-            {recs.map((r) => {
-              const c = resolveWhyNotCash(r);
-              return (
-                <li key={r.symbol} className="ink-primary" style={{ fontSize: 13.5 }}>
-                  <strong className="font-mono">{r.symbol}</strong>: {c.line.split('. ')[0]}.
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-        <div className="mt-6 flex items-center gap-2 flex-wrap">
-          {held ? (
-            <ArthVoice mode="responsive">Held. I'll come back tomorrow with a fresh read.</ArthVoice>
-          ) : (
-            <button onClick={onHoldCash} className="inline-flex items-center gap-2 h-10 px-4 rounded-full" style={{
-              fontSize: 13, fontWeight: 600,
-              backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)',
-            }}>Hold cash today</button>
-          )}
-        </div>
-      </SurfaceCard>
-    </Section>
-  );
-}
-
-// ───────────────────────────────────────────────────────────────────
-
-function PassForNow() {
-  const [open, setOpen] = useState(false);
-  if (PASSED_ON_TODAY.length === 0) return null;
-  return (
-    <Section number="03" title="Pass for now">
-      <button onClick={() => setOpen((o) => !o)} className="ink-muted mb-3" style={{
-        fontSize: 13, textDecoration: 'underline', textUnderlineOffset: 3,
-      }}>
-        {open ? `Hide ${PASSED_ON_TODAY.length} rejections` : `Show ${PASSED_ON_TODAY.length} rejections`}
-      </button>
-      {open && (
-        <div className="space-y-2">
-          {PASSED_ON_TODAY.map((p) => (
-            <SurfaceCard key={p.symbol} variant="muted" className="p-4">
-              <div className="flex items-baseline gap-3">
-                <span className="font-mono ink-primary" style={{ fontSize: 13 }}>{p.symbol}</span>
-                <span className="ink-primary" style={{ fontSize: 13 }}>{p.failedCriterion}</span>
-              </div>
-              <p className="ink-muted mt-1" style={{ fontSize: 12.5 }}>{p.reason}</p>
-              {p.lessonSlug && (
-                <Link to={`/v2/learn/lesson/${p.lessonSlug}`} className="inline-block mt-2"
-                      style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
-                  Primer →
-                </Link>
-              )}
-            </SurfaceCard>
-          ))}
-        </div>
-      )}
-    </Section>
-  );
-}
-
-// ───────────────────────────────────────────────────────────────────
 
 function Section({ number, title, children }: {
   number: string; title: string; children: React.ReactNode;
@@ -270,18 +166,13 @@ function Section({ number, title, children }: {
 function SmallChip({ tone = 'muted', children }: {
   tone?: 'pos' | 'neg' | 'muted'; children: React.ReactNode;
 }) {
-  const bg = tone === 'pos'
-    ? 'color-mix(in oklch, var(--brand) 18%, transparent)'
-    : tone === 'neg'
-    ? 'color-mix(in oklch, var(--destructive) 14%, transparent)'
-    : 'var(--card)';
   const color = tone === 'pos' ? 'var(--brand)'
-              : tone === 'neg' ? 'var(--destructive)'
-              : 'var(--foreground)';
+    : tone === 'neg' ? 'oklch(0.70 0.14 75)' : 'var(--foreground)';
   return (
     <span className="px-2 py-0.5 rounded-full" style={{
       fontSize: 11, fontWeight: 500,
-      backgroundColor: bg, color, border: '1px solid var(--border)',
+      backgroundColor: `color-mix(in oklch, ${color} 12%, transparent)`,
+      color, border: `1px solid color-mix(in oklch, ${color} 24%, transparent)`,
     }}>{children}</span>
   );
 }
