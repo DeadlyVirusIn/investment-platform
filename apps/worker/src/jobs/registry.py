@@ -237,6 +237,7 @@ from apps.worker.src.jobs.generate_stock_candidates import generate_stock_candid
 from apps.worker.src.jobs.ingest_prices_daily import ingest_prices_daily
 from apps.worker.src.jobs.run_daily_pipeline import run_daily_pipeline_job
 from apps.worker.src.jobs.run_paper_trading import run_paper_trading
+from apps.worker.src.jobs.run_paper_exit_cycle import run_paper_exit_cycle_job
 from apps.worker.src.jobs.options_chain_snapshot import (
     run_options_chain_snapshot_job,
 )
@@ -265,6 +266,14 @@ REGISTRY: dict[str, JobFn] = {
     "run_recommendations_for_all_accounts": run_recommendations_for_all_accounts,
     "score_recommendation_outcomes": score_recommendation_outcomes,
     "run_paper_trading": run_paper_trading,
+    # Paper exit-cycle worker job (restored 2026-05-29 after the W1 worker
+    # rebuild dropped it). Wraps `scripts.run_paper_exit_cycle` in commit
+    # mode with OVA Path-B as_of anchoring. Paper-only. Closes positions on
+    # TP=8% / SL=4% / MaxHold=10d (env-overridable via PAPER_TAKE_PROFIT_PCT
+    # / PAPER_STOP_LOSS_PCT / PAPER_MAX_HOLD_DAYS). Cron `0 23 * * 1-5`
+    # (SCHEDULER_TZ=America/New_York → 03:00 UTC) — runs between
+    # ingest_prices_daily (02:00 UTC) and run_paper_trading (03:30 UTC).
+    "run_paper_exit_cycle": run_paper_exit_cycle_job,
     # Live-forward orchestrator (umbrella: candidates → paper trading → verify)
     "run_daily_pipeline": run_daily_pipeline_job,
     # V2 promotion-trigger weekly snapshot (Phase 8). Idempotent on
