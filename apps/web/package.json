@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx --max-warnings 0",
     "lint:copy": "node scripts/lint-copilot-copy.mjs",
+    "lint:portfolio": "node scripts/lint-canonical-portfolio.mjs",
     "test": "echo \"No tests yet — add vitest when ready\" && exit 0"
   },
   "dependencies": {

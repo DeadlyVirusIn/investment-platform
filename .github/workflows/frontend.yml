@@ -34,6 +34,12 @@ jobs:
       - name: Run ESLint
         run: npm run lint
 
+      # POST-F1 §E freeze gate — canonical-portfolio / aggregate-NAV /
+      # localStorage-state / fake-recommendation / raw-dd_pct / demo-data
+      # regression guards. Blocking.
+      - name: Run live-data freeze gate
+        run: npm run lint:portfolio
+
   type-check:
     name: Type check (tsc)
     runs-on: ubuntu-latest
