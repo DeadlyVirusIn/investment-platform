@@ -1,13 +1,16 @@
 // Compact persistent top strip — always visible across pages.
 // Shows live portfolio + system heartbeat. Dense, single line.
 
-import { usePaperSummary, useCurrentState, useAnomalySummary } from "@/lib/operator/hooks";
+import {
+  usePaperSummary, useCurrentState, useAnomalySummary,
+  useCanonicalStockPortfolio,
+} from "@/lib/operator/hooks";
 import { Pill, fmtUSD, fmtPct, toneForNumber } from "@/components/ui/primitives";
 import { useUIMode } from "@/lib/ui/mode";
 import { useTheme } from "@/lib/ui/theme";
 import { cn } from "@/lib/cn";
 // Phase 15h.2 — calm freshness derivation for the NAV cell.
-import { freshnessFromTs, formatAsOf } from "@/lib/picks/freshness";
+import { formatAsOf } from "@/lib/picks/freshness";
 
 function Cell({
   label, children, className, tooltip, slot,
@@ -37,19 +40,21 @@ function Cell({
 }
 
 export default function TopStrip() {
+  // P2 root-shell canonicalization — all portfolio TOTALS (NAV, Day P&L,
+  // Total Return) read the single canonical stock portfolio, NOT the
+  // all-portfolios aggregate (usePaperSummary). This matches every
+  // trusted V2 surface (TrackRecord / practice / rail disclosure).
+  const { data: book } = useCanonicalStockPortfolio();
+  // summary retained ONLY for the non-financial "last run" heartbeat.
   const { data: summary } = usePaperSummary();
   const { data: state } = useCurrentState();
   const { data: anomalies } = useAnomalySummary();
 
-  // Phase 15h.2 — derive freshness tier from the canonical
-  // last_decision_ts so the NAV cell can soften when the snapshot
-  // is older than the SLA. No alert colors; just a muted value
-  // and a hover/tap title that explains the gap honestly.
-  const navFreshness = freshnessFromTs(summary?.last_decision_ts);
-  const navStale = navFreshness === "stale" || navFreshness === "degraded";
-  const navAsOf = summary?.last_decision_ts
-    ? formatAsOf(summary.last_decision_ts)
-    : null;
+  // Freshness reflects the canonical snapshot the NAV is read from. The
+  // backend already classifies it (fresh / degraded / stale / unknown);
+  // soften the NAV cell when not fresh, with an honest hover title.
+  const navStale = book?.freshness != null && book.freshness !== "fresh";
+  const navAsOf = book?.as_of ? formatAsOf(book.as_of) : null;
   const navTitle = navStale && navAsOf
     ? `NAV from ${navAsOf} — awaiting next refresh.`
     : "Values reflect simulated paper-trading results. They do not indicate future outcomes.";
@@ -71,7 +76,7 @@ export default function TopStrip() {
         className={cn("min-w-[120px]", navStale && "topstrip-cell-stale")}
         tooltip={navTitle}
       >
-        {summary ? fmtUSD(summary.equity) : "—"}
+        {book?.nav != null ? fmtUSD(book.nav) : "—"}
       </Cell>
       <Cell
         label="Day P&L"
@@ -81,13 +86,13 @@ export default function TopStrip() {
       >
         <span className={cn(
           "tabular-nums",
-          summary ? `text-${toneForNumber(summary.daily_pnl) === "pos"
-            ? "success" : toneForNumber(summary.daily_pnl) === "neg"
+          book?.daily_pnl != null ? `text-${toneForNumber(book.daily_pnl) === "pos"
+            ? "success" : toneForNumber(book.daily_pnl) === "neg"
             ? "danger" : "fg"}` : "text-fg",
         )}>
-          {summary
-            ? (summary.daily_pnl > 0 ? "+" : summary.daily_pnl < 0 ? "−" : "")
-              + "$" + Math.abs(summary.daily_pnl).toFixed(2)
+          {book?.daily_pnl != null
+            ? (book.daily_pnl > 0 ? "+" : book.daily_pnl < 0 ? "−" : "")
+              + "$" + Math.abs(book.daily_pnl).toFixed(2)
             : "—"}
         </span>
       </Cell>
@@ -97,10 +102,10 @@ export default function TopStrip() {
         className="min-w-[110px]"
         tooltip="Values reflect simulated paper-trading results. They do not indicate future outcomes."
       >
-        <span className={`tabular-nums ${summary && summary.total_return_pct > 0
-          ? "text-success" : summary && summary.total_return_pct < 0
+        <span className={`tabular-nums ${book?.total_return_pct != null && book.total_return_pct > 0
+          ? "text-success" : book?.total_return_pct != null && book.total_return_pct < 0
           ? "text-danger" : "text-fg"}`}>
-          {fmtPct(summary?.total_return_pct)}
+          {fmtPct(book?.total_return_pct)}
         </span>
       </Cell>
       <Cell

@@ -2,14 +2,17 @@
 // Thin context strip directly below MarketTicker. 30px.
 
 import {
-  useCurrentState, useAnomalySummary, usePaperSummary,
+  useCurrentState, useAnomalySummary, useCanonicalDrawdownPct,
 } from "@/lib/operator/hooks";
 import { cn } from "@/lib/cn";
 
 export default function StatusRail() {
   const { data: state } = useCurrentState();
   const { data: anom } = useAnomalySummary();
-  const { data: summary } = usePaperSummary();
+  // P2 root-shell canonicalization — drawdown risk flag derives from the
+  // single canonical portfolio's equity curve, NOT the all-portfolios
+  // aggregate (summary.max_drawdown_pct). Same source as NAV.
+  const canonicalDd = useCanonicalDrawdownPct();
 
   // NOW
   const regime = state?.stress_regime ? "Stress"
@@ -34,7 +37,7 @@ export default function StatusRail() {
   // RISK
   const crit = anom?.by_severity?.critical ?? 0;
   const warn = anom?.by_severity?.warning ?? 0;
-  const dd = summary?.max_drawdown_pct ?? 0;
+  const dd = canonicalDd ?? 0;
   const ddFlag = dd < -5 ? " · DD>5%" : dd < -2 ? " · DD watch" : "";
   let riskLabel: string;
   let riskTone: "pos" | "warn" | "neg" = "pos";

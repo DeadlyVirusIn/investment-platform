@@ -8,6 +8,7 @@ import {
   usePaperSummary, useCurrentState, useAnomalySummary,
   usePaperTrades, usePerformance, useSystemHealth, useAnomalies,
   usePaperEquity, useExecutedSummary,
+  useCanonicalStockPortfolio, useCanonicalDrawdownPct,
 } from "@/lib/operator/hooks";
 import EquityDrawdownChart from "@/components/operator/EquityDrawdownChart";
 import WhatChanged from "@/components/overview/WhatChanged";
@@ -36,13 +37,21 @@ import { PageGuide, AdvancedDetails } from "@/components/novice";
 
 export default function Overview() {
   const { data: summary } = usePaperSummary();
+  // P2 root-shell canonicalization — the "Today's numbers" NAV strip
+  // reads the single canonical stock portfolio (same source as the
+  // shell TopStrip and every trusted V2 surface), NOT the all-portfolios
+  // aggregate. summary is retained below for system telemetry only.
+  const { data: book } = useCanonicalStockPortfolio();
+  const canonicalDd = useCanonicalDrawdownPct();
   const { data: state } = useCurrentState();
   const { data: anomSummary } = useAnomalySummary();
   const { data: anomalies } = useAnomalies("open");
   const { data: trades } = usePaperTrades();
   const { data: perf } = usePerformance();
   const { data: health } = useSystemHealth();
-  const { data: equity } = usePaperEquity();
+  // Scoped to the canonical portfolio so the equity-peak / off-peak
+  // ticker stays consistent with the canonical NAV strip (no aggregate).
+  const { data: equity } = usePaperEquity(undefined, undefined, book?.portfolio_id);
   // Phase 11Z — executed-trade headline numbers come from the
   // account/recommendation path, not paper_trade_log. Without this,
   // the Overview reports "Trades 0" while paper_trade has 18
@@ -63,7 +72,10 @@ export default function Overview() {
     recentTrades: trades ?? [],
   }), [state, perf, anomalies, winRate, trades]);
 
-  const hero = deriveHero({ state, summary, anomSummary });
+  const hero = deriveHero({
+    state, summary, anomSummary,
+    openPositions: book?.open_positions_count ?? 0,
+  });
   // UX-1 Commit C — single calm sentence summarising current
   // operational state. Logic-only derivation from data already
   // fetched above; no new hook, no auto-fetch. Order matters:
@@ -235,27 +247,27 @@ export default function Overview() {
           {/* Commit 2 (Novice UX) — labels renamed to plain English. */}
           {/* Calculations + sub-text data sources unchanged.         */}
           <StatCell label="Account value"
-            value={summary ? fmtUSD(summary.equity) : "—"}
-            sub={summary
-              ? `Available cash ${fmtUSD(summary.cash)}`
+            value={book?.nav != null ? fmtUSD(book.nav) : "—"}
+            sub={book?.cash != null
+              ? `Available cash ${fmtUSD(book.cash)}`
               : "Waiting for first run"}
             size="mega"
-            tone={toneForNumber(summary?.total_return_pct ?? 0)}
+            tone={toneForNumber(book?.total_return_pct ?? 0)}
             glow />
           <StatCell label="Today's change"
-            value={summary ? fmtSignedCompact(summary.daily_pnl) : "—"}
-            tone={toneForNumber(summary?.daily_pnl ?? 0)}
-            sub={summary
-              ? fmtPct(summary.daily_pnl / (summary.equity || 1) * 100, 3)
+            value={book?.daily_pnl != null ? fmtSignedCompact(book.daily_pnl) : "—"}
+            tone={toneForNumber(book?.daily_pnl ?? 0)}
+            sub={book?.daily_pnl != null && book?.nav
+              ? fmtPct(book.daily_pnl / (book.nav || 1) * 100, 3)
               : "n/a"}
             size="sec" />
           <StatCell label="Total return so far"
-            value={fmtPct(summary?.total_return_pct)}
-            tone={toneForNumber(summary?.total_return_pct ?? 0)}
+            value={fmtPct(book?.total_return_pct)}
+            tone={toneForNumber(book?.total_return_pct ?? 0)}
             sub="Since the system started"
             size="sec" />
           <StatCell label="Biggest drop from peak"
-            value={fmtPct(summary?.max_drawdown_pct)}
+            value={fmtPct(canonicalDd)}
             tone="neg"
             sub="Largest dip in account value"
             size="sec" />
@@ -329,7 +341,7 @@ export default function Overview() {
 
           <SideCard title="Current Risk"
                     hint="Live exposure + anomalies">
-            <RiskBlock summary={summary} anomSummary={anomSummary}
+            <RiskBlock drawdownPct={canonicalDd} anomSummary={anomSummary}
                        openTrades={recentTrades.filter(t =>
                          t.status === "open").length} />
           </SideCard>
@@ -500,7 +512,7 @@ export default function Overview() {
                  ? `Engine ${state.engine}` : "None"}
           sub={state?.fire ? "FIRING" : "standing by"} />
         <TickerCell label="Open positions"
-          value={String(summary?.open_positions_count ?? 0)}
+          value={String(book?.open_positions_count ?? 0)}
           sub={recentTrades.filter(t => t.status === "open").length > 0
             ? "monitoring exits" : "no exposure"} />
         <TickerCell label="Anomalies"
@@ -518,7 +530,7 @@ export default function Overview() {
             ? fmtUSD(Math.max(...equity.map(p => p.equity)))
             : "—"}
           sub={equity
-            ? `${(((summary?.equity ?? 0) -
+            ? `${(((book?.nav ?? 0) -
                     Math.max(...equity.map(p => p.equity)))
                   / Math.max(...equity.map(p => p.equity), 1) * 100).toFixed(2)}% off peak`
             : "—"} />
@@ -642,11 +654,14 @@ function strategyHumanName(engine: string | null | undefined): string {
 
 
 function deriveHero({
-  state, summary, anomSummary,
+  state, summary, anomSummary, openPositions,
 }: {
   state: CurrentState | undefined;
   summary: PaperSummary | undefined;
   anomSummary: AnomalySummary | undefined;
+  // Canonical-portfolio open-position count (NOT aggregate
+  // summary.open_positions_count). summary stays for pipeline status.
+  openPositions: number;
 }): {
   headline: string; body: string;
   word: string; glow: string;
@@ -701,8 +716,8 @@ function deriveHero({
   if (state.fire) {
     return {
       headline: `${regimeName} — ${engine} firing long`,
-      body: `${summary.open_positions_count} open position${
-        summary.open_positions_count === 1 ? "" : "s"
+      body: `${openPositions} open position${
+        openPositions === 1 ? "" : "s"
       }. System will hold to target exit. No operator action required.`,
       word: "text-success", glow: "u-glow-success",
       chip: "success", ring: "is-success",
@@ -1040,13 +1055,15 @@ function engineHealth(stats: {
 }
 
 function RiskBlock({
-  summary, anomSummary, openTrades,
+  drawdownPct, anomSummary, openTrades,
 }: {
-  summary: PaperSummary | undefined;
+  // Canonical-portfolio drawdown (client-derived), NOT the all-portfolios
+  // aggregate summary.max_drawdown_pct.
+  drawdownPct: number | null;
   anomSummary: AnomalySummary | undefined;
   openTrades: number;
 }) {
-  const dd = summary?.max_drawdown_pct ?? 0;
+  const dd = drawdownPct ?? 0;
   const ddTone = dd < -5 ? "text-danger" : dd < -2 ? "text-warning" : "text-fg";
   const anomCls = (anomSummary?.by_severity?.critical ?? 0) > 0 ? "text-danger"
                  : (anomSummary?.by_severity?.warning ?? 0) > 0 ? "text-warning"
@@ -1055,7 +1072,7 @@ function RiskBlock({
     <div className="space-y-2.5">
       <KVRow label="Open positions" value={String(openTrades)} />
       <KVRow label="Current drawdown"
-             value={fmtPct(summary?.max_drawdown_pct)}
+             value={fmtPct(drawdownPct)}
              valueCls={ddTone} />
       <KVRow label="Open anomalies"
              value={String(anomSummary?.total_open ?? 0)}

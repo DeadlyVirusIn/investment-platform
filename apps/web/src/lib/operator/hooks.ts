@@ -21,6 +21,66 @@ const KEYS = {
   health: ["system", "health"] as const,
 };
 
+// ---------------------------------------------------------------
+// Phase A/B — canonical stock practice portfolio (single source of
+// truth). Backed by GET /paper/canonical/stock, scoped to ONE
+// portfolio (settings.CANONICAL_STOCK_PORTFOLIO_ID). NO aggregation.
+// All user-facing portfolio surfaces must read THIS, not usePaperSummary
+// (aggregate) or the local PaperBook store.
+// ---------------------------------------------------------------
+export interface CanonicalStockPortfolio {
+  portfolio_id: string;
+  name: string | null;
+  nav: number | null;
+  cash: number | null;
+  positions_value: number | null;
+  realized_pnl: number | null;
+  unrealized_pnl: number | null;
+  daily_pnl: number | null;
+  starting_capital: number | null;
+  total_return_pct: number | null;
+  open_positions_count: number;
+  as_of: string | null;
+  freshness: "fresh" | "degraded" | "stale" | "unknown";
+  source_snapshot_id: string | null;
+  source: "live";
+  status: "live" | "no_live_snapshot";
+}
+
+export function useCanonicalStockPortfolio() {
+  return useQuery<CanonicalStockPortfolio>({
+    queryKey: ["paper", "canonical", "stock"],
+    queryFn: () => apiGet<CanonicalStockPortfolio>("/paper/canonical/stock"),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+}
+
+// Canonical drawdown — client-derived peak-to-trough from the SCOPED
+// canonical equity curve. The user-facing shell must NOT read
+// summary.max_drawdown_pct (all-portfolios aggregate); risk flags
+// derive from the same single canonical portfolio as NAV. Mirrors
+// TrackRecord's calc. Returns a negative percent (e.g. -1.8) or null.
+export function useCanonicalDrawdownPct(): number | null {
+  const { data: book } = useCanonicalStockPortfolio();
+  const { data: equity } = usePaperEquity(undefined, undefined, book?.portfolio_id);
+  const pts = equity ?? [];
+  if (pts.length === 0) return null;
+  let peak = pts[0].equity;
+  let depth = 0;
+  for (const p of pts) {
+    peak = Math.max(peak, p.equity);
+    depth = Math.min(depth, ((p.equity - peak) / peak) * 100);
+  }
+  return depth;
+}
+
+// NOTE: usePaperSummary is the ALL-PORTFOLIOS aggregate (4 active paper
+// portfolios + replay). It MUST NOT drive any user-facing portfolio
+// total (NAV / return / positions / P&L / drawdown). Use it only for
+// non-financial system telemetry (pipeline status, last-run heartbeat)
+// or in admin/internal aggregate surfaces. User-facing shells read
+// useCanonicalStockPortfolio (single canonical portfolio).
 export function usePaperSummary() {
   return useQuery<PaperSummary>({
     queryKey: KEYS.summary,
@@ -52,13 +112,114 @@ export function useRecommendations() {
   });
 }
 
-export function usePaperEquity(from?: string, to?: string) {
+// ---------------------------------------------------------------
+// P0 live recommendations (Today / Opportunities / PickPage).
+// Source: GET /recommendations (real engine, 983/day). Effective
+// action = adjusted_action ?? action (policy may damp Buy->Hold).
+// NO static TODAYS_DESK / arthosData literals anywhere downstream.
+// ---------------------------------------------------------------
+export interface RecApi {
+  id: string;
+  asset_id: string;
+  symbol: string | null;
+  action: string | null;            // original engine action
+  adjusted_action: string | null;   // post-policy (null = unchanged)
+  confidence: string | null;        // numeric string e.g. "80.000000"
+  confidence_label: string | null;  // High/Medium/Low
+  composite_score: string | null;
+  adjusted_composite_score: string | null;
+  thesis: string | null;
+  generated_at: string | null;
+  stale_data: boolean | null;
+  enough_data: boolean | null;
+  engine_version: string | null;
+  tags: string[] | null;
+  evidence: unknown[] | null;
+  family_scores: Record<string, string | null> | null;
+  policy: unknown;
+  policy_adjustments: unknown[] | null;
+}
+
+export interface RecDiagnostics {
+  total: number;
+  buy_threshold: string | null;
+  buys: number;
+  action_distribution: Record<string, number>;
+  near_buy_tight_count: number;
+  near_buy_loose_count: number;
+  dampers_applied: number;
+  stale_count: number;
+  insufficient_data_count: number;
+  max_composite: string | null;
+}
+
+// Effective (post-policy) action — what the engine actually recommends.
+export function effectiveAction(r: RecApi): string | null {
+  return r.adjusted_action ?? r.action;
+}
+export function confidenceNum(r: RecApi): number {
+  const v = parseFloat(r.confidence ?? "");
+  return Number.isFinite(v) ? v : 0;
+}
+
+// Latest-per-asset, highest-confidence first. limit high enough to span
+// the day's actionable set without paging.
+export function useTodaysRecommendations(limit = 500) {
+  return useQuery<{ recommendations: RecApi[]; count: number }>({
+    queryKey: ["recs", "today", limit],
+    queryFn: () =>
+      apiGet(`/recommendations?latest=true&sort_by=confidence&order=desc&limit=${limit}`),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
+export function useRecommendationDiagnostics() {
+  // Endpoint returns { count, diagnostics, summary }; the batch summary
+  // (total / buys / action_distribution / buy_threshold) lives in .summary.
+  return useQuery<RecDiagnostics>({
+    queryKey: ["recs", "diagnostics"],
+    queryFn: async () => {
+      const d = await apiGet<{ summary: RecDiagnostics }>(
+        "/recommendations/diagnostics",
+      );
+      return d.summary;
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
+
+// Per-recommendation evidence (PickPage reasoning).
+export function useRecommendationEvidence(recId: string | null) {
+  return useQuery<{ evidence: unknown[] }>({
+    queryKey: ["recs", "evidence", recId],
+    queryFn: () => apiGet(`/recommendations/${recId}/evidence`),
+    enabled: !!recId,
+    staleTime: 300_000,
+  });
+}
+
+// Highest-confidence actionable BUY (effective action). null when none.
+export function selectTopBuy(recs: RecApi[]): RecApi | null {
+  const buys = recs
+    .filter((r) => effectiveAction(r) === "Buy")
+    .sort((a, b) => confidenceNum(b) - confidenceNum(a));
+  return buys[0] ?? null;
+}
+
+export function usePaperEquity(
+  from?: string, to?: string, portfolioId?: string,
+) {
   const qs = new URLSearchParams();
   if (from) qs.set("from", from);
   if (to) qs.set("to", to);
+  // Phase A/B — when scoped to the canonical portfolio, the curve is for
+  // that ONE portfolio only (no aggregate of test/demo fixtures).
+  if (portfolioId) qs.set("portfolio_id", portfolioId);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return useQuery<EquityPoint[]>({
-    queryKey: KEYS.equity(from, to),
+    queryKey: [...KEYS.equity(from, to), portfolioId ?? "all"],
     queryFn: () => apiGet<EquityPoint[]>(`/paper/equity${suffix}`),
     staleTime: 60_000,
   });

@@ -5,14 +5,32 @@ import { useEffect, useRef, useState } from "react";
 import {
   createChart, IChartApi, ISeriesApi, LineStyle, LineType,
 } from "lightweight-charts";
-import { usePaperEquity } from "@/lib/operator/hooks";
+import { usePaperEquity, useCanonicalStockPortfolio } from "@/lib/operator/hooks";
 import { cn } from "@/lib/cn";
 
 type ViewMode = "1M" | "3M" | "YTD" | "All";
 
+// Client-derived per-point drawdown (%) from the equity series, running
+// peak-to-trough. The chart no longer trusts the backend dd_pct field:
+// it is computed here so a single source (the canonical equity curve)
+// drives both the equity line and the drawdown, and so a future backend
+// regression can never re-introduce a bogus drawdown into this surface.
+function drawdownSeries(points: { equity: number }[]): number[] {
+  let peak = points[0]?.equity ?? 0;
+  return points.map((p) => {
+    peak = Math.max(peak, p.equity);
+    return peak > 0 ? ((p.equity - peak) / peak) * 100 : 0;
+  });
+}
+
 export default function EquityDrawdownChart() {
   const [view, setView] = useState<ViewMode>("All");
-  const { data, isLoading } = usePaperEquity(computeFrom(view), undefined);
+  // F1: scope to the single canonical portfolio — never the all-portfolios
+  // aggregate. Same source as the shell NAV / TrackRecord.
+  const { data: book } = useCanonicalStockPortfolio();
+  const { data, isLoading } = usePaperEquity(
+    computeFrom(view), undefined, book?.portfolio_id,
+  );
   const eqContainerRef = useRef<HTMLDivElement>(null);
   const ddContainerRef = useRef<HTMLDivElement>(null);
   const chartsRef = useRef<{
@@ -146,8 +164,9 @@ export default function EquityDrawdownChart() {
       crosshairMarkerBorderColor: "#0A0F1C",
       crosshairMarkerBackgroundColor: "#FF5A5D",
     });
+    const ddVals = drawdownSeries(data);
     ddSeries.setData(
-      data.map(p => ({ time: p.date as unknown as string, value: p.dd_pct })),
+      data.map((p, i) => ({ time: p.date as unknown as string, value: ddVals[i] })),
     );
     chartsRef.current.ddSeries = ddSeries;
 
@@ -180,7 +199,7 @@ export default function EquityDrawdownChart() {
   const last = data?.[data.length - 1];
   const first = data?.[0];
   const cumPct = last?.cum_pct ?? 0;
-  const ddMin = data ? Math.min(...data.map(p => p.dd_pct)) : 0;
+  const ddMin = data && data.length ? Math.min(...drawdownSeries(data)) : 0;
   const glowClass = first && last && last.equity < first.equity
     ? "u-chart-glow is-danger" : "u-chart-glow";
 
