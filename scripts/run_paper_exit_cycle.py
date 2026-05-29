@@ -285,6 +285,7 @@ def main(argv: list[str] | None = None) -> int:
                     snapshot_equity_now(
                         s, pf,
                         as_of=submitted_at.replace(hour=22),
+                        source="live",
                     )
                 s.commit()
             realized = Decimal(str(result.realized_pnl or 0))
