@@ -339,37 +339,62 @@ def paper_equity(
     db: Session = Depends(get_session),
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
+    portfolio_id: str | None = Query(None),
 ) -> list[dict]:
-    """Daily equity curve aggregated across active portfolios from
-    paper_equity_snapshot. Replaces the synthetic
-    paper_portfolio_snapshot stream which never reflected real
-    auto_trader fills."""
+    """Daily equity curve from paper_equity_snapshot.
+
+    Default: aggregated across active portfolios (legacy consumers).
+    When `portfolio_id` is supplied (canonical practice chart), the curve
+    and starting capital are scoped to that ONE portfolio — no
+    aggregation, no test/demo contamination. M079: source='live' only.
+    """
     start = dt.date.fromisoformat(from_) if from_ else dt.date(2020, 1, 1)
     end = dt.date.fromisoformat(to) if to else dt.date.today()
+    pid_clause = "AND s.portfolio_id = :pid" if portfolio_id else ""
     # Phase L M079: equity curve is canonical user-facing; filter source='live'.
     # NOTE: aggregation safe because at most one live row per portfolio per
     # snapshot_date (the live writer uses INSERT-new-row per write event,
     # but a single trading day produces a single live snapshot in practice).
     # If intraday recompute introduces multiple live rows per date, this
     # aggregation will need to first deduplicate via DISTINCT ON.
-    rows = db.execute(text("""
-        SELECT s.snapshot_date::date AS d,
-               sum(s.total_equity) AS equity,
-               sum(s.unrealized_pnl) AS upnl
-        FROM paper_equity_snapshot s
-        JOIN paper_portfolio p ON p.id = s.portfolio_id
-        WHERE p.is_active = TRUE
-          AND s.source = 'live'
-          AND s.snapshot_date::date BETWEEN :s AND :e
+    params: dict[str, Any] = {"s": start, "e": end}
+    if portfolio_id:
+        params["pid"] = portfolio_id
+    # M079: each intraday recompute writes a NEW immutable live row, so a
+    # single (portfolio, date) can have many live rows. Summing them all
+    # (the old behavior) inflated equity/peak on recompute days and produced
+    # a bogus drawdown (e.g. one date summed to ~12x → dd_pct ≈ -92%). Pick
+    # the LATEST row per (portfolio, calendar date) via DISTINCT ON +
+    # recorded_at DESC (uses idx_paper_equity_snapshot_canonical), THEN sum
+    # across portfolios per date. Read-only; no row is mutated.
+    rows = db.execute(text(f"""
+        WITH latest AS (
+            SELECT DISTINCT ON (s.portfolio_id, s.snapshot_date::date)
+                   s.snapshot_date::date AS d,
+                   s.total_equity        AS equity,
+                   s.unrealized_pnl      AS upnl
+            FROM paper_equity_snapshot s
+            JOIN paper_portfolio p ON p.id = s.portfolio_id
+            WHERE p.is_active = TRUE
+              AND s.source = 'live'
+              {pid_clause}
+              AND s.snapshot_date::date BETWEEN :s AND :e
+            ORDER BY s.portfolio_id, s.snapshot_date::date, s.recorded_at DESC
+        )
+        SELECT d,
+               sum(equity) AS equity,
+               sum(upnl)   AS upnl
+        FROM latest
         GROUP BY d
         ORDER BY d
-    """), {"s": start, "e": end}).fetchall()
+    """), params).fetchall()
     if not rows:
         return []
-    starting_total = float(db.execute(text("""
+    start_clause = "id = :pid" if portfolio_id else "is_active = TRUE"
+    starting_total = float(db.execute(text(f"""
         SELECT coalesce(sum(starting_cash), 0)
-        FROM paper_portfolio WHERE is_active = TRUE
-    """)).scalar() or 0)
+        FROM paper_portfolio WHERE {start_clause}
+    """), ({"pid": portfolio_id} if portfolio_id else {})).scalar() or 0)
     base_eq = float(rows[0].equity)
     peak = base_eq
     out: list[dict] = []
