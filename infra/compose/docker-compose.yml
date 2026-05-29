@@ -159,6 +159,12 @@ services:
       FERNET_KEY: ${FERNET_KEY}
       APP_VERSION: ${APP_VERSION:-0.0.1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # 2026-05-29 — TEMPORARY: suppress flat max-hold exits in live
+      # scheduled run_paper_exit_cycle until signal-aware max-hold is
+      # promoted (Phase D). 999 = effectively no max-hold close; TP=8%
+      # and SL=4% closes still fire. Revert to 10 (or unset) when
+      # signal-aware max-hold goes live. See exit-policy research.
+      PAPER_MAX_HOLD_DAYS: ${PAPER_MAX_HOLD_DAYS:-999}
       # Phase Opt-B3a Step 6a — worker tickloop fires options_*
       # scheduled jobs and needs identical OPTIONS_*/TRADIER_*
       # env shape as the api service so wrapper gating + adapter
@@ -227,6 +233,10 @@ services:
       ML_PROMOTION_MAX_MISSED_WINNER_RATE: ${ML_PROMOTION_MAX_MISSED_WINNER_RATE:-0.50}
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
+      # 2026-05-29 — TEMPORARY max-hold suppression (mirror of
+      # worker-tickloop). Keeps exit policy identical whichever worker
+      # fires the cycle. Revert to 10 when signal-aware max-hold ships.
+      PAPER_MAX_HOLD_DAYS: ${PAPER_MAX_HOLD_DAYS:-999}
     volumes:
       # Persist /tmp health markers so API + host can read them
       - worker_cron_tmp:/tmp
