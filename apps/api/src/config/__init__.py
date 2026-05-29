@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     APP_VERSION: str = "0.1.0"
 
+    # Canonical stock practice portfolio (Phase A — single source of truth).
+    # Every user-facing portfolio surface reads THIS id only — never an
+    # aggregate of active portfolios. Default = Replay Recovery Account.
+    CANONICAL_STOCK_PORTFOLIO_ID: str = "166b12ed-4b6d-4ec8-854d-234baa7d029a"
+
     # ML SIZING FEATURE FLAG (V1 promotion gate)
     # When True: target_weights <- ML-sized weights; deterministic path kept in shadow_weights for parallel log
     # When False: target_weights <- deterministic weights; ML-sized path in shadow_weights
