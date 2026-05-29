@@ -40,6 +40,8 @@ import { ReflectionsReview } from './pages/ReflectionsReview';
 import { JournalPage } from './pages/JournalPage';
 // Phase 2B — Arth Report Card (Trust + first-class transparency surface).
 import { ArthReportCard } from './pages/ArthReportCard';
+// Admin — read-only cron/job + data-freshness observability pane.
+import { Observability } from './pages/Observability';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -92,6 +94,8 @@ function V2Surface() {
         <Route path="watchlist" element={<Watchlist />} />
         <Route path="portfolio" element={<PaperBook />} />
         <Route path="track-record" element={<TrackRecord />} />
+        {/* Admin — read-only system observability. */}
+        <Route path="admin/observability" element={<Observability />} />
         <Route path="*" element={<Navigate to="learn" replace />} />
       </Routes>
     </div>
