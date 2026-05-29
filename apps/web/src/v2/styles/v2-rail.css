@@ -237,7 +237,7 @@
 
 .v2-rail-root .u-status-seg.is-pos    .u-status-seg-value { color: var(--brand); }
 .v2-rail-root .u-status-seg.is-neg    .u-status-seg-value { color: var(--destructive); }
-.v2-rail-root .u-status-seg.is-warn   .u-status-seg-value { color: var(--accent-foreground); }
+.v2-rail-root .u-status-seg.is-warn   .u-status-seg-value { color: var(--warning); }
 .v2-rail-root .u-status-seg.is-accent .u-status-seg-value { color: var(--foreground); }
 
 /* ──────────────────────────────────────────────────────────────
