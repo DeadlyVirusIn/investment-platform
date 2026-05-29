@@ -146,7 +146,7 @@ function ComposeView({
 }: any) {
   return (
     <>
-      <div className="text-meta ink-fainter mb-3">Place in paper book</div>
+      <div className="text-meta ink-fainter mb-3">Local practice simulation</div>
       <h2 className="font-serif text-[24px] ink-primary leading-snug mb-3">
         {rec.actionLabel}
       </h2>
@@ -205,7 +205,7 @@ function ComposeView({
             maximumFractionDigits: 2,
           })}
         </dd>
-        <dt className="text-meta ink-fainter">Available cash</dt>
+        <dt className="text-meta ink-fainter">Local sim cash</dt>
         <dd
           className={`tabular-nums text-right ${
             insufficient ? 'ink-muted' : 'ink-primary'
@@ -248,7 +248,9 @@ function ComposeView({
       </div>
 
       <p className="text-[12px] ink-fainter italic mt-5 leading-relaxed text-center">
-        No real money. The paper book starts at $100,000.
+        Local practice simulation only — a separate $100,000 sandbox in your
+        browser. This is NOT the tracked practice portfolio and is not placed
+        on the backend account.
       </p>
     </>
   );

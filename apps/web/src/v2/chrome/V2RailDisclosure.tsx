@@ -13,12 +13,13 @@
 
 import { useEffect, useRef } from 'react';
 import {
-  usePaperSummary, useCurrentState, useAnomalySummary,
+  useCanonicalStockPortfolio, useCurrentState, useAnomalySummary,
 } from '@/lib/operator/hooks';
 import { fmtPct } from '@/components/ui/primitives';
 
 export function V2RailDisclosure({ onClose }: { onClose: () => void }) {
-  const { data: summary } = usePaperSummary();
+  // Phase A/B — rail portfolio metrics read the canonical portfolio.
+  const { data: summary } = useCanonicalStockPortfolio();
   const { data: state } = useCurrentState();
   const { data: anom } = useAnomalySummary();
   const ref = useRef<HTMLDivElement>(null);

@@ -7,14 +7,16 @@
 // count comes straight from /recommendations.
 
 import { Link } from 'react-router-dom';
-import { useRecommendations, usePaperSummary } from '@/lib/operator/hooks';
+import { useRecommendations, useCanonicalStockPortfolio } from '@/lib/operator/hooks';
 
 export function TrustBanner() {
   const { data: recs, isLoading: recsLoading } = useRecommendations();
-  const { data: summary } = usePaperSummary();
+  // Phase A/B — practice-book return now comes from the canonical
+  // portfolio (single source of truth), not the aggregate summary.
+  const { data: book } = useCanonicalStockPortfolio();
 
   const callCount = recs?.recommendations?.length ?? null;
-  const totalRet = summary?.total_return_pct ?? null;
+  const totalRet = book?.total_return_pct ?? null;
 
   return (
     <div className="flex items-baseline gap-3 flex-wrap mb-6 py-3 px-4 rounded-2xl"

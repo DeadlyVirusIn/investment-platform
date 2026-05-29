@@ -171,6 +171,53 @@ export function SideNav() {
             </Link>
           );
         })}
+
+        {/* Secondary destinations — previously only in the mobile
+            drawer, leaving them unreachable on desktop. Surfaced here
+            as a quiet group so Notes/Watchlist/Methodology/System are
+            clickable on the desktop SideNav too. */}
+        <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
+          <p
+            className="px-3 mb-2 font-semibold uppercase"
+            style={{
+              fontSize: 10,
+              letterSpacing: '0.16em',
+              color: 'var(--muted-foreground)',
+            }}
+          >
+            More
+          </p>
+          {NAV_SECONDARY.map(({ to, label }) => {
+            const active = location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                className="flex items-center px-3 h-9 rounded-lg font-medium transition-colors"
+                style={{
+                  fontSize: 13,
+                  backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                  color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor =
+                      'color-mix(in oklch, var(--sage-light) 60%, transparent)';
+                    e.currentTarget.style.color = 'var(--foreground)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!active) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = 'var(--muted-foreground)';
+                  }
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
       <div
@@ -418,6 +465,7 @@ const NAV_SECONDARY = [
   { label: 'Notes', to: '/v2/field-notes' },
   { label: 'Watchlist', to: '/v2/watchlist' },
   { label: 'Methodology', to: '/v2/methodology' },
+  { label: 'System', to: '/v2/admin/observability' },
 ];
 
 function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
