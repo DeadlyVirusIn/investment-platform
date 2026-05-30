@@ -42,6 +42,8 @@ import { JournalPage } from './pages/JournalPage';
 import { ArthReportCard } from './pages/ArthReportCard';
 // Admin — read-only cron/job + data-freshness observability pane.
 import { Observability } from './pages/Observability';
+// Options — read-only V2-native options subsystem visibility surface.
+import { OptionsVisibility } from './pages/OptionsVisibility';
 
 // Screenshot helper — when URL includes ?skipMotion=1, framer-motion
 // jumps every component to its final animated state. Headless Chrome
@@ -96,6 +98,8 @@ function V2Surface() {
         <Route path="track-record" element={<TrackRecord />} />
         {/* Admin — read-only system observability. */}
         <Route path="admin/observability" element={<Observability />} />
+        {/* Options — read-only V2-native options subsystem visibility. */}
+        <Route path="options" element={<OptionsVisibility />} />
         <Route path="*" element={<Navigate to="learn" replace />} />
       </Routes>
     </div>
