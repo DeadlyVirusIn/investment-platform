@@ -65,6 +65,7 @@ DEFAULT_DTE_WINDOW_DAYS = 60
 HEALTH_PATH = "/markets/clock"
 EXPIRATIONS_PATH = "/markets/options/expirations"
 CHAINS_PATH = "/markets/options/chains"
+QUOTES_PATH = "/markets/quotes"
 
 
 # ---------------------------------------------------------------------------
@@ -399,6 +400,11 @@ class TradierOptionsAdapter(BaseOptionsAdapter):
             "one or more expirations failed" if partial else None
         )
 
+        # Underlying spot — separate /markets/quotes call (chains endpoint
+        # does not return it). Non-fatal: None on failure → Greeks/moneyness
+        # degrade to NULL exactly as before.
+        spot = self._fetch_underlying_spot(symbol=symbol)
+
         return ChainSnapshotResult(
             quotes=tuple(all_quotes),
             provider=PROVIDER_NAME,
@@ -408,6 +414,7 @@ class TradierOptionsAdapter(BaseOptionsAdapter):
             partial_reason=partial_reason,
             n_raw_quotes=len(all_quotes),
             notes=notes,
+            underlying_price=spot,
         )
 
     # ------------------------------------------------------------------
@@ -459,6 +466,41 @@ class TradierOptionsAdapter(BaseOptionsAdapter):
             raise ProviderError(
                 f"tradier returned non-dict body url={safe_url(resp.url)}")
         return body
+
+    def _fetch_underlying_spot(self, *, symbol: str) -> Decimal | None:
+        """GET /markets/quotes — underlying spot price (last, then close).
+
+        Best-effort + NON-FATAL: any error/missing field returns None so
+        a missing spot never aborts the chain snapshot. Downstream Greeks
+        (chain_ingest._enrich_with_greeks) and moneyness features degrade
+        to NULL, matching prior behavior.
+        """
+        try:
+            self._rate_limiter.wait()
+            resp = self._client.get(QUOTES_PATH, params={"symbols": symbol})
+            resp.raise_for_status()
+            body = resp.json()
+            if not isinstance(body, dict):
+                return None
+            quotes = body.get("quotes")
+            if not isinstance(quotes, dict):
+                return None
+            q = quotes.get("quote")
+            if isinstance(q, list):
+                q = q[0] if q else None
+            if not isinstance(q, dict):
+                return None
+            for field in ("last", "close", "prevclose"):
+                val = _to_decimal(q.get(field))
+                if val is not None and val > 0:
+                    return val
+            return None
+        except Exception as exc:  # noqa: BLE001 — spot is optional; never fatal
+            logger.warning(
+                "tradier: underlying spot fetch failed for {} — {}",
+                symbol, redact_token(str(exc)),
+            )
+            return None
 
     def _iter_quotes_from_body(
         self,
