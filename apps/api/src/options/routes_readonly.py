@@ -116,6 +116,116 @@ def options_pipeline_status(
     # Phase Opt-B1 — ThetaData pre-flight (5-state classifier)
     thetadata_health = classify_thetadata_preflight(settings)
 
+    # Options-viz P0d — additive read-only fields for the V2 Options
+    # Visibility page. Pure SELECTs, no mutation. Mirrors the engine's
+    # frozen defined-risk contract so the UI can split the candidate
+    # universe into engine-compatible vs incompatible structures.
+    SUPPORTED_STRATEGIES = (
+        "SHORT_PUT_CREDIT_SPREAD",
+        "SHORT_CALL_CREDIT_SPREAD",
+        "IRON_CONDOR",
+    )
+    prov_row = session.execute(text(
+        """
+        SELECT provider, provider_version
+        FROM options_chain_snapshot
+        ORDER BY snapshot_at_utc DESC
+        LIMIT 1
+        """
+    )).mappings().first()
+    chain_provider = prov_row["provider"] if prov_row else None
+    chain_provider_version = (
+        prov_row["provider_version"] if prov_row else None
+    )
+
+    ingest_row = session.execute(text(
+        """
+        SELECT started_at, finished_at, provider, rows_inserted,
+               rows_filtered_out, n_symbols_ok, classification
+        FROM options_chain_ingest_run
+        ORDER BY started_at DESC
+        LIMIT 1
+        """
+    )).mappings().first()
+    latest_ingest_run = (
+        {
+            "started_at": (
+                ingest_row["started_at"].isoformat()
+                if ingest_row["started_at"] else None
+            ),
+            "finished_at": (
+                ingest_row["finished_at"].isoformat()
+                if ingest_row["finished_at"] else None
+            ),
+            "provider": ingest_row["provider"],
+            "rows_inserted": (
+                int(ingest_row["rows_inserted"])
+                if ingest_row["rows_inserted"] is not None else None
+            ),
+            "rows_filtered_out": (
+                int(ingest_row["rows_filtered_out"])
+                if ingest_row["rows_filtered_out"] is not None else None
+            ),
+            "n_symbols_ok": (
+                int(ingest_row["n_symbols_ok"])
+                if ingest_row["n_symbols_ok"] is not None else None
+            ),
+            "classification": ingest_row["classification"],
+        }
+        if ingest_row else None
+    )
+
+    chain_health_rows = session.execute(text(
+        """
+        SELECT underlying AS symbol,
+               count(*) AS rows,
+               count(*) FILTER (WHERE bid > 0 AND ask > bid)
+                 AS valid_bid_ask,
+               max(snapshot_at_utc) AS latest_snapshot_at
+        FROM options_chain_snapshot
+        WHERE underlying IN ('SPY', 'QQQ')
+        GROUP BY underlying
+        ORDER BY underlying
+        """
+    )).mappings().all()
+    chain_health = [
+        {
+            "symbol": r["symbol"],
+            "rows": int(r["rows"]),
+            "valid_bid_ask": int(r["valid_bid_ask"]),
+            "latest_snapshot_at": (
+                r["latest_snapshot_at"].isoformat()
+                if r["latest_snapshot_at"] else None
+            ),
+        }
+        for r in chain_health_rows
+    ]
+
+    # Candidate universe split by engine compatibility. The candidate's
+    # structure lives in options_strategy_candidate.rule_id (e.g.
+    # LONG_CALL, BULL_CALL_SPREAD) — the paper engine only opens the
+    # three defined-risk credit/IC structures above.
+    cand_rows = session.execute(text(
+        """
+        SELECT rule_id AS structure, count(*) AS n
+        FROM options_strategy_candidate
+        GROUP BY rule_id
+        ORDER BY n DESC
+        """
+    )).mappings().all()
+    candidate_by_structure = [
+        {
+            "structure": r["structure"],
+            "count": int(r["n"]),
+            "engine_compatible": r["structure"] in SUPPORTED_STRATEGIES,
+        }
+        for r in cand_rows
+    ]
+    candidate_total = sum(c["count"] for c in candidate_by_structure)
+    candidate_compatible = sum(
+        c["count"] for c in candidate_by_structure if c["engine_compatible"]
+    )
+
     # Truthful single-sentence engine-state line for the banner
     if not settings.OPTIONS_ENABLED:
         engine_state = "dormant"
@@ -203,6 +313,18 @@ def options_pipeline_status(
         ),
         # Phase Opt-B1 — ThetaData pre-flight 5-state classifier
         "thetadata_health": thetadata_health,
+        # Options-viz P0d — additive read-only visibility fields
+        "chain_provider": chain_provider,
+        "chain_provider_version": chain_provider_version,
+        "latest_ingest_run": latest_ingest_run,
+        "chain_health": chain_health,
+        "supported_strategies": list(SUPPORTED_STRATEGIES),
+        "candidate_universe": {
+            "total": candidate_total,
+            "engine_compatible": candidate_compatible,
+            "engine_incompatible": candidate_total - candidate_compatible,
+            "by_structure": candidate_by_structure,
+        },
         "next_phase_required": (
             "Phase Options-Daily — separate scope; not in stock "
             "incident fix. Requires: ThetaData ingest scheduling, "
