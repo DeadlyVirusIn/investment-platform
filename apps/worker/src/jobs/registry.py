@@ -244,6 +244,12 @@ from apps.worker.src.jobs.options_chain_snapshot import (
 from apps.worker.src.jobs.options_shadow_eval import (
     run_options_shadow_eval_job,
 )
+from apps.worker.src.jobs.compute_options_features import (
+    compute_options_features_job,
+)
+from apps.worker.src.jobs.options_candidate_generation import (
+    run_options_candidate_generation_job,
+)
 from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
 from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
 from apps.worker.src.jobs.v2_promotion_snapshot import (
@@ -300,4 +306,14 @@ REGISTRY: dict[str, JobFn] = {
     # tables. Cron target intent: `15 21 * * 1-5` UTC (~30 min after
     # US market close). Scheduling lands in Step 5.
     "options_shadow_eval": run_options_shadow_eval_job,
+    # Phase Opt-P0 — options feature engine wrapper. Refreshes
+    # options_feature_daily from options_chain_snapshot. Idempotent
+    # upsert. Gated on OPTIONS_ENABLED | OPTIONS_SHADOW_EVAL_ENABLED.
+    # Schedule lands separately (after options_chain_snapshot).
+    "compute_options_features": compute_options_features_job,
+    # Phase Opt-P0 — options candidate generation wrapper. Regenerates
+    # options_strategy_candidate from shadow decisions + features.
+    # Idempotent (ON CONFLICT DO NOTHING + skip_existing). Schedule
+    # lands separately (after options_shadow_eval).
+    "options_candidate_generation": run_options_candidate_generation_job,
 }
