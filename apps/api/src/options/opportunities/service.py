@@ -49,6 +49,26 @@ WEIGHT_EVENT   = 0.10
 CONVICTION_FLOOR = 0.78
 
 
+# Hybrid (Phase 1) — engine-executable structures the paper engine can
+# open + risk-manage. Everything else is a research idea. `family` is
+# DERIVED from rule_id at read time (no stored column, no migration).
+ENGINE_SUPPORTED_STRUCTURES = (
+    "SHORT_PUT_CREDIT_SPREAD",
+    "SHORT_CALL_CREDIT_SPREAD",
+    "IRON_CONDOR",
+)
+
+FAMILY_ENGINE = "engine_executable"
+FAMILY_RESEARCH = "research"
+
+
+def _family_for(rule_id: str) -> str:
+    return (
+        FAMILY_ENGINE if rule_id in ENGINE_SUPPORTED_STRUCTURES
+        else FAMILY_RESEARCH
+    )
+
+
 @dataclass
 class OpportunityItem:
     """Canonical payload — matches the frontend card contract."""
@@ -116,6 +136,10 @@ class OpportunityItem:
     event_days_away: int | None = None
     catalyst_title: str | None = None
     catalyst_explanation: str | None = None
+    # Hybrid (Phase 1) — family tagging, derived from rule_id.
+    family: str = FAMILY_RESEARCH
+    engine_compatible: bool = False
+    above_floor: bool = False
 
 
 # ---- helpers ---------------------------------------------------------------
@@ -203,6 +227,7 @@ def fetch_opportunities(
     limit: int = 24,
     lookback_days: int = 7,
     min_score: float | None = None,
+    family: str | None = None,
     now: dt.date | None = None,
 ) -> list[OpportunityItem]:
     """Compose ranked opportunities. When `lane='conviction'`,
@@ -326,6 +351,16 @@ def fetch_opportunities(
             event_boost = 0.0
         composite = _composite(score, freshness, liquidity, iv_fit, event_boost)
 
+        # Hybrid family tagging (Phase 1) — derived, additive. NOTE: must
+        # NOT reuse the name `family` here — that is the function parameter
+        # (the requested filter); shadowing it corrupts the post-loop
+        # family filter. Use a distinct per-row name.
+        engine_compatible = (
+            str(r["strategy_name"]) in ENGINE_SUPPORTED_STRUCTURES
+        )
+        row_family = _family_for(str(r["strategy_name"]))
+        above_floor = composite >= CONVICTION_FLOOR
+
         bid = _decimal(r["bid"])
         ask = _decimal(r["ask"])
         spread = (ask - bid) if (bid is not None and ask is not None) else None
@@ -408,6 +443,9 @@ def fetch_opportunities(
             event_days_away=r["event_days_away"],
             catalyst_title=r["catalyst_title"],
             catalyst_explanation=r["catalyst_explanation"],
+            family=row_family,
+            engine_compatible=engine_compatible,
+            above_floor=above_floor,
         ))
 
     # Lane filter — done in Python to keep the SQL portable.
@@ -429,6 +467,12 @@ def fetch_opportunities(
             items = [i for i in items if i.bias == "event" or i.event_boost > 0]
         else:
             items = [i for i in items if i.bias == lane_l]
+
+    # Hybrid family filter (Phase 1) — additive; omitted → both families.
+    if family:
+        fam_l = family.lower()
+        if fam_l in (FAMILY_ENGINE, FAMILY_RESEARCH):
+            items = [i for i in items if i.family == fam_l]
 
     # Final ranking by composite score (descending), tie-break by score.
     items.sort(
@@ -464,6 +508,10 @@ def opportunity_to_dict(item: OpportunityItem) -> dict[str, Any]:
         },
         "would_trade":       item.would_trade,
         "qualified":         item.qualified,
+        # Hybrid (Phase 1) — family tagging for the dual-lane UI.
+        "family":            item.family,
+        "engine_compatible": item.engine_compatible,
+        "above_floor":       item.above_floor,
         "dte":               item.dte,
         "earnings_between":  item.earnings_between,
         "liquidity_tier":    item.liquidity_tier,

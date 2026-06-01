@@ -226,7 +226,7 @@ def generate_for_observations(
     ).lower()
     bias_by_underlying = (
         _bias_by_underlying(session, [r["underlying_symbol"] for r in rows])
-        if structures == "credit" else {}
+        if structures in ("credit", "both") else {}
     )
     # Representative would-trade observation per NEUTRAL underlying, used to
     # anchor the underlying-level IRON_CONDOR composition pass (decision 2).
@@ -291,7 +291,7 @@ def generate_for_observations(
 
         # Credit mode: capture the best IC anchor for neutral underlyings
         # (no directional credit spread is emitted for them per-contract).
-        if structures == "credit" and u_bias == "neutral":
+        if structures in ("credit", "both") and u_bias == "neutral":
             d = abs(quote.delta) if quote.delta is not None else 999.0
             dist = abs(d - 0.30)
             cur = ic_reps.get(obs.underlying)
@@ -306,7 +306,7 @@ def generate_for_observations(
     # Opt-B underlying-level IRON_CONDOR pass (decision 2). One IC per
     # neutral underlying, skipped if an IC already exists for that
     # underlying+run_date (idempotent re-runs).
-    if structures == "credit" and ic_reps:
+    if structures in ("credit", "both") and ic_reps:
         existing_ic = set(session.execute(text(
             """
             SELECT DISTINCT underlying

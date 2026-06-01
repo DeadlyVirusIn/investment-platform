@@ -485,7 +485,8 @@ def generate(
     if not obs.would_trade:
         return []
 
-    if (structures or "directional").lower() == "credit":
+    _mode = (structures or "directional").lower()
+    if _mode == "credit":
         return _generate_credit(
             obs=obs, quote=quote, feat=feat, catalyst=catalyst,
             bias=(bias or "neutral").lower(),
@@ -821,5 +822,17 @@ def generate(
     for c in candidates:
         c.rejected_alternatives = list(rejected)
 
-    # Bounded fan-out: 1-3 candidates per accepted contract.
-    return candidates[:3]
+    # Bounded fan-out: 1-3 directional candidates per accepted contract.
+    out = candidates[:3]
+
+    # Hybrid "both" mode (Phase 2) — also emit the engine-aligned credit
+    # structure for this contract so the executable lane is populated
+    # alongside the research lane. Additive: directional output is
+    # unchanged; credit is appended. IRON_CONDOR is composed per-underlying
+    # in the service layer (build_iron_condor), not here.
+    if _mode == "both":
+        out = out + _generate_credit(
+            obs=obs, quote=quote, feat=feat, catalyst=catalyst,
+            bias=(bias or "neutral").lower(),
+        )
+    return out

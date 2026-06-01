@@ -33,6 +33,11 @@ def list_opportunities(
     limit: int = Query(default=24, ge=1, le=200),
     lookback_days: int = Query(default=7, ge=1, le=60),
     min_score: float | None = Query(default=None, ge=0.0, le=1.0),
+    family: str | None = Query(
+        default=None,
+        description="Filter by family: engine_executable | research. "
+                    "Omitted → both.",
+    ),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """Ranked opportunity cards.
@@ -56,17 +61,25 @@ def list_opportunities(
         limit=limit,
         lookback_days=lookback_days,
         min_score=min_score,
+        family=family.lower() if family else None,
     )
+    dicts = [opportunity_to_dict(i) for i in items]
     return {
         "lane": lane,
+        "family": family,
         "count": len(items),
+        # Hybrid (Phase 1) — per-family counts for the dual-lane UI.
+        "engine_executable_count":
+            sum(1 for d in dicts if d["family"] == "engine_executable"),
+        "research_count":
+            sum(1 for d in dicts if d["family"] == "research"),
         "lookback_days": lookback_days,
         "conviction_floor": CONVICTION_FLOOR,
         "weights": {
             "score": 0.40, "freshness": 0.20,
             "liquidity": 0.15, "iv_fit": 0.15, "event": 0.10,
         },
-        "items": [opportunity_to_dict(i) for i in items],
+        "items": dicts,
     }
 
 
