@@ -18,13 +18,50 @@ from loguru import logger
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from apps.api.src.config import settings
 from apps.api.src.options.strategy_candidates.event_proximity import (
     earliest_event_in_window,
 )
 from apps.api.src.options.strategy_candidates.generator import (
     ChainQuote, ShadowObservation, StrategyCandidate, UnderlyingFeature,
-    generate,
+    build_iron_condor, generate,
 )
+
+
+def _action_to_bias(action: str | None) -> str:
+    """Map a recommendation.action → directional bias. buy*→bullish,
+    sell*→bearish, everything else (hold/none)→neutral."""
+    a = (action or "").lower()
+    if "buy" in a:
+        return "bullish"
+    if "sell" in a:
+        return "bearish"
+    return "neutral"
+
+
+def _bias_by_underlying(
+    session: Session, symbols: Iterable[str],
+) -> dict[str, str]:
+    """Latest recommendation action → bias per underlying symbol (Opt-B,
+    decision 3 — bias comes from the recommendation signal, never inferred
+    from contract type). Underlyings with NO recommendation are absent
+    from the result; callers treat absence as 'neutral, no signal'."""
+    syms = sorted({s for s in symbols if s})
+    if not syms:
+        return {}
+    rows = session.execute(text(
+        """
+        SELECT a.symbol AS symbol, r.action AS action
+        FROM asset a
+        JOIN LATERAL (
+            SELECT action FROM recommendation r2
+            WHERE r2.asset_id = a.id
+            ORDER BY r2.generated_at DESC LIMIT 1
+        ) r ON TRUE
+        WHERE a.symbol = ANY(:syms)
+        """
+    ), {"syms": syms}).mappings().all()
+    return {row["symbol"]: _action_to_bias(row["action"]) for row in rows}
 
 
 _INSERT_SQL = text(
@@ -182,6 +219,21 @@ def generate_for_observations(
         ), {"ids": [int(r["id"]) for r in rows]}).scalars().all()
         seen_obs_ids = set(int(x) for x in existing)
 
+    # Opt-B — output taxonomy + per-underlying recommendation bias.
+    structures = (
+        getattr(settings, "OPTIONS_GENERATOR_STRUCTURES", "directional")
+        or "directional"
+    ).lower()
+    bias_by_underlying = (
+        _bias_by_underlying(session, [r["underlying_symbol"] for r in rows])
+        if structures == "credit" else {}
+    )
+    # Representative would-trade observation per NEUTRAL underlying, used to
+    # anchor the underlying-level IRON_CONDOR composition pass (decision 2).
+    # Keyed by underlying; we keep the obs whose |delta| is closest to the
+    # ~0.30 IC short-strike target.
+    ic_reps: dict[str, dict] = {}
+
     processed = 0
     candidates_generated = 0
     inserted = 0
@@ -221,8 +273,10 @@ def generate_for_observations(
             run_date=obs.run_date,
             expiry=obs.expiration,
         )
+        u_bias = bias_by_underlying.get(obs.underlying, "neutral")
         cands = generate(
             obs=obs, quote=quote, feat=feat, catalyst=catalyst,
+            structures=structures, bias=u_bias,
         )
         candidates_generated += len(cands)
         for c in cands:
@@ -234,7 +288,51 @@ def generate_for_observations(
                     "[strategy_candidate] persist failed obs={} rule={}: {}",
                     obs_id, c.rule_id, exc,
                 )
+
+        # Credit mode: capture the best IC anchor for neutral underlyings
+        # (no directional credit spread is emitted for them per-contract).
+        if structures == "credit" and u_bias == "neutral":
+            d = abs(quote.delta) if quote.delta is not None else 999.0
+            dist = abs(d - 0.30)
+            cur = ic_reps.get(obs.underlying)
+            if cur is None or dist < cur["dist"]:
+                ic_reps[obs.underlying] = {
+                    "obs": obs, "quote": quote, "feat": feat,
+                    "catalyst": catalyst, "dist": dist,
+                    "has_rec": obs.underlying in bias_by_underlying,
+                }
         processed += 1
+
+    # Opt-B underlying-level IRON_CONDOR pass (decision 2). One IC per
+    # neutral underlying, skipped if an IC already exists for that
+    # underlying+run_date (idempotent re-runs).
+    if structures == "credit" and ic_reps:
+        existing_ic = set(session.execute(text(
+            """
+            SELECT DISTINCT underlying
+            FROM options_strategy_candidate
+            WHERE rule_id = 'IRON_CONDOR'
+              AND run_date = ANY(:dates)
+            """
+        ), {"dates": sorted({r["obs"].run_date for r in ic_reps.values()})}
+        ).scalars().all())
+        for u, rep in ic_reps.items():
+            if u in existing_ic:
+                continue
+            ic = build_iron_condor(
+                obs=rep["obs"], quote=rep["quote"], feat=rep["feat"],
+                catalyst=rep["catalyst"], has_directional_signal=rep["has_rec"],
+            )
+            candidates_generated += 1
+            try:
+                if _persist_one(session, rep["obs"], ic):
+                    inserted += 1
+            except Exception as exc:  # noqa: BLE001
+                logger.error(
+                    "[strategy_candidate] IC persist failed underlying={}: {}",
+                    u, exc,
+                )
+
     session.commit()
     return {
         "processed": processed,

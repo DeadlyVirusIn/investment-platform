@@ -123,7 +123,10 @@ def _iv_suitability(
 ) -> tuple[float, str]:
     """Return (score 0..1, reason text)."""
     if iv_rank is None:
-        return 0.5, "IV rank unavailable — neutral default."
+        return 0.5, (
+            "IV-rank history building — IV suitability unconfirmed "
+            "(neutral default)."
+        )
     if preference == "iv_low":
         # Strategy favors low IV. Score inverts iv_rank.
         score = max(0.0, min(1.0, (50 - iv_rank) / 50)) if iv_rank < 50 else 0.0
@@ -233,6 +236,7 @@ def _build_candidate(
     quote: ChainQuote,
     feat: UnderlyingFeature,
     catalyst: CatalystEvent | None,
+    extra_diagnostics: dict[str, Any] | None = None,
 ) -> StrategyCandidate:
     """Compose one StrategyCandidate from the standard score pipeline."""
     dte = (obs.expiration - obs.run_date).days
@@ -277,11 +281,175 @@ def _build_candidate(
                 catalyst.title if catalyst else None,
             "catalyst_explanation":
                 catalyst.explanation if catalyst else None,
+            **(extra_diagnostics or {}),
         },
         earliest_event_date=catalyst.event_date if catalyst else None,
         earliest_event_type=catalyst.event_type if catalyst else None,
         earliest_event_importance=catalyst.importance if catalyst else None,
         event_days_away=catalyst.days_away if catalyst else None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Credit / Iron-Condor mode (Opt-B) — engine-aligned structures
+#
+# Emits ONLY the three paper-engine-supported defined-risk structures:
+#   SHORT_PUT_CREDIT_SPREAD  (bullish)  — sell OTM put spread, 1-strike wide
+#   SHORT_CALL_CREDIT_SPREAD (bearish)  — sell OTM call spread, 1-strike wide
+#   IRON_CONDOR              (neutral)  — both wings, underlying-level pass
+#
+# Directional bias is PASSED IN from the underlying's recommendation/signal
+# (per approved decision 3) — never inferred from contract type. Width is
+# fixed at the next listed strike (1-strike-wide, decision 1) and recorded
+# in diagnostics. IV preference is iv_high; when iv_rank is NULL the shared
+# _iv_suitability returns a neutral 0.5 with explicit "IV-rank history
+# building" copy (decision 4) — no fabricated IV edge.
+# ---------------------------------------------------------------------------
+
+# Short-leg delta band for a credit spread's sold strike (~0.30 target).
+CREDIT_SHORT_DELTA_LO = 0.20
+CREDIT_SHORT_DELTA_HI = 0.35
+
+# v1 width: next listed strike → 1-strike-wide defined-risk spread.
+CREDIT_WIDTH_STRIKES = 1
+
+
+def _iv_building_note(feat: UnderlyingFeature) -> str:
+    if feat.iv_rank_252d is None:
+        return (" IV-rank history building — IV suitability unconfirmed; "
+                "no IV edge assumed.")
+    return ""
+
+
+def _generate_credit(
+    *,
+    obs: ShadowObservation,
+    quote: ChainQuote,
+    feat: UnderlyingFeature,
+    catalyst: CatalystEvent | None,
+    bias: str,
+) -> list[StrategyCandidate]:
+    """Per-contract credit-spread emission, engine-aligned.
+
+    bullish bias + OTM put short-leg  → SHORT_PUT_CREDIT_SPREAD
+    bearish bias + OTM call short-leg → SHORT_CALL_CREDIT_SPREAD
+    Anything else → [] (IRON_CONDOR is composed at the underlying level
+    in the service layer — see build_iron_condor).
+    """
+    abs_delta = _abs_delta(quote)
+    option_type = obs.option_type.lower()
+    in_short_zone = (
+        abs_delta is not None
+        and CREDIT_SHORT_DELTA_LO <= abs_delta <= CREDIT_SHORT_DELTA_HI
+    )
+    note = _iv_building_note(feat)
+    extra = {
+        "width_strikes": CREDIT_WIDTH_STRIKES,
+        "short_leg_delta": quote.delta,
+        "bias_source": "recommendation_signal",
+    }
+
+    if bias == "bullish" and option_type == "put" and in_short_zone:
+        return [_build_candidate(
+            rule_id="SHORT_PUT_CREDIT_SPREAD",
+            bias="bullish",
+            directional_view=(
+                "Profits if the underlying holds above the short put; "
+                "defined risk via the 1-strike-wide long put."
+            ),
+            risk_profile="defined",
+            base_confidence=0.60, delta_match_bonus=0.10,
+            iv_pref="iv_high",
+            dte_window=(30, 45),
+            why_emitted=(
+                "Bullish recommendation bias → sell an OTM put credit "
+                "spread (1-strike wide)." + note
+            ),
+            triggering_rule="rec_bullish__short_put_credit_spread",
+            strategy_fit_reason=(
+                "Bullish bias expressed as defined-risk premium "
+                "collection; max loss = width − net credit." + note
+            ),
+            obs=obs, quote=quote, feat=feat, catalyst=catalyst,
+            extra_diagnostics=extra,
+        )]
+
+    if bias == "bearish" and option_type == "call" and in_short_zone:
+        return [_build_candidate(
+            rule_id="SHORT_CALL_CREDIT_SPREAD",
+            bias="bearish",
+            directional_view=(
+                "Profits if the underlying stays below the short call; "
+                "defined risk via the 1-strike-wide long call."
+            ),
+            risk_profile="defined",
+            base_confidence=0.60, delta_match_bonus=0.10,
+            iv_pref="iv_high",
+            dte_window=(30, 45),
+            why_emitted=(
+                "Bearish recommendation bias → sell an OTM call credit "
+                "spread (1-strike wide)." + note
+            ),
+            triggering_rule="rec_bearish__short_call_credit_spread",
+            strategy_fit_reason=(
+                "Bearish bias expressed as defined-risk premium "
+                "collection; max loss = width − net credit." + note
+            ),
+            obs=obs, quote=quote, feat=feat, catalyst=catalyst,
+            extra_diagnostics=extra,
+        )]
+
+    return []
+
+
+def build_iron_condor(
+    *,
+    obs: ShadowObservation,
+    quote: ChainQuote,
+    feat: UnderlyingFeature,
+    catalyst: CatalystEvent | None,
+    has_directional_signal: bool,
+) -> StrategyCandidate:
+    """Underlying-level IRON_CONDOR composition (decision 2).
+
+    Emitted once per neutral / no-signal underlying, anchored on a
+    representative would-trade observation. Direction-agnostic two-sided
+    credit; 1-strike-wide wings. `has_directional_signal=False` means the
+    underlying has no recommendation bias (e.g. GLD/TLT) — messaging is
+    explicit about that (decision: IC-only for no-bias underlyings).
+    """
+    note = _iv_building_note(feat)
+    if has_directional_signal:
+        reason = "Neutral/hold recommendation — range-bound Iron Condor."
+    else:
+        reason = (
+            "No directional recommendation signal for this underlying — "
+            "emitting a neutral, range-bound Iron Condor (direction-"
+            "agnostic)."
+        )
+    return _build_candidate(
+        rule_id="IRON_CONDOR",
+        bias="neutral",
+        directional_view=(
+            "Profits if the underlying stays within the short strikes; "
+            "defined risk via 1-strike-wide wings."
+        ),
+        risk_profile="defined",
+        base_confidence=0.45, delta_match_bonus=0.05,
+        iv_pref="iv_high",
+        dte_window=(30, 50),
+        why_emitted=reason + note,
+        triggering_rule="underlying_level__iron_condor",
+        strategy_fit_reason=(
+            "Two-sided defined-risk credit; direction-agnostic. "
+            "Max loss = wing width − net credit." + note
+        ),
+        obs=obs, quote=quote, feat=feat, catalyst=catalyst,
+        extra_diagnostics={
+            "width_strikes": CREDIT_WIDTH_STRIKES,
+            "structure_pass": "underlying_level",
+            "has_directional_signal": has_directional_signal,
+        },
     )
 
 
@@ -291,6 +459,8 @@ def generate(
     quote: ChainQuote,
     feat: UnderlyingFeature,
     catalyst: CatalystEvent | None = None,
+    structures: str = "directional",
+    bias: str | None = None,
 ) -> list[StrategyCandidate]:
     """Generate 1-3 strategy candidates for one accepted contract.
 
@@ -300,14 +470,26 @@ def generate(
     Skip emission when obs.would_trade is False — interpretation is
     only valuable for contracts that passed the engine's filter chain.
 
+    `structures` selects the output taxonomy (Opt-B):
+      * "directional" (default) — legacy debit/long structures.
+      * "credit" — engine-aligned SHORT_*_CREDIT_SPREAD; IRON_CONDOR is
+        composed separately at the underlying level (build_iron_condor).
+        `bias` (bullish|bearish|neutral) comes from the underlying's
+        recommendation signal and is REQUIRED in credit mode.
+
     `catalyst` is the earliest in-DTE-window macro event for the
     underlying (or None). When a high-importance event falls inside
-    the DTE window, the generator may emit an additional event-bias
-    adjunct (LONG_STRADDLE) and weaves catalyst text into every
-    candidate's iv_fit_reason.
+    the DTE window, the directional path may emit an additional
+    event-bias adjunct (LONG_STRADDLE).
     """
     if not obs.would_trade:
         return []
+
+    if (structures or "directional").lower() == "credit":
+        return _generate_credit(
+            obs=obs, quote=quote, feat=feat, catalyst=catalyst,
+            bias=(bias or "neutral").lower(),
+        )
 
     candidates: list[StrategyCandidate] = []
     rejected: list[dict[str, str]] = []

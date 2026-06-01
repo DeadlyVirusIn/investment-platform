@@ -205,10 +205,14 @@ def options_pipeline_status(
     # structure lives in options_strategy_candidate.rule_id (e.g.
     # LONG_CALL, BULL_CALL_SPREAD) — the paper engine only opens the
     # three defined-risk credit/IC structures above.
+    # Opt-B — date-scope to the latest run_date so engine-compatible counts
+    # reflect TODAY's generator output, not the all-time history (which
+    # mixes legacy directional candidates with current credit/IC ones).
     cand_rows = session.execute(text(
         """
         SELECT rule_id AS structure, count(*) AS n
         FROM options_strategy_candidate
+        WHERE run_date = (SELECT max(run_date) FROM options_strategy_candidate)
         GROUP BY rule_id
         ORDER BY n DESC
         """

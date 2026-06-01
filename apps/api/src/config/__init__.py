@@ -390,6 +390,12 @@ class Settings(BaseSettings):
     # at the runner level; the evaluator can also be invoked
     # directly with persist=False for pure dry-run.
     OPTIONS_SHADOW_EVAL_ENABLED: bool = False
+    # Opt-B — generator output taxonomy. "directional" (legacy debit/long
+    # structures) or "credit" (engine-aligned SHORT_*_CREDIT_SPREAD +
+    # IRON_CONDOR). Default keeps legacy behaviour; flip to "credit" to
+    # emit engine-executable defined-risk structures. No engine/risk
+    # change — this only selects which rule_ids the generator emits.
+    OPTIONS_GENERATOR_STRUCTURES: str = "directional"
     OPTIONS_SHADOW_MIN_OPEN_INTEREST: int = 500
     OPTIONS_SHADOW_MAX_SPREAD: float = 0.10
     OPTIONS_SHADOW_MIN_BID: float = 0.01
