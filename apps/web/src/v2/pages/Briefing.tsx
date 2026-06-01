@@ -18,6 +18,7 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { TrustBanner } from '../components/TrustBanner';
 import { TodayLessonSlot } from '../components/TodayLessonSlot';
 import { LiveTodayHero } from '../components/LiveTodayHero';
+import { TodayOptionsLane } from '../components/TodayOptionsLane';
 import {
   useCanonicalStockPortfolio,
   useTodaysRecommendations,
@@ -114,6 +115,12 @@ export function Briefing() {
               ) : (
                 <EmptyDesk evaluated={evaluated} dist={dist} />
               )}
+            </FadeIn>
+
+            {/* Options lane — ALWAYS shown (users must always know options
+                exists, even when stale/disabled/no setups). Read-only. */}
+            <FadeIn delay={0.15}>
+              <TodayOptionsLane />
             </FadeIn>
           </div>
 
