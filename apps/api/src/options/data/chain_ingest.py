@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Iterable
+from typing import Any, Iterable
 
 from loguru import logger
 from sqlalchemy import text
@@ -349,3 +350,132 @@ def ingest_universe(
             session_factory=session_factory,
         ))
     return out
+
+
+# ---------------------------------------------------------------------------
+# Ingest-run telemetry (options_chain_ingest_run)
+#
+# Phase Opt-Obs-Fix1 — restore the run-summary telemetry the
+# admin-observability `options_chains` freshness card reads from. The
+# 14:15 market-hours handler writes options_chain_snapshot rows but the
+# run-summary writer was dropped during a worker rebuild (registry
+# drift), leaving the card anchored to a dead table (last row 05-28) and
+# falsely reading 'stale' while the data table was fresh. This writes one
+# row per ingest_universe() invocation, mirroring envelope_generation_run.
+# ---------------------------------------------------------------------------
+
+# Per-symbol statuses that mean "this underlying produced no usable rows".
+_ERROR_STATUSES = ("error", "partial_then_failed", "skipped_unavailable")
+
+_INGEST_RUN_INSERT_SQL = text(
+    """
+    INSERT INTO options_chain_ingest_run
+      (started_at, finished_at, provider, universe,
+       rows_inserted, rows_dedup, rows_filtered_out,
+       n_symbols_ok, n_symbols_partial, n_symbols_error,
+       classification, error_summary, duration_sec)
+    VALUES
+      (:started_at, :finished_at, :provider, :universe,
+       :rows_inserted, :rows_dedup, :rows_filtered_out,
+       :n_symbols_ok, :n_symbols_partial, :n_symbols_error,
+       :classification, CAST(:error_summary AS JSONB), :duration_sec)
+    """
+)
+
+
+def build_ingest_run_record(
+    summaries: list[IngestSummary],
+    *,
+    started_at: datetime.datetime,
+    finished_at: datetime.datetime,
+    universe: tuple[str, ...],
+    provider_default: str,
+) -> dict[str, Any]:
+    """Aggregate per-underlying IngestSummary list → one ingest-run row.
+
+    Pure (no DB / no clock). Classification taxonomy mirrors migration
+    089:  'success' | 'partial' | 'no_new_data' | 'error'. ('flags_off'
+    is emitted by the caller's skip path, not here.)
+      * success    — at least one row inserted, no partial symbols.
+      * partial    — rows inserted but >=1 underlying came back partial.
+      * no_new_data— provider returned quotes but all were deduped /
+                     filtered (0 inserted) — a healthy idempotent re-run.
+      * error      — provider returned nothing AND >=1 underlying errored.
+    """
+    n_ok = sum(1 for s in summaries if s.status == "ok")
+    n_partial = sum(1 for s in summaries if s.status == "partial")
+    n_error = sum(1 for s in summaries if s.status in _ERROR_STATUSES)
+
+    rows_inserted = sum(s.n_inserted for s in summaries)
+    rows_dedup = sum(s.n_skipped_existing for s in summaries)
+    rows_filtered_out = sum(
+        max(0, s.n_provider_quotes - s.n_filtered) for s in summaries
+    )
+    total_provider = sum(s.n_provider_quotes for s in summaries)
+
+    provider = next(
+        (s.provider for s in summaries if s.provider), provider_default,
+    )
+    provider_version = next(
+        (s.provider_version for s in summaries if s.provider_version), None,
+    )
+
+    if rows_inserted > 0:
+        classification = "partial" if n_partial > 0 else "success"
+    elif total_provider == 0 and n_error > 0:
+        classification = "error"
+    elif n_partial > 0:
+        classification = "partial"
+    else:
+        # provider gave quotes but nothing new landed → healthy idempotent
+        # re-run; or genuinely empty universe — both are 'no_new_data'.
+        classification = "no_new_data"
+
+    notes = {s.underlying: s.note for s in summaries if s.note}
+    reject_totals: dict[str, int] = {}
+    for s in summaries:
+        for key, val in (s.reject_counts or {}).items():
+            reject_totals[key] = reject_totals.get(key, 0) + int(val)
+
+    error_summary: dict[str, Any] | None = None
+    if notes or reject_totals or provider_version:
+        error_summary = {
+            "provider_version": provider_version,
+            "reject_counts": reject_totals or None,
+            "notes": notes or None,
+        }
+
+    duration_sec = round((finished_at - started_at).total_seconds(), 3)
+
+    return {
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "provider": provider,
+        "universe": list(universe),
+        "rows_inserted": rows_inserted,
+        "rows_dedup": rows_dedup,
+        "rows_filtered_out": rows_filtered_out,
+        "n_symbols_ok": n_ok,
+        "n_symbols_partial": n_partial,
+        "n_symbols_error": n_error,
+        "classification": classification,
+        "error_summary": error_summary,
+        "duration_sec": duration_sec,
+    }
+
+
+def persist_ingest_run(
+    record: dict[str, Any],
+    *,
+    session_factory=SessionLocal,
+) -> None:
+    """Append-only INSERT of one ingest-run telemetry row. Defensive: the
+    caller wraps this so a telemetry-write failure never breaks ingest."""
+    params = dict(record)
+    params["error_summary"] = (
+        json.dumps(record["error_summary"])
+        if record.get("error_summary") is not None else None
+    )
+    with session_factory() as session:
+        session.execute(_INGEST_RUN_INSERT_SQL, params)
+        session.commit()

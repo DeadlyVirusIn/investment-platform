@@ -167,8 +167,22 @@ def _iso(ts: dt.datetime | None) -> str | None:
 # stale beyond, unknown when no timestamp.
 # ---------------------------------------------------------------------------
 
-# (key, label, expected_cadence_hours, source, reader_sql | None)
-_MATRIX_SPEC: list[tuple[str, str, float | None, str, str | None]] = [
+# (key, label, expected_cadence_hours, source, reader_sql | None,
+#  daily_settle_hour_utc | None)
+#
+# daily_settle_hour_utc — Opt-Obs-Fix2. When set, the row is a Mon-Fri
+# post-close daily job and is classified WEEKEND-AWARE against the last
+# expected scheduled run (see _classify_weekday_daily) instead of the raw
+# wall-clock cadence. This clears the false 'stale' these rows showed
+# every Monday pre-close (Friday data is legitimately ~65h old over a
+# weekend, which exceeded the 2x raw cadence). It does NOT widen cadence:
+# a genuine WEEKDAY stall still ages past the prior expected run and
+# flags. The hour is the job's settle boundary in UTC (all four current
+# daily writers complete by ~22:00-23:10 UTC; 22 is at/below every
+# writer's completion time so a healthy same-day write reads fresh).
+_MATRIX_SPEC: list[
+    tuple[str, str, float | None, str, str | None, int | None]
+] = [
     # RC1: market_prices freshness = last successful ingest_prices_daily
     # run, NOT MAX(price_bar.ts). Bar ts is stored at trading-day
     # midnight and EOD bars land ~02:00 UTC the next day, so a ts-age
@@ -176,36 +190,37 @@ _MATRIX_SPEC: list[tuple[str, str, float | None, str, str | None]] = [
     # 'stale' on perfectly healthy data. Anchoring to the ingest job's
     # last success keeps a real ingest stall visible (the success ts
     # ages) while not penalising the midnight-ts storage convention.
-    # Cadence 26h = daily run + grace.
+    # Cadence 26h = daily run + grace. Weekend-aware (settle 22:00 UTC).
     ("market_prices", "Market prices", 26.0, "ingest_prices_daily (last success)",
      "SELECT MAX(jr.finished_at) FROM job_run jr "
      "JOIN job_schedule js ON js.id = jr.job_schedule_id "
-     "WHERE js.name = 'ingest_prices_daily' AND jr.status = 'success'"),
+     "WHERE js.name = 'ingest_prices_daily' AND jr.status = 'success'", 22),
     ("intraday_tape", "Intraday tape", 1.0, "price_bar (intraday)",
-     "SELECT MAX(ts) FROM price_bar WHERE timeframe IN ('1m','5m','15m')"),
+     "SELECT MAX(ts) FROM price_bar WHERE timeframe IN ('1m','5m','15m')", None),
     ("options_chains", "Options chains", 6.0, "options_chain_ingest_run",
-     "SELECT MAX(finished_at) FROM options_chain_ingest_run"),
+     "SELECT MAX(finished_at) FROM options_chain_ingest_run", None),
     ("options_opportunities", "Options opportunities", 24.0,
      "options_strategy_candidate",
-     "SELECT MAX(created_at) FROM options_strategy_candidate"),
+     "SELECT MAX(created_at) FROM options_strategy_candidate", None),
     ("news_events", "News / events", 6.0, "news_item",
-     "SELECT MAX(ingested_at) FROM news_item"),
-    ("sec_filings", "SEC filings", None, "(no source table)", None),
+     "SELECT MAX(ingested_at) FROM news_item", None),
+    ("sec_filings", "SEC filings", None, "(no source table)", None, None),
     # RC3: use recorded_at (real valuation instant), not snapshot_date.
     # snapshot_date is a DATE → promoted to UTC midnight by _safe_max_ts,
     # inflating age up to +24h (a book valued 17:50 read as ~25h old).
+    # Weekend-aware (run_paper_exit_cycle settles ~23:00 UTC Mon-Fri).
     ("paper_snapshots", "Paper snapshots", 24.0,
      "paper_equity_snapshot.recorded_at (live)",
      "SELECT MAX(recorded_at) FROM paper_equity_snapshot "
-     "WHERE source = 'live'"),
+     "WHERE source = 'live'", 22),
     # RC4: align to the ~24h daily recommendation cadence + grace. The
     # prior 16h cadence flagged a healthy daily cycle 'degraded' for
-    # ~8h every day.
+    # ~8h every day. Weekend-aware (run_recommendations settles ~22:30).
     ("recommendations", "Recommendations", 26.0, "recommendation",
-     "SELECT MAX(generated_at) FROM recommendation"),
+     "SELECT MAX(generated_at) FROM recommendation", 22),
     ("reasoning_envelopes", "Reasoning envelopes", 24.0,
      "envelope_generation_run",
-     "SELECT MAX(created_at) FROM envelope_generation_run"),
+     "SELECT MAX(created_at) FROM envelope_generation_run", 22),
 ]
 
 
@@ -219,17 +234,85 @@ def _classify_cadence(hours: float | None, cadence: float | None) -> str:
     return "stale"
 
 
+# ---------------------------------------------------------------------------
+# Weekend-aware classifier for Mon-Fri post-close daily jobs (Opt-Obs-Fix2)
+# ---------------------------------------------------------------------------
+
+
+def _weekday_settle_on_or_before(
+    now: dt.datetime, settle_hour: int,
+) -> dt.datetime:
+    """Latest datetime at ``settle_hour`` UTC that is (a) <= now and (b) a
+    weekday (Mon-Fri). This is the most recent moment a Mon-Fri daily job
+    was expected to have completed. Walks back over weekends."""
+    cand = now.replace(
+        hour=settle_hour, minute=0, second=0, microsecond=0,
+    )
+    for _ in range(10):
+        if cand <= now and cand.weekday() < 5:
+            return cand
+        cand = (cand - dt.timedelta(days=1)).replace(
+            hour=settle_hour, minute=0, second=0, microsecond=0,
+        )
+    return cand
+
+
+def _prev_weekday_settle(
+    expected: dt.datetime, settle_hour: int,
+) -> dt.datetime:
+    """The expected settle one weekday BEFORE ``expected`` (skip weekends)."""
+    cand = (expected - dt.timedelta(days=1)).replace(
+        hour=settle_hour, minute=0, second=0, microsecond=0,
+    )
+    for _ in range(10):
+        if cand.weekday() < 5:
+            return cand
+        cand -= dt.timedelta(days=1)
+    return cand
+
+
+def _classify_weekday_daily(
+    ts: dt.datetime | None, now: dt.datetime, settle_hour: int,
+) -> str:
+    """Weekend-aware freshness for Mon-Fri post-close daily jobs.
+
+      * fresh    — data is at least as new as the last expected weekday
+                   run (e.g. Monday 11:00 ET, the last run was Friday's;
+                   Friday data is fresh, not stale).
+      * degraded — data missed the latest expected run but is no older
+                   than the one before it (one cycle behind).
+      * stale    — older than two expected weekday runs → a genuine
+                   weekday stall, still surfaced.
+    """
+    if ts is None:
+        return "unknown"
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=dt.timezone.utc)
+    expected = _weekday_settle_on_or_before(now, settle_hour)
+    prev = _prev_weekday_settle(expected, settle_hour)
+    if ts >= expected:
+        return "fresh"
+    if ts >= prev:
+        return "degraded"
+    return "stale"
+
+
 def _build_matrix(session: Session | None,
                   now: dt.datetime) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    for key, label, cadence, source, sql in _MATRIX_SPEC:
+    for key, label, cadence, source, sql, settle_hour in _MATRIX_SPEC:
         ts = (
             _safe_max_ts(session, sql)
             if (session is not None and sql is not None)
             else None
         )
         hours = _hours_since(ts, now)
-        status = _classify_cadence(hours, cadence)
+        # Opt-Obs-Fix2 — Mon-Fri post-close daily rows use the weekend-aware
+        # classifier; all others keep the raw wall-clock cadence classifier.
+        if settle_hour is not None:
+            status = _classify_weekday_daily(ts, now, settle_hour)
+        else:
+            status = _classify_cadence(hours, cadence)
         rows.append({
             "key": key,
             "label": label,

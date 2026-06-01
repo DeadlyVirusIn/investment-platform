@@ -21,7 +21,9 @@ from loguru import logger
 from apps.api.src.config import settings
 from apps.api.src.options.data.chain_ingest import (
     DEFAULT_UNIVERSE,
+    build_ingest_run_record,
     ingest_universe,
+    persist_ingest_run,
 )
 
 
@@ -46,11 +48,13 @@ async def run_options_chain_snapshot_job() -> None:
         )
         return
 
-    snapshot_at = dt.datetime.now(dt.timezone.utc)
+    started_at = dt.datetime.now(dt.timezone.utc)
+    snapshot_at = started_at
     summaries = ingest_universe(
         universe=DEFAULT_UNIVERSE,
         snapshot_at_utc=snapshot_at,
     )
+    finished_at = dt.datetime.now(dt.timezone.utc)
     n_ok = sum(1 for s in summaries if s.status == "ok")
     n_partial = sum(1 for s in summaries if s.status == "partial")
     n_skipped = sum(1 for s in summaries if s.status == "skipped_unavailable")
@@ -61,3 +65,27 @@ async def run_options_chain_snapshot_job() -> None:
         "skipped={} error={} total_inserted={}",
         snapshot_at, n_ok, n_partial, n_skipped, n_error, total_inserted,
     )
+
+    # Opt-Obs-Fix1 — write run-summary telemetry the admin-observability
+    # `options_chains` freshness card reads. Defensive: a telemetry-write
+    # failure must never fail the ingest itself.
+    try:
+        record = build_ingest_run_record(
+            summaries,
+            started_at=started_at,
+            finished_at=finished_at,
+            universe=DEFAULT_UNIVERSE,
+            provider_default=getattr(
+                settings, "OPTIONS_DATA_PROVIDER", "unknown"),
+        )
+        persist_ingest_run(record)
+        logger.info(
+            "options_chain_ingest_run written classification={} "
+            "rows_inserted={} rows_dedup={} rows_filtered_out={}",
+            record["classification"], record["rows_inserted"],
+            record["rows_dedup"], record["rows_filtered_out"],
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error(
+            "failed to write options_chain_ingest_run telemetry: {}", exc,
+        )
