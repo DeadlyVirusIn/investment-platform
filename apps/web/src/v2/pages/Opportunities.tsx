@@ -7,8 +7,11 @@
 //   03 Passed for now      — Trim (engine said reduce/avoid)
 // Empty-day variant derives from /recommendations/diagnostics.
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { OpportunitiesOptionsSection } from '../components/OpportunitiesOptionsSection';
+import { useOptionsAvailability } from '../lib/optionsAvailability';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
@@ -25,6 +28,8 @@ export function Opportunities() {
   const { data, isLoading, isError } = useTodaysRecommendations();
   const { data: diag } = useRecommendationDiagnostics();
   const recs: RecApi[] = data?.recommendations ?? [];
+  const avail = useOptionsAvailability();
+  const [tab, setTab] = useState<'all' | 'stocks' | 'options'>('all');
 
   const byConf = (a: RecApi, b: RecApi) => confidenceNum(b) - confidenceNum(a);
   const buys = recs.filter((r) => effectiveAction(r) === 'Buy').sort(byConf);
@@ -44,6 +49,15 @@ export function Opportunities() {
 
       <div className="mb-6"><TrustBanner /></div>
 
+      <OppSegment
+        tab={tab}
+        setTab={setTab}
+        stockCount={buys.length}
+        optionsCount={avail.compatible}
+      />
+
+      {tab !== 'options' && (
+      <>
       {isLoading && (
         <SurfaceCard variant="muted" className="p-6">
           <p className="ink-muted" style={{ fontSize: 14 }}>Loading the desk…</p>
@@ -112,6 +126,14 @@ export function Opportunities() {
           </Section>
         </>
       )}
+      </>
+      )}
+
+      {tab !== 'stocks' && (
+        <Section number={tab === 'all' ? '04' : '01'} title="Options">
+          <OpportunitiesOptionsSection />
+        </Section>
+      )}
     </ArthosPage>
   );
 }
@@ -160,6 +182,55 @@ function Section({ number, title, children }: {
       </div>
       {children}
     </section>
+  );
+}
+
+// All | Stocks | Options segment. View toggle only — NOT a trade control.
+// Lets ArthOS rank across both asset classes (All) once options is ready;
+// today Options shows honest read-only readiness.
+function OppSegment({ tab, setTab, stockCount, optionsCount }: {
+  tab: 'all' | 'stocks' | 'options';
+  setTab: (t: 'all' | 'stocks' | 'options') => void;
+  stockCount: number;
+  optionsCount: number;
+}) {
+  const items: Array<{ k: 'all' | 'stocks' | 'options'; label: string; badge?: number }> = [
+    { k: 'all', label: 'All' },
+    { k: 'stocks', label: 'Stocks', badge: stockCount },
+    { k: 'options', label: 'Options', badge: optionsCount },
+  ];
+  return (
+    <div
+      className="inline-flex rounded-full p-1 mb-6"
+      role="tablist"
+      aria-label="Asset class"
+      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
+    >
+      {items.map((it) => {
+        const active = tab === it.k;
+        return (
+          <button
+            key={it.k}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => setTab(it.k)}
+            className="px-3.5 py-1.5 rounded-full transition-colors"
+            style={{
+              fontSize: 12.5,
+              fontWeight: 600,
+              color: active ? 'var(--background)' : 'var(--muted-foreground)',
+              backgroundColor: active ? 'var(--brand)' : 'transparent',
+            }}
+          >
+            {it.label}
+            {it.badge != null && (
+              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>{it.badge}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
