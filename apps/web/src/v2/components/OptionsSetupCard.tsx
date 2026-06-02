@@ -19,6 +19,11 @@ const AMBER = 'oklch(0.70 0.14 75)';
 
 export const OPTIONS_TAB_HREF = '/v2/opportunities?tab=options';
 
+/** Detail route for a single setup (Phase B). */
+export function optionDetailHref(observationId: number): string {
+  return `/v2/today/options/${observationId}`;
+}
+
 function toneColor(tone: BiasTone): string {
   switch (tone) {
     case 'bull': return 'var(--brand)';
@@ -59,7 +64,7 @@ function ToneDot({ tone }: { tone: BiasTone }) {
 
 /** The hero / featured setup card. */
 export function OptionsSetupCard({
-  opt, featured = false, href = OPTIONS_TAB_HREF, badge, showCta = true,
+  opt, featured = false, href, badge, showCta = true,
 }: {
   opt: PresentedOption;
   featured?: boolean;
@@ -67,6 +72,7 @@ export function OptionsSetupCard({
   badge?: string;
   showCta?: boolean;
 }) {
+  const target = href ?? optionDetailHref(opt.observationId);
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className={featured ? 'p-6 lg:p-7' : 'p-5'}>
       {badge && (
@@ -132,7 +138,7 @@ export function OptionsSetupCard({
       {showCta && (
         <div className="mt-5">
           <Link
-            to={href}
+            to={target}
             className="inline-flex items-center gap-2 h-10 px-4 rounded-full"
             style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}
           >
@@ -146,14 +152,14 @@ export function OptionsSetupCard({
 
 /** Compact "also actionable" row — mirrors the stock hero's list rows. */
 export function OptionsSetupRow({
-  opt, href = OPTIONS_TAB_HREF,
+  opt, href,
 }: {
   opt: PresentedOption;
   href?: string;
 }) {
   return (
     <Link
-      to={href}
+      to={href ?? optionDetailHref(opt.observationId)}
       className="flex items-center justify-between gap-3 py-2"
     >
       <span className="flex items-baseline gap-2 min-w-0">

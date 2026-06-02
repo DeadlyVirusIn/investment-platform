@@ -17,6 +17,7 @@ import { Onboarding } from './chrome/Onboarding';
 import { LearnHome } from './pages/LearnHome';
 import { Briefing } from './pages/Briefing';
 import { PickPage } from './pages/PickPage';
+import { OptionsSetupDetail } from './pages/OptionsSetupDetail';
 import { PaperBook } from './pages/PaperBook';
 import { TrackRecord } from './pages/TrackRecord';
 import { LessonPage } from './pages/LessonPage';
@@ -90,6 +91,8 @@ function V2Surface() {
         <Route path="learn/glossary" element={<GlossaryIndex />} />
         <Route path="today" element={<Briefing />} />
         <Route path="today/pick/:symbol" element={<PickPage />} />
+        {/* Phase B — options setup detail (mirrors PickPage, by observation_id). */}
+        <Route path="today/options/:observationId" element={<OptionsSetupDetail />} />
         <Route path="opportunities" element={<Opportunities />} />
         <Route path="catalysts" element={<Catalysts />} />
         <Route path="field-notes" element={<FieldNotes />} />

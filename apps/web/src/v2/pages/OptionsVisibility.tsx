@@ -149,7 +149,7 @@ export function OptionsVisibility() {
     <ArthosPage topBarEyebrow="Options">
       <PageHeader
         eyebrow="System"
-        title={<>Options.</>}
+        title={<>Options Diagnostics.</>}
         description="Is the options subsystem alive — provider, chain, candidates, engine status. Read-only; nothing here trades, opens, or executes."
       />
 
