@@ -7,8 +7,7 @@
 //   03 Passed for now      — Trim (engine said reduce/avoid)
 // Empty-day variant derives from /recommendations/diagnostics.
 
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { OpportunitiesOptionsSection } from '../components/OpportunitiesOptionsSection';
 import { useOptionsAvailability } from '../lib/optionsAvailability';
@@ -29,7 +28,18 @@ export function Opportunities() {
   const { data: diag } = useRecommendationDiagnostics();
   const recs: RecApi[] = data?.recommendations ?? [];
   const avail = useOptionsAvailability();
-  const [tab, setTab] = useState<'all' | 'stocks' | 'options'>('all');
+  // Tab is URL-driven so the Today CTA (/v2/opportunities?tab=options) lands
+  // directly on the options tab, and the view is shareable.
+  const [sp, setSp] = useSearchParams();
+  const tabParam = sp.get('tab');
+  const tab: 'all' | 'stocks' | 'options' =
+    tabParam === 'stocks' || tabParam === 'options' ? tabParam : 'all';
+  const setTab = (t: 'all' | 'stocks' | 'options') => {
+    const next = new URLSearchParams(sp);
+    if (t === 'all') next.delete('tab');
+    else next.set('tab', t);
+    setSp(next, { replace: true });
+  };
 
   const byConf = (a: RecApi, b: RecApi) => confidenceNum(b) - confidenceNum(a);
   const buys = recs.filter((r) => effectiveAction(r) === 'Buy').sort(byConf);

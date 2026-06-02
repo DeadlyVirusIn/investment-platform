@@ -27,6 +27,26 @@ export interface OptionsOpportunity {
   expiry: string | null;
   strike: number;
   option_type: string;
+  // Passthrough fields — already emitted by GET /options/opportunities
+  // (opportunity_to_dict). Typed here so the trader-facing presentation
+  // layer can read them. UI-only; no backend change.
+  qualified?: boolean;
+  score?: number;
+  risk_profile?: string | null;
+  premium_tier?: string | null;        // rich|elevated|average|cheap|unknown
+  liquidity_tier?: string | null;      // good|fair|poor|unknown
+  rationale_points?: string[] | null;
+  why_emitted?: string | null;
+  strategy_fit_reason?: string | null;
+  iv_fit_reason?: string | null;
+  dte_fit_reason?: string | null;
+  liquidity_fit_reason?: string | null;
+  earliest_event_type?: string | null;
+  earliest_event_date?: string | null;
+  earliest_event_importance?: string | null;
+  event_days_away?: number | null;
+  catalyst_title?: string | null;
+  catalyst_explanation?: string | null;
 }
 
 interface OpportunitiesResponse {
