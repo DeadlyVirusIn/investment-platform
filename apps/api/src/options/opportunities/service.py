@@ -28,6 +28,8 @@ from typing import Any, Literal
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from apps.api.src.options.opportunities.economics import attach_economics
+
 
 # Locked bias taxonomy. The migration's CHECK constraint enforces
 # these values at the DB level.
@@ -140,6 +142,11 @@ class OpportunityItem:
     family: str = FAMILY_RESEARCH
     engine_compatible: bool = False
     above_floor: bool = False
+    # Phase C Stage 2B — read-side, additive. candidate_id keys the
+    # persisted legs; economics is derived from them (None when legs are
+    # missing/incomplete/uncomputable). Never affects ranking/scoring.
+    candidate_id: int = 0
+    economics: dict[str, Any] | None = None
 
 
 # ---- helpers ---------------------------------------------------------------
@@ -395,6 +402,7 @@ def fetch_opportunities(
 
         items.append(OpportunityItem(
             observation_id=int(r["observation_id"]),
+            candidate_id=int(r["candidate_id"]),
             underlying=str(r["underlying"]),
             rule_id=str(r["strategy_name"]),
             option_symbol=str(r["option_symbol"]),
@@ -490,7 +498,12 @@ def fetch_opportunities(
         key=lambda x: (x.composite_score, x.score, x.run_date.toordinal()),
         reverse=True,
     )
-    return items[:limit]
+    result = items[:limit]
+    # Phase C Stage 2B — attach read-side economics derived from persisted
+    # legs (None when legs missing/incomplete). Ranking already finalized
+    # above; this never reorders or mutates candidates.
+    attach_economics(session, result)
+    return result
 
 
 def opportunity_to_dict(item: OpportunityItem) -> dict[str, Any]:
@@ -563,4 +576,7 @@ def opportunity_to_dict(item: OpportunityItem) -> dict[str, Any]:
         "event_days_away":           item.event_days_away,
         "catalyst_title":            item.catalyst_title,
         "catalyst_explanation":      item.catalyst_explanation,
+        # Phase C Stage 2B — economics derived from persisted legs.
+        # None until legs exist + are complete + computable. POP reserved.
+        "economics":                 item.economics,
     }
