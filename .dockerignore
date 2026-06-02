@@ -1,0 +1,30 @@
+# Build-context hygiene. Keeps the wheel build deterministic and the
+# context small. Excludes local artifacts that must never be packaged
+# (and previously caused stray __pycache__ to leak into the image).
+
+# Python virtualenvs (Windows + POSIX layouts)
+.venv/
+venv/
+env/
+
+# Compiled / cache artifacts
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / web build artifacts
+**/node_modules/
+apps/web/dist/
+
+# Python build / packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# VCS + local
+.git/
+.idea/
+.vscode/
