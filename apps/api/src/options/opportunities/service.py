@@ -145,11 +145,20 @@ class OpportunityItem:
 # ---- helpers ---------------------------------------------------------------
 
 
-def _freshness(run_date: dt.date, today: dt.date) -> float:
-    days = (today - run_date).days
-    if days <= 0: return 1.0
-    if days == 1: return 0.7
-    if days == 2: return 0.4
+def _freshness(created_at: dt.datetime | None, now: dt.datetime) -> float:
+    """Elapsed-time freshness keyed off the candidate's created_at (the
+    real generation instant) — NOT run_date. Removes the UTC-midnight
+    cliff: a candidate <24h old scores 1.0 regardless of calendar
+    rollover. Buckets: <24h=1.0, 24-48h=0.7, 48-72h=0.4, >72h=0.1.
+    Defensive: missing created_at → treat as oldest tier (0.1)."""
+    if created_at is None:
+        return 0.1
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=dt.timezone.utc)
+    hours = (now - created_at).total_seconds() / 3600.0
+    if hours < 24: return 1.0
+    if hours < 48: return 0.7
+    if hours < 72: return 0.4
     return 0.1
 
 
@@ -233,6 +242,7 @@ def fetch_opportunities(
     """Compose ranked opportunities. When `lane='conviction'`,
     cross-lane top-N are returned; otherwise filters by bias."""
     today = now or dt.datetime.now(dt.timezone.utc).date()
+    now_utc = dt.datetime.now(dt.timezone.utc)   # for elapsed-time freshness
 
     # Phase B6.5 — source: options_strategy_candidate. Each row is one
     # AI-strategist interpretation of an accepted shadow observation.
@@ -245,6 +255,7 @@ def fetch_opportunities(
           c.id                              AS candidate_id,
           c.shadow_observation_id           AS observation_id,
           c.run_date,
+          c.created_at                      AS candidate_created_at,
           c.underlying,
           c.rule_id                         AS strategy_name,
           c.bias,
@@ -331,7 +342,7 @@ def fetch_opportunities(
         liquidity = float(_decimal(r["liquidity_suitability"]) or 0.0)
         iv_fit = float(_decimal(r["iv_suitability"]) or 0.0)
         iv_rank = _decimal(r["iv_rank"])
-        freshness = _freshness(r["run_date"], today)
+        freshness = _freshness(r["candidate_created_at"], now_utc)
         dte = (r["expiry"] - today).days if r["expiry"] else 0
         # Phase B7 — Event-proximity boost grounded in the candidate's
         # actual catalyst metadata. Three tiers:
