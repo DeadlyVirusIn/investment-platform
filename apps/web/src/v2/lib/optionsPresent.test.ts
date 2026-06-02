@@ -17,6 +17,11 @@ import {
   presentOption,
   rankSetups,
   topSetup,
+  humanizeAge,
+  quoteFreshness,
+  formatRunDate,
+  engineView,
+  rejectedList,
 } from './optionsPresent';
 import type { OptionsOpportunity } from './optionsLanes';
 
@@ -182,5 +187,80 @@ describe('rankSetups / topSetup', () => {
   });
   it('returns null top for empty list', () => {
     expect(topSetup([])).toBeNull();
+  });
+});
+
+describe('humanizeAge', () => {
+  it('humanizes seconds into m/h/d, null when unknown', () => {
+    expect(humanizeAge(30)).toBe('just now');
+    expect(humanizeAge(600)).toBe('10m old');
+    expect(humanizeAge(7200)).toBe('2h old');
+    expect(humanizeAge(172800)).toBe('2d old');
+    expect(humanizeAge(null)).toBeNull();
+    expect(humanizeAge(-5)).toBeNull();
+  });
+});
+
+describe('quoteFreshness', () => {
+  it('Fresh under 24h, Stale over, Unknown when null', () => {
+    expect(quoteFreshness(600)).toEqual({ label: 'Fresh', stale: false });
+    expect(quoteFreshness(90000)).toEqual({ label: 'Stale', stale: true });
+    expect(quoteFreshness(null)).toEqual({ label: 'Unknown', stale: true });
+  });
+});
+
+describe('formatRunDate', () => {
+  it('formats ISO date as MMM D, YYYY', () => {
+    expect(formatRunDate('2026-06-01')).toBe('Jun 1, 2026');
+    expect(formatRunDate('2026-06-18T13:00:00Z')).toBe('Jun 18, 2026');
+  });
+  it('null on missing/invalid', () => {
+    expect(formatRunDate(null)).toBeNull();
+    expect(formatRunDate('nope')).toBeNull();
+  });
+});
+
+describe('engineView', () => {
+  it('maps ranking_breakdown to trader labels and 0–100 values', () => {
+    const rows = engineView({ score: 0.4, freshness: 0.2, liquidity: 0.15, iv_fit: 0.15, event: 0.1 });
+    expect(rows).toEqual([
+      { key: 'score', label: 'Strategy fit', value: 40 },
+      { key: 'freshness', label: 'Signal freshness', value: 20 },
+      { key: 'liquidity', label: 'Liquidity', value: 15 },
+      { key: 'iv_fit', label: 'IV fit', value: 15 },
+      { key: 'event', label: 'Catalyst weight', value: 10 },
+    ]);
+  });
+  it('skips missing components, empty when absent', () => {
+    expect(engineView({ score: 0.5 })).toEqual([{ key: 'score', label: 'Strategy fit', value: 50 }]);
+    expect(engineView(null)).toEqual([]);
+  });
+});
+
+describe('rejectedList', () => {
+  it('maps rule_id to strategy name + reason, never raw id', () => {
+    const out = rejectedList([{ rule_id: 'BULL_PUT_SPREAD', reason: 'credit too thin at current IV' }]);
+    expect(out).toEqual([{ name: 'Bull Put Spread', reason: 'credit too thin at current IV' }]);
+    expect(out[0].name).not.toContain('_');
+  });
+  it('drops entries with empty reason; empty when absent', () => {
+    expect(rejectedList([{ rule_id: 'LONG_CALL', reason: '' }])).toEqual([]);
+    expect(rejectedList(null)).toEqual([]);
+  });
+});
+
+describe('presentOption B.1 fields', () => {
+  it('surfaces freshness, as-of, engine view, rejected', () => {
+    const v = presentOption(mk({
+      run_date: '2026-06-01',
+      quote_age_seconds: 7200,
+      ranking_breakdown: { score: 0.6, freshness: 0.2, liquidity: 0.15, iv_fit: 0.15, event: 0.1 },
+      rejected_alternatives: [{ rule_id: 'BULL_PUT_SPREAD', reason: 'thin credit' }],
+    }));
+    expect(v.runDate).toBe('Jun 1, 2026');
+    expect(v.quoteAge).toBe('2h old');
+    expect(v.freshness).toEqual({ label: 'Fresh', stale: false });
+    expect(v.engine[0]).toEqual({ key: 'score', label: 'Strategy fit', value: 60 });
+    expect(v.rejected).toEqual([{ name: 'Bull Put Spread', reason: 'thin credit' }]);
   });
 });

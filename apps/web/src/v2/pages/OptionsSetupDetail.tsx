@@ -115,6 +115,20 @@ export function OptionsSetupDetail() {
             <span>DTE {opt.dte}</span>
             {opt.qualified && <><span>·</span><span style={{ color: 'var(--brand)' }}>qualified</span></>}
           </div>
+          {(opt.runDate || opt.quoteAge || opt.freshness.label !== 'Unknown') && (
+            <div className="text-meta ink-fainter mt-2 flex items-center gap-2 flex-wrap tabular-nums">
+              {opt.runDate && <span>As of {opt.runDate}</span>}
+              {opt.quoteAge && <><span aria-hidden>·</span><span>quotes {opt.quoteAge}</span></>}
+              {opt.freshness.label !== 'Unknown' && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span style={{ color: opt.freshness.stale ? AMBER : 'var(--brand)' }}>
+                    {opt.freshness.label.toLowerCase()}
+                  </span>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </FadeIn>
 
@@ -148,6 +162,49 @@ export function OptionsSetupDetail() {
                 </li>
               ))}
             </ul>
+          </section>
+        </FadeIn>
+      )}
+
+      {opt.engine.length > 0 && (
+        <FadeIn delay={0.16}>
+          <section className="mb-20">
+            <MetaLabel>What the engine is seeing</MetaLabel>
+            <ul className="mt-6 space-y-3 max-w-copy">
+              {opt.engine.map((r) => (
+                <li key={r.key} className="border-t border-hairline pt-3">
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="ink-primary text-[14px]">{r.label}</span>
+                    <span className="ink-muted text-[13px] tabular-nums">{r.value}</span>
+                  </div>
+                  <div className="mt-1.5 h-1.5 rounded-full" style={{ background: 'color-mix(in oklch, var(--foreground) 8%, transparent)' }}>
+                    <div className="h-full rounded-full" style={{ width: `${r.value}%`, background: 'var(--brand)' }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
+              Components of Arth's ranking score (0–100). Higher contributes more to where this setup ranks.
+            </p>
+          </section>
+        </FadeIn>
+      )}
+
+      {opt.rejected.length > 0 && (
+        <FadeIn delay={0.2}>
+          <section className="mb-20">
+            <MetaLabel>Considered &amp; rejected</MetaLabel>
+            <ul className="mt-6 space-y-4 max-w-copy">
+              {opt.rejected.map((r, i) => (
+                <li key={i} className="border-t border-hairline pt-4">
+                  <div className="ink-primary text-[14px] mb-1">{r.name}</div>
+                  <div className="ink-muted text-[13px] leading-relaxed">{r.reason}</div>
+                </li>
+              ))}
+            </ul>
+            <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
+              Structures Arth weighed for this name and passed on.
+            </p>
           </section>
         </FadeIn>
       )}

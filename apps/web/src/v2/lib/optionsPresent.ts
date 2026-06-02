@@ -139,6 +139,108 @@ export function catalystLabel(
   return `${label} in ${daysAway} day${daysAway === 1 ? '' : 's'}`;
 }
 
+// ── B.1: freshness / as-of ──────────────────────────────────────────────
+
+// A short-leg quote older than this is treated as stale (chain refreshes
+// at most daily; > 24h means it wasn't revalidated against fresh quotes).
+export const STALE_QUOTE_SECONDS = 24 * 3600;
+
+/** Humanized quote age, e.g. "12m old" / "3h old". Null when unknown. */
+export function humanizeAge(seconds?: number | null): string | null {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return null;
+  if (seconds < 90) return 'just now';
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m}m old`;
+  const h = Math.round(seconds / 3600);
+  if (h < 48) return `${h}h old`;
+  const d = Math.round(seconds / 86400);
+  return `${d}d old`;
+}
+
+export interface Freshness {
+  label: 'Fresh' | 'Stale' | 'Unknown';
+  stale: boolean;
+}
+
+/** Fresh/Stale from the short-leg quote age. Unknown → treated as stale. */
+export function quoteFreshness(seconds?: number | null): Freshness {
+  if (seconds == null || !Number.isFinite(seconds)) {
+    return { label: 'Unknown', stale: true };
+  }
+  return seconds > STALE_QUOTE_SECONDS
+    ? { label: 'Stale', stale: true }
+    : { label: 'Fresh', stale: false };
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** "Jun 1, 2026" from an ISO date. Null on missing/invalid. */
+export function formatRunDate(iso?: string | null): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]);
+  const d = Number(m[3]);
+  if (mo < 1 || mo > 12) return null;
+  return `${MONTHS[mo - 1]} ${d}, ${y}`;
+}
+
+// ── B.1: "What the engine is seeing" (ranking_breakdown) ─────────────────
+
+export interface EngineViewRow {
+  key: string;
+  label: string;
+  value: number; // 0–100
+}
+
+// Engine component → trader-friendly label. Mirrors stock "family scores".
+const RANK_LABELS: ReadonlyArray<readonly [string, string]> = [
+  ['score', 'Strategy fit'],
+  ['freshness', 'Signal freshness'],
+  ['liquidity', 'Liquidity'],
+  ['iv_fit', 'IV fit'],
+  ['event', 'Catalyst weight'],
+];
+
+/** Project ranking_breakdown into labelled 0–100 rows. Empty when absent. */
+export function engineView(
+  rb?: OptionsOpportunity['ranking_breakdown'],
+): EngineViewRow[] {
+  if (!rb) return [];
+  const out: EngineViewRow[] = [];
+  for (const [key, label] of RANK_LABELS) {
+    const raw = (rb as Record<string, number | undefined>)[key];
+    if (raw == null || !Number.isFinite(raw)) continue;
+    out.push({ key, label, value: Math.round(raw * 100) });
+  }
+  return out;
+}
+
+// ── B.1: "Considered & rejected" (rejected_alternatives) ─────────────────
+
+export interface RejectedAlternative {
+  name: string;   // human strategy name (never raw rule_id)
+  reason: string;
+}
+
+/** Map rejected_alternatives to {strategy name, reason}, dropping empties. */
+export function rejectedList(
+  arr?: OptionsOpportunity['rejected_alternatives'],
+): RejectedAlternative[] {
+  if (!arr || !Array.isArray(arr)) return [];
+  const out: RejectedAlternative[] = [];
+  for (const r of arr) {
+    const reason = (r?.reason ?? '').trim();
+    if (!reason) continue;
+    out.push({
+      name: r?.rule_id ? strategyName(r.rule_id) : 'Alternative',
+      reason,
+    });
+  }
+  return out;
+}
+
 /** One-line thesis. Prefers the engine's directional_view sentence. */
 export function thesisLine(o: OptionsOpportunity): string | null {
   return (
@@ -193,6 +295,12 @@ export interface PresentedOption {
   catalyst: string | null;
   qualified: boolean;          // above the conviction floor
   family: OptionsOpportunity['family'];
+  // B.1 trust/transparency
+  runDate: string | null;            // "Jun 1, 2026" or null
+  quoteAge: string | null;           // "3h old" or null
+  freshness: Freshness;              // Fresh | Stale | Unknown
+  engine: EngineViewRow[];           // "what the engine is seeing"
+  rejected: RejectedAlternative[];   // considered & rejected
 }
 
 /** Project one engine opportunity into a trader-facing view model. */
@@ -216,6 +324,11 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     catalyst: catalystLabel(o.earliest_event_type, o.event_days_away),
     qualified: !!o.above_floor,
     family: o.family,
+    runDate: formatRunDate(o.run_date),
+    quoteAge: humanizeAge(o.quote_age_seconds),
+    freshness: quoteFreshness(o.quote_age_seconds),
+    engine: engineView(o.ranking_breakdown),
+    rejected: rejectedList(o.rejected_alternatives),
   };
 }
 

@@ -104,6 +104,9 @@ export function OptionsSetupCard({
         <Chip tone="muted">DTE {opt.dte}</Chip>
         {opt.premiumLabel && <Chip tone="muted">{opt.premiumLabel}</Chip>}
         {opt.liquidityLabel && <Chip tone="muted">{opt.liquidityLabel}</Chip>}
+        {opt.freshness.label !== 'Unknown' && (
+          <Chip tone={opt.freshness.stale ? 'warn' : 'brand'}>{opt.freshness.label}</Chip>
+        )}
         {opt.qualified && <Chip>qualified</Chip>}
       </div>
 

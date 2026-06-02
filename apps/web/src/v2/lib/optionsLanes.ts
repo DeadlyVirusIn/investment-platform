@@ -47,6 +47,17 @@ export interface OptionsOpportunity {
   event_days_away?: number | null;
   catalyst_title?: string | null;
   catalyst_explanation?: string | null;
+  // B.1 trust/transparency passthrough — all already in opportunity_to_dict.
+  run_date?: string | null;            // ISO date the candidate was generated
+  quote_age_seconds?: number | null;   // staleness of the short-leg quote
+  ranking_breakdown?: {
+    score?: number;
+    freshness?: number;
+    liquidity?: number;
+    iv_fit?: number;
+    event?: number;
+  } | null;
+  rejected_alternatives?: Array<{ rule_id?: string; reason?: string }> | null;
 }
 
 interface OpportunitiesResponse {
