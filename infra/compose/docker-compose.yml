@@ -173,6 +173,10 @@ services:
       OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
       OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
       OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
+      # Phase 4 — generator output taxonomy. Default-safe: absent .env key
+      # → 'directional' (legacy). Set OPTIONS_GENERATOR_STRUCTURES=both in
+      # .env to emit research + engine-compatible families.
+      OPTIONS_GENERATOR_STRUCTURES: ${OPTIONS_GENERATOR_STRUCTURES:-directional}
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       TRADIER_BASE_URL: ${TRADIER_BASE_URL:-https://sandbox.tradier.com/v1}
       TRADIER_ACCESS_TOKEN: ${TRADIER_ACCESS_TOKEN:-}
