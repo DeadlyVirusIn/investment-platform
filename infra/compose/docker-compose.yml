@@ -177,6 +177,9 @@ services:
       # → 'directional' (legacy). Set OPTIONS_GENERATOR_STRUCTURES=both in
       # .env to emit research + engine-compatible families.
       OPTIONS_GENERATOR_STRUCTURES: ${OPTIONS_GENERATOR_STRUCTURES:-directional}
+      # Phase C Stage 2A — persist materialized candidate legs. Default OFF.
+      # Pure persistence; no qualification/scoring/ranking/wing-width change.
+      OPTIONS_PERSIST_LEGS: ${OPTIONS_PERSIST_LEGS:-false}
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       TRADIER_BASE_URL: ${TRADIER_BASE_URL:-https://sandbox.tradier.com/v1}
       TRADIER_ACCESS_TOKEN: ${TRADIER_ACCESS_TOKEN:-}

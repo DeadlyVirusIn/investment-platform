@@ -111,6 +111,11 @@ class StrategyCandidate:
     earliest_event_type: str | None = None
     earliest_event_importance: str | None = None
     event_days_away: int | None = None
+    # Phase C Stage 2A — concrete selected legs, populated by the service
+    # layer ONLY when OPTIONS_PERSIST_LEGS is on. Untyped list to avoid a
+    # circular import with legs.py. Empty by default; never affects scoring,
+    # qualification, or emission.
+    legs: list[Any] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

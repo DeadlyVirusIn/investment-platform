@@ -26,6 +26,9 @@ from apps.api.src.options.strategy_candidates.generator import (
     ChainQuote, ShadowObservation, StrategyCandidate, UnderlyingFeature,
     build_iron_condor, generate,
 )
+from apps.api.src.options.strategy_candidates.legs import (
+    insert_legs, materialize_legs,
+)
 
 
 def _action_to_bias(action: str | None) -> str:
@@ -151,7 +154,15 @@ def _persist_one(
         "event_importance": candidate.earliest_event_importance,
         "event_days_away": candidate.event_days_away,
     })
-    return res.first() is not None
+    row = res.first()
+    if row is None:
+        return False
+    # Phase C Stage 2A — persist the candidate's materialized legs in the
+    # SAME transaction. Only runs when the flag is on AND legs were
+    # materialized upstream; idempotent via UNIQUE(candidate_id, role).
+    if settings.OPTIONS_PERSIST_LEGS and getattr(candidate, "legs", None):
+        insert_legs(session, int(row[0]), candidate.legs)
+    return True
 
 
 def generate_for_observations(
@@ -234,6 +245,9 @@ def generate_for_observations(
     # ~0.30 IC short-strike target.
     ic_reps: dict[str, dict] = {}
 
+    # Phase C Stage 2A — per-run cache of chain ladders, keyed
+    # (underlying, expiry, option_type). Only populated when the flag is on.
+    ladder_cache: dict = {}
     processed = 0
     candidates_generated = 0
     inserted = 0
@@ -279,6 +293,17 @@ def generate_for_observations(
             structures=structures, bias=u_bias,
         )
         candidates_generated += len(cands)
+        # Phase C Stage 2A — materialize concrete legs (flag-gated, downstream
+        # of scoring/emission; never alters cands or their composite scores).
+        if settings.OPTIONS_PERSIST_LEGS:
+            for c in cands:
+                try:
+                    c.legs = materialize_legs(session, obs, c, ladder_cache)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "[candidate_leg] materialize failed obs={} rule={}: {}",
+                        obs_id, c.rule_id, exc,
+                    )
         for c in cands:
             try:
                 if _persist_one(session, obs, c):
@@ -324,6 +349,15 @@ def generate_for_observations(
                 catalyst=rep["catalyst"], has_directional_signal=rep["has_rec"],
             )
             candidates_generated += 1
+            # Phase C Stage 2A — materialize the IC's 4 concrete legs
+            # (flag-gated; never alters the candidate or its score).
+            if settings.OPTIONS_PERSIST_LEGS:
+                try:
+                    ic.legs = materialize_legs(session, rep["obs"], ic, ladder_cache)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning(
+                        "[candidate_leg] IC materialize failed u={}: {}", u, exc,
+                    )
             try:
                 if _persist_one(session, rep["obs"], ic):
                     inserted += 1

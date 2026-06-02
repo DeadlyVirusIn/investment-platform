@@ -396,6 +396,14 @@ class Settings(BaseSettings):
     # emit engine-executable defined-risk structures. No engine/risk
     # change — this only selects which rule_ids the generator emits.
     OPTIONS_GENERATOR_STRUCTURES: str = "directional"
+    # Phase C Stage 2A — when True, the generator materializes + persists
+    # the complete set of selected legs (2 for credit spreads, 4 for iron
+    # condors) into options_candidate_leg. Default OFF. Pure persistence:
+    # never changes qualification, scoring, ranking, selection params, or
+    # wing width; if any leg can't be priced the candidate still emits
+    # unchanged (legs simply incomplete). Economics (Stage 2B) reads these
+    # legs — this flag does NOT enable economics.
+    OPTIONS_PERSIST_LEGS: bool = False
     OPTIONS_SHADOW_MIN_OPEN_INTEREST: int = 500
     OPTIONS_SHADOW_MAX_SPREAD: float = 0.10
     OPTIONS_SHADOW_MIN_BID: float = 0.01
