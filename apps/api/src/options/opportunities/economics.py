@@ -24,6 +24,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.options.opportunities.assignment import assess_assignment_risk
+from apps.api.src.options.opportunities.pop import pop_at_expiry
 from apps.api.src.options.paper.strategies import (
     LegSpec,
     compute_risk,
@@ -51,11 +52,15 @@ def fetch_legs_by_candidate(
         return {}
     rows = session.execute(text(
         """
-        SELECT candidate_id, role, side, option_type, strike, expiry,
-               option_symbol, entry_mid, delta, priced_as_of
-        FROM options_candidate_leg
-        WHERE candidate_id = ANY(:ids)
-        ORDER BY candidate_id, role
+        SELECT l.candidate_id, l.role, l.side, l.option_type, l.strike,
+               l.expiry, l.option_symbol, l.entry_mid, l.delta, l.priced_as_of,
+               ch.iv AS iv
+        FROM options_candidate_leg l
+        LEFT JOIN options_chain_snapshot ch
+          ON ch.option_symbol = l.option_symbol
+         AND ch.snapshot_at_utc = l.priced_as_of
+        WHERE l.candidate_id = ANY(:ids)
+        ORDER BY l.candidate_id, l.role
         """
     ), {"ids": ids}).mappings().all()
     out: dict[int, list[dict]] = {}
@@ -158,6 +163,88 @@ def project_legs(legs: list[dict]) -> list[dict]:
     return out
 
 
+def _resolve_spot(session: Session, underlying: str) -> tuple[float | None, str | None]:
+    """Underlying spot for POP. Prefer price_bar latest close; fall back to a
+    chain-derived ATM (strike whose call delta is nearest 0.50) for names not
+    in price_bar (e.g. GLD/TLT). Returns (spot, source) — source drives
+    confidence; (None, None) when neither resolves."""
+    r = session.execute(text(
+        "SELECT pb.close FROM price_bar pb JOIN asset a ON a.id = pb.asset_id "
+        "WHERE a.symbol = :s ORDER BY pb.ts DESC LIMIT 1"
+    ), {"s": underlying}).first()
+    if r and r[0] is not None:
+        return float(r[0]), "price_bar"
+    r = session.execute(text(
+        """
+        SELECT strike FROM options_chain_snapshot
+        WHERE underlying = :s AND option_type = 'CALL' AND delta IS NOT NULL
+          AND snapshot_at_utc = (
+            SELECT MAX(snapshot_at_utc) FROM options_chain_snapshot WHERE underlying = :s)
+        ORDER BY ABS(ABS(delta) - 0.5)
+        LIMIT 1
+        """
+    ), {"s": underlying}).first()
+    if r and r[0] is not None:
+        return float(r[0]), "chain"
+    return None, None
+
+
+def _atm_iv(session: Session, underlying: str) -> float | None:
+    r = session.execute(text(
+        "SELECT atm_iv FROM options_feature_daily WHERE underlying = :s "
+        "ORDER BY as_of_date DESC LIMIT 1"
+    ), {"s": underlying}).first()
+    return float(r[0]) if r and r[0] is not None else None
+
+
+def _attach_pop(session: Session, item: object, econ: dict, raw_legs: list[dict]) -> None:
+    """Compute POP + confidence into the economics dict (in place). Reads
+    short-leg IV (exact chain join, already on raw_legs) with atm_iv fallback;
+    spot via _resolve_spot. None/omit when inputs insufficient."""
+    dte = getattr(item, "dte", None)
+    t = (dte / 365.0) if dte else None
+    spot, spot_src = _resolve_spot(session, getattr(item, "underlying", ""))
+
+    be_lo = econ.get("breakeven_lower")
+    be_hi = econ.get("breakeven_upper")
+    shorts_put = [l for l in raw_legs if l.get("role") == "short_put"]
+    shorts_call = [l for l in raw_legs if l.get("role") == "short_call"]
+
+    fallback = False
+    atm: float | None = None
+    vol_lower = vol_upper = None
+    if be_lo is not None:
+        iv = _dec(shorts_put[0].get("iv")) if shorts_put else None
+        if iv is not None:
+            vol_lower = float(iv)
+        else:
+            atm = atm if atm is not None else _atm_iv(session, getattr(item, "underlying", ""))
+            vol_lower = atm
+            fallback = True
+    if be_hi is not None:
+        iv = _dec(shorts_call[0].get("iv")) if shorts_call else None
+        if iv is not None:
+            vol_upper = float(iv)
+        else:
+            atm = atm if atm is not None else _atm_iv(session, getattr(item, "underlying", ""))
+            vol_upper = atm
+            fallback = True
+
+    pop = pop_at_expiry(
+        spot=spot, be_lower=be_lo, be_upper=be_hi, t=t,
+        vol_lower=vol_lower, vol_upper=vol_upper,
+    )
+    econ["pop"] = pop
+    if pop is None:
+        econ["pop_confidence"] = None
+    elif spot_src == "price_bar" and not fallback:
+        econ["pop_confidence"] = "high"
+    elif spot_src == "chain" and fallback:
+        econ["pop_confidence"] = "low"
+    else:
+        econ["pop_confidence"] = "moderate"
+
+
 def attach_economics(session: Session, items: list) -> None:
     """Set `item.economics` and `item.legs` for each opportunity item, in
     place. economics None when legs absent/incomplete/uncomputable; legs is
@@ -173,3 +260,8 @@ def attach_economics(session: Session, items: list) -> None:
         it.legs = project_legs(raw)
         # Phase F1 — assignment risk from the persisted short-leg delta + DTE.
         it.assignment_risk = assess_assignment_risk(raw, getattr(it, "dte", None))
+        # Phase F2 — POP (Black-Scholes at expiry) into the economics dict,
+        # only when economics is present (legs complete). Null when inputs
+        # insufficient; never fabricated.
+        if it.economics is not None:
+            _attach_pop(session, it, it.economics, raw)

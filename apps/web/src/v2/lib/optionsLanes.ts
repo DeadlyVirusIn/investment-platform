@@ -70,6 +70,7 @@ export interface OptionsOpportunity {
     net_debit: number | null;
     priced_as_of: string | null;
     pop: number | null;
+    pop_confidence: 'high' | 'moderate' | 'low' | null;
     basis: string;
     legs_complete: boolean;
   } | null;

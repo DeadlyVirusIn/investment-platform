@@ -131,6 +131,7 @@ export function OptionsSetupCard({
         <Chip tone="muted">DTE {opt.dte}</Chip>
         {opt.economics && <Chip tone="muted">Max profit {opt.economics.maxProfit}</Chip>}
         {opt.economics && <Chip tone="muted">Max risk {opt.economics.maxRisk}</Chip>}
+        {opt.economics?.pop && <Chip>POP {opt.economics.pop}</Chip>}
         {opt.freshness.stale && <Chip tone="warn">Stale</Chip>}
         {opt.assignment?.showChip && (
           <Chip tone="warn">⚠ Assignment risk: {opt.assignment.label}</Chip>

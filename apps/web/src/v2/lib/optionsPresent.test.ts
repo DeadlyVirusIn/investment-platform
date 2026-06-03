@@ -286,7 +286,7 @@ describe('presentEconomics', () => {
     max_profit: 35, max_risk: 165, capital_at_risk: 165,
     breakeven_lower: 719.75, breakeven_upper: null,
     net_credit: 35, net_debit: null,
-    priced_as_of: '2026-06-02T14:15:00Z', pop: null,
+    priced_as_of: '2026-06-02T14:15:00Z', pop: null, pop_confidence: null,
     basis: 'per_contract', legs_complete: true,
   };
   it('formats a put-credit-spread economics object', () => {
@@ -322,6 +322,14 @@ describe('presentEconomics', () => {
     const e = presentEconomics({ ...credit, max_profit: 0 })!;
     expect(e.riskRewardLine).toBeNull();
     expect(e.rrRatio).toBeNull();
+  });
+  it('formats POP + confidence; null when absent', () => {
+    const e = presentEconomics({ ...credit, pop: 76, pop_confidence: 'high' })!;
+    expect(e.pop).toBe('76%');
+    expect(e.popConfidence).toBe('High');
+    const e2 = presentEconomics(credit)!;          // pop null
+    expect(e2.pop).toBeNull();
+    expect(e2.popConfidence).toBeNull();
   });
 });
 

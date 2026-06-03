@@ -311,6 +311,9 @@ export interface PresentedEconomics {
   // Phase D — risk/reward framing. Null when profit/risk not both positive.
   riskRewardLine: string | null;  // "Risk $165 to make $35"
   rrRatio: string | null;         // "1 : 4.7"  (make : risk, 1 on smaller side)
+  // Phase F2 — probability of profit (BS at expiry). Null when not derivable.
+  pop: string | null;             // "76%"
+  popConfidence: string | null;   // "High" | "Moderate" | "Low"
 }
 
 type EconRaw = NonNullable<OptionsOpportunity['economics']>;
@@ -351,6 +354,8 @@ export function presentEconomics(e?: EconRaw | null): PresentedEconomics | null 
     pricedAsOf: formatPricedAsOf(e.priced_as_of),
     riskRewardLine,
     rrRatio,
+    pop: e.pop != null ? `${e.pop}%` : null,
+    popConfidence: e.pop_confidence ? titleCase(e.pop_confidence) : null,
   };
 }
 

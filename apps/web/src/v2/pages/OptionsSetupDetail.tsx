@@ -165,6 +165,9 @@ export function OptionsSetupDetail() {
                 <Num label="Risk / reward"
                   value={`${opt.economics.riskRewardLine}${opt.economics.rrRatio ? ` · ${opt.economics.rrRatio}` : ''}`} />
               )}
+              {opt.economics.pop && (
+                <Num label="Probability of profit" value={opt.economics.pop} color="var(--brand)" />
+              )}
               {opt.economics.breakeven && <Num label="Breakeven" value={opt.economics.breakeven} />}
               {opt.economics.premium && <Num label="Premium" value={opt.economics.premium} />}
               {opt.economics.pricedAsOf && <Num label="Priced as of" value={opt.economics.pricedAsOf} />}
@@ -172,6 +175,12 @@ export function OptionsSetupDetail() {
             <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
               Per contract, from the legs priced at generation. Defined-risk; paper only.
             </p>
+            {opt.economics.pop && (
+              <p className="ink-fainter text-[12px] mt-2 max-w-narrative leading-relaxed">
+                Probability of profit: estimate based on current implied volatility
+                {opt.economics.popConfidence ? ` · ${opt.economics.popConfidence} confidence` : ''}.
+              </p>
+            )}
           </section>
         </FadeIn>
       ) : (
