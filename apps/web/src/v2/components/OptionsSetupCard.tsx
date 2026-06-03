@@ -13,7 +13,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
-import type { PresentedOption, BiasTone } from '../lib/optionsPresent';
+import type { PresentedOption, BiasTone, ActionTone } from '../lib/optionsPresent';
 
 const AMBER = 'oklch(0.70 0.14 75)';
 
@@ -62,6 +62,27 @@ function ToneDot({ tone }: { tone: BiasTone }) {
   );
 }
 
+const ACTION_COLOR: Record<ActionTone, string> = {
+  open: 'var(--brand)',
+  consider: 'var(--brand)',
+  watch: AMBER,
+  skip: 'var(--muted-foreground)',
+};
+
+/** Phase D — Open|Consider|Watch|Skip pill (Open is the solid CTA). */
+export function ActionPill({ action }: { action: PresentedOption['action'] }) {
+  const c = ACTION_COLOR[action.tone];
+  const solid = action.tone === 'open';
+  return (
+    <span className="shrink-0 px-2.5 py-0.5 rounded-full font-semibold uppercase" style={{
+      fontSize: 10.5, letterSpacing: '0.08em',
+      color: solid ? 'var(--brand-foreground)' : c,
+      backgroundColor: solid ? c : `color-mix(in oklch, ${c} 12%, transparent)`,
+      border: `1px solid color-mix(in oklch, ${c} ${solid ? 0 : 26}%, transparent)`,
+    }}>{action.label}</span>
+  );
+}
+
 /** The hero / featured setup card. */
 export function OptionsSetupCard({
   opt, featured = false, href, badge, showCta = true,
@@ -85,13 +106,16 @@ export function OptionsSetupCard({
         </div>
       )}
 
-      <div className="flex items-baseline gap-3 flex-wrap">
-        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: featured ? 24 : 18 }}>
-          {opt.underlying}
-        </span>
-        <span className="ink-primary" style={{ fontSize: featured ? 16 : 14, fontWeight: 600 }}>
-          {opt.strategyName}
-        </span>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-baseline gap-3 flex-wrap min-w-0">
+          <span className="font-mono ink-primary tabular-nums" style={{ fontSize: featured ? 24 : 18 }}>
+            {opt.underlying}
+          </span>
+          <span className="ink-primary" style={{ fontSize: featured ? 16 : 14, fontWeight: 600 }}>
+            {opt.strategyName}
+          </span>
+        </div>
+        <ActionPill action={opt.action} />
       </div>
 
       <div className="flex items-center gap-2 mt-2" style={{ fontSize: 12.5, color: 'var(--muted-foreground)' }}>
@@ -99,18 +123,22 @@ export function OptionsSetupCard({
         <span>{opt.descriptor}</span>
       </div>
 
+      {/* Phase D — primary chips only (Confidence · DTE · Max profit · Max
+          risk). Secondary chips (premium/liquidity/qualified) live on the
+          detail page; freshness shows here only when stale (trust warning). */}
       <div className="flex items-center gap-2 flex-wrap mt-3">
         <Chip>{opt.confidenceLabel} confidence · {opt.confidence}</Chip>
         <Chip tone="muted">DTE {opt.dte}</Chip>
-        {opt.premiumLabel && <Chip tone="muted">{opt.premiumLabel}</Chip>}
-        {opt.liquidityLabel && <Chip tone="muted">{opt.liquidityLabel}</Chip>}
-        {opt.freshness.label !== 'Unknown' && (
-          <Chip tone={opt.freshness.stale ? 'warn' : 'brand'}>{opt.freshness.label}</Chip>
-        )}
         {opt.economics && <Chip tone="muted">Max profit {opt.economics.maxProfit}</Chip>}
         {opt.economics && <Chip tone="muted">Max risk {opt.economics.maxRisk}</Chip>}
-        {opt.qualified && <Chip>qualified</Chip>}
+        {opt.freshness.stale && <Chip tone="warn">Stale</Chip>}
       </div>
+      {opt.economics?.riskRewardLine && (
+        <p className="ink-muted mt-2" style={{ fontSize: 12.5 }}>
+          {opt.economics.riskRewardLine}
+          {opt.economics.rrRatio ? ` · R:R ${opt.economics.rrRatio}` : ''}
+        </p>
+      )}
 
       {opt.catalyst && (
         <p className="mt-3" style={{ fontSize: 12.5, color: AMBER, fontWeight: 600 }}>
@@ -171,8 +199,9 @@ export function OptionsSetupRow({
         <span className="font-mono ink-primary" style={{ fontSize: 13.5 }}>{opt.underlying}</span>
         <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{opt.strategyName}</span>
       </span>
-      <span className="ink-muted shrink-0 tabular-nums" style={{ fontSize: 12.5 }}>
-        {opt.confidenceLabel} {opt.confidence} · {opt.dte}d
+      <span className="shrink-0 tabular-nums flex items-baseline gap-1.5" style={{ fontSize: 12.5 }}>
+        <span style={{ color: ACTION_COLOR[opt.action.tone], fontWeight: 600 }}>{opt.action.label}</span>
+        <span className="ink-muted">· {opt.confidence} · {opt.dte}d</span>
       </span>
     </Link>
   );

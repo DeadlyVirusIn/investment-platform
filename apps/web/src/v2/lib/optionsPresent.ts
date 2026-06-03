@@ -303,11 +303,14 @@ export function formatPricedAsOf(iso?: string | null): string | null {
 
 export interface PresentedEconomics {
   maxProfit: string;          // "$35"
-  maxRisk: string;            // "$165"
+  maxRisk: string;            // "$165"  (== "most you can lose", defined risk)
   capitalAtRisk: string;      // "$165"
   breakeven: string | null;   // "719.75" | "747.31 – 765.70"
   premium: string | null;     // "Credit $35" | "Debit $40"
   pricedAsOf: string | null;  // "Jun 2, 14:15"
+  // Phase D — risk/reward framing. Null when profit/risk not both positive.
+  riskRewardLine: string | null;  // "Risk $165 to make $35"
+  rrRatio: string | null;         // "1 : 4.7"  (make : risk, 1 on smaller side)
 }
 
 type EconRaw = NonNullable<OptionsOpportunity['economics']>;
@@ -326,6 +329,19 @@ export function presentEconomics(e?: EconRaw | null): PresentedEconomics | null 
   if (e.net_credit != null) premium = `Credit ${fmtUsd(e.net_credit)}`;
   else if (e.net_debit != null) premium = `Debit ${fmtUsd(e.net_debit)}`;
 
+  // Risk/reward — arithmetic on existing economics only. Null (hidden) when
+  // either side isn't a positive number — never a placeholder.
+  const mp = e.max_profit;
+  const mr = e.max_risk;
+  let riskRewardLine: string | null = null;
+  let rrRatio: string | null = null;
+  if (Number.isFinite(mp) && Number.isFinite(mr) && mp > 0 && mr > 0) {
+    riskRewardLine = `Risk ${fmtUsd(mr)} to make ${fmtUsd(mp)}`;
+    rrRatio = mr >= mp
+      ? `1 : ${(mr / mp).toFixed(1)}`
+      : `${(mp / mr).toFixed(1)} : 1`;
+  }
+
   return {
     maxProfit: fmtUsd(e.max_profit),
     maxRisk: fmtUsd(e.max_risk),
@@ -333,7 +349,31 @@ export function presentEconomics(e?: EconRaw | null): PresentedEconomics | null 
     breakeven,
     premium,
     pricedAsOf: formatPricedAsOf(e.priced_as_of),
+    riskRewardLine,
+    rrRatio,
   };
+}
+
+// ── Phase D — action directive (derived from existing state only) ────────
+
+export type ActionTone = 'open' | 'consider' | 'watch' | 'skip';
+
+export interface ActionDirective {
+  label: 'Open' | 'Consider' | 'Watch' | 'Skip';
+  tone: ActionTone;
+}
+
+/**
+ * Plain action from existing qualification + confidence. No new scoring.
+ * qualified (above the conviction floor) ⇒ Open; below floor, grade by
+ * confidence. All four tiers reachable (qualified ⇒ conf high, so the
+ * "qualified+mid" tier can't occur — qualified maps straight to Open).
+ */
+export function actionDirective(qualified: boolean, confidence: number): ActionDirective {
+  if (qualified) return { label: 'Open', tone: 'open' };
+  if (confidence >= 65) return { label: 'Consider', tone: 'consider' };
+  if (confidence >= 50) return { label: 'Watch', tone: 'watch' };
+  return { label: 'Skip', tone: 'skip' };
 }
 
 export interface PresentedOption {
@@ -360,6 +400,7 @@ export interface PresentedOption {
   engine: EngineViewRow[];           // "what the engine is seeing"
   rejected: RejectedAlternative[];   // considered & rejected
   economics: PresentedEconomics | null;  // Stage 2B — null when not derivable
+  action: ActionDirective;           // Phase D — Open|Consider|Watch|Skip
 }
 
 /** Project one engine opportunity into a trader-facing view model. */
@@ -389,6 +430,7 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     engine: engineView(o.ranking_breakdown),
     rejected: rejectedList(o.rejected_alternatives),
     economics: presentEconomics(o.economics),
+    action: actionDirective(!!o.above_floor, confidence),
   };
 }
 

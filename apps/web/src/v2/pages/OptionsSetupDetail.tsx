@@ -15,7 +15,7 @@ import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useOptionsLanes } from '../lib/optionsLanes';
 import { presentOption } from '../lib/optionsPresent';
-import { OPTIONS_TAB_HREF } from '../components/OptionsSetupCard';
+import { OPTIONS_TAB_HREF, ActionPill } from '../components/OptionsSetupCard';
 
 const AMBER = 'oklch(0.70 0.14 75)';
 
@@ -95,8 +95,11 @@ export function OptionsSetupDetail() {
         <div className="mb-10">
           <div className="flex items-center justify-between gap-4 mb-2">
             <div className="font-mono text-meta ink-fainter">{opt.underlying}</div>
-            <span className="text-meta" style={{ color: isEngine ? 'var(--brand)' : 'var(--muted-foreground)' }}>
-              {isEngine ? 'Engine setup' : 'Research idea'}
+            <span className="flex items-center gap-2">
+              <ActionPill action={opt.action} />
+              <span className="text-meta" style={{ color: isEngine ? 'var(--brand)' : 'var(--muted-foreground)' }}>
+                {isEngine ? 'Engine setup' : 'Research idea'}
+              </span>
             </span>
           </div>
           <h1 className="font-serif text-headline ink-primary mb-3">
@@ -150,20 +153,33 @@ export function OptionsSetupDetail() {
         </FadeIn>
       )}
 
-      {opt.economics && (
+      {opt.economics ? (
         <FadeIn delay={0.1}>
           <section className="mb-20">
             <MetaLabel>The numbers</MetaLabel>
             <ul className="mt-6 grid sm:grid-cols-2 gap-x-10 gap-y-3 max-w-copy">
               <Num label="Max profit" value={opt.economics.maxProfit} color="var(--brand)" />
-              <Num label="Max risk" value={opt.economics.maxRisk} color={AMBER} />
-              <Num label="Capital at risk" value={opt.economics.capitalAtRisk} />
+              <Num label="Most you can lose" value={opt.economics.maxRisk} color={AMBER}
+                hint="The most this trade can lose — risk is defined." />
+              {opt.economics.riskRewardLine && (
+                <Num label="Risk / reward"
+                  value={`${opt.economics.riskRewardLine}${opt.economics.rrRatio ? ` · ${opt.economics.rrRatio}` : ''}`} />
+              )}
               {opt.economics.breakeven && <Num label="Breakeven" value={opt.economics.breakeven} />}
               {opt.economics.premium && <Num label="Premium" value={opt.economics.premium} />}
               {opt.economics.pricedAsOf && <Num label="Priced as of" value={opt.economics.pricedAsOf} />}
             </ul>
             <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
               Per contract, from the legs priced at generation. Defined-risk; paper only.
+            </p>
+          </section>
+        </FadeIn>
+      ) : (
+        <FadeIn delay={0.1}>
+          <section className="mb-20">
+            <MetaLabel>The numbers</MetaLabel>
+            <p className="ink-muted mt-4 text-[13.5px] max-w-narrative leading-relaxed">
+              Detailed economics unavailable for this setup yet.
             </p>
           </section>
         </FadeIn>
@@ -249,10 +265,18 @@ export function OptionsSetupDetail() {
   );
 }
 
-function Num({ label, value, color }: { label: string; value: string; color?: string }) {
+function Num({ label, value, color, hint }: {
+  label: string; value: string; color?: string; hint?: string;
+}) {
   return (
     <li className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
-      <span className="ink-muted text-[13.5px]">{label}</span>
+      <span className="ink-muted text-[13.5px]">
+        {label}
+        {hint && (
+          <span title={hint} aria-label={hint} className="ink-fainter"
+            style={{ marginLeft: 4, cursor: 'help' }}>ⓘ</span>
+        )}
+      </span>
       <span className={color ? 'tabular-nums' : 'ink-primary tabular-nums'}
         style={{ fontSize: 14, fontWeight: 600, color: color || undefined }}>{value}</span>
     </li>

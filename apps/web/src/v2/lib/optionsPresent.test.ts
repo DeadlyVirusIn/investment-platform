@@ -24,6 +24,7 @@ import {
   rejectedList,
   presentEconomics,
   formatPricedAsOf,
+  actionDirective,
 } from './optionsPresent';
 import type { OptionsOpportunity } from './optionsLanes';
 
@@ -307,5 +308,28 @@ describe('presentEconomics', () => {
   it('returns null for null economics', () => {
     expect(presentEconomics(null)).toBeNull();
     expect(presentEconomics(undefined)).toBeNull();
+  });
+  it('frames risk/reward, 1 on the smaller side', () => {
+    const e = presentEconomics(credit)!;             // $35 make / $165 risk
+    expect(e.riskRewardLine).toBe('Risk $165 to make $35');
+    expect(e.rrRatio).toBe('1 : 4.7');
+    const rev = presentEconomics({ ...credit, max_profit: 165, max_risk: 35 })!;
+    expect(rev.rrRatio).toBe('4.7 : 1');
+  });
+  it('hides risk/reward when profit or risk not positive', () => {
+    const e = presentEconomics({ ...credit, max_profit: 0 })!;
+    expect(e.riskRewardLine).toBeNull();
+    expect(e.rrRatio).toBeNull();
+  });
+});
+
+describe('actionDirective', () => {
+  it('qualified → Open regardless of band', () => {
+    expect(actionDirective(true, 81)).toEqual({ label: 'Open', tone: 'open' });
+  });
+  it('not qualified → Consider/Watch/Skip by confidence', () => {
+    expect(actionDirective(false, 70)).toEqual({ label: 'Consider', tone: 'consider' });
+    expect(actionDirective(false, 55)).toEqual({ label: 'Watch', tone: 'watch' });
+    expect(actionDirective(false, 40)).toEqual({ label: 'Skip', tone: 'skip' });
   });
 });
