@@ -411,6 +411,41 @@ export function presentLegs(legs?: OptionsOpportunity['legs']): PresentedLeg[] {
   }));
 }
 
+// ── Phase F1 — assignment risk (display, read-only) ──────────────────────
+
+export type AssignmentLevel = 'low' | 'moderate' | 'high';
+
+export interface PresentedAssignment {
+  level: AssignmentLevel;
+  label: string;            // "High"
+  reason: string;
+  definedRiskNote: string;  // reassurance: loss capped by long wing
+  dataCaveat: string;       // dividend/earnings not assessed
+  showChip: boolean;        // chip on cards only for moderate|high
+}
+
+const _ASSIGN_DEFINED_RISK_NOTE =
+  'Loss stays capped by the long leg even if the short leg is assigned.';
+const _ASSIGN_DATA_CAVEAT =
+  'Based on moneyness + days to expiry only. Dividend/earnings early-assignment ' +
+  'is not assessed (that data is unavailable).';
+
+/** Project the API assignment_risk object for display. Null in → null. */
+export function presentAssignment(
+  a?: OptionsOpportunity['assignment_risk'],
+): PresentedAssignment | null {
+  if (!a || !a.level) return null;
+  const level = a.level;
+  return {
+    level,
+    label: titleCase(level),
+    reason: a.reason,
+    definedRiskNote: _ASSIGN_DEFINED_RISK_NOTE,
+    dataCaveat: _ASSIGN_DATA_CAVEAT,
+    showChip: level !== 'low',
+  };
+}
+
 export interface PresentedOption {
   observationId: number;
   underlying: string;
@@ -437,6 +472,7 @@ export interface PresentedOption {
   economics: PresentedEconomics | null;  // Stage 2B — null when not derivable
   action: ActionDirective;           // Phase D — Open|Consider|Watch|Skip
   legs: PresentedLeg[];              // Phase E — persisted legs (empty when none)
+  assignment: PresentedAssignment | null;  // Phase F1 — null when no short leg
 }
 
 /** Project one engine opportunity into a trader-facing view model. */
@@ -468,6 +504,7 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     economics: presentEconomics(o.economics),
     action: actionDirective(!!o.above_floor, confidence),
     legs: presentLegs(o.legs),
+    assignment: presentAssignment(o.assignment_risk),
   };
 }
 

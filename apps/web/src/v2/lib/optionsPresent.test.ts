@@ -26,6 +26,7 @@ import {
   formatPricedAsOf,
   actionDirective,
   presentLegs,
+  presentAssignment,
 } from './optionsPresent';
 import type { OptionsOpportunity } from './optionsLanes';
 
@@ -352,5 +353,28 @@ describe('presentLegs', () => {
   it('empty for null/undefined', () => {
     expect(presentLegs(null)).toEqual([]);
     expect(presentLegs(undefined)).toEqual([]);
+  });
+});
+
+describe('presentAssignment', () => {
+  const mk = (level: 'low' | 'moderate' | 'high') => ({
+    level, short_delta: 0.5, dte: 4, option_type: 'PUT', reason: 'r', defined_risk: true,
+  });
+  it('null in → null', () => {
+    expect(presentAssignment(null)).toBeNull();
+    expect(presentAssignment(undefined)).toBeNull();
+  });
+  it('low → no chip, labelled', () => {
+    const p = presentAssignment(mk('low'))!;
+    expect(p.showChip).toBe(false);
+    expect(p.label).toBe('Low');
+  });
+  it('moderate/high → chip + defined-risk + data caveat', () => {
+    const p = presentAssignment(mk('high'))!;
+    expect(p.showChip).toBe(true);
+    expect(p.label).toBe('High');
+    expect(p.definedRiskNote.toLowerCase()).toContain('capped');
+    expect(p.dataCaveat.toLowerCase()).toContain('dividend');
+    expect(presentAssignment(mk('moderate'))!.showChip).toBe(true);
   });
 });

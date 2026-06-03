@@ -185,6 +185,31 @@ export function OptionsSetupDetail() {
         </FadeIn>
       )}
 
+      {opt.assignment && (
+        <FadeIn delay={0.11}>
+          <section className="mb-20">
+            <MetaLabel>Assignment risk</MetaLabel>
+            <div className="mt-4">
+              <span className="px-2.5 py-0.5 rounded-full font-semibold uppercase" style={{
+                fontSize: 11, letterSpacing: '0.08em',
+                color: opt.assignment.level === 'low' ? 'var(--muted-foreground)' : AMBER,
+                backgroundColor: `color-mix(in oklch, ${opt.assignment.level === 'low' ? 'var(--muted-foreground)' : AMBER} 12%, transparent)`,
+                border: `1px solid color-mix(in oklch, ${opt.assignment.level === 'low' ? 'var(--muted-foreground)' : AMBER} 26%, transparent)`,
+              }}>{opt.assignment.label}</span>
+            </div>
+            <p className="ink-primary mt-3 text-[14px] leading-snug max-w-narrative">
+              {opt.assignment.reason}
+            </p>
+            <p className="ink-muted mt-2 text-[13px] leading-relaxed max-w-narrative">
+              {opt.assignment.definedRiskNote}
+            </p>
+            <p className="ink-fainter mt-2 text-[12px] leading-relaxed max-w-narrative">
+              {opt.assignment.dataCaveat}
+            </p>
+          </section>
+        </FadeIn>
+      )}
+
       {opt.legs.length > 0 && (
         <FadeIn delay={0.12}>
           <section className="mb-20">

@@ -84,6 +84,15 @@ export interface OptionsOpportunity {
     delta: number | null;
     priced_as_of: string | null;
   }> | null;
+  // Phase F1 — assignment risk (read-side; null when no short leg).
+  assignment_risk?: {
+    level: 'low' | 'moderate' | 'high';
+    short_delta: number | null;
+    dte: number | null;
+    option_type: string | null;
+    reason: string;
+    defined_risk: boolean;
+  } | null;
 }
 
 interface OpportunitiesResponse {

@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from apps.api.src.options.opportunities.assignment import assess_assignment_risk
 from apps.api.src.options.paper.strategies import (
     LegSpec,
     compute_risk,
@@ -170,3 +171,5 @@ def attach_economics(session: Session, items: list) -> None:
         raw = legs_by.get(getattr(it, "candidate_id", 0), [])
         it.economics = compute_economics(it.rule_id, raw)
         it.legs = project_legs(raw)
+        # Phase F1 — assignment risk from the persisted short-leg delta + DTE.
+        it.assignment_risk = assess_assignment_risk(raw, getattr(it, "dte", None))

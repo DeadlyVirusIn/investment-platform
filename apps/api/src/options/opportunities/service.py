@@ -148,6 +148,7 @@ class OpportunityItem:
     candidate_id: int = 0
     economics: dict[str, Any] | None = None
     legs: list[dict[str, Any]] | None = None   # Phase E — persisted legs (read-only)
+    assignment_risk: dict[str, Any] | None = None   # Phase F1 — read-side
 
 
 # ---- helpers ---------------------------------------------------------------
@@ -582,4 +583,8 @@ def opportunity_to_dict(item: OpportunityItem) -> dict[str, Any]:
         "economics":                 item.economics,
         # Phase E — persisted legs (read-only; [] when none). Greeks = delta.
         "legs":                      item.legs or [],
+        # Phase F1 — assignment risk (moneyness + DTE; None when no short leg).
+        "assignment_risk":           item.assignment_risk,
     }
+    # (Phase F1 assignment_risk shape: {level, short_delta, dte, option_type,
+    #  reason, defined_risk} or null — see options/opportunities/assignment.py)

@@ -132,6 +132,9 @@ export function OptionsSetupCard({
         {opt.economics && <Chip tone="muted">Max profit {opt.economics.maxProfit}</Chip>}
         {opt.economics && <Chip tone="muted">Max risk {opt.economics.maxRisk}</Chip>}
         {opt.freshness.stale && <Chip tone="warn">Stale</Chip>}
+        {opt.assignment?.showChip && (
+          <Chip tone="warn">⚠ Assignment risk: {opt.assignment.label}</Chip>
+        )}
       </div>
       {opt.economics?.riskRewardLine && (
         <p className="ink-muted mt-2" style={{ fontSize: 12.5 }}>
