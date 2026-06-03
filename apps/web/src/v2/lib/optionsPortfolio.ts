@@ -45,3 +45,40 @@ export function useOptionsPortfolio() {
     refetchInterval: 120_000,
   });
 }
+
+// ── Phase H1 — lifecycle advisory (read-only) ──────────────────────────────
+
+export interface AdvisorySignal { level: string; reason: string }
+
+export interface AdvisoryPosition {
+  trade_id: number;
+  underlying: string;
+  strategy: string;
+  dte: number | null;
+  pct_max_profit: number | null;
+  profit_so_far: number | null;
+  take_profit: AdvisorySignal | null;
+  dte_management: AdvisorySignal | null;
+  loss_risk: AdvisorySignal | null;
+  assignment_risk: { level: string; reason: string } | null;
+  potential_roll_preview: {
+    to_expiry: string; short_strike: number; short_mid: number | null; note: string;
+  } | null;
+  value_source: 'mtm_event' | 'chain' | 'mixed' | null;
+  value_as_of: string | null;
+}
+
+export interface OptionsAdvisory {
+  status: 'live' | 'empty';
+  open_count: number;
+  positions: AdvisoryPosition[];
+}
+
+export function useOptionsAdvisory() {
+  return useQuery<OptionsAdvisory>({
+    queryKey: ['options', 'portfolio', 'advisory'],
+    queryFn: () => apiGet<OptionsAdvisory>('/options/portfolio/advisory'),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}

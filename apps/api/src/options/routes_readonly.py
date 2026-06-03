@@ -33,6 +33,7 @@ from apps.api.src.options.interpretation_guardrails import (
 
 
 from apps.api.src.options.portfolio import service as portfolio_service
+from apps.api.src.options.portfolio import advisory as portfolio_advisory
 
 router = APIRouter(prefix="/options", tags=["options"])
 
@@ -432,6 +433,18 @@ def get_options_portfolio(
     """Phase G1 — read-only options portfolio aggregate over OPEN positions
     (released_at IS NULL). Honest empty when none. No mutation/fill."""
     result = portfolio_service.get_portfolio(session, portfolio_id)
+    result["notice"] = PAPER_ONLY_NOTICE
+    return result
+
+
+@router.get("/portfolio/advisory")
+def get_options_portfolio_advisory(
+    portfolio_id: str | None = Query(None),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Phase H1 — read-only lifecycle ADVISORY over open positions.
+    Advisory only: no execution, no close/roll, no mutation."""
+    result = portfolio_advisory.get_advisory(session, portfolio_id)
     result["notice"] = PAPER_ONLY_NOTICE
     return result
 

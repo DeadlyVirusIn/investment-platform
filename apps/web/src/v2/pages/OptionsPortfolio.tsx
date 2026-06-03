@@ -6,7 +6,10 @@
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
-import { useOptionsPortfolio, type OptionsPortfolio } from '../lib/optionsPortfolio';
+import {
+  useOptionsPortfolio, useOptionsAdvisory,
+  type OptionsPortfolio, type AdvisoryPosition,
+} from '../lib/optionsPortfolio';
 
 const AMBER = 'oklch(0.70 0.14 75)';
 
@@ -73,7 +76,72 @@ export function OptionsPortfolio() {
       {data && data.status === 'live' && data.open_count > 0 && (
         <Dashboard data={data} />
       )}
+
+      <AdvisorySection />
     </ArthosPage>
+  );
+}
+
+function sigColor(level: string | undefined): string {
+  switch (level) {
+    case 'strong': case 'consider': return 'var(--brand)';
+    case 'urgent': case 'high': return 'var(--destructive)';
+    case 'manage': case 'warn': return AMBER;
+    default: return 'var(--muted-foreground)';
+  }
+}
+
+function AdvisorySection() {
+  const { data } = useOptionsAdvisory();
+  if (!data || data.status !== 'live' || data.open_count === 0) return null;
+  return (
+    <section className="mt-6">
+      <p className="font-semibold uppercase mb-1" style={{
+        fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+      }}>Lifecycle advisory</p>
+      <p className="ink-fainter mb-3" style={{ fontSize: 12 }}>
+        Advisory only — nothing here trades, closes, or rolls.
+      </p>
+      <div className="space-y-3">
+        {data.positions.map((p) => <AdvisoryCard key={p.trade_id} p={p} />)}
+      </div>
+    </section>
+  );
+}
+
+function AdvisoryCard({ p }: { p: AdvisoryPosition }) {
+  const asOf = p.value_as_of
+    ? new Date(p.value_as_of).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+  const Line = ({ s }: { s: { level: string; reason: string } | null }) =>
+    s ? <p style={{ fontSize: 13, color: sigColor(s.level), marginTop: 4 }}>{s.reason}</p> : null;
+  return (
+    <SurfaceCard variant="default" className="p-5">
+      <div className="flex items-baseline justify-between gap-3 mb-1">
+        <span className="font-mono ink-primary" style={{ fontSize: 14 }}>{p.underlying}</span>
+        <span className="ink-muted" style={{ fontSize: 12 }}>
+          {p.strategy.replace(/_/g, ' ').toLowerCase()}{p.dte != null ? ` · ${p.dte}d` : ''}
+        </span>
+      </div>
+      <Line s={p.take_profit} />
+      <Line s={p.dte_management} />
+      <Line s={p.loss_risk} />
+      {p.assignment_risk && (
+        <p style={{ fontSize: 13, color: sigColor(p.assignment_risk.level), marginTop: 4 }}>
+          Assignment risk: {p.assignment_risk.reason}
+        </p>
+      )}
+      {p.potential_roll_preview && (
+        <p className="ink-muted" style={{ fontSize: 12.5, marginTop: 6 }}>
+          Potential roll preview → {p.potential_roll_preview.to_expiry} ·
+          {' '}strike {p.potential_roll_preview.short_strike}
+          <span className="ink-fainter"> (informational only)</span>
+        </p>
+      )}
+      <p className="ink-fainter" style={{ fontSize: 11, marginTop: 8 }}>
+        {p.value_source ? `value: ${p.value_source}${asOf ? ` · ${asOf}` : ''}` : 'current value unavailable'}
+      </p>
+    </SurfaceCard>
   );
 }
 
