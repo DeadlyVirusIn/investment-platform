@@ -51,7 +51,7 @@ def fetch_legs_by_candidate(
     rows = session.execute(text(
         """
         SELECT candidate_id, role, side, option_type, strike, expiry,
-               option_symbol, entry_mid, priced_as_of
+               option_symbol, entry_mid, delta, priced_as_of
         FROM options_candidate_leg
         WHERE candidate_id = ANY(:ids)
         ORDER BY candidate_id, role
@@ -127,15 +127,46 @@ def compute_economics(strategy_name: str, legs: list[dict]) -> dict | None:
         return None
 
 
+def _iso(v: Any) -> str | None:
+    if v is None:
+        return None
+    return v.isoformat() if hasattr(v, "isoformat") else str(v)
+
+
+def project_legs(legs: list[dict]) -> list[dict]:
+    """JSON-safe projection of persisted legs for display (read-only). Sorted
+    by option_type then strike. Only persisted fields — nothing fabricated."""
+    out: list[dict] = []
+    for lg in sorted(
+        legs,
+        key=lambda x: ((x.get("option_type") or ""), float(x.get("strike") or 0)),
+    ):
+        strike = _dec(lg.get("strike"))
+        mid = _dec(lg.get("entry_mid"))
+        delta = _dec(lg.get("delta"))
+        out.append({
+            "role": lg.get("role"),
+            "side": lg.get("side"),
+            "option_type": lg.get("option_type"),
+            "strike": float(strike) if strike is not None else None,
+            "expiry": _iso(lg.get("expiry")),
+            "entry_mid": float(mid) if mid is not None else None,
+            "delta": float(delta) if delta is not None else None,
+            "priced_as_of": _iso(lg.get("priced_as_of")),
+        })
+    return out
+
+
 def attach_economics(session: Session, items: list) -> None:
-    """Set `item.economics` for each opportunity item, in place. None when
-    legs are absent/incomplete/uncomputable."""
+    """Set `item.economics` and `item.legs` for each opportunity item, in
+    place. economics None when legs absent/incomplete/uncomputable; legs is
+    the persisted-leg projection (empty list when none)."""
     if not items:
         return
     legs_by = fetch_legs_by_candidate(
         session, [getattr(it, "candidate_id", 0) for it in items],
     )
     for it in items:
-        it.economics = compute_economics(
-            it.rule_id, legs_by.get(getattr(it, "candidate_id", 0), []),
-        )
+        raw = legs_by.get(getattr(it, "candidate_id", 0), [])
+        it.economics = compute_economics(it.rule_id, raw)
+        it.legs = project_legs(raw)

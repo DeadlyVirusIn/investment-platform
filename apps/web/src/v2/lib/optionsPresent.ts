@@ -376,6 +376,41 @@ export function actionDirective(qualified: boolean, confidence: number): ActionD
   return { label: 'Skip', tone: 'skip' };
 }
 
+// ── Phase E — persisted legs + greeks (display, read-only) ───────────────
+
+const ROLE_LABEL: Record<string, string> = {
+  short_put: 'Short put',
+  long_put: 'Long put',
+  short_call: 'Short call',
+  long_call: 'Long call',
+};
+
+export interface PresentedLeg {
+  role: string;
+  side: string;          // "Sell" | "Buy"
+  optionType: string;    // "Put" | "Call"
+  strike: string;        // "720.00"
+  expiry: string | null; // "Jun 18, 2026"
+  entryMid: string | null;   // "$6.82"
+  delta: string | null;      // "-0.28"  (greeks — null hidden by callers)
+  pricedAsOf: string | null; // "Jun 2, 14:15"
+}
+
+/** Project persisted legs for display. Empty when none. Nothing fabricated. */
+export function presentLegs(legs?: OptionsOpportunity['legs']): PresentedLeg[] {
+  if (!legs || !Array.isArray(legs)) return [];
+  return legs.map((l) => ({
+    role: l.role ? (ROLE_LABEL[l.role] ?? titleCase(l.role)) : '—',
+    side: l.side ? titleCase(l.side) : '—',
+    optionType: l.option_type ? titleCase(l.option_type) : '—',
+    strike: l.strike != null ? fmtStrike(l.strike) : '—',
+    expiry: formatRunDate(l.expiry),
+    entryMid: l.entry_mid != null ? `$${l.entry_mid.toFixed(2)}` : null,
+    delta: l.delta != null ? l.delta.toFixed(2) : null,
+    pricedAsOf: formatPricedAsOf(l.priced_as_of),
+  }));
+}
+
 export interface PresentedOption {
   observationId: number;
   underlying: string;
@@ -401,6 +436,7 @@ export interface PresentedOption {
   rejected: RejectedAlternative[];   // considered & rejected
   economics: PresentedEconomics | null;  // Stage 2B — null when not derivable
   action: ActionDirective;           // Phase D — Open|Consider|Watch|Skip
+  legs: PresentedLeg[];              // Phase E — persisted legs (empty when none)
 }
 
 /** Project one engine opportunity into a trader-facing view model. */
@@ -431,6 +467,7 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     rejected: rejectedList(o.rejected_alternatives),
     economics: presentEconomics(o.economics),
     action: actionDirective(!!o.above_floor, confidence),
+    legs: presentLegs(o.legs),
   };
 }
 

@@ -73,6 +73,17 @@ export interface OptionsOpportunity {
     basis: string;
     legs_complete: boolean;
   } | null;
+  // Phase E — persisted legs (read-only). [] when none. Greeks = delta.
+  legs?: Array<{
+    role: string | null;
+    side: string | null;
+    option_type: string | null;
+    strike: number | null;
+    expiry: string | null;
+    entry_mid: number | null;
+    delta: number | null;
+    priced_as_of: string | null;
+  }> | null;
 }
 
 interface OpportunitiesResponse {

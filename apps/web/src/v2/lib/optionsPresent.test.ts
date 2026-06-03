@@ -25,6 +25,7 @@ import {
   presentEconomics,
   formatPricedAsOf,
   actionDirective,
+  presentLegs,
 } from './optionsPresent';
 import type { OptionsOpportunity } from './optionsLanes';
 
@@ -331,5 +332,25 @@ describe('actionDirective', () => {
     expect(actionDirective(false, 70)).toEqual({ label: 'Consider', tone: 'consider' });
     expect(actionDirective(false, 55)).toEqual({ label: 'Watch', tone: 'watch' });
     expect(actionDirective(false, 40)).toEqual({ label: 'Skip', tone: 'skip' });
+  });
+});
+
+describe('presentLegs', () => {
+  it('projects persisted legs with human labels; null delta preserved', () => {
+    const legs = presentLegs([
+      { role: 'short_put', side: 'SELL', option_type: 'PUT', strike: 720,
+        expiry: '2026-06-18', entry_mid: 6.815, delta: -0.28, priced_as_of: '2026-06-02T14:15:00Z' },
+      { role: 'long_put', side: 'BUY', option_type: 'PUT', strike: 719,
+        expiry: '2026-06-18', entry_mid: 6.565, delta: null, priced_as_of: '2026-06-02T14:15:00Z' },
+    ]);
+    expect(legs[0]).toEqual({
+      role: 'Short put', side: 'Sell', optionType: 'Put', strike: '720.00',
+      expiry: 'Jun 18, 2026', entryMid: '$6.82', delta: '-0.28', pricedAsOf: 'Jun 2, 14:15',
+    });
+    expect(legs[1].delta).toBeNull();          // missing delta hidden, not faked
+  });
+  it('empty for null/undefined', () => {
+    expect(presentLegs(null)).toEqual([]);
+    expect(presentLegs(undefined)).toEqual([]);
   });
 });

@@ -185,6 +185,50 @@ export function OptionsSetupDetail() {
         </FadeIn>
       )}
 
+      {opt.legs.length > 0 && (
+        <FadeIn delay={0.12}>
+          <section className="mb-20">
+            <MetaLabel>The legs</MetaLabel>
+            <ul className="mt-6 space-y-3 max-w-copy">
+              {opt.legs.map((lg, i) => (
+                <li key={i} className="border-t border-hairline pt-3">
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="ink-primary text-[14px]">
+                      {lg.side} {lg.optionType} {lg.strike}
+                    </span>
+                    <span className="ink-muted text-[12.5px]">{lg.role}</span>
+                  </div>
+                  <div className="ink-fainter text-[12px] mt-1 flex flex-wrap gap-x-4 gap-y-0.5 tabular-nums">
+                    {lg.expiry && <span>exp {lg.expiry}</span>}
+                    {lg.entryMid && <span>mid {lg.entryMid}</span>}
+                    {lg.pricedAsOf && <span>priced {lg.pricedAsOf}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </FadeIn>
+      )}
+
+      {opt.legs.some((l) => l.delta !== null) && (
+        <FadeIn delay={0.13}>
+          <section className="mb-20">
+            <MetaLabel>Greeks</MetaLabel>
+            <ul className="mt-6 grid sm:grid-cols-2 gap-x-10 gap-y-3 max-w-copy">
+              {opt.legs.filter((l) => l.delta !== null).map((lg, i) => (
+                <li key={i} className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
+                  <span className="ink-muted text-[13.5px]">{lg.role} · {lg.strike}</span>
+                  <span className="ink-primary tabular-nums text-[14px]">Δ {lg.delta}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
+              Delta only — other greeks aren't persisted for this setup.
+            </p>
+          </section>
+        </FadeIn>
+      )}
+
       {opt.whyPoints.length > 0 && (
         <FadeIn delay={0.14}>
           <section className="mb-20">

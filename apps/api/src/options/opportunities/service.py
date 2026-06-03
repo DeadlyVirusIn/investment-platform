@@ -147,6 +147,7 @@ class OpportunityItem:
     # missing/incomplete/uncomputable). Never affects ranking/scoring.
     candidate_id: int = 0
     economics: dict[str, Any] | None = None
+    legs: list[dict[str, Any]] | None = None   # Phase E — persisted legs (read-only)
 
 
 # ---- helpers ---------------------------------------------------------------
@@ -579,4 +580,6 @@ def opportunity_to_dict(item: OpportunityItem) -> dict[str, Any]:
         # Phase C Stage 2B — economics derived from persisted legs.
         # None until legs exist + are complete + computable. POP reserved.
         "economics":                 item.economics,
+        # Phase E — persisted legs (read-only; [] when none). Greeks = delta.
+        "legs":                      item.legs or [],
     }

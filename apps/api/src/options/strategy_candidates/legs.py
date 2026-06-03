@@ -90,10 +90,12 @@ def _fetch_ladder(
         ORDER BY strike
         """
     ), {"u": underlying, "e": expiry, "ot": option_type}).mappings().all()
+    # Stage 2A.1 — keep ALL listed strikes (including unquoted rows) so the
+    # protective leg can be the STRICTLY adjacent listed strike. mid may be
+    # None; callers treat a null-mid adjacent strike as incomplete (economics
+    # suppressed) rather than silently widening to the next priced strike.
     out: list[_Row] = []
     for r in rows:
-        if r["mid"] is None:
-            continue
         out.append(_Row(
             strike=float(r["strike"]),
             option_symbol=r["option_symbol"],
@@ -135,7 +137,7 @@ def _index_of_strike(ladder: list[_Row], strike: float) -> int:
 def _index_closest_delta(ladder: list[_Row], target: float) -> int:
     best, best_d = -1, None
     for i, r in enumerate(ladder):
-        if r.delta is None:
+        if r.delta is None or r.mid is None:   # short must be priced
             continue
         d = abs(abs(r.delta) - target)
         if best_d is None or d < best_d:
@@ -153,21 +155,22 @@ def _credit_legs(
     if not ladder:
         return []
     i = _index_of_strike(ladder, float(obs.strike))
-    if i < 0:
+    if i < 0 or ladder[i].mid is None:        # short must exist + be priced
+        return []
+    # Stage 2A.1 — long leg is the STRICTLY adjacent listed strike. If that
+    # strike is absent or unquoted, the candidate is incomplete (return []) —
+    # never widen to a non-adjacent strike.
+    j = i - 1 if option_type == "PUT" else i + 1
+    if j < 0 or j >= len(ladder) or ladder[j].mid is None:
         return []
     if option_type == "PUT":
-        if i - 1 < 0:
-            return []
         return [
             _leg(ladder[i], "short_put", "SELL", "PUT", obs.expiration),
-            _leg(ladder[i - 1], "long_put", "BUY", "PUT", obs.expiration),
+            _leg(ladder[j], "long_put", "BUY", "PUT", obs.expiration),
         ]
-    # CALL
-    if i + 1 >= len(ladder):
-        return []
     return [
         _leg(ladder[i], "short_call", "SELL", "CALL", obs.expiration),
-        _leg(ladder[i + 1], "long_call", "BUY", "CALL", obs.expiration),
+        _leg(ladder[j], "long_call", "BUY", "CALL", obs.expiration),
     ]
 
 
@@ -195,9 +198,14 @@ def _iron_condor_legs(
 
     if pi < 0 or ci < 0:
         return []
-    if pi - 1 < 0:            # need a put wing below the short put
+    # Both shorts must be priced.
+    if puts[pi].mid is None or calls[ci].mid is None:
         return []
-    if ci + 1 >= len(calls):  # need a call wing above the short call
+    # Stage 2A.1 — wings are the STRICTLY adjacent listed strikes; if either
+    # is absent or unquoted, the IC is incomplete (no silent widening).
+    if pi - 1 < 0 or puts[pi - 1].mid is None:
+        return []
+    if ci + 1 >= len(calls) or calls[ci + 1].mid is None:
         return []
 
     return [
