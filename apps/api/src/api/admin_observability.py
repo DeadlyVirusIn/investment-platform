@@ -324,7 +324,15 @@ def _build_matrix(session: Session | None,
         hours = _hours_since(ts, now)
         # Opt-Obs-Fix2 — Mon-Fri post-close daily rows use the weekend-aware
         # classifier; all others keep the raw wall-clock cadence classifier.
-        if settle_hour is not None:
+        if key == "options_chains":
+            # Intraday, market-aware. Reuse the single source of truth in
+            # freshness.py: during market hours genuine staleness still
+            # degrades (fresh <6h / degraded 6-12h / stale >12h); when the
+            # market is closed a last-session snapshot reads fresh (no false
+            # overnight/weekend degradation).
+            from apps.api.src.api.freshness import _classify_options
+            status = _classify_options(hours, now)
+        elif settle_hour is not None:
             status = _classify_weekday_daily(ts, now, settle_hour)
         else:
             status = _classify_cadence(hours, cadence)
