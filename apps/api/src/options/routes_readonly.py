@@ -32,6 +32,8 @@ from apps.api.src.options.interpretation_guardrails import (
 )
 
 
+from apps.api.src.options.portfolio import service as portfolio_service
+
 router = APIRouter(prefix="/options", tags=["options"])
 
 
@@ -420,6 +422,18 @@ def get_risk_summary(session: Session = Depends(get_session)) -> dict[str, Any]:
     summary = svc.get_risk_summary(session)
     summary["notice"] = PAPER_ONLY_NOTICE
     return summary
+
+
+@router.get("/portfolio")
+def get_options_portfolio(
+    portfolio_id: str | None = Query(None),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Phase G1 — read-only options portfolio aggregate over OPEN positions
+    (released_at IS NULL). Honest empty when none. No mutation/fill."""
+    result = portfolio_service.get_portfolio(session, portfolio_id)
+    result["notice"] = PAPER_ONLY_NOTICE
+    return result
 
 
 # ---------------------------------------------------------------------------

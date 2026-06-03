@@ -18,6 +18,7 @@ import { LearnHome } from './pages/LearnHome';
 import { Briefing } from './pages/Briefing';
 import { PickPage } from './pages/PickPage';
 import { OptionsSetupDetail } from './pages/OptionsSetupDetail';
+import { OptionsPortfolio } from './pages/OptionsPortfolio';
 import { PaperBook } from './pages/PaperBook';
 import { TrackRecord } from './pages/TrackRecord';
 import { LessonPage } from './pages/LessonPage';
@@ -103,6 +104,8 @@ function V2Surface() {
         <Route path="admin/observability" element={<Observability />} />
         {/* Options — read-only V2-native options subsystem visibility. */}
         <Route path="options" element={<OptionsVisibility />} />
+        {/* Phase G1 — read-only options portfolio (open positions). */}
+        <Route path="options/portfolio" element={<OptionsPortfolio />} />
         <Route path="*" element={<Navigate to="learn" replace />} />
       </Routes>
     </div>

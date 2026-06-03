@@ -465,6 +465,7 @@ const NAV_SECONDARY = [
   { label: 'Notes', to: '/v2/field-notes' },
   { label: 'Watchlist', to: '/v2/watchlist' },
   { label: 'Methodology', to: '/v2/methodology' },
+  { label: 'Options portfolio', to: '/v2/options/portfolio' },
   { label: 'Options Diagnostics', to: '/v2/options' },
   { label: 'System', to: '/v2/admin/observability' },
 ];
