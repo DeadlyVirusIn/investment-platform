@@ -42,9 +42,24 @@ from apps.api.src.api.freshness import (
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
-# The migration the reconciled production image is pinned at. Surfaced so
-# the page can flag drift without hard-coding expectations in the client.
-_EXPECTED_DB_HEAD = "090_opt_canary_lifecycle_run"
+def _derive_expected_db_head() -> str | None:
+    """Expected DB head, derived from the Alembic migration scripts bundled
+    in THIS image — auto-tracks every migration (no hardcoded constant to
+    bump). None when underivable (e.g. tree absent or multiple heads), in
+    which case drift is treated as 'unknown' rather than a false warning."""
+    try:
+        from pathlib import Path
+        from alembic.script import ScriptDirectory
+        # .../apps/api/src/api/admin_observability.py → parents[4] == repo root
+        root = Path(__file__).resolve().parents[4]
+        return ScriptDirectory(str(root / "infra" / "alembic")).get_current_head()
+    except Exception:
+        return None
+
+
+# Surfaced so the page can flag genuine drift without hard-coding the
+# expectation in the client. Computed once at import.
+_EXPECTED_DB_HEAD = _derive_expected_db_head()
 
 # Process-start marker (import time). Honest "api process uptime" — resets
 # only if the api process restarts, which is exactly what we want to show.
@@ -603,7 +618,7 @@ def observability() -> dict[str, Any]:
                 f"expected 0 (canary engine is not active)."
             ),
         })
-    if db_head and db_head != _EXPECTED_DB_HEAD:
+    if db_head and _EXPECTED_DB_HEAD and db_head != _EXPECTED_DB_HEAD:
         alerts.append({
             "severity": "warning",
             "area": "db",
@@ -635,7 +650,11 @@ def observability() -> dict[str, Any]:
             "reachable": db_reachable,
             "head": db_head,
             "expected_head": _EXPECTED_DB_HEAD,
-            "head_matches": (db_head == _EXPECTED_DB_HEAD) if db_head else None,
+            "head_matches": (
+                (db_head == _EXPECTED_DB_HEAD)
+                if (db_head and _EXPECTED_DB_HEAD)
+                else (None if not db_head else True)
+            ),
             "postmaster_start_time": _iso(pg_start),
             "uptime_seconds": db_uptime_seconds,
         },

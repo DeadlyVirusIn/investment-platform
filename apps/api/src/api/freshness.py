@@ -176,12 +176,60 @@ def _classify_events(hours: float | None) -> str:
     return _STATUS_STALE
 
 
-def _classify_options(hours: float | None) -> str:
+def _hours_since_last_close(now_utc: dt.datetime) -> float | None:
+    """Hours since the most recent weekday 16:00 ET close (walks back over
+    weekends). None if the tz database is unavailable."""
+    try:
+        from zoneinfo import ZoneInfo
+        local = now_utc.astimezone(ZoneInfo("America/New_York"))
+    except Exception:
+        return None
+    close = local.replace(hour=16, minute=0, second=0, microsecond=0)
+    if local < close:
+        close = close - dt.timedelta(days=1)
+    while close.weekday() >= 5:          # skip Sat/Sun back to Friday
+        close = close - dt.timedelta(days=1)
+    return max(0.0, (local - close).total_seconds() / 3600.0)
+
+
+# Span of a single trading session (~6.5h) + small buffer. A chain snapshot
+# captured anytime during the last session is at most ~this many hours older
+# than the last close.
+_OPTIONS_SESSION_SPAN_H = 7.0
+
+
+def _classify_options(hours: float | None, now_utc: dt.datetime) -> str:
+    """Market-aware options-chain freshness.
+
+    During market hours the chain is expected to be recent, so genuine
+    intraday staleness still degrades health (fresh <6h, degraded 6-12h,
+    stale >12h). When the market is CLOSED the chain naturally ages
+    overnight/over weekends; a snapshot from the most recent session is
+    fresh — staleness is measured relative to the last close, not wall clock.
+    """
     if hours is None:
         return _STATUS_UNKNOWN
-    if hours < 6:
+
+    if _is_market_hours(now_utc):
+        if hours < 6:
+            return _STATUS_FRESH
+        if hours <= 12:
+            return _STATUS_DEGRADED
+        return _STATUS_STALE
+
+    since_close = _hours_since_last_close(now_utc)
+    if since_close is None:                      # tz fallback → flat rule
+        if hours < 6:
+            return _STATUS_FRESH
+        if hours <= 24:
+            return _STATUS_DEGRADED
+        return _STATUS_STALE
+
+    # Fresh: snapshot from the last session. Degraded: missed by up to a
+    # session-day. Stale: older than ~two sessions.
+    if hours <= since_close + _OPTIONS_SESSION_SPAN_H:
         return _STATUS_FRESH
-    if hours <= 24:
+    if hours <= since_close + _OPTIONS_SESSION_SPAN_H + 24.0:
         return _STATUS_DEGRADED
     return _STATUS_STALE
 
@@ -428,7 +476,7 @@ def _evaluate_channels(session: Session | None,
     # ---- options ----
     opt_ts = _read_options(session) if session is not None else None
     opt_hours = _hours_since(opt_ts)
-    opt_status = _classify_options(opt_hours)
+    opt_status = _classify_options(opt_hours, now)
     out["options"] = _channel(
         opt_status, opt_ts,
         _msg_options(opt_status, _iso(opt_ts), opt_hours),
