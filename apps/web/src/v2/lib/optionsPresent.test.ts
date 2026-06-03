@@ -22,6 +22,8 @@ import {
   formatRunDate,
   engineView,
   rejectedList,
+  presentEconomics,
+  formatPricedAsOf,
 } from './optionsPresent';
 import type { OptionsOpportunity } from './optionsLanes';
 
@@ -262,5 +264,48 @@ describe('presentOption B.1 fields', () => {
     expect(v.freshness).toEqual({ label: 'Fresh', stale: false });
     expect(v.engine[0]).toEqual({ key: 'score', label: 'Strategy fit', value: 60 });
     expect(v.rejected).toEqual([{ name: 'Bull Put Spread', reason: 'thin credit' }]);
+  });
+});
+
+describe('formatPricedAsOf', () => {
+  it('formats ISO datetime as "Mon D, HH:MM"', () => {
+    expect(formatPricedAsOf('2026-06-02T14:15:10Z')).toBe('Jun 2, 14:15');
+    expect(formatPricedAsOf('2026-06-02 09:05:00')).toBe('Jun 2, 09:05');
+  });
+  it('falls back to date for date-only, null when absent', () => {
+    expect(formatPricedAsOf('2026-06-02')).toBe('Jun 2, 2026');
+    expect(formatPricedAsOf(null)).toBeNull();
+  });
+});
+
+describe('presentEconomics', () => {
+  const credit = {
+    max_profit: 35, max_risk: 165, capital_at_risk: 165,
+    breakeven_lower: 719.75, breakeven_upper: null,
+    net_credit: 35, net_debit: null,
+    priced_as_of: '2026-06-02T14:15:00Z', pop: null,
+    basis: 'per_contract', legs_complete: true,
+  };
+  it('formats a put-credit-spread economics object', () => {
+    const e = presentEconomics(credit);
+    expect(e).not.toBeNull();
+    expect(e!.maxProfit).toBe('$35');
+    expect(e!.maxRisk).toBe('$165');
+    expect(e!.capitalAtRisk).toBe('$165');
+    expect(e!.breakeven).toBe('719.75');
+    expect(e!.premium).toBe('Credit $35');
+    expect(e!.pricedAsOf).toBe('Jun 2, 14:15');
+  });
+  it('renders a two-sided breakeven for iron condors', () => {
+    const e = presentEconomics({ ...credit, breakeven_lower: 747.3, breakeven_upper: 765.7 });
+    expect(e!.breakeven).toBe('747.30 – 765.70');
+  });
+  it('renders debit when net_debit set', () => {
+    const e = presentEconomics({ ...credit, net_credit: null, net_debit: 40 });
+    expect(e!.premium).toBe('Debit $40');
+  });
+  it('returns null for null economics', () => {
+    expect(presentEconomics(null)).toBeNull();
+    expect(presentEconomics(undefined)).toBeNull();
   });
 });

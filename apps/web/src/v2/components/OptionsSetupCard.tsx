@@ -107,6 +107,8 @@ export function OptionsSetupCard({
         {opt.freshness.label !== 'Unknown' && (
           <Chip tone={opt.freshness.stale ? 'warn' : 'brand'}>{opt.freshness.label}</Chip>
         )}
+        {opt.economics && <Chip tone="muted">Max profit {opt.economics.maxProfit}</Chip>}
+        {opt.economics && <Chip tone="muted">Max risk {opt.economics.maxRisk}</Chip>}
         {opt.qualified && <Chip>qualified</Chip>}
       </div>
 

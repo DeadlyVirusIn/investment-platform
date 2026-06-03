@@ -278,6 +278,64 @@ export function whyPoints(o: OptionsOpportunity, limit = 4): string[] {
   return out;
 }
 
+// ── B.2 / Stage 2B: economics (from persisted legs, API-derived) ─────────
+
+function fmtUsd(n: number, dp = 0): string {
+  const v = Number.isFinite(n) ? n : 0;
+  return `$${v.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
+}
+
+function fmtStrike(n: number): string {
+  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const DT_MONTHS = MONTHS;
+
+/** "Jun 2, 14:15" from an ISO datetime. Null on missing/invalid. */
+export function formatPricedAsOf(iso?: string | null): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(iso);
+  if (!m) return formatRunDate(iso);   // fall back to date-only
+  const mo = Number(m[2]);
+  if (mo < 1 || mo > 12) return null;
+  return `${DT_MONTHS[mo - 1]} ${Number(m[3])}, ${m[4]}:${m[5]}`;
+}
+
+export interface PresentedEconomics {
+  maxProfit: string;          // "$35"
+  maxRisk: string;            // "$165"
+  capitalAtRisk: string;      // "$165"
+  breakeven: string | null;   // "719.75" | "747.31 – 765.70"
+  premium: string | null;     // "Credit $35" | "Debit $40"
+  pricedAsOf: string | null;  // "Jun 2, 14:15"
+}
+
+type EconRaw = NonNullable<OptionsOpportunity['economics']>;
+
+/** Project the API economics object into display strings. Null in → null. */
+export function presentEconomics(e?: EconRaw | null): PresentedEconomics | null {
+  if (!e) return null;
+  const lo = e.breakeven_lower;
+  const hi = e.breakeven_upper;
+  let breakeven: string | null = null;
+  if (lo != null && hi != null) breakeven = `${fmtStrike(lo)} – ${fmtStrike(hi)}`;
+  else if (lo != null) breakeven = fmtStrike(lo);
+  else if (hi != null) breakeven = fmtStrike(hi);
+
+  let premium: string | null = null;
+  if (e.net_credit != null) premium = `Credit ${fmtUsd(e.net_credit)}`;
+  else if (e.net_debit != null) premium = `Debit ${fmtUsd(e.net_debit)}`;
+
+  return {
+    maxProfit: fmtUsd(e.max_profit),
+    maxRisk: fmtUsd(e.max_risk),
+    capitalAtRisk: fmtUsd(e.capital_at_risk),
+    breakeven,
+    premium,
+    pricedAsOf: formatPricedAsOf(e.priced_as_of),
+  };
+}
+
 export interface PresentedOption {
   observationId: number;
   underlying: string;
@@ -301,6 +359,7 @@ export interface PresentedOption {
   freshness: Freshness;              // Fresh | Stale | Unknown
   engine: EngineViewRow[];           // "what the engine is seeing"
   rejected: RejectedAlternative[];   // considered & rejected
+  economics: PresentedEconomics | null;  // Stage 2B — null when not derivable
 }
 
 /** Project one engine opportunity into a trader-facing view model. */
@@ -329,6 +388,7 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     freshness: quoteFreshness(o.quote_age_seconds),
     engine: engineView(o.ranking_breakdown),
     rejected: rejectedList(o.rejected_alternatives),
+    economics: presentEconomics(o.economics),
   };
 }
 

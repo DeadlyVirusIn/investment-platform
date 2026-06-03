@@ -150,6 +150,25 @@ export function OptionsSetupDetail() {
         </FadeIn>
       )}
 
+      {opt.economics && (
+        <FadeIn delay={0.1}>
+          <section className="mb-20">
+            <MetaLabel>The numbers</MetaLabel>
+            <ul className="mt-6 grid sm:grid-cols-2 gap-x-10 gap-y-3 max-w-copy">
+              <Num label="Max profit" value={opt.economics.maxProfit} color="var(--brand)" />
+              <Num label="Max risk" value={opt.economics.maxRisk} color={AMBER} />
+              <Num label="Capital at risk" value={opt.economics.capitalAtRisk} />
+              {opt.economics.breakeven && <Num label="Breakeven" value={opt.economics.breakeven} />}
+              {opt.economics.premium && <Num label="Premium" value={opt.economics.premium} />}
+              {opt.economics.pricedAsOf && <Num label="Priced as of" value={opt.economics.pricedAsOf} />}
+            </ul>
+            <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
+              Per contract, from the legs priced at generation. Defined-risk; paper only.
+            </p>
+          </section>
+        </FadeIn>
+      )}
+
       {opt.whyPoints.length > 0 && (
         <FadeIn delay={0.14}>
           <section className="mb-20">
@@ -218,8 +237,8 @@ export function OptionsSetupDetail() {
           </p>
           <p className="ink-muted text-[13px] leading-relaxed mt-2">
             Paper only — this surface observes and explains; it never opens or
-            executes a position. Profit, risk and breakeven figures are not
-            shown yet (the setup carries only the short leg).
+            executes a position. Figures are per-contract estimates from the
+            legs priced at generation.
           </p>
           <Link to={OPTIONS_TAB_HREF} className="text-meta ink-primary mt-4 inline-block" style={{ fontWeight: 600 }}>
             Back to options in Opportunities →
@@ -227,6 +246,16 @@ export function OptionsSetupDetail() {
         </section>
       </FadeIn>
     </ArthosPage>
+  );
+}
+
+function Num({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <li className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
+      <span className="ink-muted text-[13.5px]">{label}</span>
+      <span className={color ? 'tabular-nums' : 'ink-primary tabular-nums'}
+        style={{ fontSize: 14, fontWeight: 600, color: color || undefined }}>{value}</span>
+    </li>
   );
 }
 

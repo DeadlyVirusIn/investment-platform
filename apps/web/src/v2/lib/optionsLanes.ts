@@ -58,6 +58,21 @@ export interface OptionsOpportunity {
     event?: number;
   } | null;
   rejected_alternatives?: Array<{ rule_id?: string; reason?: string }> | null;
+  // Phase C Stage 2B — economics derived from persisted legs (API-side).
+  // null until legs exist + are complete + computable. POP reserved.
+  economics?: {
+    max_profit: number;
+    max_risk: number;
+    capital_at_risk: number;
+    breakeven_lower: number | null;
+    breakeven_upper: number | null;
+    net_credit: number | null;
+    net_debit: number | null;
+    priced_as_of: string | null;
+    pop: number | null;
+    basis: string;
+    legs_complete: boolean;
+  } | null;
 }
 
 interface OpportunitiesResponse {
