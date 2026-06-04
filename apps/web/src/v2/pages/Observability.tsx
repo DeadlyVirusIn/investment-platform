@@ -15,8 +15,8 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import {
   useObservability,
   type ObsAlert,
-  type Observability as ObservabilityData,
 } from '../lib/observability';
+import { pipelineHealth } from '../lib/observabilityHealth';
 
 // ── status → color mapping (theme-aware via tokens + mid-tone amber) ──
 type Tone = 'good' | 'warn' | 'bad' | 'muted';
@@ -142,32 +142,6 @@ function SectionTitle({ n, title }: { n: string; title: string }) {
 const ALERT_ORDER: Record<ObsAlert['severity'], number> = {
   failed: 0, stale: 1, warning: 2,
 };
-
-// ── pipeline health score (0–100, derived only from real fields) ──
-function pipelineHealth(d: ObservabilityData): {
-  score: number; label: string; tone: Tone;
-} {
-  const known = d.freshness.matrix.filter((m) => m.status !== 'unknown');
-  const freshFrac = known.length
-    ? known.filter((m) => m.status === 'fresh').length / known.length
-    : 1;
-  const jobFrac = d.jobs.length
-    ? 1 - d.failed_jobs_count / d.jobs.length
-    : 1;
-  const dbOk = d.db.head_matches ? 1 : 0;
-  const workerOk =
-    d.workers.tickloop_alive === true ? 1
-      : d.workers.tickloop_alive === null ? 0.5 : 0;
-  const canaryOk = d.canary.status === 'dormant' ? 1
-    : d.canary.status === 'unknown' ? 0.5 : 0;
-  const score = Math.round(
-    100 * (0.4 * freshFrac + 0.25 * jobFrac + 0.15 * dbOk
-      + 0.1 * workerOk + 0.1 * canaryOk),
-  );
-  const tone: Tone = score >= 85 ? 'good' : score >= 60 ? 'warn' : 'bad';
-  const label = score >= 85 ? 'Healthy' : score >= 60 ? 'Degraded' : 'At risk';
-  return { score, label, tone };
-}
 
 // ── overdue detection (5-min grace past next_run_at, enabled jobs only) ──
 function isOverdue(nextRunIso: string | null, enabled: boolean): boolean {

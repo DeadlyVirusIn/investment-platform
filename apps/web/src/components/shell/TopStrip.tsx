@@ -5,6 +5,10 @@ import {
   usePaperSummary, useCurrentState, useAnomalySummary,
   useCanonicalStockPortfolio,
 } from "@/lib/operator/hooks";
+// HEALTH badge shares the Observability page's single source so the two can
+// never disagree. Anomalies are surfaced separately (Alerts cell).
+import { useObservability } from "@/v2/lib/observability";
+import { pipelineHealth } from "@/v2/lib/observabilityHealth";
 import { Pill, fmtUSD, fmtPct, toneForNumber } from "@/components/ui/primitives";
 import { useUIMode } from "@/lib/ui/mode";
 import { useTheme } from "@/lib/ui/theme";
@@ -22,7 +26,8 @@ function Cell({
   tooltip?: string;
   // Phase 14f-B — slot identifier used by mobile CSS to hide
   // non-essential cells. "essential" cells stay visible at <=768.
-  slot?: "nav" | "day-pnl" | "total-return" | "regime" | "engine" | "health";
+  slot?: "nav" | "day-pnl" | "total-return" | "regime" | "engine" | "health"
+       | "alerts";
 }) {
   return (
     <div
@@ -49,6 +54,8 @@ export default function TopStrip() {
   const { data: summary } = usePaperSummary();
   const { data: state } = useCurrentState();
   const { data: anomalies } = useAnomalySummary();
+  // Operational health — same backend source the Observability page reads.
+  const { data: obs } = useObservability();
 
   // Freshness reflects the canonical snapshot the NAV is read from. The
   // backend already classifies it (fresh / degraded / stale / unknown);
@@ -62,10 +69,23 @@ export default function TopStrip() {
   const regime = state?.stress_regime ? "stress"
     : state?.directional_regime ? "directional"
     : "neutral";
+  // HEALTH — operational health ONLY, derived via the shared pipelineHealth
+  // from /api/admin/observability. Identical to the Observability page hero,
+  // so the badge and the page can never disagree. Anomalies do NOT feed this.
+  const health = obs ? pipelineHealth(obs) : null;
+  const healthTone = health
+    ? (health.tone === "good" ? "success"
+        : health.tone === "warn" ? "warning"
+        : health.tone === "bad" ? "danger" : "neutral")
+    : "neutral";
+  const healthLabel = health ? health.label : "—";
+
+  // ALERTS — open anomaly_event counts, surfaced independently of platform
+  // health (strategy/data observations, not operational degradation).
   const crit = anomalies?.by_severity?.critical ?? 0;
   const warn = anomalies?.by_severity?.warning ?? 0;
-  const healthTone = crit > 0 ? "danger" : warn > 0 ? "warning" : "success";
-  const healthLabel = crit > 0 ? "Degraded" : warn > 0 ? "Warnings" : "Healthy";
+  const openAlerts = anomalies?.total_open ?? 0;
+  const alertsTone = crit > 0 ? "danger" : warn > 0 ? "warning" : "neutral";
 
   return (
     <div className="topstrip-root bg-ink/95 backdrop-blur
@@ -124,8 +144,23 @@ export default function TopStrip() {
           ? <Pill tone="success" dot>Engine {state.engine}</Pill>
           : <span className="text-fg-3">No evaluation path currently active</span>}
       </Cell>
-      <Cell label="Health" slot="health" className="min-w-[120px]">
+      <Cell
+        label="Health"
+        slot="health"
+        className="min-w-[120px]"
+        tooltip="Operational health — data freshness, jobs, DB, workers. Same source as the Observability page."
+      >
         <Pill tone={healthTone} dot>{healthLabel}</Pill>
+      </Cell>
+      <Cell
+        label="Alerts"
+        slot="alerts"
+        className="min-w-[100px]"
+        tooltip="Open anomaly events (strategy / data observations). Independent of platform health."
+      >
+        <Pill tone={alertsTone} dot={openAlerts > 0}>
+          {openAlerts > 0 ? `${openAlerts} open` : "None"}
+        </Pill>
       </Cell>
       <div className="topstrip-toggles ml-auto px-4 py-3 flex items-center gap-3
                         u-caption-2 font-mono">
