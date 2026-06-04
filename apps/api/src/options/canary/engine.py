@@ -198,9 +198,13 @@ def release_one(
 # ===========================================================================
 
 def _load_promotable_requests(*, portfolio_id, run_date, session_factory):
-    """P6B SEAM: select eligible candidates → build (TradeRequest,
-    proposal_hash) pairs. P6A returns [] → no auto-open."""
-    return []
+    """Delegates to canary.selection (P6B.0). Lazy import avoids an import
+    cycle (selection imports paper.engine.TradeRequest)."""
+    from apps.api.src.options.canary import selection
+    return selection._load_promotable_requests(
+        portfolio_id=portfolio_id, run_date=run_date,
+        session_factory=session_factory,
+    )
 
 
 def run_promotion_cycle(
@@ -277,9 +281,37 @@ def run_lifecycle_cycle(
     """One lifecycle pass: ordered reconciliation (heal orphan positions →
     drift/orphan-trade/reserved-mismatch alerts).
 
-    P6B SEAM: MTM observation + exit-policy evaluation + release_one wiring
-    plug in here (need a live quote source + exit thresholds). P6A reconciles
-    only — no exit decisions."""
+    P6B.0: manages EXISTING open positions (MTM + TP/DTE/expiry → release_one)
+    regardless of OPTIONS_CANARY_ENABLED — the gate controls promotion only,
+    so disabling it never freezes an open position's wind-down. Each position
+    is managed in its own transaction; reconcile runs last (ordered)."""
+    from apps.api.src.config import settings
+    from apps.api.src.options.canary import lifecycle
+
+    tp_pct = float(settings.OPTIONS_CANARY_TP_PCT)
+    dte_close = int(settings.OPTIONS_CANARY_DTE_CLOSE)
+
+    with session_factory() as s:
+        open_tids = [r[0] for r in s.execute(text(
+            "SELECT trade_id FROM options_paper_position "
+            "WHERE portfolio_id = :pid AND released_at IS NULL"
+        ), {"pid": portfolio_id}).all()]
+
+    for tid in open_tids:
+        with session_factory() as s:
+            try:
+                res = lifecycle.manage_one(
+                    s, portfolio_id=portfolio_id, trade_id=tid, now=now,
+                    tp_pct=tp_pct, dte_close=dte_close,
+                )
+                s.commit()
+                if res.get("released"):
+                    logger.info("lifecycle released tid={} reason={}",
+                                tid, res.get("reason"))
+            except Exception as exc:   # noqa: BLE001
+                s.rollback()
+                logger.error("manage_one failed tid={}: {}", tid, exc)
+
     with session_factory() as s:
         report = reconcile.run(s, now=now, heal=heal)
         s.commit()

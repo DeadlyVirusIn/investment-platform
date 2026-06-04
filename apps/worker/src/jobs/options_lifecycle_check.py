@@ -24,15 +24,19 @@ _LIFECYCLE_LOCK_KEY = 2
 async def run_options_lifecycle_check() -> None:
     from apps.api.src.config import settings
 
-    if not getattr(settings, "OPTIONS_CANARY_ENABLED", False):
-        logger.info(
-            "run_options_lifecycle_check: OPTIONS_CANARY_ENABLED=false — "
-            "inert, skipping (no reconcile, no close)"
-        )
-        return
+    # GATE SPLIT (P6B.0): the lifecycle path manages EXISTING open positions
+    # regardless of OPTIONS_CANARY_ENABLED — the gate controls promotion only,
+    # so disabling it never freezes an open position's wind-down. With 0 open
+    # positions (the P6A/P6B.0 baseline) this is a reconcile-only no-op.
+    gate = getattr(settings, "OPTIONS_CANARY_ENABLED", False)
+    logger.info(
+        "run_options_lifecycle_check: gate(promotion)={} — managing existing "
+        "open positions regardless", gate,
+    )
 
     from apps.api.src.db import SessionLocal
     from apps.api.src.options.canary import engine as canary_engine
+    from apps.api.src.options.canary import reconcile
 
     now = dt.datetime.now(dt.timezone.utc)
 
@@ -51,8 +55,8 @@ async def run_options_lifecycle_check() -> None:
         with SessionLocal() as s:
             portfolio_ids = [
                 r[0] for r in s.execute(text(
-                    "SELECT id FROM options_paper_portfolio WHERE active = TRUE "
-                    "ORDER BY created_at"
+                    "SELECT DISTINCT portfolio_id FROM options_paper_position "
+                    "WHERE released_at IS NULL"
                 )).all()
             ]
 
@@ -72,8 +76,21 @@ async def run_options_lifecycle_check() -> None:
             except Exception as exc:   # noqa: BLE001
                 logger.error("lifecycle cycle failed pid={}: {}", pid, exc)
 
+        if not portfolio_ids:
+            # No open positions → still reconcile globally to surface orphans.
+            with SessionLocal() as s:
+                rep = reconcile.run(s, now=now, heal=True)
+                s.commit()
+            if not rep.clean or rep.orphan_positions_healed:
+                logger.warning(
+                    "lifecycle global reconcile: healed={} orphan_trades={} "
+                    "drift={} reserved_mismatch={}",
+                    rep.orphan_positions_healed, rep.orphan_trades,
+                    rep.cash_drift, rep.reserved_mismatch,
+                )
+
         logger.info(
-            "run_options_lifecycle_check complete: portfolios={}",
+            "run_options_lifecycle_check complete: managed_portfolios={}",
             len(portfolio_ids),
         )
     finally:

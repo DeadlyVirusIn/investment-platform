@@ -438,8 +438,11 @@ class Settings(BaseSettings):
     OPTIONS_CANARY_ENABLED: bool = False
     # Single underlying for canary universe.
     OPTIONS_CANARY_UNIVERSE: str = "SPY"
-    # Single strategy family allowed.
-    OPTIONS_CANARY_STRATEGY: str = "BULL_CALL_SPREAD"
+    # Single strategy family allowed. P6B.0: aligned to an engine
+    # defined-risk strategy (BULL_CALL_SPREAD is NOT in the engine's
+    # DEFINED_RISK_STRATEGIES; SHORT_PUT_CREDIT_SPREAD is bullish + engine-
+    # validated + generator-emitted). Seed migrated in 092.
+    OPTIONS_CANARY_STRATEGY: str = "SHORT_PUT_CREDIT_SPREAD"
     # Hard slot cap per portfolio (enforced in promoter).
     OPTIONS_CANARY_MAX_OPEN: int = 1
     # Max dollar reservation per trade (enforced via max_loss_dollars).
@@ -448,6 +451,13 @@ class Settings(BaseSettings):
     # long-dated theta-bound holds).
     OPTIONS_CANARY_MIN_DTE: int = 21
     OPTIONS_CANARY_MAX_DTE: int = 45
+    # P6B.0 selection + exit knobs (inert until OPTIONS_CANARY_ENABLED).
+    # Minimum candidate confidence to be promotable.
+    OPTIONS_CANARY_MIN_CONFIDENCE: float = 0.60
+    # Take-profit: close when captured >= this fraction of max profit.
+    OPTIONS_CANARY_TP_PCT: float = 0.50
+    # DTE management: close at/under this many days to expiry.
+    OPTIONS_CANARY_DTE_CLOSE: int = 7
 
     # ------------------------------------------------------------------
     # PHASE 11W (Phase E) — Manual research-run activation (research-only)
