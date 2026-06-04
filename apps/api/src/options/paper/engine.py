@@ -28,6 +28,7 @@ from typing import Sequence
 
 from loguru import logger
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
@@ -112,6 +113,7 @@ REJECT_KILL_SWITCH      = "OPTIONS_PAPER_ONLY_DISABLED"
 REJECT_QUOTE_MISSING    = "QUOTE_MISSING"
 REJECT_FILL_FAILED      = "FILL_REJECTED"
 REJECT_NOT_DEFINED_RISK = "NOT_DEFINED_RISK"
+REJECT_DUPLICATE        = "PROPOSAL_DUPLICATE"
 
 
 def _kill_switch_blocks_writes() -> bool:
@@ -132,8 +134,18 @@ def open_trade(
     fee_per_contract: Decimal = DEFAULT_FEE_PER_CONTRACT,
     session_factory=SessionLocal,
     now_utc: datetime.datetime | None = None,
+    proposal_hash: str | None = None,
+    session: Session | None = None,
 ) -> OpenResult:
-    """Validate strategy shape → compute fills per leg → persist trade."""
+    """Validate strategy shape → compute fills per leg → persist trade.
+
+    When ``session`` is provided the inserts run inside the caller's
+    transaction (the caller owns commit/rollback and any SAVEPOINT for
+    duplicate handling); a unique ``proposal_hash`` violation surfaces via
+    ``flush()`` so the caller's ``begin_nested()`` can catch it. When
+    ``session`` is None the standalone path opens its own session, commits,
+    and returns ``REJECT_DUPLICATE`` on a duplicate proposal_hash.
+    """
     if _kill_switch_blocks_writes():
         return OpenResult(
             trade_id=None, accepted=False,
@@ -178,35 +190,36 @@ def open_trade(
 
     now = now_utc or datetime.datetime.now(datetime.timezone.utc)
 
-    with session_factory() as session:
-        trade_id = _insert_trade_row(
-            session,
-            underlying=req.underlying,
-            strategy_name=req.strategy_name,
-            strategy_version=req.strategy_version,
-            entry_credit_dollars=entry_credit,
-            fees_open_dollars=fees_open,
-            risk=risk,
-            now_utc=now,
-        )
-        for idx, (leg, f, q) in enumerate(zip(req.legs, fills, [
-            req.quotes_by_symbol[leg.option_symbol] for leg in req.legs
-        ])):
-            _insert_leg_row(
-                session,
-                trade_id=trade_id, leg_index=idx, leg=leg, quote=q,
-                entry_fill_price=f.fill_price, now_utc=now,    # type: ignore[arg-type]
+    owns = session is None
+    if owns:
+        s = session_factory()
+        try:
+            trade_id = _open_trade_in_session(
+                s, req=req, fills=fills, risk=risk,
+                entry_credit=entry_credit, fees_open=fees_open,
+                proposal_hash=proposal_hash, now=now,
             )
-        _insert_lifecycle_event(
-            session, trade_id=trade_id, event_type=LIFECYCLE_FILLED,
-            triggered_by="OPERATOR_API", payload={
-                "entry_credit_dollars": str(entry_credit),
-                "fees_open_dollars": str(fees_open),
-                "fill_model_version": FILL_MODEL_VERSION,
-                "rationale_note": req.rationale_note,
-            }, now_utc=now,
+            s.commit()
+        except IntegrityError:
+            s.rollback()
+            logger.warning(
+                "open_trade rejected — duplicate proposal_hash={}", proposal_hash,
+            )
+            return OpenResult(
+                trade_id=None, accepted=False,
+                rejected_reasons=(REJECT_DUPLICATE,),
+            )
+        finally:
+            s.close()
+    else:
+        # Injected session: caller owns the transaction. flush() inside
+        # surfaces a unique proposal_hash violation NOW so the caller's
+        # begin_nested() SAVEPOINT can roll it back. No commit here.
+        trade_id = _open_trade_in_session(
+            session, req=req, fills=fills, risk=risk,
+            entry_credit=entry_credit, fees_open=fees_open,
+            proposal_hash=proposal_hash, now=now,
         )
-        session.commit()
 
     logger.info(
         "open_trade: id={} strategy={} underlying={} legs={} credit={} max_loss={}",
@@ -232,14 +245,21 @@ def record_mtm(
     leg_greeks: Sequence[GreeksSnapshot] | None = None,
     session_factory=SessionLocal,
     now_utc: datetime.datetime | None = None,
+    session: Session | None = None,
 ) -> dict:
     """Append an MTM lifecycle event with current mids + aggregated Greeks.
     Pure observation — does NOT modify trade status or fills.
+
+    When ``session`` is injected the event is written in the caller's
+    transaction (no commit here); otherwise a standalone session is opened
+    and committed.
     """
     if _kill_switch_blocks_writes():
         return {"accepted": False, "reason": REJECT_KILL_SWITCH}
     now = now_utc or datetime.datetime.now(datetime.timezone.utc)
-    with session_factory() as session:
+    owns = session is None
+    session = session if session is not None else session_factory()
+    try:
         legs = _read_legs(session, trade_id)
         leg_specs = [_leg_to_spec(l) for l in legs]
         mtm_payload: dict = {"per_leg": []}
@@ -262,7 +282,15 @@ def record_mtm(
             session, trade_id=trade_id, event_type=LIFECYCLE_MTM,
             triggered_by="SCHEDULED_JOB", payload=mtm_payload, now_utc=now,
         )
-        session.commit()
+        if owns:
+            session.commit()
+    except Exception:
+        if owns:
+            session.rollback()
+        raise
+    finally:
+        if owns:
+            session.close()
     return {"accepted": True, "trade_id": trade_id, "mtm": mtm_payload}
 
 
@@ -278,12 +306,15 @@ def close_trade(
     fee_per_contract: Decimal = DEFAULT_FEE_PER_CONTRACT,
     session_factory=SessionLocal,
     now_utc: datetime.datetime | None = None,
+    session: Session | None = None,
 ) -> dict:
     if _kill_switch_blocks_writes():
         return {"accepted": False, "reason": REJECT_KILL_SWITCH}
     now = now_utc or datetime.datetime.now(datetime.timezone.utc)
 
-    with session_factory() as session:
+    owns = session is None
+    session = session if session is not None else session_factory()
+    try:
         trade = _read_trade(session, trade_id)
         if trade.status in (STATUS_CLOSED, STATUS_EXPIRED, STATUS_ASSIGNED):
             return {"accepted": False, "reason": "TRADE_TERMINAL",
@@ -344,7 +375,15 @@ def close_trade(
                 "fees_total_dollars": str(fees_total),
             }, now_utc=now,
         )
-        session.commit()
+        if owns:
+            session.commit()
+    except Exception:
+        if owns:
+            session.rollback()
+        raise
+    finally:
+        if owns:
+            session.close()
 
     logger.info(
         "close_trade: id={} reason={} realized={}",
@@ -369,12 +408,15 @@ def expire_trade(
     fee_per_contract: Decimal = DEFAULT_FEE_PER_CONTRACT,
     session_factory=SessionLocal,
     now_utc: datetime.datetime | None = None,
+    session: Session | None = None,
 ) -> dict:
     if _kill_switch_blocks_writes():
         return {"accepted": False, "reason": REJECT_KILL_SWITCH}
     now = now_utc or datetime.datetime.now(datetime.timezone.utc)
 
-    with session_factory() as session:
+    owns = session is None
+    session = session if session is not None else session_factory()
+    try:
         trade = _read_trade(session, trade_id)
         if trade.status in (STATUS_CLOSED, STATUS_EXPIRED, STATUS_ASSIGNED):
             return {"accepted": False, "reason": "TRADE_TERMINAL",
@@ -476,7 +518,15 @@ def expire_trade(
                 "flags": list(outcome.flags),
             }, now_utc=now,
         )
-        session.commit()
+        if owns:
+            session.commit()
+    except Exception:
+        if owns:
+            session.rollback()
+        raise
+    finally:
+        if owns:
+            session.close()
 
     logger.info(
         "expire_trade: id={} status={} settlement={} realized={} flags={}",
@@ -499,6 +549,52 @@ def expire_trade(
 # Internal — DB helpers
 # ===========================================================================
 
+def _open_trade_in_session(
+    session: Session,
+    *,
+    req: TradeRequest,
+    fills: list[FillResult],
+    risk: RiskMetrics,
+    entry_credit: Decimal,
+    fees_open: Decimal,
+    proposal_hash: str | None,
+    now: datetime.datetime,
+) -> int:
+    """Insert trade + legs + FILLED event in the given session, then flush
+    so a unique proposal_hash violation raises IntegrityError immediately.
+    No commit — caller owns the transaction boundary."""
+    trade_id = _insert_trade_row(
+        session,
+        underlying=req.underlying,
+        strategy_name=req.strategy_name,
+        strategy_version=req.strategy_version,
+        entry_credit_dollars=entry_credit,
+        fees_open_dollars=fees_open,
+        risk=risk,
+        now_utc=now,
+        proposal_hash=proposal_hash,
+    )
+    for idx, (leg, f, q) in enumerate(zip(req.legs, fills, [
+        req.quotes_by_symbol[leg.option_symbol] for leg in req.legs
+    ])):
+        _insert_leg_row(
+            session,
+            trade_id=trade_id, leg_index=idx, leg=leg, quote=q,
+            entry_fill_price=f.fill_price, now_utc=now,    # type: ignore[arg-type]
+        )
+    _insert_lifecycle_event(
+        session, trade_id=trade_id, event_type=LIFECYCLE_FILLED,
+        triggered_by="OPERATOR_API", payload={
+            "entry_credit_dollars": str(entry_credit),
+            "fees_open_dollars": str(fees_open),
+            "fill_model_version": FILL_MODEL_VERSION,
+            "rationale_note": req.rationale_note,
+        }, now_utc=now,
+    )
+    session.flush()
+    return trade_id
+
+
 def _insert_trade_row(
     session: Session,
     *,
@@ -509,6 +605,7 @@ def _insert_trade_row(
     fees_open_dollars: Decimal,
     risk: RiskMetrics,
     now_utc: datetime.datetime,
+    proposal_hash: str | None = None,
 ) -> int:
     row = session.execute(text(
         """
@@ -517,13 +614,13 @@ def _insert_trade_row(
             status, opened_at, entry_credit_dollars,
             fees_total_dollars, max_loss_dollars, max_profit_dollars,
             breakeven_lower, breakeven_upper,
-            fill_model_version, paper_only
+            fill_model_version, paper_only, proposal_hash
         ) VALUES (
             :underlying, :strategy_name, :strategy_version,
             :status, :opened_at, :entry_credit_dollars,
             :fees_total_dollars, :max_loss_dollars, :max_profit_dollars,
             :breakeven_lower, :breakeven_upper,
-            :fill_model_version, TRUE
+            :fill_model_version, TRUE, :proposal_hash
         )
         RETURNING id
         """
@@ -540,6 +637,7 @@ def _insert_trade_row(
         "breakeven_lower": risk.breakeven_lower,
         "breakeven_upper": risk.breakeven_upper,
         "fill_model_version": FILL_MODEL_VERSION,
+        "proposal_hash": proposal_hash,
     }).one()
     return int(row.id)
 

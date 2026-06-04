@@ -250,6 +250,12 @@ from apps.worker.src.jobs.compute_options_features import (
 from apps.worker.src.jobs.options_candidate_generation import (
     run_options_candidate_generation_job,
 )
+from apps.worker.src.jobs.options_canary_promotion import (
+    run_options_canary_promotion,
+)
+from apps.worker.src.jobs.options_lifecycle_check import (
+    run_options_lifecycle_check,
+)
 from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
 from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
 from apps.worker.src.jobs.v2_promotion_snapshot import (
@@ -316,4 +322,13 @@ REGISTRY: dict[str, JobFn] = {
     # Idempotent (ON CONFLICT DO NOTHING + skip_existing). Schedule
     # lands separately (after options_shadow_eval).
     "options_candidate_generation": run_options_candidate_generation_job,
+    # Phase P6A — options canary position-lifecycle handlers. Cron rows
+    # already exist (migration 069); these wire the previously-missing
+    # handlers so the no-handler spam stops. BOTH are gated internally on
+    # OPTIONS_CANARY_ENABLED (default false) → fully inert: no promotion,
+    # no reconcile, no auto-open. Activation (gate flip + promotion/exit
+    # policy) is P6B. Cron targets (069): promotion `00 22 * * 1-5`,
+    # lifecycle `30 13 * * 1-5`.
+    "run_options_canary_promotion": run_options_canary_promotion,
+    "run_options_lifecycle_check": run_options_lifecycle_check,
 }
