@@ -223,6 +223,11 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Phase C Stage 2A — persist materialized candidate legs. Default OFF.
       OPTIONS_PERSIST_LEGS: ${OPTIONS_PERSIST_LEGS:-false}
+      # P6B.6 env parity — worker-cron shares the job_schedule tick-loop with
+      # worker-tickloop; without these flags a cron-claimed options_shadow_eval
+      # ran in dry-mode (persist=False) → 0 shadow rows. Mirror tickloop/api.
+      OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
+      OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
       ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
