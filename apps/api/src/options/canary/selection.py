@@ -23,6 +23,7 @@ from apps.api.src.config import settings
 from apps.api.src.options.canary import positions as pos
 from apps.api.src.options.data_provider.base_adapter import OptionChainQuote
 from apps.api.src.options.paper.engine import TradeRequest
+from apps.api.src.options.paper.fills import compute_fill
 from apps.api.src.options.paper.strategies import LegSpec
 
 STRATEGY_VERSION = "canary-v1"
@@ -149,8 +150,18 @@ def _load_promotable_requests(*, portfolio_id, run_date, session_factory):
                 continue
             syms = [lr["option_symbol"] for lr in legs_rows]
             quotes = latest_chain_quotes(s, syms)
-            if any(sym not in quotes or quotes[sym].mid is None for sym in syms):
-                continue   # unpriced leg → skip
+            # P6D.12 fillability parity — every leg must clear the SAME
+            # liquidity gate the paper engine enforces at open (OI>=500,
+            # spread<=$0.10, age<=60s, valid bid/ask). Reuses compute_fill so
+            # selector-promotable == engine-fillable; no duplicated thresholds.
+            if any(
+                quotes.get(lr["option_symbol"]) is None
+                or not compute_fill(
+                    quotes[lr["option_symbol"]], side=lr["side"]
+                ).accepted
+                for lr in legs_rows
+            ):
+                continue   # unpriced or unfillable leg → skip
             req = _build_request(underlying=c["underlying"], strategy=strategy,
                                  legs_rows=legs_rows, quotes=quotes)
             phash = pos.proposal_hash(
