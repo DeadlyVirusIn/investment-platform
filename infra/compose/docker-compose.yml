@@ -94,6 +94,10 @@ services:
       # True, discipline gates (paper-only lock, no exec wrapper)
       # prevent live trading.
       OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
+      # P6D.1 staging — canary universe. Selector keys off this setting, NOT
+      # the portfolio.universe column. Promotion gate stays
+      # OPTIONS_CANARY_ENABLED unset→false (inert).
+      OPTIONS_CANARY_UNIVERSE: ${OPTIONS_CANARY_UNIVERSE:-SPY}
       # Phase Opt-B3a — provider abstraction. v1 = thetadata; B3a
       # introduces 'finnhub' (free tier, EOD-fresh). Adapter chosen
       # at chain_ingest._build_adapter() per this value.
@@ -172,6 +176,9 @@ services:
       # missing .env keys do not change behavior.
       OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
       OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
+      # P6D.1 staging — canary universe (selector reads this, not the portfolio
+      # column). Gate stays OPTIONS_CANARY_ENABLED unset→false.
+      OPTIONS_CANARY_UNIVERSE: ${OPTIONS_CANARY_UNIVERSE:-SPY}
       OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
       # Phase 4 — generator output taxonomy. Default-safe: absent .env key
       # → 'directional' (legacy). Set OPTIONS_GENERATOR_STRUCTURES=both in
@@ -228,6 +235,9 @@ services:
       # ran in dry-mode (persist=False) → 0 shadow rows. Mirror tickloop/api.
       OPTIONS_ENABLED: ${OPTIONS_ENABLED:-false}
       OPTIONS_SHADOW_EVAL_ENABLED: ${OPTIONS_SHADOW_EVAL_ENABLED:-false}
+      # P6D.1 staging — canary universe (selector reads this, not the portfolio
+      # column). Gate stays OPTIONS_CANARY_ENABLED unset→false.
+      OPTIONS_CANARY_UNIVERSE: ${OPTIONS_CANARY_UNIVERSE:-SPY}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
       ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
