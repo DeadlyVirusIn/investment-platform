@@ -245,7 +245,9 @@ class OptionsPaperTrade(Base):
     rollback_reason: Mapped[str | None] = mapped_column(Text)
     # Phase Opt-B1 — idempotency key set by persist_option().
     # NULL on rows pre-dating the sole-writer contract.
-    proposal_hash: Mapped[str | None] = mapped_column(String(32))
+    # P6D.19 — widened 32->64: canary positions.proposal_hash is a 64-char
+    # SHA-256 hex digest (migration 093).
+    proposal_hash: Mapped[str | None] = mapped_column(String(64))
     paper_only: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True,
     )
