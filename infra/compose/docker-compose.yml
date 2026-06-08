@@ -245,6 +245,10 @@ services:
       # Missing here → defaults 'directional' → credit pass (SPCS/IC) skipped
       # whenever worker-cron claims candidate generation. .env sets 'both'.
       OPTIONS_GENERATOR_STRUCTURES: ${OPTIONS_GENERATOR_STRUCTURES:-directional}
+      # P6D.16 fix — data-provider parity (mirror api/worker-tickloop). Missing
+      # here → defaults 'thetadata' (broken adapter: no _raw_chain_pull) → cron
+      # chain ingestion fails. .env sets 'tradier'.
+      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-tradier}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
       ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
