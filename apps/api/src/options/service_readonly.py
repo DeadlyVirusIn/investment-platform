@@ -226,9 +226,16 @@ def list_paper_trades(
     *,
     status: str | None = None,
     underlying: str | None = None,
+    strategy: str | None = None,
     limit: int = 200,
 ) -> list[dict[str, Any]]:
-    """List paper trade headers, newest first."""
+    """List paper trade headers, newest first.
+
+    Additive read-only enrichment: each header is LEFT JOINed to the
+    1:1 canary ``options_paper_position`` row (when present) so the
+    trade-history surface can show position_id / released_at /
+    release_reason. Non-canary trades have no position row → NULLs.
+    """
     where = []
     params: dict[str, Any] = {"limit": int(limit)}
     if status is not None:
@@ -243,27 +250,33 @@ def list_paper_trades(
             ph = ", ".join(
                 f":status_{i}" for i in range(len(db_statuses))
             )
-            where.append(f"status IN ({ph})")
+            where.append(f"t.status IN ({ph})")
             for i, v in enumerate(db_statuses):
                 params[f"status_{i}"] = v
         else:
-            where.append("status = :status")
+            where.append("t.status = :status")
             params["status"] = status.upper()
     if underlying is not None:
-        where.append("underlying = :underlying")
+        where.append("t.underlying = :underlying")
         params["underlying"] = underlying
+    if strategy is not None:
+        where.append("t.strategy_name = :strategy")
+        params["strategy"] = strategy
     where_sql = (" WHERE " + " AND ".join(where)) if where else ""
     rows = session.execute(text(
         f"""
-        SELECT id, underlying, strategy_name, strategy_version, status,
-               opened_at, closed_at,
-               entry_credit_dollars, exit_debit_dollars, realized_pnl_dollars,
-               fees_total_dollars, max_loss_dollars, max_profit_dollars,
-               breakeven_lower, breakeven_upper,
-               fill_model_version, paper_only
-        FROM options_paper_trade
+        SELECT t.id, t.underlying, t.strategy_name, t.strategy_version,
+               t.status, t.opened_at, t.closed_at,
+               t.entry_credit_dollars, t.exit_debit_dollars,
+               t.realized_pnl_dollars,
+               t.fees_total_dollars, t.max_loss_dollars, t.max_profit_dollars,
+               t.breakeven_lower, t.breakeven_upper,
+               t.fill_model_version, t.paper_only, t.proposal_hash,
+               p.id AS position_id, p.released_at, p.release_reason
+        FROM options_paper_trade t
+        LEFT JOIN options_paper_position p ON p.trade_id = t.id
         {where_sql}
-        ORDER BY COALESCE(closed_at, opened_at) DESC NULLS LAST
+        ORDER BY COALESCE(t.closed_at, t.opened_at) DESC NULLS LAST
         LIMIT :limit
         """
     ), params).all()
@@ -289,6 +302,17 @@ def _trade_header_to_dto(r) -> dict[str, Any]:
         "breakeven_upper": _dec(r.breakeven_upper),
         "fill_model_version": r.fill_model_version,
         "paper_only": bool(r.paper_only),
+        # Additive trade-history fields (all may be NULL).
+        "proposal_hash": getattr(r, "proposal_hash", None),
+        "position_id": (
+            str(r.position_id)
+            if getattr(r, "position_id", None) is not None else None
+        ),
+        "released_at": (
+            r.released_at.isoformat()
+            if getattr(r, "released_at", None) else None
+        ),
+        "release_reason": getattr(r, "release_reason", None),
     }
 
 

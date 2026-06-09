@@ -394,11 +394,13 @@ def get_features(
 def list_paper_trades(
     status: str | None = Query(default=None, max_length=24),
     underlying: str | None = Query(default=None, max_length=12),
+    strategy: str | None = Query(default=None, max_length=64),
     limit: int = Query(default=200, ge=1, le=1000),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     trades = svc.list_paper_trades(
-        session, status=status, underlying=underlying, limit=limit,
+        session, status=status, underlying=underlying,
+        strategy=strategy, limit=limit,
     )
     return {
         "notice": PAPER_ONLY_NOTICE,

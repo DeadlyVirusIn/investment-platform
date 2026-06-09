@@ -6,10 +6,13 @@
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
+import { useState } from 'react';
 import {
   useOptionsPortfolio, useOptionsAdvisory, useOptionsPortfolioDetail,
+  useOptionsTradeHistory,
   type OptionsPortfolio, type AdvisoryPosition,
   type OptionsDetailPosition, type OptionsLeg,
+  type OptionsTradeHistoryItem,
 } from '../lib/optionsPortfolio';
 
 const AMBER = 'oklch(0.70 0.14 75)';
@@ -80,6 +83,7 @@ export function OptionsPortfolio() {
 
       <AdvisorySection />
       <DetailSection />
+      <TradeHistorySection />
     </ArthosPage>
   );
 }
@@ -372,5 +376,161 @@ function PositionDetailCard({ p }: { p: OptionsDetailPosition }) {
         {p.legs.map((l) => <LegRow key={l.option_symbol} l={l} />)}
       </ul>
     </SurfaceCard>
+  );
+}
+
+// ── Trade history (Phase 1) — read-only, every trade (open + closed) ────────
+
+const shortDate = (s: string | null | undefined): string =>
+  s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+
+const shortHash = (h: string | null | undefined): string =>
+  h ? `${h.slice(0, 8)}…` : '—';
+
+function isOpenStatus(status: string): boolean {
+  return ['PROPOSED', 'OPEN', 'EXPIRING'].includes(status.toUpperCase());
+}
+
+type HistoryFilter = 'all' | 'open' | 'closed';
+
+function TradeHistorySection() {
+  const [filter, setFilter] = useState<HistoryFilter>('all');
+  const { data, isLoading, isError } = useOptionsTradeHistory(
+    filter === 'all' ? undefined : { status: filter },
+  );
+  const trades = data?.trades ?? [];
+
+  return (
+    <section className="mt-8">
+      <div className="flex items-baseline justify-between gap-3 mb-1 flex-wrap">
+        <p className="font-semibold uppercase" style={{
+          fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+        }}>Trade history</p>
+        <div className="flex gap-1" role="group" aria-label="Filter trades by status">
+          {(['all', 'open', 'closed'] as HistoryFilter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className="rounded-md"
+              style={{
+                fontSize: 11, padding: '3px 10px',
+                textTransform: 'capitalize',
+                color: filter === f ? 'var(--ink-primary)' : 'var(--muted-foreground)',
+                background: filter === f
+                  ? 'color-mix(in oklch, var(--foreground) 8%, transparent)'
+                  : 'transparent',
+                fontWeight: filter === f ? 600 : 400,
+              }}
+            >{f}</button>
+          ))}
+        </div>
+      </div>
+      <p className="ink-fainter mb-3" style={{ fontSize: 12 }}>
+        Every options paper trade, open and closed. Read-only — nothing here trades or closes.
+      </p>
+
+      {isLoading && (
+        <SurfaceCard variant="muted" className="p-5">
+          <p className="ink-muted" style={{ fontSize: 13 }}>Loading trade history…</p>
+        </SurfaceCard>
+      )}
+      {isError && (
+        <SurfaceCard variant="default" className="p-5">
+          <p style={{ fontSize: 13, color: 'var(--destructive)', fontWeight: 600 }}>
+            Couldn't load trade history.
+          </p>
+        </SurfaceCard>
+      )}
+      {!isLoading && !isError && trades.length === 0 && (
+        <SurfaceCard variant="muted" className="p-6">
+          <p className="ink-primary" style={{ fontSize: 14 }}>
+            {filter === 'all' ? 'No options paper trades yet.'
+              : `No ${filter} options paper trades.`}
+          </p>
+          <p className="ink-muted mt-2" style={{ fontSize: 12.5 }}>
+            When the paper engine opens or closes a defined-risk options trade, it appears here.
+          </p>
+        </SurfaceCard>
+      )}
+
+      {!isLoading && !isError && trades.length > 0 && (
+        <SurfaceCard variant="default" className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr className="ink-fainter" style={{ textAlign: 'left' }}>
+                  {['ID', 'Status', 'Underlying', 'Strategy', 'Opened', 'Closed',
+                    'Entry credit', 'Realized P&L', 'Exit reason', 'Proposal'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 12px', fontWeight: 600, fontSize: 10,
+                      letterSpacing: '0.08em', textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                      textAlign: (i >= 6 && i <= 7) ? 'right' : 'left',
+                      borderBottom: '1px solid var(--border)',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {trades.map((t) => <TradeHistoryRow key={t.id} t={t} />)}
+              </tbody>
+            </table>
+          </div>
+        </SurfaceCard>
+      )}
+    </section>
+  );
+}
+
+function TradeHistoryRow({ t }: { t: OptionsTradeHistoryItem }) {
+  const open = isOpenStatus(t.status);
+  return (
+    <tr style={{ borderTop: '1px solid var(--border)' }}>
+      <td className="font-mono ink-muted" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+        #{t.id}
+      </td>
+      <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+        {open ? (
+          <span style={{
+            fontSize: 10.5, fontWeight: 600, padding: '2px 7px', borderRadius: 5,
+            color: 'var(--brand)',
+            background: 'color-mix(in oklch, var(--brand) 14%, transparent)',
+          }} title="Open — see Position detail above">open</span>
+        ) : (
+          <span className="ink-muted" style={{ fontSize: 11.5 }}>
+            {t.status.toLowerCase()}
+          </span>
+        )}
+      </td>
+      <td className="font-mono ink-primary" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+        {t.underlying}
+      </td>
+      <td className="ink-muted" style={{ padding: '9px 12px' }}>
+        {t.strategy_name.replace(/_/g, ' ').toLowerCase()}
+      </td>
+      <td className="ink-muted tabular-nums" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+        {shortDate(t.opened_at)}
+      </td>
+      <td className="ink-muted tabular-nums" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+        {shortDate(t.closed_at)}
+      </td>
+      <td className="tabular-nums" style={{ padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap' }}>
+        {money2(t.entry_credit_dollars)}
+      </td>
+      <td className="tabular-nums" style={{
+        padding: '9px 12px', textAlign: 'right', whiteSpace: 'nowrap',
+        color: pnlColor(t.realized_pnl_dollars), fontWeight: 600,
+      }}>
+        {open ? '—' : signedUsd(t.realized_pnl_dollars)}
+      </td>
+      <td className="ink-muted" style={{ padding: '9px 12px' }}>
+        {t.release_reason ?? '—'}
+      </td>
+      <td className="font-mono ink-fainter" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}
+        title={t.proposal_hash ?? undefined}>
+        {shortHash(t.proposal_hash)}
+      </td>
+    </tr>
   );
 }

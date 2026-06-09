@@ -163,3 +163,51 @@ export function useOptionsPortfolioDetail() {
     refetchInterval: 120_000,
   });
 }
+
+// ── Options Trade History (Phase 1) — read-only ────────────────────────────
+// Every options paper trade (open + closed), newest first. Additive over the
+// existing /options/paper-trades envelope ({ notice, count, trades }).
+
+export interface OptionsTradeHistoryItem {
+  id: number;
+  status: string;
+  underlying: string;
+  strategy_name: string;
+  strategy_version: string | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  entry_credit_dollars: number | null;
+  exit_debit_dollars: number | null;
+  realized_pnl_dollars: number | null;
+  release_reason: string | null;
+  position_id: string | null;
+  released_at: string | null;
+  proposal_hash: string | null;
+}
+
+interface OptionsTradeHistoryResponse {
+  notice: string;
+  count: number;
+  trades: OptionsTradeHistoryItem[];
+}
+
+export function useOptionsTradeHistory(opts?: {
+  status?: string; strategy?: string; underlying?: string;
+}) {
+  const status = opts?.status;
+  const strategy = opts?.strategy;
+  const underlying = opts?.underlying;
+  return useQuery<OptionsTradeHistoryResponse>({
+    queryKey: ['options', 'paper-trades', status ?? null, strategy ?? null, underlying ?? null],
+    queryFn: () => {
+      const qs = new URLSearchParams();
+      if (status) qs.set('status', status);
+      if (strategy) qs.set('strategy', strategy);
+      if (underlying) qs.set('underlying', underlying);
+      const suffix = qs.toString() ? `?${qs.toString()}` : '';
+      return apiGet<OptionsTradeHistoryResponse>(`/options/paper-trades${suffix}`);
+    },
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
