@@ -18,6 +18,7 @@ import {
   useCanonicalStockPortfolio,
   useExecutedPositions,
   type ExecutedPosition,
+  type CanonicalStockPortfolio,
 } from '@/lib/operator/hooks';
 
 function freshnessNote(f: string | undefined): string | null {
@@ -134,6 +135,11 @@ export function PaperBook() {
           </>
         )}
       </motion.section>
+
+      {/* ── P&L explanation — reconcile the headline day P&L honestly ── */}
+      {nav != null && book && (
+        <PnlExplanation book={book} positions={positions} />
+      )}
 
       {/* ── Attribution summary — what's moving the book ── */}
       {positions.length > 0 && <AttributionSummary positions={positions} />}
@@ -272,6 +278,68 @@ function RankCard({ title, rows, metric }: {
         </ul>
       )}
     </div>
+  );
+}
+
+// ── honest P&L reconciliation: today's holding move vs since-snapshot delta ──
+function PnlExplanation({ book, positions }: {
+  book: CanonicalStockPortfolio;
+  positions: ExecutedPosition[];
+}) {
+  const priced = positions.filter((p) => p.day_pnl != null);
+  const holdingMove = priced.reduce((a, p) => a + (p.day_pnl ?? 0), 0);
+  const snapPnl = book.daily_pnl ?? null;
+  const priorDate = book.daily_pnl_prior_snapshot_date ?? null;
+  const asOf = book.as_of ? new Date(book.as_of) : null;
+  const prior = priorDate ? new Date(priorDate) : null;
+  const spanDays = asOf && prior
+    ? Math.round((asOf.getTime() - prior.getTime()) / 86_400_000) : null;
+  const multiDay = spanDays != null && spanDays > 1;
+  const fmtDate = (d: string | null) => d
+    ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : 'the last snapshot';
+
+  return (
+    <section className="mb-20">
+      <MetaLabel>Where the P&amp;L comes from</MetaLabel>
+      <ul className="mt-6 space-y-3 max-w-narrative">
+        <li className="flex items-baseline justify-between gap-4">
+          <span className="ink-muted text-[14px]">
+            Today's holding move
+            <span className="ink-fainter text-[12px] ml-2">
+              {priced.length}/{positions.length} priced
+            </span>
+          </span>
+          <span className={`tabular-nums text-[14px] ${toneCls(holdingMove)}`}>
+            {priced.length === 0 ? '—' : fmtSignedMoney(holdingMove)}
+          </span>
+        </li>
+        <li className="flex items-baseline justify-between gap-4">
+          <span className="ink-muted text-[14px]">Open unrealized (cost vs current)</span>
+          <span className={`tabular-nums text-[14px] ${toneCls(book.unrealized_pnl)}`}>
+            {fmtSignedMoney(book.unrealized_pnl)}
+          </span>
+        </li>
+        <li className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
+          <span className="ink-muted text-[14px]">
+            Account change since {fmtDate(priorDate)}
+            {multiDay && (
+              <span className="ink-fainter text-[12px] ml-2">spans {spanDays} days</span>
+            )}
+          </span>
+          <span className={`tabular-nums text-[14px] ${toneCls(snapPnl)}`}>
+            {fmtSignedMoney(snapPnl)}
+          </span>
+        </li>
+      </ul>
+      <p className="ink-fainter text-[12px] mt-4 max-w-narrative leading-relaxed">
+        The headline “day P&amp;L” is the account-equity change since{' '}
+        {fmtDate(priorDate)}
+        {multiDay ? ` — ${spanDays} days, not a single session` : ''}. It includes
+        realized trades, cash moves, and positions opened or closed, so it won't
+        equal today's open-holding move above.
+      </p>
+    </section>
   );
 }
 

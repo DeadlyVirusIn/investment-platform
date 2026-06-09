@@ -82,6 +82,7 @@ def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
             "name": portfolio.name if portfolio is not None else None,
             "nav": None, "cash": None, "positions_value": None,
             "realized_pnl": None, "unrealized_pnl": None, "daily_pnl": None,
+            "daily_pnl_prior_snapshot_date": None,
             "starting_capital": (
                 float(portfolio.starting_cash) if portfolio is not None else None
             ),
@@ -99,17 +100,25 @@ def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
     as_of = snap.snapshot_date
 
     # Daily P&L = nav - prior live snapshot's nav (this portfolio only).
-    prev = db.execute(
+    prev_row = db.execute(
         text("""
-            SELECT total_equity FROM paper_equity_snapshot
+            SELECT total_equity, snapshot_date FROM paper_equity_snapshot
             WHERE portfolio_id = :pid AND source = 'live'
               AND snapshot_date < :as_of
             ORDER BY snapshot_date DESC, recorded_at DESC
             LIMIT 1
         """),
         {"pid": pid, "as_of": as_of},
-    ).scalar()
-    daily_pnl = (nav - float(prev)) if prev is not None else None
+    ).first()
+    daily_pnl = (
+        (nav - float(prev_row.total_equity)) if prev_row is not None else None
+    )
+    # The date daily_pnl is measured against. Snapshots can be sparse, so this
+    # delta may span >1 day — expose the basis date so the UI labels it
+    # honestly ("since <date>") rather than implying a same-day mark-to-market.
+    daily_pnl_prior_snapshot_date = (
+        prev_row.snapshot_date if prev_row is not None else None
+    )
 
     total_return_pct = (
         ((nav - starting) / starting) * 100.0 if starting > 0 else None
@@ -131,6 +140,7 @@ def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
         "realized_pnl": float(snap.realized_pnl_cumulative or 0),
         "unrealized_pnl": float(snap.unrealized_pnl or 0),
         "daily_pnl": daily_pnl,
+        "daily_pnl_prior_snapshot_date": _iso(daily_pnl_prior_snapshot_date),
         "starting_capital": starting,
         "total_return_pct": total_return_pct,
         "open_positions_count": int(open_positions),

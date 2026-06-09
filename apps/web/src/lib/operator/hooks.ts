@@ -37,6 +37,10 @@ export interface CanonicalStockPortfolio {
   realized_pnl: number | null;
   unrealized_pnl: number | null;
   daily_pnl: number | null;
+  // Date daily_pnl is measured against (prior live snapshot). May be >1 day
+  // back when snapshots are sparse → daily_pnl is a "since this date" delta,
+  // not a same-day mark-to-market. Used to label the headline honestly.
+  daily_pnl_prior_snapshot_date?: string | null;
   starting_capital: number | null;
   total_return_pct: number | null;
   open_positions_count: number;
