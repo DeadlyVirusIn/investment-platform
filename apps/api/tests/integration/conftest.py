@@ -162,10 +162,23 @@ def pg_url() -> Iterator[str]:
         yield override
         return
 
-    from testcontainers.postgres import PostgresContainer
+    # Graceful skip when Docker / testcontainers is unavailable (local dev
+    # without a Docker daemon, or a CI runner without Docker). CI runners that
+    # have Docker run these normally; everyone else skips intentionally instead
+    # of erroring on collection.
+    try:
+        from testcontainers.postgres import PostgresContainer
+    except ImportError:  # pragma: no cover
+        pytest.skip(
+            "testcontainers not installed — skipping integration tests",
+            allow_module_level=True,
+        )
 
     container = PostgresContainer("postgres:17-alpine")
-    container.start()
+    try:
+        container.start()
+    except Exception as exc:  # noqa: BLE001 — Docker daemon unavailable
+        pytest.skip(f"Docker unavailable for testcontainers: {exc}")
     try:
         try:
             url = container.get_connection_url(driver="psycopg")
