@@ -35,6 +35,7 @@ from apps.api.src.options.interpretation_guardrails import (
 from apps.api.src.options.portfolio import service as portfolio_service
 from apps.api.src.options.portfolio import advisory as portfolio_advisory
 from apps.api.src.options.portfolio import detail as portfolio_detail
+from apps.api.src.options.portfolio import closed_analytics as portfolio_closed
 
 router = APIRouter(prefix="/options", tags=["options"])
 
@@ -461,6 +462,20 @@ def get_options_portfolio_detail(
     setup, mark, P&L, captured premium, reserved capital, and lifecycle exit
     plan. Reuses MTM/quote + decide_exit primitives. No mutation/fill/close."""
     result = portfolio_detail.get_portfolio_detail(session, portfolio_id)
+    result["notice"] = PAPER_ONLY_NOTICE
+    return result
+
+
+@router.get("/portfolio/closed-analytics")
+def get_options_portfolio_closed_analytics(
+    portfolio_id: str | None = Query(None),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Phase 2 — read-only CLOSED-trade analytics over released positions
+    (released_at IS NOT NULL): win/loss, realized P&L, expectancy, profit
+    factor, per-strategy + per-exit-reason breakdowns. Honest empty when none.
+    Display-only: no mutation/fill/close."""
+    result = portfolio_closed.get_closed_analytics(session, portfolio_id)
     result["notice"] = PAPER_ONLY_NOTICE
     return result
 

@@ -9,10 +9,10 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { useState } from 'react';
 import {
   useOptionsPortfolio, useOptionsAdvisory, useOptionsPortfolioDetail,
-  useOptionsTradeHistory,
+  useOptionsTradeHistory, useOptionsClosedAnalytics,
   type OptionsPortfolio, type AdvisoryPosition,
   type OptionsDetailPosition, type OptionsLeg,
-  type OptionsTradeHistoryItem,
+  type OptionsTradeHistoryItem, type OptionsClosedAnalytics,
 } from '../lib/optionsPortfolio';
 
 const AMBER = 'oklch(0.70 0.14 75)';
@@ -84,6 +84,7 @@ export function OptionsPortfolio() {
       <AdvisorySection />
       <DetailSection />
       <TradeHistorySection />
+      <ClosedAnalyticsSection />
     </ArthosPage>
   );
 }
@@ -532,5 +533,139 @@ function TradeHistoryRow({ t }: { t: OptionsTradeHistoryItem }) {
         {shortHash(t.proposal_hash)}
       </td>
     </tr>
+  );
+}
+
+// ── Closed-trade analytics (Phase 2) — read-only, display-only ─────────────
+
+const pctRate = (n: number | null | undefined): string =>
+  n == null ? '—' : `${(n * 100).toFixed(1)}%`;
+const factor = (n: number | null | undefined): string =>
+  n == null ? '—' : n.toFixed(2);
+
+function ClosedAnalyticsSection() {
+  const { data, isLoading, isError } = useOptionsClosedAnalytics();
+
+  return (
+    <section className="mt-8">
+      <p className="font-semibold uppercase mb-1" style={{
+        fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+      }}>Closed-trade analytics</p>
+      <p className="ink-fainter mb-3" style={{ fontSize: 12 }}>
+        Aggregate over closed and released options trades — win/loss, realized
+        P&amp;L, expectancy, and profit factor. Read-only.
+      </p>
+
+      {isLoading && (
+        <SurfaceCard variant="muted" className="p-5">
+          <p className="ink-muted" style={{ fontSize: 13 }}>Loading closed-trade analytics…</p>
+        </SurfaceCard>
+      )}
+      {isError && (
+        <SurfaceCard variant="default" className="p-5">
+          <p style={{ fontSize: 13, color: 'var(--destructive)', fontWeight: 600 }}>
+            Couldn't load closed-trade analytics.
+          </p>
+        </SurfaceCard>
+      )}
+      {!isLoading && !isError && data && (data.status === 'empty' || data.total_closed === 0) && (
+        <SurfaceCard variant="muted" className="p-6">
+          <p className="ink-primary" style={{ fontSize: 14 }}>
+            No closed options trades yet — analytics populate when the first canary trade closes.
+          </p>
+        </SurfaceCard>
+      )}
+
+      {!isLoading && !isError && data && data.status === 'live' && data.total_closed > 0 && (
+        <ClosedAnalyticsBody a={data} />
+      )}
+    </section>
+  );
+}
+
+function ClosedAnalyticsBody({ a }: { a: OptionsClosedAnalytics }) {
+  return (
+    <>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+        <StatCard label="Total closed" value={String(a.total_closed)} />
+        <StatCard label="Win rate" value={pctRate(a.win_rate)}
+          sub={`${a.wins}W · ${a.losses}L${a.breakeven ? ` · ${a.breakeven}BE` : ''}`} />
+        <StatCard label="Wins" value={String(a.wins)} color="var(--brand)" />
+        <StatCard label="Losses" value={String(a.losses)} color="var(--destructive)" />
+        <StatCard label="Realized P&L" value={signedUsd(a.total_realized)}
+          color={pnlColor(a.total_realized)} />
+        <StatCard label="Expectancy" value={a.expectancy != null ? signedUsd(a.expectancy) : '—'}
+          sub="per trade" color={pnlColor(a.expectancy)} />
+        <StatCard label="Profit factor" value={factor(a.profit_factor)}
+          sub={a.profit_factor == null ? 'no losses' : 'gross win / loss'} />
+        <StatCard label="Avg winner / loser"
+          value={`${a.avg_winner != null ? signedUsd(a.avg_winner) : '—'} / ${a.avg_loser != null ? signedUsd(a.avg_loser) : '—'}`} />
+      </div>
+
+      {a.by_strategy.length > 0 && (
+        <SurfaceCard variant="default" className="p-0 mb-3">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr className="ink-fainter" style={{ textAlign: 'left' }}>
+                  {['Strategy', 'Trades', 'Wins', 'Losses', 'Win rate', 'Realized'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 12px', fontWeight: 600, fontSize: 10,
+                      letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                      textAlign: i >= 1 ? 'right' : 'left',
+                      borderBottom: '1px solid var(--border)',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {a.by_strategy.map((s) => (
+                  <tr key={s.strategy} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td className="ink-primary" style={{ padding: '9px 12px' }}>
+                      {s.strategy.replace(/_/g, ' ').toLowerCase()}
+                    </td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{s.count}</td>
+                    <td className="tabular-nums" style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--brand)' }}>{s.wins}</td>
+                    <td className="tabular-nums" style={{ padding: '9px 12px', textAlign: 'right', color: 'var(--destructive)' }}>{s.losses}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{pctRate(s.win_rate)}</td>
+                    <td className="tabular-nums" style={{ padding: '9px 12px', textAlign: 'right', color: pnlColor(s.realized), fontWeight: 600 }}>{signedUsd(s.realized)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SurfaceCard>
+      )}
+
+      {a.by_exit_reason.length > 0 && (
+        <SurfaceCard variant="default" className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr className="ink-fainter" style={{ textAlign: 'left' }}>
+                  {['Exit reason', 'Trades', 'Realized'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 12px', fontWeight: 600, fontSize: 10,
+                      letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                      textAlign: i >= 1 ? 'right' : 'left',
+                      borderBottom: '1px solid var(--border)',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {a.by_exit_reason.map((r) => (
+                  <tr key={r.exit_reason} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td className="ink-muted" style={{ padding: '9px 12px' }}>{r.exit_reason}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.count}</td>
+                    <td className="tabular-nums" style={{ padding: '9px 12px', textAlign: 'right', color: pnlColor(r.realized), fontWeight: 600 }}>{signedUsd(r.realized)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SurfaceCard>
+      )}
+    </>
   );
 }

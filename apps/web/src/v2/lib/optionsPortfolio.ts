@@ -211,3 +211,48 @@ export function useOptionsTradeHistory(opts?: {
     refetchInterval: 120_000,
   });
 }
+
+// ── Closed-trade analytics (Phase 2) — read-only, display-only ─────────────
+// Aggregate over CLOSED / released options paper trades
+// (GET /api/options/portfolio/closed-analytics). No mutation.
+
+export interface ClosedByStrategy {
+  strategy: string;
+  count: number;
+  wins: number;
+  losses: number;
+  realized: number;
+  win_rate: number | null;   // 0..1
+}
+
+export interface ClosedByExitReason {
+  exit_reason: string;
+  count: number;
+  realized: number;
+}
+
+export interface OptionsClosedAnalytics {
+  status: 'live' | 'empty';
+  total_closed: number;
+  wins: number;
+  losses: number;
+  breakeven: number;
+  win_rate: number | null;        // 0..1
+  total_realized: number;
+  avg_winner: number | null;
+  avg_loser: number | null;       // negative
+  expectancy: number | null;
+  profit_factor: number | null;   // null when no losses (undefined)
+  by_strategy: ClosedByStrategy[];
+  by_exit_reason: ClosedByExitReason[];
+}
+
+export function useOptionsClosedAnalytics() {
+  return useQuery<OptionsClosedAnalytics>({
+    queryKey: ['options', 'portfolio', 'closed-analytics'],
+    queryFn: () =>
+      apiGet<OptionsClosedAnalytics>('/options/portfolio/closed-analytics'),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}
