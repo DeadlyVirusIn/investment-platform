@@ -256,3 +256,56 @@ export function useOptionsClosedAnalytics() {
     refetchInterval: 120_000,
   });
 }
+
+// ── Promotion/rejection audit (Phase 3) — read-only, display-only ───────────
+// Why option candidates were promoted or rejected per run_date
+// (GET /api/options/portfolio/promotion-audit). No mutation.
+
+export interface PromotionAuditRun {
+  run_date: string;
+  candidates_total: number;
+  promoted: number;
+  filled: number;
+  skip_slot_full: number;
+  skip_over_capital_cap: number;
+  skip_proposal_duplicate: number;
+  skip_other: number;
+}
+
+export interface PromotionAuditRejected {
+  candidate_id: number;
+  run_date: string;
+  underlying: string;
+  strategy: string;
+  confidence: number | null;   // 0..1
+  dte: number | null;
+  reason: string;              // e.g. 'dte_out_of_range'
+}
+
+export interface PromotionAuditGates {
+  universe: string;
+  strategy: string;
+  min_dte: number;
+  max_dte: number;
+  min_confidence: number;
+  days: number;
+}
+
+export interface OptionsPromotionAudit {
+  status: 'live' | 'empty';
+  runs: PromotionAuditRun[];                 // newest first
+  rejected: PromotionAuditRejected[];        // non-eligible only, newest first
+  eligible_count: number;
+  reason_counts: Record<string, number>;
+  gates?: PromotionAuditGates;
+}
+
+export function useOptionsPromotionAudit() {
+  return useQuery<OptionsPromotionAudit>({
+    queryKey: ['options', 'portfolio', 'promotion-audit'],
+    queryFn: () =>
+      apiGet<OptionsPromotionAudit>('/options/portfolio/promotion-audit'),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}

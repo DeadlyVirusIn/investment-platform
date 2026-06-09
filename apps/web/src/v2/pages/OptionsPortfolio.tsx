@@ -10,9 +10,11 @@ import { useState } from 'react';
 import {
   useOptionsPortfolio, useOptionsAdvisory, useOptionsPortfolioDetail,
   useOptionsTradeHistory, useOptionsClosedAnalytics,
+  useOptionsPromotionAudit,
   type OptionsPortfolio, type AdvisoryPosition,
   type OptionsDetailPosition, type OptionsLeg,
   type OptionsTradeHistoryItem, type OptionsClosedAnalytics,
+  type OptionsPromotionAudit,
 } from '../lib/optionsPortfolio';
 
 const AMBER = 'oklch(0.70 0.14 75)';
@@ -85,6 +87,7 @@ export function OptionsPortfolio() {
       <DetailSection />
       <TradeHistorySection />
       <ClosedAnalyticsSection />
+      <PromotionAuditSection />
     </ArthosPage>
   );
 }
@@ -659,6 +662,193 @@ function ClosedAnalyticsBody({ a }: { a: OptionsClosedAnalytics }) {
                     <td className="ink-muted" style={{ padding: '9px 12px' }}>{r.exit_reason}</td>
                     <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.count}</td>
                     <td className="tabular-nums" style={{ padding: '9px 12px', textAlign: 'right', color: pnlColor(r.realized), fontWeight: 600 }}>{signedUsd(r.realized)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SurfaceCard>
+      )}
+    </>
+  );
+}
+
+// ── Promotion/rejection audit (Phase 3) — read-only, display-only ───────────
+
+const REASON_LABELS: Record<string, string> = {
+  wrong_underlying: 'Outside canary universe',
+  wrong_strategy: 'Wrong strategy',
+  no_legs: 'Legs not materialized',
+  dte_out_of_range: 'DTE out of range',
+  confidence_below_gate: 'Confidence below gate',
+  unfillable_leg: 'Unfillable leg',
+  eligible: 'Eligible',
+};
+
+const humanizeReason = (r: string): string =>
+  REASON_LABELS[r] ?? r.replace(/_/g, ' ');
+
+const conf2 = (n: number | null | undefined): string =>
+  n == null ? '—' : n.toFixed(2);
+
+function PromotionAuditSection() {
+  const { data, isLoading, isError } = useOptionsPromotionAudit();
+
+  return (
+    <section className="mt-8">
+      <p className="font-semibold uppercase mb-1" style={{
+        fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+      }}>Promotion audit</p>
+      <p className="ink-fainter mb-3" style={{ fontSize: 12 }}>
+        Why option candidates were promoted or rejected, per run — derived
+        from the same gates the canary selector uses. Read-only.
+      </p>
+
+      {isLoading && (
+        <SurfaceCard variant="muted" className="p-5">
+          <p className="ink-muted" style={{ fontSize: 13 }}>Loading promotion audit…</p>
+        </SurfaceCard>
+      )}
+      {isError && (
+        <SurfaceCard variant="default" className="p-5">
+          <p style={{ fontSize: 13, color: 'var(--destructive)', fontWeight: 600 }}>
+            Couldn't load the promotion audit.
+          </p>
+        </SurfaceCard>
+      )}
+      {!isLoading && !isError && data && data.status === 'empty' && (
+        <SurfaceCard variant="muted" className="p-6">
+          <p className="ink-primary" style={{ fontSize: 14 }}>
+            No promotion runs or candidates in the window yet.
+          </p>
+          <p className="ink-muted mt-2" style={{ fontSize: 12.5 }}>
+            When the canary promotion cycle runs, each candidate's gate
+            outcome appears here.
+          </p>
+        </SurfaceCard>
+      )}
+
+      {!isLoading && !isError && data && data.status === 'live' && (
+        <PromotionAuditBody a={data} />
+      )}
+    </section>
+  );
+}
+
+function PromotionAuditBody({ a }: { a: OptionsPromotionAudit }) {
+  const reasons = Object.entries(a.reason_counts)
+    .filter(([r]) => r !== 'eligible')
+    .sort((x, y) => y[1] - x[1]);
+
+  return (
+    <>
+      {/* (b) current rejection pattern — reason summary chips */}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <span style={{
+          fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 6,
+          color: 'var(--brand)',
+          background: 'color-mix(in oklch, var(--brand) 14%, transparent)',
+        }}>
+          Eligible {a.eligible_count}
+        </span>
+        {reasons.map(([reason, count]) => (
+          <span key={reason} style={{
+            fontSize: 11.5, padding: '3px 10px', borderRadius: 6,
+            color: 'var(--muted-foreground)',
+            background: 'color-mix(in oklch, var(--foreground) 6%, transparent)',
+          }}>
+            {humanizeReason(reason)} <span className="tabular-nums" style={{ fontWeight: 600 }}>{count}</span>
+          </span>
+        ))}
+        {a.gates && (
+          <span className="ink-fainter" style={{ fontSize: 11 }}>
+            gates: {a.gates.universe} · {a.gates.strategy.replace(/_/g, ' ').toLowerCase()} ·
+            {' '}{a.gates.min_dte}–{a.gates.max_dte} DTE · conf ≥ {a.gates.min_confidence.toFixed(2)} ·
+            {' '}last {a.gates.days}d
+          </span>
+        )}
+      </div>
+
+      {/* (a) funnel by run_date */}
+      {a.runs.length > 0 && (
+        <SurfaceCard variant="default" className="p-0 mb-3">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr className="ink-fainter" style={{ textAlign: 'left' }}>
+                  {['Run date', 'Candidates', 'Promoted', 'Filled',
+                    'Slot full', 'Capital cap', 'Duplicate', 'Other'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 12px', fontWeight: 600, fontSize: 10,
+                      letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                      textAlign: i >= 1 ? 'right' : 'left',
+                      borderBottom: '1px solid var(--border)',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {a.runs.map((r) => (
+                  <tr key={r.run_date} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td className="tabular-nums ink-primary" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                      {shortDate(r.run_date)}
+                    </td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.candidates_total}</td>
+                    <td className="tabular-nums" style={{
+                      padding: '9px 12px', textAlign: 'right', fontWeight: 600,
+                      color: r.promoted > 0 ? 'var(--brand)' : 'var(--muted-foreground)',
+                    }}>{r.promoted}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.filled}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.skip_slot_full}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.skip_over_capital_cap}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.skip_proposal_duplicate}</td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>{r.skip_other}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </SurfaceCard>
+      )}
+
+      {/* (c) rejected candidates */}
+      {a.rejected.length > 0 && (
+        <SurfaceCard variant="default" className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ borderCollapse: 'collapse', fontSize: 12.5 }}>
+              <thead>
+                <tr className="ink-fainter" style={{ textAlign: 'left' }}>
+                  {['Run date', 'Underlying', 'Strategy', 'Confidence', 'DTE', 'Reason'].map((h, i) => (
+                    <th key={h} style={{
+                      padding: '10px 12px', fontWeight: 600, fontSize: 10,
+                      letterSpacing: '0.08em', textTransform: 'uppercase', whiteSpace: 'nowrap',
+                      textAlign: (i === 3 || i === 4) ? 'right' : 'left',
+                      borderBottom: '1px solid var(--border)',
+                    }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {a.rejected.map((c) => (
+                  <tr key={c.candidate_id} style={{ borderTop: '1px solid var(--border)' }}>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                      {shortDate(c.run_date)}
+                    </td>
+                    <td className="font-mono ink-primary" style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+                      {c.underlying}
+                    </td>
+                    <td className="ink-muted" style={{ padding: '9px 12px' }}>
+                      {c.strategy.replace(/_/g, ' ').toLowerCase()}
+                    </td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>
+                      {conf2(c.confidence)}
+                    </td>
+                    <td className="tabular-nums ink-muted" style={{ padding: '9px 12px', textAlign: 'right' }}>
+                      {c.dte ?? '—'}
+                    </td>
+                    <td style={{ padding: '9px 12px', color: AMBER }}>
+                      {humanizeReason(c.reason)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

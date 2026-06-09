@@ -36,6 +36,7 @@ from apps.api.src.options.portfolio import service as portfolio_service
 from apps.api.src.options.portfolio import advisory as portfolio_advisory
 from apps.api.src.options.portfolio import detail as portfolio_detail
 from apps.api.src.options.portfolio import closed_analytics as portfolio_closed
+from apps.api.src.options.portfolio import promotion_audit as portfolio_promo
 
 router = APIRouter(prefix="/options", tags=["options"])
 
@@ -476,6 +477,22 @@ def get_options_portfolio_closed_analytics(
     factor, per-strategy + per-exit-reason breakdowns. Honest empty when none.
     Display-only: no mutation/fill/close."""
     result = portfolio_closed.get_closed_analytics(session, portfolio_id)
+    result["notice"] = PAPER_ONLY_NOTICE
+    return result
+
+
+@router.get("/portfolio/promotion-audit")
+def get_options_portfolio_promotion_audit(
+    portfolio_id: str | None = Query(None),
+    days: int = Query(default=14, ge=1, le=90),
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Phase 3 — read-only promotion/rejection AUDIT: why each option
+    candidate was promoted or rejected per run_date. Re-derives the canary
+    selector's gates (universe/strategy/legs/DTE/confidence/fillability)
+    from settings + compute_fill, alongside the engine's own funnel skips.
+    Display-only: no mutation/fill/close, no config change."""
+    result = portfolio_promo.get_promotion_audit(session, portfolio_id, days)
     result["notice"] = PAPER_ONLY_NOTICE
     return result
 
