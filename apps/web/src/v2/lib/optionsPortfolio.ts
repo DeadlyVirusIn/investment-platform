@@ -82,3 +82,84 @@ export function useOptionsAdvisory() {
     refetchInterval: 120_000,
   });
 }
+
+// ── Phase G2 — portfolio detail (read-only explainability) ──────────────────
+
+export interface OptionsLeg {
+  side: 'BUY' | 'SELL';
+  option_symbol: string;
+  strike: number | null;
+  expiry: string | null;
+  option_type: string | null;
+  qty: number;
+  entry_fill_price: number | null;
+  bid: number | null;
+  ask: number | null;
+  mid: number | null;
+  open_interest: number | null;
+  spread: number | null;
+  quote_age_seconds: number | null;
+  leg_pnl: number | null;
+}
+
+export interface OptionsSetup {
+  summary: string;
+  max_profit: string;
+  max_loss: string;
+  profit_when: string;
+  risk_when: string;
+}
+
+export interface OptionsLifecycle {
+  action: string;
+  reason: string;
+  tp_threshold_pct: number;
+  dte_management_days: number;
+}
+
+export interface OptionsDetailPosition {
+  trade_id: number;
+  underlying: string;
+  strategy: string;
+  status: string;
+  opened_at: string | null;
+  dte: number | null;
+  entry_credit: number | null;
+  max_profit: number | null;
+  max_loss: number | null;
+  reserved_capital: number | null;
+  current_cost_to_close: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_pct: number | null;
+  captured_pct: number | null;
+  priced: boolean;
+  lifecycle: OptionsLifecycle;
+  setup: OptionsSetup | null;
+  legs: OptionsLeg[];
+}
+
+export interface OptionsPortfolioSummary {
+  cash: number | null;
+  reserved_capital: number;
+  open_positions: number;
+  capital_at_risk: number;
+  max_profit: number;
+  unrealized_pnl: number;
+  realized_pnl: number | null;
+  buying_power: number | null;
+}
+
+export interface OptionsPortfolioDetail {
+  status: 'live' | 'empty';
+  portfolio: OptionsPortfolioSummary;
+  positions: OptionsDetailPosition[];
+}
+
+export function useOptionsPortfolioDetail() {
+  return useQuery<OptionsPortfolioDetail>({
+    queryKey: ['options', 'portfolio', 'detail'],
+    queryFn: () => apiGet<OptionsPortfolioDetail>('/options/portfolio/detail'),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  });
+}

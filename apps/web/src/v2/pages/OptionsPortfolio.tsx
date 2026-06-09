@@ -7,8 +7,9 @@ import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import {
-  useOptionsPortfolio, useOptionsAdvisory,
+  useOptionsPortfolio, useOptionsAdvisory, useOptionsPortfolioDetail,
   type OptionsPortfolio, type AdvisoryPosition,
+  type OptionsDetailPosition, type OptionsLeg,
 } from '../lib/optionsPortfolio';
 
 const AMBER = 'oklch(0.70 0.14 75)';
@@ -78,6 +79,7 @@ export function OptionsPortfolio() {
       )}
 
       <AdvisorySection />
+      <DetailSection />
     </ArthosPage>
   );
 }
@@ -214,5 +216,161 @@ function Dashboard({ data }: { data: OptionsPortfolio }) {
         </SurfaceCard>
       </section>
     </div>
+  );
+}
+
+// ── Phase G2 — position detail / explainability ────────────────────────────
+
+const signedUsd = (n: number | null | undefined): string =>
+  n == null ? '—'
+    : `${n >= 0 ? '+' : '−'}$${Math.abs(n).toLocaleString(undefined, {
+        minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const money2 = (n: number | null | undefined): string =>
+  n == null ? '—' : `$${n.toFixed(2)}`;
+const pct1 = (n: number | null | undefined): string =>
+  n == null ? '—' : `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}%`;
+const pnlColor = (n: number | null | undefined): string =>
+  n == null ? 'var(--ink-primary)'
+    : n > 0 ? 'var(--brand)' : n < 0 ? 'var(--destructive)' : 'var(--ink-primary)';
+
+function DetailSection() {
+  const { data, isLoading, isError } = useOptionsPortfolioDetail();
+  if (isLoading) {
+    return (
+      <section className="mt-6">
+        <SurfaceCard variant="muted" className="p-5">
+          <p className="ink-muted" style={{ fontSize: 13 }}>Loading position detail…</p>
+        </SurfaceCard>
+      </section>
+    );
+  }
+  if (isError) {
+    return (
+      <section className="mt-6">
+        <SurfaceCard variant="default" className="p-5">
+          <p style={{ fontSize: 13, color: 'var(--destructive)', fontWeight: 600 }}>
+            Couldn't load position detail.
+          </p>
+        </SurfaceCard>
+      </section>
+    );
+  }
+  if (!data || data.status !== 'live' || data.positions.length === 0) return null;
+  const pf = data.portfolio;
+
+  return (
+    <section className="mt-8">
+      <p className="font-semibold uppercase mb-3" style={{
+        fontSize: 11, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+      }}>Position detail</p>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+        <StatCard label="Cash" value={usd(pf.cash)} />
+        <StatCard label="Reserved capital" value={usd(pf.reserved_capital)} sub="held at risk" />
+        <StatCard label="Buying power" value={usd(pf.buying_power)} sub="free cash" />
+        <StatCard label="Total risk / max loss" value={usd(pf.capital_at_risk)} color={AMBER} />
+        <StatCard label="Unrealized P&L" value={signedUsd(pf.unrealized_pnl)} color={pnlColor(pf.unrealized_pnl)} />
+        <StatCard label="Realized P&L" value={pf.realized_pnl != null ? signedUsd(pf.realized_pnl) : '—'} />
+        <StatCard label="Max profit" value={usd(pf.max_profit)} color="var(--brand)" />
+        <StatCard label="Open positions" value={String(pf.open_positions)} />
+      </div>
+
+      <div className="space-y-3">
+        {data.positions.map((p) => <PositionDetailCard key={p.trade_id} p={p} />)}
+      </div>
+    </section>
+  );
+}
+
+function Mini({ label, v, color }: { label: string; v: string; color?: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="ink-fainter" style={{ fontSize: 10.5, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</p>
+      <p className="tabular-nums" style={{ fontSize: 14, color: color ?? 'var(--ink-primary)' }}>{v}</p>
+    </div>
+  );
+}
+
+function LegRow({ l }: { l: OptionsLeg }) {
+  const exp = l.expiry
+    ? new Date(l.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+  const kind = l.option_type === 'PUT' ? 'P' : l.option_type === 'CALL' ? 'C' : '';
+  return (
+    <li className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 items-baseline py-1.5"
+      style={{ borderTop: '1px solid var(--border)' }}>
+      <span style={{ fontSize: 12.5 }}>
+        <span style={{ color: l.side === 'SELL' ? AMBER : 'var(--brand)', fontWeight: 600 }}>{l.side}</span>{' '}
+        <span className="font-mono ink-primary">{l.strike}{kind}</span>
+        <span className="ink-fainter"> ×{l.qty}</span>
+      </span>
+      <span className="tabular-nums ink-muted" style={{ fontSize: 12 }}>
+        entry {money2(l.entry_fill_price)} · mid {money2(l.mid)}
+      </span>
+      <span className="tabular-nums ink-fainter" style={{ fontSize: 11.5 }}>
+        {l.bid != null && l.ask != null ? `${l.bid.toFixed(2)}/${l.ask.toFixed(2)}` : '—'}
+        {l.open_interest != null ? ` · OI ${l.open_interest.toLocaleString()}` : ''}
+        {l.spread != null ? ` · sp ${l.spread.toFixed(2)}` : ''}
+        {l.quote_age_seconds != null ? ` · ${l.quote_age_seconds}s` : ''}
+      </span>
+      <span className="tabular-nums" style={{ fontSize: 12, color: pnlColor(l.leg_pnl), textAlign: 'right' }}>
+        {signedUsd(l.leg_pnl)} · exp {exp}
+      </span>
+    </li>
+  );
+}
+
+function PositionDetailCard({ p }: { p: OptionsDetailPosition }) {
+  const opened = p.opened_at
+    ? new Date(p.opened_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
+  return (
+    <SurfaceCard variant="default" className="p-5">
+      <div className="flex items-baseline justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-baseline gap-2.5 flex-wrap min-w-0">
+          <span className="font-mono ink-primary" style={{ fontSize: 15 }}>{p.underlying}</span>
+          <span className="ink-muted" style={{ fontSize: 12.5 }}>{p.strategy.replace(/_/g, ' ').toLowerCase()}</span>
+          <span className="ink-fainter" style={{ fontSize: 11.5 }}>
+            · {p.status} · {p.dte != null ? `${p.dte} DTE` : '—'} · opened {opened}
+          </span>
+        </div>
+        <span className="tabular-nums" style={{ fontSize: 14, color: pnlColor(p.unrealized_pnl), fontWeight: 600 }}>
+          {signedUsd(p.unrealized_pnl)}{p.unrealized_pnl_pct != null ? ` · ${pct1(p.unrealized_pnl_pct)}` : ''}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-5 gap-y-3 mb-4">
+        <Mini label="Entry credit" v={money2(p.entry_credit)} />
+        <Mini label="Cost to close" v={money2(p.current_cost_to_close)} />
+        <Mini label="Captured" v={pct1(p.captured_pct)} color={pnlColor(p.captured_pct)} />
+        <Mini label="Reserved" v={usd(p.reserved_capital)} />
+        <Mini label="Max profit" v={money2(p.max_profit)} color="var(--brand)" />
+        <Mini label="Max loss" v={money2(p.max_loss)} color={AMBER} />
+      </div>
+
+      <div className="mb-4 p-3 rounded-lg" style={{ background: 'color-mix(in oklch, var(--foreground) 4%, transparent)' }}>
+        <p style={{ fontSize: 13, color: 'var(--ink-primary)', fontWeight: 600 }}>
+          Plan: {p.lifecycle.action}
+          <span className="ink-muted" style={{ fontWeight: 400 }}> — {p.lifecycle.reason}</span>
+        </p>
+        <p className="ink-fainter" style={{ fontSize: 11.5, marginTop: 3 }}>
+          Take profit at {p.lifecycle.tp_threshold_pct}% captured · manage at {p.lifecycle.dte_management_days} DTE
+        </p>
+      </div>
+
+      {p.setup && (
+        <div className="mb-4">
+          <p className="ink-muted" style={{ fontSize: 13 }}>{p.setup.summary}</p>
+          <p className="ink-fainter" style={{ fontSize: 12, marginTop: 3, lineHeight: 1.6 }}>
+            {p.setup.max_profit} {p.setup.max_loss} {p.setup.profit_when} {p.setup.risk_when}
+          </p>
+        </div>
+      )}
+
+      <p className="font-semibold uppercase mb-1" style={{
+        fontSize: 10, letterSpacing: '0.12em', color: 'var(--muted-foreground)',
+      }}>Legs{!p.priced && <span className="ink-fainter"> · quotes unavailable</span>}</p>
+      <ul>
+        {p.legs.map((l) => <LegRow key={l.option_symbol} l={l} />)}
+      </ul>
+    </SurfaceCard>
   );
 }
