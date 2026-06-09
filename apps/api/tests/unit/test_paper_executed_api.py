@@ -114,6 +114,20 @@ def test_response_schema_pinned_in_source():
         assert key in src, f"trade response missing key: {key}"
 
 
+def test_positions_attribution_keys_pinned_in_source():
+    """Pin the display-only attribution keys added to /paper/executed/positions
+    so the Practice page (useExecutedPositions / PaperBook) stays in sync."""
+    src = Path(
+        "apps/api/src/api/paper_executed.py"
+    ).read_text(encoding="utf-8")
+    for key in (
+        '"current_price"', '"previous_close"', '"market_value"',
+        '"cost_basis"', '"unrealized_pnl"', '"unrealized_pnl_pct"',
+        '"day_pnl"', '"day_pnl_pct"', '"total_return_pct"',
+    ):
+        assert key in src, f"positions attribution response missing key: {key}"
+
+
 def test_no_post_added_to_paper_executed():
     src = Path(
         "apps/api/src/api/paper_executed.py"

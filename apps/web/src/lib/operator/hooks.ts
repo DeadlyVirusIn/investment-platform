@@ -285,6 +285,16 @@ export interface ExecutedPosition {
   closed_at: string | null;
   source: "live" | "dev" | "replay" | "test";
   replay_run_id: string | null;
+  // Attribution enrichment (display-only; null when no price available).
+  current_price?: number | null;
+  previous_close?: number | null;
+  market_value?: number | null;
+  cost_basis?: number | null;
+  unrealized_pnl?: number | null;
+  unrealized_pnl_pct?: number | null;
+  day_pnl?: number | null;
+  day_pnl_pct?: number | null;
+  total_return_pct?: number | null;
 }
 
 export function useExecutedSummary(includeReplay = false) {

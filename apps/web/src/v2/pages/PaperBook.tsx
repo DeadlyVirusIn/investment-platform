@@ -4,13 +4,12 @@
 // (useCanonicalStockPortfolio → /paper/canonical/stock) and REAL open
 // positions (useExecutedPositions, scoped to the canonical portfolio_id).
 // This is the same contract the homepage card reads, so the two can never
-// disagree. The legacy localStorage PaperBook store is NO LONGER read
-// here (full removal of the store file is Phase C).
+// disagree. The legacy localStorage PaperBook store is NO LONGER read here.
 //
-// Read-only surface: no close/reset write actions (backend is the source
-// of truth; mutations are out of scope for this phase). Per-position live
-// P&L is not shown because the executed-positions contract exposes cost
-// basis only — we never fabricate a mark.
+// Per-position P&L is now shown: the executed-positions contract was
+// enriched (display-only) with current_price / previous_close and the
+// derived market_value / day_pnl / unrealized_pnl. Values are null (rendered
+// "—") whenever no price is available — we never fabricate a mark.
 
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { Link } from 'react-router-dom';
@@ -31,10 +30,26 @@ function freshnessNote(f: string | undefined): string | null {
   }
 }
 
+// ── display-only formatters (null → "—"; never fabricated) ──
+const fmtMoney = (v: number | null | undefined): string =>
+  v == null ? '—'
+    : `$${Math.abs(v).toLocaleString(undefined, {
+        minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtSignedMoney = (v: number | null | undefined): string =>
+  v == null ? '—'
+    : `${v >= 0 ? '+' : '−'}$${Math.abs(v).toLocaleString(undefined, {
+        minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmtSignedPct = (v: number | null | undefined): string =>
+  v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}%`;
+const toneCls = (v: number | null | undefined): string =>
+  v == null ? 'ink-primary' : v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'ink-primary';
+
 export function PaperBook() {
   const { data: book, isLoading } = useCanonicalStockPortfolio();
   const portfolioId = book?.portfolio_id;
-  const { data: posData } = useExecutedPositions(false, true, portfolioId);
+  const {
+    data: posData, isLoading: posLoading, isError: posError,
+  } = useExecutedPositions(false, true, portfolioId);
   const positions = posData?.positions ?? [];
 
   const nav = book?.nav ?? null;
@@ -120,6 +135,9 @@ export function PaperBook() {
         )}
       </motion.section>
 
+      {/* ── Attribution summary — what's moving the book ── */}
+      {positions.length > 0 && <AttributionSummary positions={positions} />}
+
       <section className="mb-20">
         <div className="flex items-baseline justify-between mb-8 flex-wrap gap-4">
           <MetaLabel>Open positions</MetaLabel>
@@ -128,7 +146,20 @@ export function PaperBook() {
           )}
         </div>
 
-        {positions.length === 0 ? (
+        {posError ? (
+          <div className="border-t border-hairline pt-12 pb-2">
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px]">
+              Couldn't load your holdings right now. They'll reappear on the
+              next refresh.
+            </p>
+          </div>
+        ) : posLoading && positions.length === 0 ? (
+          <div className="border-t border-hairline pt-12 pb-2">
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px]">
+              Loading your holdings…
+            </p>
+          </div>
+        ) : positions.length === 0 ? (
           <div className="border-t border-hairline pt-12 pb-2">
             <p className="font-serif italic ink-muted text-[18px] leading-relaxed max-w-narrative mb-6">
               No open positions yet.
@@ -155,6 +186,18 @@ export function PaperBook() {
   );
 }
 
+// ── per-holding attribution card ──
+function Metric({ label, value, tone }: {
+  label: string; value: string; tone?: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="text-meta ink-fainter mb-0.5">{label}</div>
+      <div className={`tabular-nums text-[13px] ${tone ?? 'ink-primary'}`}>{value}</div>
+    </div>
+  );
+}
+
 function PositionRow({ position }: { position: ExecutedPosition }) {
   const qty = position.quantity ?? 0;
   const units = Math.abs(qty) === 1 ? 'share' : 'shares';
@@ -163,28 +206,99 @@ function PositionRow({ position }: { position: ExecutedPosition }) {
         month: 'short', day: 'numeric',
       })
     : '—';
+  const holdStatus = position.is_open ? 'Held' : 'Closed';
   return (
     <li className="surface-base py-6">
-      <div className="flex items-baseline justify-between gap-4 flex-wrap mb-1.5">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
-            <span className="font-mono ink-primary text-[14px]">
-              {position.symbol}
-            </span>
-            <span className="text-meta ink-fainter">
-              {qty} {units}
-            </span>
-            {position.source !== 'live' && (
-              <span className="text-meta ink-fainter">· {position.source}</span>
-            )}
-          </div>
-          <div className="text-meta ink-fainter tabular-nums">
-            Avg cost{' '}
-            {position.avg_cost != null ? `$${position.avg_cost.toFixed(2)}` : '—'}
-            {' '}· opened {opened}
-          </div>
-        </div>
+      <div className="flex items-baseline gap-3 mb-3 flex-wrap">
+        <span className="font-mono ink-primary text-[14px]">{position.symbol}</span>
+        <span className="text-meta ink-fainter">{qty} {units}</span>
+        <span className="text-meta ink-fainter">· {holdStatus}</span>
+        {position.source !== 'live' && (
+          <span className="text-meta ink-fainter">· {position.source}</span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-4">
+        <Metric label="Avg cost" value={fmtMoney(position.avg_cost)} />
+        <Metric label="Current" value={fmtMoney(position.current_price)} />
+        <Metric label="Mkt value" value={fmtMoney(position.market_value)} />
+        <Metric label="Day P&L"
+          value={position.day_pnl == null ? '—'
+            : `${fmtSignedMoney(position.day_pnl)} · ${fmtSignedPct(position.day_pnl_pct)}`}
+          tone={toneCls(position.day_pnl)} />
+        <Metric label="Unrealized"
+          value={position.unrealized_pnl == null ? '—'
+            : `${fmtSignedMoney(position.unrealized_pnl)} · ${fmtSignedPct(position.unrealized_pnl_pct)}`}
+          tone={toneCls(position.unrealized_pnl)} />
+        <Metric label="Total return"
+          value={fmtSignedPct(position.total_return_pct)}
+          tone={toneCls(position.total_return_pct)} />
+        <Metric label="Opened" value={opened} />
       </div>
     </li>
+  );
+}
+
+// ── ranked attribution lists (top movers today + biggest unrealized) ──
+function rankLine(p: ExecutedPosition, metric: 'day' | 'unreal'): string {
+  const v = metric === 'day' ? p.day_pnl : p.unrealized_pnl;
+  const pct = metric === 'day' ? p.day_pnl_pct : p.unrealized_pnl_pct;
+  return `${fmtSignedMoney(v)} · ${fmtSignedPct(pct)}`;
+}
+
+function RankCard({ title, rows, metric }: {
+  title: string;
+  rows: ExecutedPosition[];
+  metric: 'day' | 'unreal';
+}) {
+  return (
+    <div>
+      <div className="text-meta ink-fainter mb-3">{title}</div>
+      {rows.length === 0 ? (
+        <p className="ink-fainter text-[13px]">No priced holdings.</p>
+      ) : (
+        <ul className="space-y-2">
+          {rows.map((p) => {
+            const v = metric === 'day' ? p.day_pnl : p.unrealized_pnl;
+            return (
+              <li key={p.position_id} className="flex items-baseline justify-between gap-3">
+                <span className="font-mono ink-primary text-[13px]">{p.symbol}</span>
+                <span className={`tabular-nums text-[13px] ${toneCls(v)}`}>
+                  {rankLine(p, metric)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function AttributionSummary({ positions }: { positions: ExecutedPosition[] }) {
+  const dayPriced = positions.filter((p) => p.day_pnl != null);
+  const unrealPriced = positions.filter((p) => p.unrealized_pnl != null);
+  const byDay = [...dayPriced].sort((a, b) => (b.day_pnl ?? 0) - (a.day_pnl ?? 0));
+  const byUnreal = [...unrealPriced].sort(
+    (a, b) => (b.unrealized_pnl ?? 0) - (a.unrealized_pnl ?? 0));
+
+  const topWinnersToday = byDay.filter((p) => (p.day_pnl ?? 0) > 0).slice(0, 5);
+  const topLosersToday = byDay.filter((p) => (p.day_pnl ?? 0) < 0).slice(-5).reverse();
+  const topUnrealWinners = byUnreal.filter((p) => (p.unrealized_pnl ?? 0) > 0).slice(0, 5);
+  const topUnrealLosers = byUnreal.filter((p) => (p.unrealized_pnl ?? 0) < 0).slice(-5).reverse();
+
+  // Nothing priced yet → don't render an empty/fabricated panel.
+  if (dayPriced.length === 0 && unrealPriced.length === 0) return null;
+
+  return (
+    <section className="mb-20">
+      <MetaLabel>What's moving the book</MetaLabel>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-8 mt-6">
+        <RankCard title="Top winners today" rows={topWinnersToday} metric="day" />
+        <RankCard title="Top losers today" rows={topLosersToday} metric="day" />
+        <RankCard title="Largest unrealized winners" rows={topUnrealWinners} metric="unreal" />
+        <RankCard title="Largest unrealized losers" rows={topUnrealLosers} metric="unreal" />
+      </div>
+    </section>
   );
 }

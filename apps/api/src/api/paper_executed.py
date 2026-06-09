@@ -260,32 +260,79 @@ def executed_positions(
           pp2.opened_at    AS opened_at,
           pp2.closed_at    AS closed_at,
           m.source         AS source,
-          m.replay_run_id  AS replay_run_id
+          m.replay_run_id  AS replay_run_id,
+          cur.close        AS current_price,
+          prv.close        AS previous_close
         FROM paper_position pp2
         JOIN paper_portfolio pp ON pp.id = pp2.portfolio_id
         JOIN asset a            ON a.id = pp2.asset_id
         LEFT JOIN replay_recovery_manifest m
           ON m.entity_type = 'paper_position' AND m.entity_id = pp2.id::text
+        -- Attribution enrichment (display-only): latest close = current price;
+        -- prior daily close = previous close for the day-P&L delta. Read-only;
+        -- does not touch position/accounting state.
+        LEFT JOIN LATERAL (
+          SELECT close, ts FROM price_bar
+          WHERE asset_id = pp2.asset_id AND close IS NOT NULL
+          ORDER BY ts DESC LIMIT 1
+        ) cur ON TRUE
+        LEFT JOIN LATERAL (
+          SELECT close FROM price_bar
+          WHERE asset_id = pp2.asset_id AND close IS NOT NULL
+            AND timeframe = '1d' AND ts::date < cur.ts::date
+          ORDER BY ts DESC LIMIT 1
+        ) prv ON TRUE
         WHERE {where_sql} {excl}
         ORDER BY pp2.opened_at DESC
     """), params).fetchall()
 
     out: list[dict] = []
     for r in rows:
+        qty = float(r.quantity) if r.quantity is not None else None
+        avg = float(r.avg_cost) if r.avg_cost is not None else None
+        cur = float(r.current_price) if r.current_price is not None else None
+        prev = float(r.previous_close) if r.previous_close is not None else None
+        # Display-only attribution math (never mutates accounting).
+        market_value = qty * cur if (qty is not None and cur is not None) else None
+        cost_basis = qty * avg if (qty is not None and avg is not None) else None
+        unrealized = (
+            market_value - cost_basis
+            if (market_value is not None and cost_basis is not None) else None
+        )
+        unrealized_pct = (
+            unrealized / cost_basis * 100.0
+            if (unrealized is not None and cost_basis not in (None, 0)) else None
+        )
+        day_pnl = (
+            qty * (cur - prev)
+            if (qty is not None and cur is not None and prev is not None) else None
+        )
+        day_pnl_pct = (
+            (cur - prev) / prev * 100.0
+            if (cur is not None and prev not in (None, 0)) else None
+        )
         out.append({
             "position_id": r.position_id,
             "portfolio_id": r.portfolio_id,
             "portfolio_name": r.portfolio_name,
             "symbol": r.symbol,
-            "quantity": float(r.quantity) if r.quantity is not None else None,
-            "avg_cost": (
-                float(r.avg_cost) if r.avg_cost is not None else None
-            ),
+            "quantity": qty,
+            "avg_cost": avg,
             "is_open": bool(r.is_open),
             "opened_at": r.opened_at.isoformat() if r.opened_at else None,
             "closed_at": r.closed_at.isoformat() if r.closed_at else None,
             "source": r.source or "live",
             "replay_run_id": r.replay_run_id,
+            # Attribution fields (display-only; null when no price available).
+            "current_price": cur,
+            "previous_close": prev,
+            "market_value": market_value,
+            "cost_basis": cost_basis,
+            "unrealized_pnl": unrealized,
+            "unrealized_pnl_pct": unrealized_pct,
+            "day_pnl": day_pnl,
+            "day_pnl_pct": day_pnl_pct,
+            "total_return_pct": unrealized_pct,
         })
     return {
         "include_replay": include_replay,
