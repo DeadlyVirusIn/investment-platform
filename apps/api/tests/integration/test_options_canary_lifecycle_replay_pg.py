@@ -25,6 +25,7 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.src.config import settings
+from apps.api.src.options.canary import engine as canary_engine
 from apps.api.src.options.canary import lifecycle
 from apps.api.src.options.canary import positions as pos
 from apps.api.src.options.canary import quotes_refresh
@@ -83,7 +84,8 @@ def fresh_portfolio(session_factory):
             "options_trade_lifecycle_event, options_expiration_event, "
             "options_assignment_event, options_paper_trade, "
             "options_chain_snapshot, options_candidate_leg, "
-            "options_strategy_candidate, options_shadow_decision_log "
+            "options_strategy_candidate, options_shadow_decision_log, "
+            "options_execution_funnel "
             "RESTART IDENTITY CASCADE"
         ))
         s.execute(text(
@@ -653,3 +655,107 @@ def test_refresh_no_open_positions_skips(session_factory, fresh_portfolio):
     assert out == {"refreshed": [], "failed": [],
                    "skipped": "no_open_positions"}
     assert calls == []
+
+
+# ===========================================================================
+# 10) P6D.34D — promotion freshness gate + universe quote refresh
+# ===========================================================================
+
+def _trade_count(s: Session) -> int:
+    return int(s.execute(text(
+        "SELECT COUNT(*) FROM options_paper_trade")).scalar() or 0)
+
+
+def _seed_promotable_candidate(session_factory, *, snapshot_at: dt.datetime):
+    """One otherwise-promotable QQQ SPCS candidate (economic, fillable
+    quotes — scenario-7 'accepts' shape) whose chain is seeded at
+    `snapshot_at` (controls the effective age the 34D gate sees)."""
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY)
+        rh.seed_chain(s, expiry=CAND_EXPIRY, snapshot_at=snapshot_at,
+                      short_bid=Decimal("0.60"), short_ask=Decimal("0.65"),
+                      long_bid=Decimal("0.20"), long_ask=Decimal("0.25"))
+
+
+def _seed_fresh_chain_ingest(calls: list[str]):
+    """Fake ingest_fn that 'refreshes' by seeding a FRESH chain row at the
+    refresh timestamp (what a real provider pull would produce)."""
+    def fake_ingest(*, underlying, snapshot_at_utc, session_factory):
+        calls.append(underlying)
+        with session_factory() as s:
+            rh.seed_chain(s, expiry=CAND_EXPIRY, snapshot_at=snapshot_at_utc,
+                          short_bid=Decimal("0.60"), short_ask=Decimal("0.65"),
+                          long_bid=Decimal("0.20"), long_ask=Decimal("0.25"))
+    return fake_ingest
+
+
+def test_selector_rejects_stale_quotes(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """Otherwise-promotable candidate (same economics as
+    test_selector_accepts_economic_credit) but the chain is 2h old
+    (effective age ≈ 7202s > 900s) → the P6D.34D promotion freshness gate
+    skips it with reason 'stale_quotes'; nothing is promotable."""
+    pid, _ = fresh_portfolio
+    _seed_promotable_candidate(session_factory, snapshot_at=STALE_SNAPSHOT_AT)
+
+    out = selection._load_promotable_requests(
+        portfolio_id=pid, run_date=TODAY, session_factory=session_factory,
+        now=NOW)
+    assert out == []
+
+
+def test_promotion_refresh_failure_no_promotion(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """run_promotion_cycle with refresh enabled but a raising ingest_fn:
+    the failure is tolerated (no exception), the chain stays 2h stale, the
+    selector's stale_quotes gate skips the candidate → promoted == 0 and
+    NO new trade rows (a stale candidate is never promoted)."""
+    pid, _ = fresh_portfolio
+    _seed_promotable_candidate(session_factory, snapshot_at=STALE_SNAPSHOT_AT)
+
+    def boom(**_kw):
+        raise RuntimeError("provider down")
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory,
+        refresh_quotes=True, ingest_fn=boom,
+    )
+
+    assert counts.promoted == 0
+    assert counts.candidates_total == 0   # stale → skipped inside selector
+    with session_factory() as s:
+        assert _trade_count(s) == 0
+        assert pos.count_open_positions(s, pid) == 0
+
+
+def test_promotion_refresh_success_promotes(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """run_promotion_cycle with refresh enabled and a fake ingest_fn that
+    seeds a FRESH chain at NOW: the refreshed quotes (effective age ~2s)
+    clear the 34D gate AND the 60s fill gate → the candidate promotes in
+    the ISOLATED replay portfolio (proves the refresh→fresh→promote path;
+    OPTIONS_CANARY_ENABLED stays False — run_promotion_cycle itself is not
+    gated, the worker handler is)."""
+    pid, _ = fresh_portfolio
+    _seed_promotable_candidate(session_factory, snapshot_at=STALE_SNAPSHOT_AT)
+
+    calls: list[str] = []
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory,
+        refresh_quotes=True, ingest_fn=_seed_fresh_chain_ingest(calls),
+    )
+
+    assert calls == [rh.UNDERLYING]       # universe parsed → one refresh
+    assert counts.candidates_total == 1
+    assert counts.promoted == 1
+    with session_factory() as s:
+        assert _trade_count(s) == 1
+        assert pos.count_open_positions(s, pid) == 1
+        status = s.execute(text(
+            "SELECT status FROM options_paper_trade LIMIT 1")).scalar()
+        assert status == "OPEN"

@@ -191,6 +191,33 @@ def _load_promotable_requests(
                 continue
             syms = [lr["option_symbol"] for lr in legs_rows]
             quotes = latest_chain_quotes(s, syms, now=now)
+            # P6D.34D promotion freshness gate — runs BEFORE the fillability
+            # loop for correct reason attribution: compute_fill's
+            # evaluate_quote already rejects effective age > 60s
+            # (MAX_QUOTE_AGE_SECONDS) as REJECT_STALE_QUOTE, so without this
+            # explicit check a stale candidate would be misreported as
+            # 'unfillable'. The 60s fill gate below stays authoritative
+            # (P6D.12 selector==engine parity is NOT loosened); this 900s
+            # check is the coarse classifier. In practice the P6D.34D
+            # universe refresh in run_promotion_cycle makes effective ages
+            # ~0 so both gates pass on fresh chains. A missing leg quote is
+            # classified stale too (no chain row = no fresh price).
+            max_promo_age = int(
+                settings.OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS)
+            leg_ages = [
+                (quotes[lr["option_symbol"]].effective_age_seconds
+                 if lr["option_symbol"] in quotes else None)
+                for lr in legs_rows
+            ]
+            if any(a is None for a in leg_ages) or max(leg_ages) > max_promo_age:
+                known = [a for a in leg_ages if a is not None]
+                logger.info(
+                    "canary selection: candidate id={} skipped stale_quotes "
+                    "(max effective age={}s, limit={}s, missing_quotes={})",
+                    c["id"], max(known) if known else None, max_promo_age,
+                    sum(1 for a in leg_ages if a is None),
+                )
+                continue
             # P6D.12 fillability parity — every leg must clear the SAME
             # liquidity gate the paper engine enforces at open (OI>=500,
             # spread<=$0.10, age<=60s, valid bid/ask). Reuses compute_fill so

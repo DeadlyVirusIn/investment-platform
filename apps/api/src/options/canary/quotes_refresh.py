@@ -1,19 +1,24 @@
-"""P6D.34C — targeted intraday quote refresh for OPEN canary positions.
+"""P6D.34C/34D — targeted intraday quote refresh for the canary.
 
-Before the lifecycle cycle evaluates exit decisions, refresh the option
-chain for each DISTINCT underlying that currently has an open (unreleased)
-canary position. This keeps the decision quotes' effective age (P6D.34A)
-under the freshness gate (OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS) so
-TP / DTE-management closes act on current prices instead of hours-old
-snapshots.
+P6D.34C (lifecycle): before the lifecycle cycle evaluates exit decisions,
+refresh the option chain for each DISTINCT underlying that currently has an
+open (unreleased) canary position. This keeps the decision quotes'
+effective age (P6D.34A) under the freshness gate
+(OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS) so TP / DTE-management closes act
+on current prices instead of hours-old snapshots.
+
+P6D.34D (promotion): before the promotion cycle runs the selector, refresh
+the chain for the canary UNIVERSE underlyings (refresh_universe_quotes) so
+candidate legs carry ~0 effective age and clear the promotion freshness
+gate (OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS).
 
 STRICTLY read-only with respect to portfolio / trade state — the only
 write this module triggers is chain ingestion (an append-only
 options_chain_snapshot market-data insert via
 chain_ingest.ingest_chain_snapshot, natural-key deduped). Per-underlying
 failures are captured and reported, NEVER raised — a refresh failure must
-never block the lifecycle cycle (decisions then simply see stale quotes
-and HOLD_STALE_QUOTES).
+never block a cycle (lifecycle decisions then HOLD_STALE_QUOTES; the
+selector then skips stale candidates with reason 'stale_quotes').
 """
 
 from __future__ import annotations
@@ -64,6 +69,53 @@ def refresh_open_position_quotes(
     if not underlyings:
         return {"refreshed": [], "failed": [], "skipped": "no_open_positions"}
 
+    refreshed, failed = _refresh_underlyings(
+        underlyings, session_factory=session_factory,
+        ingest_fn=ingest_fn, now=now, context=f"pid={portfolio_id}",
+    )
+    return {"refreshed": refreshed, "failed": failed, "skipped": None}
+
+
+def refresh_universe_quotes(
+    *,
+    underlyings: list[str],
+    session_factory,
+    ingest_fn=None,
+    now: dt.datetime | None = None,
+) -> dict:
+    """P6D.34D — refresh chain snapshots for the canary UNIVERSE underlyings
+    (promotion-cycle counterpart of refresh_open_position_quotes).
+
+    Returns
+        {"refreshed": [underlyings], "failed": [{"underlying","error"}],
+         "skipped": "no_underlyings" | None}
+
+    Same failure-tolerant per-underlying shape: a failing provider pull
+    lands in `failed` with the error string; the function NEVER raises.
+    """
+    if now is None:
+        now = dt.datetime.now(dt.timezone.utc)
+
+    wanted = sorted({u for u in (underlyings or []) if u})
+    if not wanted:
+        return {"refreshed": [], "failed": [], "skipped": "no_underlyings"}
+
+    refreshed, failed = _refresh_underlyings(
+        wanted, session_factory=session_factory,
+        ingest_fn=ingest_fn, now=now, context="universe",
+    )
+    return {"refreshed": refreshed, "failed": failed, "skipped": None}
+
+
+def _refresh_underlyings(
+    underlyings, *, session_factory, ingest_fn, now, context: str,
+) -> tuple[list[str], list[dict]]:
+    """Shared 34C/34D core: per-underlying ingest, failure-tolerant.
+
+    `ingest_fn` defaults to chain_ingest.ingest_chain_snapshot (lazy import
+    avoids cycles). Called per underlying with (underlying=,
+    snapshot_at_utc=now, session_factory=) — the ingest pipeline
+    opens/commits its own sessions via the factory. NEVER raises."""
     if ingest_fn is None:
         # Lazy import — chain_ingest pulls adapters/settings; keep canary
         # import graph cycle-free.
@@ -85,8 +137,7 @@ def refresh_open_position_quotes(
         except Exception as exc:   # noqa: BLE001 — never raise out
             failed.append({"underlying": underlying, "error": str(exc)})
             logger.warning(
-                "canary quote refresh failed underlying={} pid={}: {}",
-                underlying, portfolio_id, exc,
+                "canary quote refresh failed underlying={} {}: {}",
+                underlying, context, exc,
             )
-
-    return {"refreshed": refreshed, "failed": failed, "skipped": None}
+    return refreshed, failed

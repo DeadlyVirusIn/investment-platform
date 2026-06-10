@@ -34,6 +34,7 @@ def _cand(**over):
         "confidence": 0.70,
         "dte": 30,
         "has_legs": True,
+        "quotes_stale": False,
         "legs_fillable": True,
         "economics_viable": True,
     }
@@ -83,6 +84,39 @@ def test_classify_unfillable_leg():
         _cand(legs_fillable=False), **GATES) == "unfillable_leg"
 
 
+def test_classify_stale_quotes():
+    # P6D.34D — gate-passing candidate whose leg quotes' max effective age
+    # exceeded OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS (or were missing).
+    assert classify_candidate(
+        _cand(quotes_stale=True), **GATES) == "stale_quotes"
+
+
+def test_classify_stale_quotes_before_fillability():
+    # ORDERING PIN (mirrors selector attribution): the 900s freshness gate
+    # runs BEFORE compute_fill, so a stale candidate that would ALSO fail
+    # fillability (60s fill gate) and economics reads 'stale_quotes'.
+    assert classify_candidate(
+        _cand(quotes_stale=True, legs_fillable=False,
+              economics_viable=False), **GATES
+    ) == "stale_quotes"
+
+
+def test_classify_stale_quotes_after_confidence():
+    # ORDERING PIN: stale is only attributed to gate-passing candidates —
+    # cheap gates (dte/confidence) win first, same as the selector.
+    assert classify_candidate(
+        _cand(confidence=0.55, quotes_stale=True), **GATES
+    ) == "confidence_below_gate"
+    assert classify_candidate(
+        _cand(dte=14, quotes_stale=True), **GATES) == "dte_out_of_range"
+
+
+def test_classify_stale_quotes_none_not_rejection():
+    # quotes_stale=None (not checked — cheap gate failed upstream or no
+    # classification ran) is NOT a rejection on its own.
+    assert classify_candidate(_cand(quotes_stale=None), **GATES) == "eligible"
+
+
 def test_classify_uneconomic():
     # P6D.33A — fillable but fails assess_economics → terminal 'uneconomic'.
     assert classify_candidate(
@@ -108,8 +142,8 @@ def test_classify_eligible():
 def test_classify_gate_order_underlying_first():
     # Wrong on every gate → first gate (underlying) wins
     c = _cand(underlying="SPY", rule_id="LONG_CALL", has_legs=False,
-              dte=None, confidence=0.1, legs_fillable=False,
-              economics_viable=False)
+              dte=None, confidence=0.1, quotes_stale=True,
+              legs_fillable=False, economics_viable=False)
     assert classify_candidate(c, **GATES) == "wrong_underlying"
 
 

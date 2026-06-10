@@ -476,6 +476,15 @@ class Settings(BaseSettings):
     # a CLOSE decision (take-profit / DTE management) to be trusted; older
     # → HOLD_STALE_QUOTES. Expiry settlement is exempt (price_bar-based).
     OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS: int = 900
+    # P6D.34D — promotion freshness gate (settings-only, NOT wired into
+    # compose; same precedent as the 33A/34C knobs above). Max effective
+    # quote age (seconds) for a candidate's leg quotes at PROMOTION time;
+    # any older/missing leg quote skips the candidate with reason
+    # 'stale_quotes' BEFORE the fillability gate (correct attribution —
+    # compute_fill's 60s MAX_QUOTE_AGE gate would otherwise report it as
+    # 'unfillable'). The 60s fill gate stays authoritative (P6D.12
+    # selector==engine parity); this is the coarse classifier.
+    OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS: int = 900
 
     # ------------------------------------------------------------------
     # PHASE 11W (Phase E) — Manual research-run activation (research-only)

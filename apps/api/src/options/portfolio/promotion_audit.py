@@ -46,6 +46,7 @@ REASON_WRONG_STRATEGY = "wrong_strategy"
 REASON_NO_LEGS = "no_legs"
 REASON_DTE_OUT_OF_RANGE = "dte_out_of_range"
 REASON_CONFIDENCE_BELOW_GATE = "confidence_below_gate"
+REASON_STALE_QUOTES = "stale_quotes"      # P6D.34D — leg quotes too old/missing
 REASON_UNFILLABLE_LEG = "unfillable_leg"
 REASON_UNECONOMIC = "uneconomic"          # P6D.33A — fails assess_economics
 REASON_ELIGIBLE = "eligible"
@@ -69,8 +70,13 @@ def classify_candidate(
 ) -> str:
     """Pure: one rejection reason for a candidate, mirroring the REAL
     selector's gate order (selection._load_promotable_requests):
-    underlying → strategy → legs → dte → confidence → fillability →
-    economics (P6D.33A).
+    underlying → strategy → legs → dte → confidence → quote freshness
+    (P6D.34D) → fillability → economics (P6D.33A).
+
+    P6D.34D ordering pin: stale_quotes is checked AFTER dte/confidence pass
+    and BEFORE fillability — same attribution order as the selector (whose
+    900s freshness gate runs before compute_fill so a stale-but-otherwise-
+    fillable candidate reads 'stale_quotes', not 'unfillable_leg').
 
     'eligible' means the candidate passed every selector gate and would have
     been promotable; whether it was actually promoted (or skipped for
@@ -88,6 +94,8 @@ def classify_candidate(
     conf = cand.get("confidence")
     if conf is None or float(conf) < min_conf:
         return REASON_CONFIDENCE_BELOW_GATE
+    if cand.get("quotes_stale") is True:
+        return REASON_STALE_QUOTES
     if cand.get("legs_fillable") is False:
         return REASON_UNFILLABLE_LEG
     if cand.get("economics_viable") is False:
@@ -248,6 +256,7 @@ def get_promotion_audit(
             "dte": dte,
             "has_legs": has_legs,
             "legs": legs,
+            "quotes_stale": None,
             "legs_fillable": None,
             "economics_viable": None,
         })
@@ -266,7 +275,24 @@ def get_promotion_audit(
         syms = sorted({
             lr["option_symbol"] for c in need_fill for lr in c["legs"]})
         quotes = selection.latest_chain_quotes(session, syms)
+        max_promo_age = int(
+            settings.OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS)
         for c in need_fill:
+            # P6D.34D — quote freshness BEFORE fillability (mirrors the
+            # selector's attribution order): max effective age over the
+            # legs, from the SAME quotes already loaded above. A missing
+            # leg quote or unknown age is stale too. Stale candidates skip
+            # the fillability/economics derivation entirely (the selector
+            # never reaches those gates for them either).
+            ages = [
+                (quotes[lr["option_symbol"]].effective_age_seconds
+                 if quotes.get(lr["option_symbol"]) is not None else None)
+                for lr in c["legs"]
+            ]
+            c["quotes_stale"] = (
+                any(a is None for a in ages) or max(ages) > max_promo_age)
+            if c["quotes_stale"]:
+                continue
             c["legs_fillable"] = all(
                 quotes.get(lr["option_symbol"]) is not None
                 and compute_fill(
@@ -326,6 +352,8 @@ def get_promotion_audit(
         "min_dte": min_dte,
         "max_dte": max_dte,
         "min_confidence": min_conf,
+        "max_promotion_age_seconds": int(
+            settings.OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS),
         "days": days,
     }
     return out

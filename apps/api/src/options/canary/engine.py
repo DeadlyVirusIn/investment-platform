@@ -215,10 +215,53 @@ def run_promotion_cycle(
     now: dt.datetime,
     session_factory=SessionLocal,
     fee_per_contract: Decimal = DEFAULT_FEE_PER_CONTRACT,
+    refresh_quotes: bool | None = None,
+    ingest_fn=None,
 ) -> FunnelCounts:
     """One promotion pass for a portfolio. Each candidate promoted in its own
     transaction (single commit). Funnel counts are ABSOLUTE for this run;
-    upsert overwrites the (run_date, portfolio) row → idempotent."""
+    upsert overwrites the (run_date, portfolio) row → idempotent.
+
+    P6D.34D: when `refresh_quotes` is effective-True (None → settings.
+    OPTIONS_CANARY_QUOTE_REFRESH_ENABLED), the chain for the canary
+    UNIVERSE underlyings is refreshed FIRST (mirrors run_lifecycle_cycle's
+    34C pattern) so candidate legs carry ~0 effective age and clear the
+    selector's promotion freshness gate
+    (OPTIONS_CANARY_MAX_PROMOTION_AGE_SECONDS). Refresh failures are logged
+    and tolerated — the cycle always proceeds; stale candidates then SKIP
+    via the selector's stale_quotes gate (they are never promoted on stale
+    prices). `ingest_fn` is threaded to quotes_refresh for tests."""
+    do_refresh = (
+        bool(settings.OPTIONS_CANARY_QUOTE_REFRESH_ENABLED)
+        if refresh_quotes is None else bool(refresh_quotes)
+    )
+    if do_refresh:
+        # OPTIONS_CANARY_UNIVERSE is a single symbol today ("SPY") but is
+        # parsed robustly as a comma-separated list.
+        universe = [
+            u.strip() for u in
+            str(settings.OPTIONS_CANARY_UNIVERSE or "").split(",")
+            if u.strip()
+        ]
+        # Lazy import avoids cycles (quotes_refresh lazily pulls chain_ingest).
+        from apps.api.src.options.canary import quotes_refresh
+        try:
+            summary = quotes_refresh.refresh_universe_quotes(
+                underlyings=universe, session_factory=session_factory,
+                ingest_fn=ingest_fn, now=now,
+            )
+            logger.info(
+                "canary universe quote refresh pid={}: refreshed={} "
+                "failed={} skipped={}",
+                portfolio_id, summary["refreshed"], summary["failed"],
+                summary["skipped"],
+            )
+        except Exception as exc:   # noqa: BLE001 — refresh never blocks cycle
+            logger.error(
+                "canary universe quote refresh errored pid={}: {} "
+                "(cycle proceeds)", portfolio_id, exc,
+            )
+
     requests = _load_promotable_requests(
         portfolio_id=portfolio_id, run_date=run_date,
         session_factory=session_factory, now=now,
