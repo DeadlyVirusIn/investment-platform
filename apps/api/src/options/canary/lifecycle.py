@@ -19,6 +19,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from apps.api.src.config import settings
 from apps.api.src.options.canary import economics, selection
 from apps.api.src.options.canary.engine import release_one
 from apps.api.src.options.paper.engine import record_mtm
@@ -29,6 +30,7 @@ CONTRACT_MULTIPLIER = 100
 def decide_exit(
     *, dte: int | None, pct_max_profit: float | None, priced: bool,
     tp_pct: float, dte_close: int, tp_net_pnl: float | None = None,
+    decision_fresh: bool | None = None,
 ) -> tuple[str | None, str]:
     """Return (action, reason). action ∈ {None(HOLD), 'close', 'expire'}.
     Order: stale→HOLD, expiry, take-profit, DTE management, else HOLD.
@@ -40,16 +42,31 @@ def decide_exit(
     CLOSED_TAKE_PROFIT. tp_net_pnl=None preserves legacy behavior. DTE and
     expiry branches are UNCHANGED (a DTE-management close may book negative
     P&L — that is risk management, correctly labeled
-    CLOSED_DTE_MANAGEMENT)."""
+    CLOSED_DTE_MANAGEMENT).
+
+    P6D.34C decision freshness gate: when `decision_fresh` is False the
+    TP branch and the DTE-management branch return
+    (None, "HOLD_STALE_QUOTES") instead of closing — never book a close
+    against quotes older than OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS.
+    The EXPIRY branch is UNAFFECTED (settlement uses the price_bar
+    settlement price, independent of chain quotes). decision_fresh=None
+    preserves legacy behavior (no gate). ORDER inside the TP branch:
+    freshness FIRST, then the 33A uneconomic guard — a stale quote makes
+    the pct/net numbers themselves untrustworthy, so HOLD_STALE_QUOTES is
+    the more truthful reason when both would hold."""
     if not priced:
         return (None, "HOLD_STALE")
     if dte is not None and dte <= 0:
         return ("expire", "EXPIRED")
     if pct_max_profit is not None and pct_max_profit >= tp_pct:
+        if decision_fresh is False:
+            return (None, "HOLD_STALE_QUOTES")
         if tp_net_pnl is not None and tp_net_pnl <= 0:
             return (None, "HOLD_TP_UNECONOMIC")
         return ("close", "CLOSED_TAKE_PROFIT")
     if dte is not None and dte <= dte_close:
+        if decision_fresh is False:
+            return (None, "HOLD_STALE_QUOTES")
         return ("close", "CLOSED_DTE_MANAGEMENT")
     return (None, "HOLD")
 
@@ -118,9 +135,21 @@ def manage_one(
     # MTM observation (same txn — rolled back with the position if release fails)
     record_mtm(trade_id, quotes_by_symbol=quotes, session=session)
 
+    # P6D.34C — decision freshness: the WORST (max) effective quote age
+    # across the legs must be within the decision-age budget for a close
+    # decision to be trusted. None-safe: missing ages → not fresh.
+    eff_ages = [q.effective_age_seconds for q in quotes.values()
+                if q.effective_age_seconds is not None]
+    max_eff = max(eff_ages) if eff_ages else None
+    decision_fresh = bool(
+        priced and max_eff is not None
+        and max_eff <= int(settings.OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS)
+    )
+
     action, reason = decide_exit(
         dte=dte, pct_max_profit=pct_max_profit, priced=priced,
         tp_pct=tp_pct, dte_close=dte_close, tp_net_pnl=tp_net_pnl,
+        decision_fresh=decision_fresh,
     )
 
     released = False
@@ -136,4 +165,6 @@ def manage_one(
 
     return {"trade_id": trade_id, "action": action, "reason": reason,
             "dte": dte, "pct_max_profit": pct_max_profit,
-            "tp_net_pnl": tp_net_pnl, "released": released}
+            "tp_net_pnl": tp_net_pnl, "released": released,
+            "max_effective_age_seconds": max_eff,
+            "decision_fresh": decision_fresh}

@@ -25,7 +25,9 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.src.config import settings
+from apps.api.src.options.canary import lifecycle
 from apps.api.src.options.canary import positions as pos
+from apps.api.src.options.canary import quotes_refresh
 from apps.api.src.options.canary import selection
 from apps.api.tests.integration import _canary_replay as rh
 
@@ -454,3 +456,200 @@ def test_tp_gross_crossed_net_negative_holds(session_factory, fresh_portfolio):
         assert _mtm_event_count(s, r.trade_id) >= 1       # still observed
     assert report.clean
     assert report.cash_drift == []
+
+
+# ===========================================================================
+# 9) P6D.34C — decision freshness gate + targeted intraday quote refresh
+# ===========================================================================
+
+STALE_SNAPSHOT_AT = NOW - dt.timedelta(hours=2)   # eff age ≈ 7202s > 900s
+MAX_AGE = 900                                      # settings default
+
+
+def _decision(session_factory, *, pid: str, trade_id: int) -> dict:
+    """Observe manage_one's decision dict WITHOUT mutating state (rollback)."""
+    with session_factory() as s:
+        res = lifecycle.manage_one(
+            s, portfolio_id=pid, trade_id=trade_id, now=NOW,
+            tp_pct=float(settings.OPTIONS_CANARY_TP_PCT),
+            dte_close=int(settings.OPTIONS_CANARY_DTE_CLOSE),
+        )
+        s.rollback()
+    return res
+
+
+def test_stale_tp_eligible_holds(session_factory, fresh_portfolio):
+    """TP-level mids but the chain is 2h old (eff age 7202 > 900) → the
+    freshness gate HOLDs with HOLD_STALE_QUOTES; nothing is closed."""
+    pid, _ = fresh_portfolio
+    r = _promote_far(session_factory, pid, phash="34c-stale-tp")
+    with session_factory() as s:
+        # Same TP-worthy mids as scenario 2, but seeded 2 hours ago.
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=STALE_SNAPSHOT_AT,
+                      short_bid=Decimal("0.08"), short_ask=Decimal("0.12"),
+                      long_bid=Decimal("0.01"), long_ask=Decimal("0.05"))
+
+    res = _decision(session_factory, pid=pid, trade_id=r.trade_id)
+    assert res["action"] is None
+    assert res["reason"] == "HOLD_STALE_QUOTES"
+    assert res["decision_fresh"] is False
+    assert res["max_effective_age_seconds"] > MAX_AGE
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_fresh_tp_decision_fresh_and_closes(session_factory, fresh_portfolio):
+    """Fresh chain (age ~2s < 900) at TP level → decision_fresh True and the
+    cycle closes CLOSED_TAKE_PROFIT (scenario-2 behavior preserved)."""
+    pid, _ = fresh_portfolio
+    r = _promote_far(session_factory, pid, phash="34c-fresh-tp")
+    with session_factory() as s:
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.08"), short_ask=Decimal("0.12"),
+                      long_bid=Decimal("0.01"), long_ask=Decimal("0.05"))
+
+    res = _decision(session_factory, pid=pid, trade_id=r.trade_id)
+    assert res["decision_fresh"] is True
+    assert res["max_effective_age_seconds"] <= MAX_AGE
+    assert (res["action"], res["reason"]) == ("close", "CLOSED_TAKE_PROFIT")
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "CLOSED"
+        assert _release_reason(s, r.trade_id) == "CLOSED_TAKE_PROFIT"
+        assert pos.count_open_positions(s, pid) == 0
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_dte_stale_holds(session_factory, fresh_portfolio):
+    """Near-expiry (DTE 5 <= 7) but the chain is 2h old → DTE-management
+    branch is gated too: HOLD_STALE_QUOTES, position stays OPEN."""
+    pid, _ = fresh_portfolio
+    near_expiry = TODAY + dt.timedelta(days=5)
+    req = rh.make_spcs_request(expiry=near_expiry, snapshot_at=NOW)
+    r = rh.promote(session_factory, portfolio_id=pid, request=req,
+                   proposal_hash="34c-dte-stale", now=NOW)
+    assert r.status == "promoted", r
+    with session_factory() as s:
+        rh.seed_chain(s, expiry=near_expiry, snapshot_at=STALE_SNAPSHOT_AT,
+                      short_bid=Decimal("0.60"), short_ask=Decimal("0.65"),
+                      long_bid=Decimal("0.20"), long_ask=Decimal("0.25"))
+
+    res = _decision(session_factory, pid=pid, trade_id=r.trade_id)
+    assert res["action"] is None
+    assert res["reason"] == "HOLD_STALE_QUOTES"
+    assert res["decision_fresh"] is False
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_refresh_success_allows_decision(session_factory, fresh_portfolio):
+    """Chain is 2h stale at TP level; the cycle runs with refresh enabled and
+    a FAKE ingest_fn that seeds a FRESH chain row → the decision evaluates
+    fresh quotes and the trade closes CLOSED_TAKE_PROFIT."""
+    pid, _ = fresh_portfolio
+    r = _promote_far(session_factory, pid, phash="34c-refresh-ok")
+    with session_factory() as s:
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=STALE_SNAPSHOT_AT,
+                      short_bid=Decimal("0.08"), short_ask=Decimal("0.12"),
+                      long_bid=Decimal("0.01"), long_ask=Decimal("0.05"))
+
+    calls: list[str] = []
+
+    def fake_ingest(*, underlying, snapshot_at_utc, session_factory):
+        calls.append(underlying)
+        with session_factory() as s:
+            rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=snapshot_at_utc,
+                          short_bid=Decimal("0.08"), short_ask=Decimal("0.12"),
+                          long_bid=Decimal("0.01"), long_ask=Decimal("0.05"))
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW,
+                          refresh_quotes=True, ingest_fn=fake_ingest)
+
+    assert calls == [rh.UNDERLYING]            # once per distinct underlying
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "CLOSED"
+        assert _release_reason(s, r.trade_id) == "CLOSED_TAKE_PROFIT"
+        assert pos.count_open_positions(s, pid) == 0
+        realized = _realized(s, r.trade_id)
+        assert realized is not None and Decimal(str(realized)) > 0
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_refresh_failure_tolerated(session_factory, fresh_portfolio):
+    """Refresh enabled but ingest raises → no exception escapes the cycle;
+    decisions see the stale chain and HOLD; reconcile clean."""
+    pid, _ = fresh_portfolio
+    r = _promote_far(session_factory, pid, phash="34c-refresh-fail")
+    with session_factory() as s:
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=STALE_SNAPSHOT_AT,
+                      short_bid=Decimal("0.08"), short_ask=Decimal("0.12"),
+                      long_bid=Decimal("0.01"), long_ask=Decimal("0.05"))
+
+    def boom(**_kw):
+        raise RuntimeError("provider down")
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW,
+                          refresh_quotes=True, ingest_fn=boom)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"     # held on stale
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_refresh_helper_success_and_failure(session_factory, fresh_portfolio):
+    """Direct refresh_open_position_quotes contract: success path returns the
+    refreshed underlyings (fake called once per distinct underlying); a
+    raising ingest_fn lands in `failed` and never raises out."""
+    pid, _ = fresh_portfolio
+    _promote_far(session_factory, pid, phash="34c-helper")
+
+    calls: list[str] = []
+    out = quotes_refresh.refresh_open_position_quotes(
+        portfolio_id=pid, session_factory=session_factory,
+        ingest_fn=lambda **kw: calls.append(kw["underlying"]), now=NOW)
+    assert out == {"refreshed": [rh.UNDERLYING], "failed": [], "skipped": None}
+    assert calls == [rh.UNDERLYING]
+
+    def boom(**_kw):
+        raise RuntimeError("provider down")
+
+    out2 = quotes_refresh.refresh_open_position_quotes(
+        portfolio_id=pid, session_factory=session_factory,
+        ingest_fn=boom, now=NOW)
+    assert out2["refreshed"] == [] and out2["skipped"] is None
+    assert out2["failed"] == [
+        {"underlying": rh.UNDERLYING, "error": "provider down"}]
+
+
+def test_refresh_no_open_positions_skips(session_factory, fresh_portfolio):
+    """No open positions → skipped='no_open_positions' and ingest_fn is
+    never called."""
+    pid, _ = fresh_portfolio
+    calls: list[str] = []
+    out = quotes_refresh.refresh_open_position_quotes(
+        portfolio_id=pid, session_factory=session_factory,
+        ingest_fn=lambda **kw: calls.append(kw["underlying"]), now=NOW)
+    assert out == {"refreshed": [], "failed": [],
+                   "skipped": "no_open_positions"}
+    assert calls == []

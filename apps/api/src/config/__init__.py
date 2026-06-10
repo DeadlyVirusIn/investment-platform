@@ -466,6 +466,16 @@ class Settings(BaseSettings):
     OPTIONS_CANARY_MIN_CREDIT_MULTIPLE: float = 2.0
     # Floor on net (after round-trip fees) max profit / max loss.
     OPTIONS_CANARY_MIN_NET_REWARD_RISK: float = 0.10
+    # P6D.34C — targeted intraday quote refresh + decision freshness gate.
+    # Intentionally NOT wired into compose (same precedent as the 33A pair
+    # above) — these defaults are the source of truth everywhere.
+    # Refresh the chain for each underlying with an open canary position
+    # at the start of every lifecycle cycle (before exit decisions).
+    OPTIONS_CANARY_QUOTE_REFRESH_ENABLED: bool = True
+    # Max effective quote age (seconds, P6D.34A effective_age_seconds) for
+    # a CLOSE decision (take-profit / DTE management) to be trusted; older
+    # → HOLD_STALE_QUOTES. Expiry settlement is exempt (price_bar-based).
+    OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS: int = 900
 
     # ------------------------------------------------------------------
     # PHASE 11W (Phase E) — Manual research-run activation (research-only)

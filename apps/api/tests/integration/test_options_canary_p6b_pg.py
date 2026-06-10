@@ -127,8 +127,10 @@ def test_lifecycle_cycle_take_profit_gate_independent(
         ), {"p": pid}).scalar()))
         _seed_cheap_chain(s)
 
+    # P6D.34C: refresh off — the test container has no provider API access.
     report = canary_engine.run_lifecycle_cycle(
-        portfolio_id=pid, now=NOW, heal=True, session_factory=session_factory)
+        portfolio_id=pid, now=NOW, heal=True, session_factory=session_factory,
+        refresh_quotes=False)
 
     with session_factory() as s:
         assert pos.count_open_positions(s, pid) == 0          # released

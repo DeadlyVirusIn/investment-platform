@@ -371,9 +371,15 @@ def promote(
     return r
 
 
-def run_cycle(session_factory, *, portfolio_id: str, now: dt.datetime):
-    """Run the REAL run_lifecycle_cycle (MTM + decide_exit + release + reconcile)."""
+def run_cycle(session_factory, *, portfolio_id: str, now: dt.datetime,
+              refresh_quotes: bool = False, ingest_fn=None):
+    """Run the REAL run_lifecycle_cycle (MTM + decide_exit + release + reconcile).
+
+    P6D.34C: refresh_quotes defaults to FALSE here (the test container has
+    no provider API access); scenarios exercising the refresh path pass
+    refresh_quotes=True with a fake ingest_fn."""
     return canary_engine.run_lifecycle_cycle(
         portfolio_id=portfolio_id, now=now, heal=True,
         session_factory=session_factory,
+        refresh_quotes=refresh_quotes, ingest_fn=ingest_fn,
     )

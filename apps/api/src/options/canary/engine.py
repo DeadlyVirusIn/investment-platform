@@ -278,6 +278,8 @@ def run_lifecycle_cycle(
     now: dt.datetime,
     heal: bool = True,
     session_factory=SessionLocal,
+    refresh_quotes: bool | None = None,
+    ingest_fn=None,
 ) -> reconcile.ReconcileReport:
     """One lifecycle pass: ordered reconciliation (heal orphan positions →
     drift/orphan-trade/reserved-mismatch alerts).
@@ -285,7 +287,15 @@ def run_lifecycle_cycle(
     P6B.0: manages EXISTING open positions (MTM + TP/DTE/expiry → release_one)
     regardless of OPTIONS_CANARY_ENABLED — the gate controls promotion only,
     so disabling it never freezes an open position's wind-down. Each position
-    is managed in its own transaction; reconcile runs last (ordered)."""
+    is managed in its own transaction; reconcile runs last (ordered).
+
+    P6D.34C: when `refresh_quotes` is effective-True (None → settings.
+    OPTIONS_CANARY_QUOTE_REFRESH_ENABLED) AND there are open positions, the
+    chain for each open underlying is refreshed FIRST (targeted intraday
+    ingest) so exit decisions evaluate fresh quotes. Refresh failures are
+    logged and tolerated — the cycle always proceeds (stale quotes then
+    HOLD via the decision-freshness gate). `ingest_fn` is threaded to
+    quotes_refresh for tests."""
     from apps.api.src.config import settings
     from apps.api.src.options.canary import lifecycle
 
@@ -297,6 +307,29 @@ def run_lifecycle_cycle(
             "SELECT trade_id FROM options_paper_position "
             "WHERE portfolio_id = :pid AND released_at IS NULL"
         ), {"pid": portfolio_id}).all()]
+
+    do_refresh = (
+        bool(settings.OPTIONS_CANARY_QUOTE_REFRESH_ENABLED)
+        if refresh_quotes is None else bool(refresh_quotes)
+    )
+    if do_refresh and open_tids:
+        # Lazy import avoids cycles (quotes_refresh lazily pulls chain_ingest).
+        from apps.api.src.options.canary import quotes_refresh
+        try:
+            summary = quotes_refresh.refresh_open_position_quotes(
+                portfolio_id=portfolio_id, session_factory=session_factory,
+                ingest_fn=ingest_fn, now=now,
+            )
+            logger.info(
+                "canary quote refresh pid={}: refreshed={} failed={} skipped={}",
+                portfolio_id, summary["refreshed"], summary["failed"],
+                summary["skipped"],
+            )
+        except Exception as exc:   # noqa: BLE001 — refresh never blocks cycle
+            logger.error(
+                "canary quote refresh errored pid={}: {} (cycle proceeds)",
+                portfolio_id, exc,
+            )
 
     for tid in open_tids:
         with session_factory() as s:
