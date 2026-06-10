@@ -21,10 +21,15 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
 from apps.api.src.options.canary import positions as pos
+from apps.api.src.options.canary.economics import assess_economics
 from apps.api.src.options.data_provider.base_adapter import OptionChainQuote
 from apps.api.src.options.paper.engine import TradeRequest
 from apps.api.src.options.paper.fills import compute_fill
-from apps.api.src.options.paper.strategies import LegSpec
+from apps.api.src.options.paper.strategies import (
+    LegSpec,
+    compute_risk,
+    net_credit_dollars,
+)
 
 STRATEGY_VERSION = "canary-v1"
 
@@ -154,16 +159,58 @@ def _load_promotable_requests(*, portfolio_id, run_date, session_factory):
             # liquidity gate the paper engine enforces at open (OI>=500,
             # spread<=$0.10, age<=60s, valid bid/ask). Reuses compute_fill so
             # selector-promotable == engine-fillable; no duplicated thresholds.
-            if any(
-                quotes.get(lr["option_symbol"]) is None
-                or not compute_fill(
-                    quotes[lr["option_symbol"]], side=lr["side"]
-                ).accepted
-                for lr in legs_rows
-            ):
+            # The conservative FillResults are kept for the economics gate.
+            fills: list[Decimal] = []
+            for lr in legs_rows:
+                q = quotes.get(lr["option_symbol"])
+                fr = compute_fill(q, side=lr["side"]) if q is not None else None
+                if fr is None or not fr.accepted:
+                    fills = []
+                    break
+                fills.append(fr.fill_price)
+            if not fills:
                 continue   # unpriced or unfillable leg → skip
             req = _build_request(underlying=c["underlying"], strategy=strategy,
                                  legs_rows=legs_rows, quotes=quotes)
+            # P6D.33A economic viability — entry credit estimated from the
+            # SAME conservative fills the engine would use at open
+            # (SELL fills − BUY fills, ×100×qty); max_loss via compute_risk;
+            # close drag from the live half-spreads. Structurally uneconomic
+            # spreads (fees+drag exceed economics) are never promoted.
+            try:
+                legs = list(req.legs)
+                econ = assess_economics(
+                    entry_credit=net_credit_dollars(legs, fills),
+                    max_loss=compute_risk(
+                        strategy, legs, fills).max_loss_dollars,
+                    leg_half_spreads=[
+                        (quotes[lr["option_symbol"]].ask
+                         - quotes[lr["option_symbol"]].bid) / Decimal("2")
+                        for lr in legs_rows
+                    ],
+                    leg_qtys=[l.qty for l in legs],
+                    tp_pct=float(settings.OPTIONS_CANARY_TP_PCT),
+                    min_credit_multiple=float(
+                        settings.OPTIONS_CANARY_MIN_CREDIT_MULTIPLE),
+                    min_net_reward_risk=float(
+                        settings.OPTIONS_CANARY_MIN_NET_REWARD_RISK),
+                )
+            except (ValueError, StopIteration) as exc:
+                logger.info(
+                    "canary selection: candidate id={} skipped "
+                    "(economics shape error: {})", c["id"], exc,
+                )
+                continue
+            if not econ.viable:
+                logger.info(
+                    "canary selection: candidate id={} skipped uneconomic "
+                    "({}): entry_credit={} min_viable_credit={} "
+                    "expected_tp_close_net_pnl={} net_reward_risk={}",
+                    c["id"], econ.reason, econ.entry_credit,
+                    econ.min_viable_credit, econ.expected_tp_close_net_pnl,
+                    econ.net_reward_risk,
+                )
+                continue
             phash = pos.proposal_hash(
                 portfolio_id=portfolio_id, run_date=run_date,
                 underlying=c["underlying"], strategy_name=strategy,

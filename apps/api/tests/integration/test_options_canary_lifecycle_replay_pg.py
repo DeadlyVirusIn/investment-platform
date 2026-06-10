@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.src.config import settings
 from apps.api.src.options.canary import positions as pos
+from apps.api.src.options.canary import selection
 from apps.api.tests.integration import _canary_replay as rh
 
 pytestmark = pytest.mark.integration
@@ -79,7 +80,9 @@ def fresh_portfolio(session_factory):
             "TRUNCATE options_paper_position, options_paper_trade_leg, "
             "options_trade_lifecycle_event, options_expiration_event, "
             "options_assignment_event, options_paper_trade, "
-            "options_chain_snapshot RESTART IDENTITY CASCADE"
+            "options_chain_snapshot, options_candidate_leg, "
+            "options_strategy_candidate, options_shadow_decision_log "
+            "RESTART IDENTITY CASCADE"
         ))
         s.execute(text(
             "DELETE FROM options_paper_portfolio WHERE name LIKE :p"
@@ -101,6 +104,11 @@ def _trade_status(s: Session, trade_id: int) -> str:
 def _released_at(s: Session, trade_id: int):
     return s.execute(text(
         "SELECT released_at FROM options_paper_position WHERE trade_id = :t"
+    ), {"t": trade_id}).scalar()
+
+def _release_reason(s: Session, trade_id: int):
+    return s.execute(text(
+        "SELECT release_reason FROM options_paper_position WHERE trade_id = :t"
     ), {"t": trade_id}).scalar()
 
 def _realized(s: Session, trade_id: int):
@@ -192,7 +200,12 @@ def test_take_profit_close(session_factory, fresh_portfolio):
         assert _trade_status(s, r.trade_id) == "CLOSED"
         assert _released_at(s, r.trade_id) is not None
         assert pos.count_open_positions(s, pid) == 0
-        assert _realized(s, r.trade_id) is not None
+        # P6D.33A — a CLOSED_TAKE_PROFIT must book POSITIVE realized P&L:
+        # entry $35 − exit_debit $11 − fees_rt $2.80 = +$21.20.
+        assert _release_reason(s, r.trade_id) == "CLOSED_TAKE_PROFIT"
+        realized = _realized(s, r.trade_id)
+        assert realized is not None
+        assert Decimal(str(realized)) > 0
         # Reserve (≈max_loss+fees) + realized credited back → cash strictly up.
         assert _cash(s, pid) > cash_after_open
     assert report.clean
@@ -223,7 +236,12 @@ def test_dte_management_close(session_factory, fresh_portfolio):
         assert _trade_status(s, r.trade_id) == "CLOSED"
         assert _released_at(s, r.trade_id) is not None
         assert pos.count_open_positions(s, pid) == 0
-        assert _realized(s, r.trade_id) is not None
+        # P6D.33A — DTE management close may book NEGATIVE realized P&L
+        # (risk management, correctly labeled): 35 − 45 − 2.80 = −$12.80.
+        assert _release_reason(s, r.trade_id) == "CLOSED_DTE_MANAGEMENT"
+        realized = _realized(s, r.trade_id)
+        assert realized is not None
+        assert Decimal(str(realized)) < 0
         assert _cash(s, pid) > cash_after_open
     assert report.clean
     assert report.cash_drift == []
@@ -337,5 +355,100 @@ def test_adverse_near_max_loss_holds(session_factory, fresh_portfolio):
         assert _released_at(s, r.trade_id) is None
         assert pos.count_open_positions(s, pid) == 1
         assert _mtm_event_count(s, r.trade_id) >= 1
+    assert report.clean
+    assert report.cash_drift == []
+
+
+# ===========================================================================
+# 7) P6D.33A — selector economic viability gate (REAL selector + seeded rows)
+# ===========================================================================
+
+CAND_EXPIRY = TODAY + dt.timedelta(days=30)   # DTE 30 ∈ [21, 45]
+
+
+@pytest.fixture
+def canary_universe_qqq(monkeypatch):
+    """Point the canary universe at the harness underlying (QQQ) so the
+    REAL selector evaluates the seeded candidates. Strategy/DTE/confidence
+    gates keep their real defaults."""
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_UNIVERSE", "QQQ")
+
+
+def test_selector_rejects_uneconomic_low_credit(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """Trade-3-like spread: conservative-fill credit $10 with 0.09-wide
+    quotes (drag $9 + fees $2.80 → min_viable $23.60) → the selector's
+    economics gate rejects it; nothing is promotable."""
+    pid, _ = fresh_portfolio
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY)
+        # Fillable (spread 0.09 <= $0.10, OI 2000, fresh) but uneconomic:
+        # SELL fill 0.395−0.045=0.35, BUY fill 0.205+0.045=0.25 → credit $10.
+        rh.seed_chain(s, expiry=CAND_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.35"), short_ask=Decimal("0.44"),
+                      long_bid=Decimal("0.16"), long_ask=Decimal("0.25"))
+
+    out = selection._load_promotable_requests(
+        portfolio_id=pid, run_date=TODAY, session_factory=session_factory)
+    assert out == []
+
+
+def test_selector_accepts_economic_credit(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """Healthy spread: conservative-fill credit $35 (0.60−0.25) with tight
+    quotes → min_viable $15.60, tp_net +$9.70, net_rr 0.495 → promotable."""
+    pid, _ = fresh_portfolio
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY)
+        rh.seed_chain(s, expiry=CAND_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.60"), short_ask=Decimal("0.65"),
+                      long_bid=Decimal("0.20"), long_ask=Decimal("0.25"))
+
+    out = selection._load_promotable_requests(
+        portfolio_id=pid, run_date=TODAY, session_factory=session_factory)
+    assert len(out) == 1
+    req, phash = out[0]
+    assert req.underlying == "QQQ"
+    assert phash
+
+
+# ===========================================================================
+# 8) P6D.33A — TP gross-crossed but NET-negative → HOLD_TP_UNECONOMIC
+# ===========================================================================
+
+def test_tp_gross_crossed_net_negative_holds(session_factory, fresh_portfolio):
+    """Promote a low-credit trade DIRECTLY via promote_one (bypassing the
+    selector gate in-test): entry fills 0.35/0.25 → credit $10.00, max_loss
+    $90 (trade-3 economics). Seed exit quotes so GROSS pct = 0.60 >= 0.50 but
+    NET = 10 − 4 − 9 − 2.80 = −$5.80 <= 0 → lifecycle HOLDs (no negative
+    'take profit'), position stays OPEN, reconcile clean."""
+    pid, _ = fresh_portfolio
+    req = rh.make_spcs_request(
+        expiry=FAR_EXPIRY, snapshot_at=NOW,
+        short_bid=Decimal("0.35"), short_ask=Decimal("0.44"),
+        long_bid=Decimal("0.16"), long_ask=Decimal("0.25"),
+    )
+    r = rh.promote(session_factory, portfolio_id=pid, request=req,
+                   proposal_hash="tp-unecon-1", now=NOW)
+    assert r.status == "promoted", r
+    assert r.reserved == Decimal("92.80")          # max_loss 90 + fees_rt 2.80
+    with session_factory() as s:
+        # Gross cost = (0.115 − 0.075) × 100 = $4 → pct (10−4)/10 = 0.60 ≥ TP,
+        # but 0.09-wide quotes → close drag $9 → net −$5.80.
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.07"), short_ask=Decimal("0.16"),
+                      long_bid=Decimal("0.03"), long_ask=Decimal("0.12"))
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"     # NOT closed at a loss
+        assert _released_at(s, r.trade_id) is None
+        assert _release_reason(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+        assert _realized(s, r.trade_id) is None
+        assert _mtm_event_count(s, r.trade_id) >= 1       # still observed
     assert report.clean
     assert report.cash_drift == []

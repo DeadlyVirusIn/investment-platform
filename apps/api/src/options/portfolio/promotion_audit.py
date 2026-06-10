@@ -20,6 +20,7 @@ candidates.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import text
@@ -27,7 +28,13 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
 from apps.api.src.options.canary import selection
+from apps.api.src.options.canary.economics import assess_economics
 from apps.api.src.options.paper.fills import compute_fill
+from apps.api.src.options.paper.strategies import (
+    LegSpec,
+    compute_risk,
+    net_credit_dollars,
+)
 
 # Newest-first rejected candidates returned to the UI are capped.
 REJECTED_CAP = 100
@@ -40,6 +47,7 @@ REASON_NO_LEGS = "no_legs"
 REASON_DTE_OUT_OF_RANGE = "dte_out_of_range"
 REASON_CONFIDENCE_BELOW_GATE = "confidence_below_gate"
 REASON_UNFILLABLE_LEG = "unfillable_leg"
+REASON_UNECONOMIC = "uneconomic"          # P6D.33A — fails assess_economics
 REASON_ELIGIBLE = "eligible"
 
 
@@ -61,7 +69,8 @@ def classify_candidate(
 ) -> str:
     """Pure: one rejection reason for a candidate, mirroring the REAL
     selector's gate order (selection._load_promotable_requests):
-    underlying → strategy → legs → dte → confidence → fillability.
+    underlying → strategy → legs → dte → confidence → fillability →
+    economics (P6D.33A).
 
     'eligible' means the candidate passed every selector gate and would have
     been promotable; whether it was actually promoted (or skipped for
@@ -81,6 +90,8 @@ def classify_candidate(
         return REASON_CONFIDENCE_BELOW_GATE
     if cand.get("legs_fillable") is False:
         return REASON_UNFILLABLE_LEG
+    if cand.get("economics_viable") is False:
+        return REASON_UNECONOMIC
     return REASON_ELIGIBLE
 
 
@@ -207,7 +218,8 @@ def get_promotion_audit(
     if ids:
         leg_rows = session.execute(text(
             """
-            SELECT candidate_id, side, option_symbol, expiry
+            SELECT candidate_id, side, option_type, strike,
+                   option_symbol, expiry
               FROM options_candidate_leg
              WHERE candidate_id = ANY(:ids)
              ORDER BY candidate_id, role
@@ -237,6 +249,7 @@ def get_promotion_audit(
             "has_legs": has_legs,
             "legs": legs,
             "legs_fillable": None,
+            "economics_viable": None,
         })
 
     # Fillability is checked ONLY for candidates that already pass every
@@ -260,6 +273,45 @@ def get_promotion_audit(
                     quotes[lr["option_symbol"]], side=lr["side"]).accepted
                 for lr in c["legs"]
             )
+            if not c["legs_fillable"]:
+                continue
+            # P6D.33A — re-derive the selector's economic viability gate
+            # from the SAME conservative fills + half-spreads (pure math,
+            # read-only). Malformed shapes stay unclassified (None).
+            try:
+                leg_specs = [
+                    LegSpec(
+                        side=lr["side"], option_type=lr["option_type"],
+                        strike=Decimal(str(lr["strike"])), expiry=lr["expiry"],
+                        qty=1, option_symbol=lr["option_symbol"],
+                    )
+                    for lr in c["legs"]
+                ]
+                fills = [
+                    compute_fill(
+                        quotes[lr["option_symbol"]], side=lr["side"]
+                    ).fill_price
+                    for lr in c["legs"]
+                ]
+                econ = assess_economics(
+                    entry_credit=net_credit_dollars(leg_specs, fills),
+                    max_loss=compute_risk(
+                        strategy, leg_specs, fills).max_loss_dollars,
+                    leg_half_spreads=[
+                        (quotes[lr["option_symbol"]].ask
+                         - quotes[lr["option_symbol"]].bid) / Decimal("2")
+                        for lr in c["legs"]
+                    ],
+                    leg_qtys=[l.qty for l in leg_specs],
+                    tp_pct=float(settings.OPTIONS_CANARY_TP_PCT),
+                    min_credit_multiple=float(
+                        settings.OPTIONS_CANARY_MIN_CREDIT_MULTIPLE),
+                    min_net_reward_risk=float(
+                        settings.OPTIONS_CANARY_MIN_NET_REWARD_RISK),
+                )
+                c["economics_viable"] = econ.viable
+            except (ValueError, StopIteration):
+                c["economics_viable"] = None
 
     for c in candidates:
         c["reason"] = classify_candidate(

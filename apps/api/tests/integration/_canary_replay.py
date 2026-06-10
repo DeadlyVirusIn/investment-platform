@@ -281,6 +281,54 @@ def seed_chain(
     session.commit()
 
 
+def seed_candidate(
+    session: Session, *, run_date: dt.date, expiry: dt.date,
+    confidence: Decimal = Decimal("0.80"),
+) -> int:
+    """Seed one QQQ SHORT_PUT_CREDIT_SPREAD strategy candidate (shadow-log
+    parent row + candidate + 2 legs: SELL 400P / BUY 399P) so the REAL
+    selector (`selection._load_promotable_requests`) can evaluate it against
+    the seeded chain. The 'SHORT_PUT_CREDIT_SPREAD' bias row is migration-
+    seeded (072). Returns the candidate id."""
+    shadow_id = session.execute(text(
+        "INSERT INTO options_shadow_decision_log "
+        "(run_date, underlying_symbol, option_symbol, expiration, strike, "
+        " option_type, side, strategy_name, would_trade, reason, "
+        " liquidity_pass, spread_pass, open_interest_pass, volume_pass, "
+        " greeks_pass, iv_rank_pass, risk_pass) "
+        "VALUES (:rd, :u, :sym, :e, :k, 'put', 'sell', :strat, TRUE, "
+        " 'replay-sim', TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE) "
+        "RETURNING id"
+    ), {"rd": run_date, "u": UNDERLYING, "sym": SHORT_SYM, "e": expiry,
+        "k": SHORT_STRIKE, "strat": STRATEGY_SHORT_PUT_CREDIT_SPREAD,
+        }).scalar()
+    cand_id = session.execute(text(
+        "INSERT INTO options_strategy_candidate "
+        "(shadow_observation_id, run_date, underlying, rule_id, bias, "
+        " directional_view, risk_profile, confidence, iv_suitability, "
+        " expiry_suitability, liquidity_suitability, composite_score, "
+        " why_emitted, triggering_rule) "
+        "VALUES (:sid, :rd, :u, :strat, 'bullish', 'bullish', 'defined', "
+        " :conf, 0.8, 0.8, 0.8, 0.8, 'replay-sim seed', 'replay_sim') "
+        "RETURNING id"
+    ), {"sid": shadow_id, "rd": run_date, "u": UNDERLYING,
+        "strat": STRATEGY_SHORT_PUT_CREDIT_SPREAD, "conf": confidence,
+        }).scalar()
+    for role, side, strike, sym in [
+        ("short_put", "SELL", SHORT_STRIKE, SHORT_SYM),
+        ("long_put", "BUY", LONG_STRIKE, LONG_SYM),
+    ]:
+        session.execute(text(
+            "INSERT INTO options_candidate_leg "
+            "(candidate_id, role, side, option_type, strike, expiry, "
+            " option_symbol, entry_mid, priced_as_of) "
+            "VALUES (:cid, :role, :side, 'PUT', :k, :e, :sym, 0.5, NOW())"
+        ), {"cid": cand_id, "role": role, "side": side, "k": strike,
+            "e": expiry, "sym": sym})
+    session.commit()
+    return cand_id
+
+
 def seed_settlement(session: Session, *, close_price: Decimal) -> None:
     """Seed the price_bar/asset row settlement_price() reads for the expiry
     path (selection.settlement_price → latest price_bar.close for QQQ)."""

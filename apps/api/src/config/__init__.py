@@ -458,6 +458,14 @@ class Settings(BaseSettings):
     OPTIONS_CANARY_TP_PCT: float = 0.50
     # DTE management: close at/under this many days to expiry.
     OPTIONS_CANARY_DTE_CLOSE: int = 7
+    # P6D.33A economic viability gate (selector + lifecycle TP guard).
+    # Intentionally NOT wired into compose — these defaults are the source
+    # of truth everywhere; full model documented in
+    # apps.api.src.options.canary.economics.
+    # Entry credit must be >= multiple × (close drag + round-trip fees).
+    OPTIONS_CANARY_MIN_CREDIT_MULTIPLE: float = 2.0
+    # Floor on net (after round-trip fees) max profit / max loss.
+    OPTIONS_CANARY_MIN_NET_REWARD_RISK: float = 0.10
 
     # ------------------------------------------------------------------
     # PHASE 11W (Phase E) — Manual research-run activation (research-only)

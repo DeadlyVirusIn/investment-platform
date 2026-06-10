@@ -35,6 +35,7 @@ def _cand(**over):
         "dte": 30,
         "has_legs": True,
         "legs_fillable": True,
+        "economics_viable": True,
     }
     base.update(over)
     return base
@@ -82,16 +83,33 @@ def test_classify_unfillable_leg():
         _cand(legs_fillable=False), **GATES) == "unfillable_leg"
 
 
+def test_classify_uneconomic():
+    # P6D.33A — fillable but fails assess_economics → terminal 'uneconomic'.
+    assert classify_candidate(
+        _cand(economics_viable=False), **GATES) == "uneconomic"
+
+
+def test_classify_uneconomic_after_fillability():
+    # Unfillable wins over uneconomic (selector gate order: fill → economics).
+    assert classify_candidate(
+        _cand(legs_fillable=False, economics_viable=False), **GATES
+    ) == "unfillable_leg"
+
+
 def test_classify_eligible():
     assert classify_candidate(_cand(), **GATES) == "eligible"
     # legs_fillable=None (not checked) is NOT a rejection
     assert classify_candidate(_cand(legs_fillable=None), **GATES) == "eligible"
+    # economics_viable=None (not checked / malformed shape) is NOT a rejection
+    assert classify_candidate(
+        _cand(economics_viable=None), **GATES) == "eligible"
 
 
 def test_classify_gate_order_underlying_first():
     # Wrong on every gate → first gate (underlying) wins
     c = _cand(underlying="SPY", rule_id="LONG_CALL", has_legs=False,
-              dte=None, confidence=0.1, legs_fillable=False)
+              dte=None, confidence=0.1, legs_fillable=False,
+              economics_viable=False)
     assert classify_candidate(c, **GATES) == "wrong_underlying"
 
 
