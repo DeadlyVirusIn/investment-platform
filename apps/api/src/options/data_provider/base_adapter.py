@@ -51,6 +51,12 @@ class OptionChainQuote:
     underlying_price: Decimal | None = None    # used for Greeks fallback
     interest_rate: Decimal | None = None       # used for Greeks fallback
     dividend_yield: Decimal | None = None      # used for Greeks fallback
+    # P6D.34A — age of this quote RIGHT NOW: (now − snapshot_at_utc) +
+    # quote_age_seconds, clamped at 0 (clock skew). Populated only on the
+    # DB-rehydration path (canary.selection.latest_chain_quotes); None on
+    # fresh adapter pulls, where the stored age is already current.
+    # evaluate_quote prefers this over quote_age_seconds when present.
+    effective_age_seconds: int | None = None
 
 
 @dataclass(frozen=True)

@@ -197,13 +197,14 @@ def release_one(
 # Cycles (called by worker handlers; gated upstream on OPTIONS_CANARY_ENABLED)
 # ===========================================================================
 
-def _load_promotable_requests(*, portfolio_id, run_date, session_factory):
+def _load_promotable_requests(*, portfolio_id, run_date, session_factory,
+                              now=None):
     """Delegates to canary.selection (P6B.0). Lazy import avoids an import
     cycle (selection imports paper.engine.TradeRequest)."""
     from apps.api.src.options.canary import selection
     return selection._load_promotable_requests(
         portfolio_id=portfolio_id, run_date=run_date,
-        session_factory=session_factory,
+        session_factory=session_factory, now=now,
     )
 
 
@@ -220,7 +221,7 @@ def run_promotion_cycle(
     upsert overwrites the (run_date, portfolio) row → idempotent."""
     requests = _load_promotable_requests(
         portfolio_id=portfolio_id, run_date=run_date,
-        session_factory=session_factory,
+        session_factory=session_factory, now=now,
     )
     counts = FunnelCounts(candidates_total=len(requests))
 

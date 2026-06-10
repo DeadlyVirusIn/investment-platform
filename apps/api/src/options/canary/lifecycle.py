@@ -75,7 +75,8 @@ def manage_one(
         "FROM options_paper_trade_leg WHERE trade_id = :tid"
     ), {"tid": trade_id}).mappings().all()
     symbols = [l["option_symbol"] for l in legs]
-    quotes = selection.latest_chain_quotes(session, symbols)
+    # P6D.34A — age quotes as-of the cycle's `now` (deterministic in replay).
+    quotes = selection.latest_chain_quotes(session, symbols, now=now)
     priced = bool(legs) and all(
         s in quotes and quotes[s].mid is not None for s in symbols
     )

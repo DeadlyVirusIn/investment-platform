@@ -169,7 +169,16 @@ def evaluate_quote(
         return REJECT_WIDE_SPREAD
     if (quote.open_interest or 0) < min_open_interest:
         return REJECT_LOW_OPEN_INTEREST
-    if quote.quote_age_seconds > max_quote_age_seconds:
+    # P6D.34A — prefer the true current age (set on DB-rehydrated quotes by
+    # canary.selection.latest_chain_quotes) over the stored-at-ingest age,
+    # which is ~0 forever and hides hours of staleness. Fresh adapter pulls
+    # leave effective_age_seconds=None → stored age applies (unchanged).
+    age = (
+        quote.effective_age_seconds
+        if getattr(quote, "effective_age_seconds", None) is not None
+        else quote.quote_age_seconds
+    )
+    if age > max_quote_age_seconds:
         return REJECT_STALE_QUOTE
     if require_iv and quote.iv is None:
         return REJECT_MISSING_IV

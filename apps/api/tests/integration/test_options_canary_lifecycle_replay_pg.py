@@ -390,7 +390,8 @@ def test_selector_rejects_uneconomic_low_credit(
                       long_bid=Decimal("0.16"), long_ask=Decimal("0.25"))
 
     out = selection._load_promotable_requests(
-        portfolio_id=pid, run_date=TODAY, session_factory=session_factory)
+        portfolio_id=pid, run_date=TODAY, session_factory=session_factory,
+        now=NOW)
     assert out == []
 
 
@@ -407,7 +408,8 @@ def test_selector_accepts_economic_credit(
                       long_bid=Decimal("0.20"), long_ask=Decimal("0.25"))
 
     out = selection._load_promotable_requests(
-        portfolio_id=pid, run_date=TODAY, session_factory=session_factory)
+        portfolio_id=pid, run_date=TODAY, session_factory=session_factory,
+        now=NOW)
     assert len(out) == 1
     req, phash = out[0]
     assert req.underlying == "QQQ"

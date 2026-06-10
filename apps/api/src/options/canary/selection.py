@@ -12,6 +12,7 @@ taxonomy (universe / strategy / DTE / confidence / chain availability).
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from typing import Any
 
@@ -38,11 +39,40 @@ def _dec(v: Any) -> Decimal | None:
     return None if v is None else Decimal(str(v))
 
 
+def effective_age_seconds(
+    snapshot_at_utc: dt.datetime,
+    stored_quote_age_seconds: int,
+    now: dt.datetime,
+) -> int:
+    """P6D.34A — age of a rehydrated quote RIGHT NOW.
+
+    (now − snapshot_at_utc) + stored age. The stored quote_age_seconds is
+    the provider-reported age AT INGESTION (~0), so on its own it hides
+    hours of staleness. Clock-skew safe: never negative (snapshot_at_utc in
+    the future clamps the elapsed term to 0). Naive timestamps = UTC.
+    """
+    if snapshot_at_utc.tzinfo is None:
+        snapshot_at_utc = snapshot_at_utc.replace(tzinfo=dt.timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=dt.timezone.utc)
+    elapsed = (now - snapshot_at_utc).total_seconds()
+    if elapsed < 0:
+        elapsed = 0.0
+    age = int(elapsed) + max(int(stored_quote_age_seconds or 0), 0)
+    return age if age >= 0 else 0
+
+
 def latest_chain_quotes(
     session: Session, symbols: list[str],
+    now: dt.datetime | None = None,
 ) -> dict[str, OptionChainQuote]:
     """Latest snapshot row per option_symbol → OptionChainQuote. Symbols
-    absent from the chain are simply omitted (caller treats as unpriced)."""
+    absent from the chain are simply omitted (caller treats as unpriced).
+
+    P6D.34A: every rehydrated quote carries effective_age_seconds (true age
+    vs `now`); evaluate_quote prefers it over the stored-at-ingest age."""
+    if now is None:
+        now = dt.datetime.now(dt.timezone.utc)
     syms = sorted({s for s in symbols if s})
     if not syms:
         return {}
@@ -71,6 +101,9 @@ def latest_chain_quotes(
             iv=_dec(r["iv"]),
             quote_age_seconds=int(r["quote_age_seconds"] or 0),
             provider=r["provider"], provider_version=r["provider_version"],
+            effective_age_seconds=effective_age_seconds(
+                r["snapshot_at_utc"], int(r["quote_age_seconds"] or 0), now,
+            ),
         )
     return out
 
@@ -117,7 +150,10 @@ def _build_request(
     )
 
 
-def _load_promotable_requests(*, portfolio_id, run_date, session_factory):
+def _load_promotable_requests(
+    *, portfolio_id, run_date, session_factory,
+    now: dt.datetime | None = None,
+):
     """Ranked, eligible (TradeRequest, proposal_hash) pairs for the canary.
 
     Filters: universe + strategy + DTE window + confidence + all legs priced
@@ -154,7 +190,7 @@ def _load_promotable_requests(*, portfolio_id, run_date, session_factory):
             if not (min_dte <= dte <= max_dte):
                 continue
             syms = [lr["option_symbol"] for lr in legs_rows]
-            quotes = latest_chain_quotes(s, syms)
+            quotes = latest_chain_quotes(s, syms, now=now)
             # P6D.12 fillability parity — every leg must clear the SAME
             # liquidity gate the paper engine enforces at open (OI>=500,
             # spread<=$0.10, age<=60s, valid bid/ask). Reuses compute_fill so
