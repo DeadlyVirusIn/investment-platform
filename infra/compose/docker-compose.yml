@@ -101,10 +101,14 @@ services:
       # P6D.4 parity — generator taxonomy (mirror worker-tickloop/worker-cron).
       # api does not run candidate generation; declared for cross-service parity.
       OPTIONS_GENERATOR_STRUCTURES: ${OPTIONS_GENERATOR_STRUCTURES:-directional}
-      # Phase Opt-B3a — provider abstraction. v1 = thetadata; B3a
-      # introduces 'finnhub' (free tier, EOD-fresh). Adapter chosen
-      # at chain_ingest._build_adapter() per this value.
-      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
+      # Phase Opt-B3a — provider abstraction. Adapter chosen at
+      # chain_ingest._build_adapter() per this value.
+      # P6D.36A — default harmonized to 'tradier' across api /
+      # worker-tickloop / worker-cron (was thetadata/thetadata/tradier;
+      # drift caused the P6D.16 cron-ingest break). .env sets the real
+      # value; this default only matters when the key is absent, and
+      # tradier is the adapter that works without OPRA access.
+      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-tradier}
       # Phase Opt-B3a — Finnhub key (also used by catalysts pipeline).
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       # Phase Opt-B3a — Tradier sandbox/prod options provider.
@@ -182,7 +186,8 @@ services:
       # P6D.1 staging — canary universe (selector reads this, not the portfolio
       # column). Gate stays OPTIONS_CANARY_ENABLED unset→false.
       OPTIONS_CANARY_UNIVERSE: ${OPTIONS_CANARY_UNIVERSE:-SPY}
-      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-thetadata}
+      # P6D.36A — default harmonized to 'tradier' (see api service note).
+      OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-tradier}
       # Phase 4 — generator output taxonomy. Default-safe: absent .env key
       # → 'directional' (legacy). Set OPTIONS_GENERATOR_STRUCTURES=both in
       # .env to emit research + engine-compatible families.
@@ -208,6 +213,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # P6D.36A — liveness: tick_loop touches WORKER_HEARTBEAT_FILE every
+    # iteration (60s). Stale mtime > 180s (3 missed ticks) = unhealthy.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,sys,time; p=os.environ.get('WORKER_HEARTBEAT_FILE','/tmp/worker_heartbeat'); sys.exit(0 if time.time()-os.stat(p).st_mtime<180 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     networks:
       - backend
 
@@ -245,9 +258,8 @@ services:
       # Missing here → defaults 'directional' → credit pass (SPCS/IC) skipped
       # whenever worker-cron claims candidate generation. .env sets 'both'.
       OPTIONS_GENERATOR_STRUCTURES: ${OPTIONS_GENERATOR_STRUCTURES:-directional}
-      # P6D.16 fix — data-provider parity (mirror api/worker-tickloop). Missing
-      # here → defaults 'thetadata' (broken adapter: no _raw_chain_pull) → cron
-      # chain ingestion fails. .env sets 'tradier'.
+      # P6D.16 fix — data-provider parity (mirror api/worker-tickloop).
+      # P6D.36A — all three services now share this 'tradier' default.
       OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-tradier}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
@@ -283,6 +295,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # P6D.36A — worker-cron runs the same tick-loop image/CMD, so the
+    # same heartbeat liveness check applies. Heartbeat lands in the
+    # worker_cron_tmp volume (/tmp) — persistence across restarts is
+    # fine: mtime freshness, not existence, is the health signal.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import os,sys,time; p=os.environ.get('WORKER_HEARTBEAT_FILE','/tmp/worker_heartbeat'); sys.exit(0 if time.time()-os.stat(p).st_mtime<180 else 1)\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
     networks:
       - backend
 
@@ -314,6 +336,16 @@ services:
       - "127.0.0.1:5173:5173"
     depends_on:
       - api
+    # P6D.36A — Vite dev server liveness. busybox wget ships in
+    # node:20-alpine. 127.0.0.1 (not localhost): alpine resolves
+    # localhost to ::1 first and Vite binds IPv4 0.0.0.0 only.
+    # Long start_period: first boot runs npm install.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:5173/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
     networks:
       - backend
 

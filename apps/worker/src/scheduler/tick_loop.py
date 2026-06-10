@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import os
 import traceback
 from decimal import Decimal
+from pathlib import Path
 
 from croniter import croniter
 from loguru import logger
@@ -17,6 +19,19 @@ from apps.worker.src.jobs.registry import REGISTRY
 
 _TICK_INTERVAL: int = 60          # seconds between polls
 _MAX_CONCURRENT: int = 3          # asyncio.Semaphore slots
+
+# P6D.36A — liveness heartbeat for the compose healthcheck. Touched once
+# per loop iteration (even when the tick itself errors: the loop being
+# alive is what the healthcheck asserts; job failures are tracked in
+# job_run). Healthcheck fails when mtime is older than ~3 intervals.
+_HEARTBEAT_FILE: str = os.environ.get("WORKER_HEARTBEAT_FILE", "/tmp/worker_heartbeat")
+
+
+def _touch_heartbeat() -> None:
+    try:
+        Path(_HEARTBEAT_FILE).touch()
+    except OSError as exc:  # never let liveness plumbing kill the loop
+        logger.warning("heartbeat touch failed ({}): {}", _HEARTBEAT_FILE, exc)
 
 
 async def _execute_job(schedule: JobSchedule, semaphore: asyncio.Semaphore) -> None:
@@ -103,6 +118,7 @@ async def run() -> None:
     """Run the scheduler loop indefinitely."""
     logger.info("Scheduler tick-loop started (interval={}s)", _TICK_INTERVAL)
     while True:
+        _touch_heartbeat()
         try:
             await _tick()
         except Exception:
