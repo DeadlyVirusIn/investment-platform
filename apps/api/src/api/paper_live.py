@@ -482,6 +482,9 @@ def _query_latest_official_nav(session: Session) -> Decimal | None:
             PaperEquitySnapshot.portfolio_id,
             PaperEquitySnapshot.snapshot_date.desc(),
             PaperEquitySnapshot.recorded_at.desc(),
+            # P6D.35A — deterministic tiebreaker under duplicate
+            # (portfolio, date, source) rows with equal recorded_at.
+            PaperEquitySnapshot.id.desc(),
         )
     ).all()
     if not rows:

@@ -60,7 +60,7 @@ def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
                    unrealized_pnl, realized_pnl_cumulative, recorded_at
             FROM paper_equity_snapshot
             WHERE portfolio_id = :pid AND source = 'live'
-            ORDER BY snapshot_date DESC, recorded_at DESC
+            ORDER BY snapshot_date DESC, recorded_at DESC, id DESC
             LIMIT 1
         """),
         {"pid": pid},
@@ -105,7 +105,7 @@ def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
             SELECT total_equity, snapshot_date FROM paper_equity_snapshot
             WHERE portfolio_id = :pid AND source = 'live'
               AND snapshot_date < :as_of
-            ORDER BY snapshot_date DESC, recorded_at DESC
+            ORDER BY snapshot_date DESC, recorded_at DESC, id DESC
             LIMIT 1
         """),
         {"pid": pid, "as_of": as_of},

@@ -65,7 +65,7 @@ def _latest_active_snapshots(db: Session) -> list[Any]:
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
           AND s.source = 'live'
-        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC, s.id DESC
     """)).fetchall()
 
 
@@ -85,7 +85,7 @@ def _prev_day_snapshots(
         WHERE p.is_active = TRUE
           AND s.snapshot_date < :d
           AND s.source = 'live'
-        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC, s.id DESC
     """), {"d": latest_date}).fetchall()
     return {r.portfolio_id: float(r.total_equity) for r in rows}
 
@@ -379,7 +379,7 @@ def paper_equity(
               AND s.source = 'live'
               {pid_clause}
               AND s.snapshot_date::date BETWEEN :s AND :e
-            ORDER BY s.portfolio_id, s.snapshot_date::date, s.recorded_at DESC
+            ORDER BY s.portfolio_id, s.snapshot_date::date, s.recorded_at DESC, s.id DESC
         )
         SELECT d,
                sum(equity) AS equity,

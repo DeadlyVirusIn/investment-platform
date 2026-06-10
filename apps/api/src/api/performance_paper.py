@@ -3228,7 +3228,7 @@ def paper_risk_dashboard(
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
           AND s.source = 'live'
-        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC
+        ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC, s.id DESC
     """)).mappings().all()
 
     has_snapshots = bool(snap_rows)

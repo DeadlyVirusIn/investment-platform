@@ -51,6 +51,22 @@ def test_daily_pnl_is_snapshot_delta_not_mark_to_market():
     assert "daily_pnl_prior_snapshot_date" in src
 
 
+def test_snapshot_reads_have_id_tiebreaker():
+    """P6D.35A — every latest/prior snapshot ORDER BY must end with id DESC so
+    duplicate (portfolio, date, source) rows with equal recorded_at resolve
+    deterministically."""
+    src = Path(
+        "apps/api/src/api/paper_canonical.py"
+    ).read_text(encoding="utf-8")
+    assert src.count(
+        "ORDER BY snapshot_date DESC, recorded_at DESC, id DESC"
+    ) == 2, "both canonical snapshot reads need the id DESC tiebreaker"
+    # No un-tiebroken recorded_at ordering remains anywhere in the module.
+    assert src.count("recorded_at DESC") == src.count(
+        "recorded_at DESC, id DESC"
+    )
+
+
 def test_no_writes_in_source():
     src = Path(
         "apps/api/src/api/paper_canonical.py"
