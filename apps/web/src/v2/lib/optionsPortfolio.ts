@@ -99,6 +99,8 @@ export interface OptionsLeg {
   open_interest: number | null;
   spread: number | null;
   quote_age_seconds: number | null;
+  // P6D.34B — true age right now (quote_age_seconds is ingest-time ~0).
+  effective_age_seconds?: number | null;
   leg_pnl: number | null;
 }
 
@@ -133,6 +135,9 @@ export interface OptionsDetailPosition {
   unrealized_pnl_pct: number | null;
   captured_pct: number | null;
   priced: boolean;
+  // P6D.34B — position-level freshness (oldest leg snapshot / worst age).
+  quotes_as_of?: string | null;
+  max_effective_age_seconds?: number | null;
   lifecycle: OptionsLifecycle;
   setup: OptionsSetup | null;
   legs: OptionsLeg[];

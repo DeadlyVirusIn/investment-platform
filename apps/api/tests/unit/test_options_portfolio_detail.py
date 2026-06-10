@@ -47,6 +47,9 @@ def test_position_and_leg_keys_pinned():
         '"side"', '"strike"', '"option_type"', '"entry_fill_price"',
         '"bid"', '"ask"', '"mid"', '"open_interest"', '"spread"',
         '"quote_age_seconds"', '"leg_pnl"',
+        # P6D.34B freshness truth
+        '"effective_age_seconds"', '"quotes_as_of"',
+        '"max_effective_age_seconds"',
         # lifecycle
         '"action"', '"tp_threshold_pct"', '"dte_management_days"',
     ):

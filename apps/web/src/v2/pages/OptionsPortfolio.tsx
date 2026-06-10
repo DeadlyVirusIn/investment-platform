@@ -299,6 +299,51 @@ function Mini({ label, v, color }: { label: string; v: string; color?: string })
   );
 }
 
+// P6D.34B — true quote freshness. effective_age_seconds is computed by the
+// backend ((now − snapshot_at) + stored age); the stored quote_age_seconds is
+// ingest-time (~0) and misleading on its own.
+const fmtAge = (s: number | null | undefined): string => {
+  if (s == null) return '—';
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  if (s < 86400) return `${(s / 3600).toFixed(1)}h`;
+  return `${(s / 86400).toFixed(1)}d`;
+};
+
+function FreshnessBanner({ p }: { p: OptionsDetailPosition }) {
+  const age = p.max_effective_age_seconds;
+  const asOf = p.quotes_as_of
+    ? new Date(p.quotes_as_of).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null;
+  if (age == null) {
+    return (
+      <p className="ink-fainter" style={{ fontSize: 11.5, marginBottom: 12 }}>
+        Quote freshness unavailable.
+      </p>
+    );
+  }
+  // fresh < 15min · stale 15min–24h · old > 24h
+  if (age < 900) {
+    return (
+      <p className="ink-fainter" style={{ fontSize: 11.5, marginBottom: 12 }}>
+        Quotes as of {asOf ?? '—'} · Age: {fmtAge(age)} · fresh
+      </p>
+    );
+  }
+  const old = age >= 86400;
+  return (
+    <p style={{
+      fontSize: 11.5, marginBottom: 12, fontWeight: 600,
+      color: old ? 'var(--destructive)' : AMBER,
+    }}>
+      {old ? 'Quotes are from a previous session' : 'Quotes are stale'}
+      {' — as of '}{asOf ?? '—'} · Age: {fmtAge(age)}.
+      {' '}Marks and P&L reflect that time, not now.
+    </p>
+  );
+}
+
 function LegRow({ l }: { l: OptionsLeg }) {
   const exp = l.expiry
     ? new Date(l.expiry).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—';
@@ -318,7 +363,10 @@ function LegRow({ l }: { l: OptionsLeg }) {
         {l.bid != null && l.ask != null ? `${l.bid.toFixed(2)}/${l.ask.toFixed(2)}` : '—'}
         {l.open_interest != null ? ` · OI ${l.open_interest.toLocaleString()}` : ''}
         {l.spread != null ? ` · sp ${l.spread.toFixed(2)}` : ''}
-        {l.quote_age_seconds != null ? ` · ${l.quote_age_seconds}s` : ''}
+        {/* true age (effective), not the misleading ingest-time stored age */}
+        {l.effective_age_seconds != null
+          ? ` · ${fmtAge(l.effective_age_seconds)}`
+          : l.quote_age_seconds != null ? ` · ${l.quote_age_seconds}s` : ''}
       </span>
       <span className="tabular-nums" style={{ fontSize: 12, color: pnlColor(l.leg_pnl), textAlign: 'right' }}>
         {signedUsd(l.leg_pnl)} · exp {exp}
@@ -344,6 +392,8 @@ function PositionDetailCard({ p }: { p: OptionsDetailPosition }) {
           {signedUsd(p.unrealized_pnl)}{p.unrealized_pnl_pct != null ? ` · ${pct1(p.unrealized_pnl_pct)}` : ''}
         </span>
       </div>
+
+      <FreshnessBanner p={p} />
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-5 gap-y-3 mb-4">
         <Mini label="Entry credit" v={money2(p.entry_credit)} />

@@ -124,9 +124,22 @@ def get_portfolio_detail(
 
         cost = Decimal("0")
         leg_out: list[dict] = []
+        # P6D.34B — true freshness for the UI: oldest snapshot among legs +
+        # the worst (max) effective age. effective_age_seconds is populated
+        # by latest_chain_quotes (P6D.34A) against the real clock here.
+        quotes_as_of: dt.datetime | None = None
+        max_effective_age: int | None = None
         for l in legs:
             q = quotes.get(l["option_symbol"])
             mid = q.mid if q else None
+            if q is not None:
+                if quotes_as_of is None or q.snapshot_at_utc < quotes_as_of:
+                    quotes_as_of = q.snapshot_at_utc
+                eff = q.effective_age_seconds
+                if eff is not None and (
+                    max_effective_age is None or eff > max_effective_age
+                ):
+                    max_effective_age = eff
             close_sign = 1 if str(l["side"]).upper() == "SELL" else -1
             if mid is not None:
                 cost += mid * close_sign * int(l["qty"]) * CONTRACT_MULTIPLIER
@@ -150,6 +163,8 @@ def get_portfolio_detail(
                 "open_interest": (q.open_interest if q else None),
                 "spread": (round(ask - bid, 4) if (bid is not None and ask is not None) else None),
                 "quote_age_seconds": (q.quote_age_seconds if q else None),
+                # P6D.34B — true age right now (stored age is ingest-time ~0).
+                "effective_age_seconds": (q.effective_age_seconds if q else None),
                 "leg_pnl": leg_pnl,
             })
 
@@ -195,6 +210,9 @@ def get_portfolio_detail(
             "unrealized_pnl_pct": (round(unreal_pct, 2) if unreal_pct is not None else None),
             "captured_pct": (round(captured * 100.0, 2) if captured is not None else None),
             "priced": priced,
+            # P6D.34B — position-level freshness for the UI banner.
+            "quotes_as_of": (quotes_as_of.isoformat() if quotes_as_of else None),
+            "max_effective_age_seconds": max_effective_age,
             "lifecycle": {
                 "action": action or "HOLD",
                 "reason": reason,
