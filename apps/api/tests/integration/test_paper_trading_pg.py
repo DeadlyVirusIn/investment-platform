@@ -6,11 +6,12 @@ import datetime as dt
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from apps.api.src.db.models import (
     Asset,
+    PaperEquitySnapshot,
     PaperPortfolio,
     PaperPosition,
     PaperTrade,
@@ -316,12 +317,18 @@ def test_equity_breakdown_and_return(pg_session: Session) -> None:
 def test_snapshot_equity_upserts_same_day(pg_session: Session) -> None:
     p = create_portfolio(pg_session, PortfolioCreate(name="snap"))
     pg_session.commit()
-    s1 = snapshot_equity_now(pg_session, p)
+    s1 = snapshot_equity_now(pg_session, p, source="live")
     pg_session.commit()
-    s2 = snapshot_equity_now(pg_session, p)
+    s2 = snapshot_equity_now(pg_session, p, source="live")
     pg_session.commit()
-    # Same calendar day → same row id
+    # P6D.35C: same calendar day + source → UPSERT updates the SAME row
     assert s1.id == s2.id
+    n = pg_session.scalar(
+        select(func.count())
+        .select_from(PaperEquitySnapshot)
+        .where(PaperEquitySnapshot.portfolio_id == p.id)
+    )
+    assert n == 1
 
 
 def test_usd_amount_sizing_computes_quantity(pg_session: Session) -> None:

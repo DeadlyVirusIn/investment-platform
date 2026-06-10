@@ -9,6 +9,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from apps.api.src.db.models import (
@@ -177,15 +178,24 @@ def snapshot_equity_now(
     as_of: dt.datetime | None = None,
     source: str,
 ) -> PaperEquitySnapshot:
-    """Phase L M079 — append an equity snapshot (no UPSERT).
+    """P6D.35C — UPSERT the equity snapshot (last writer wins).
 
-    Truth contract: every call MUST specify `source` explicitly.
-    Existing historical rows are never modified; this function appends
-    a new row with the current `recorded_at`. Canonical user-facing
-    readers MUST filter `source='live'` to honor presentation
-    immutability (docs/research/M083_CANONICAL_SEMANTIC.md).
+    One row per (portfolio_id, snapshot_date, source) — PostgreSQL
+    INSERT ... ON CONFLICT ON CONSTRAINT uq_paper_equity_snapshot
+    DO UPDATE. A second write into the same (portfolio, calendar date,
+    source) cell overwrites ALL value columns (cash, positions_value,
+    total_equity, unrealized_pnl, realized_pnl_cumulative) and advances
+    `recorded_at` to the new write time; the original row's `id` and
+    `created_at` are preserved.
 
-    Raises ValueError if source is not one of the allowed values.
+    Truth contract (Phase L M079, amended by P6D.35C):
+      - every call MUST specify `source` explicitly (raises ValueError
+        otherwise);
+      - rows in OTHER (date, source) cells are never modified — replay
+        writes (`source='replay'`) can never rewrite live history;
+      - canonical user-facing readers MUST filter `source='live'` to
+        honor presentation immutability
+        (docs/research/M083_CANONICAL_SEMANTIC.md).
     """
     if source not in _ALLOWED_SNAPSHOT_SOURCES:
         raise ValueError(
@@ -198,7 +208,7 @@ def snapshot_equity_now(
 
     breakdown = compute_equity_breakdown(session, portfolio)
 
-    snap = PaperEquitySnapshot(
+    stmt = pg_insert(PaperEquitySnapshot).values(
         portfolio_id=portfolio.id,
         snapshot_date=snapshot_date,
         cash=breakdown["cash"],
@@ -209,8 +219,27 @@ def snapshot_equity_now(
         recorded_at=dt.datetime.now(dt.timezone.utc),
         source=source,
     )
-    session.add(snap)
-    session.flush()
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_paper_equity_snapshot",
+        set_={
+            "cash": stmt.excluded.cash,
+            "positions_value": stmt.excluded.positions_value,
+            "total_equity": stmt.excluded.total_equity,
+            "unrealized_pnl": stmt.excluded.unrealized_pnl,
+            "realized_pnl_cumulative": stmt.excluded.realized_pnl_cumulative,
+            "recorded_at": stmt.excluded.recorded_at,
+        },
+    ).returning(PaperEquitySnapshot.id)
+
+    snapshot_id = session.execute(stmt).scalar_one()
+    snap = session.get(PaperEquitySnapshot, snapshot_id)
+    if snap is None:  # pragma: no cover — row was just upserted
+        raise RuntimeError(
+            f"snapshot_equity_now: upserted snapshot {snapshot_id} not found"
+        )
+    # The identity map may hold the pre-UPSERT state of an existing row;
+    # refresh so callers observe the post-write values.
+    session.refresh(snap)
     return snap
 
 

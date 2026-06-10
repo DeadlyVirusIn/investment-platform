@@ -1,12 +1,24 @@
-"""P6D.35A — paper_equity_snapshot read determinism under duplicate rows.
+"""P6D.35A → P6D.35C — paper_equity_snapshot read determinism.
 
-The table legally holds duplicate (portfolio_id, snapshot_date, source) rows
-(the unique key includes recorded_at) — live data has 47 duplicate groups, 31
-with CONFLICTING equity. Until the writer/constraint fix (P6D.35C), every
-latest-snapshot reader must resolve ties deterministically: ORDER BY
-snapshot_date DESC, recorded_at DESC, id DESC. These tests pin the behavior
-with the worst case — two rows on the SAME date with the SAME recorded_at and
-different equity (mirrors the real 2026-06-07 conflict: 146,155 vs 121,907).
+HISTORY: 35A pinned reader tie-breaking (ORDER BY snapshot_date DESC,
+recorded_at DESC, id DESC) while the table could legally hold duplicate
+(portfolio_id, snapshot_date, source) rows — the unique key included
+recorded_at, and live data had 47 duplicate groups, 31 with CONFLICTING
+equity (e.g. the real 2026-06-07 conflict: 146,155 vs 121,907).
+
+P6D.35C (migration 094) archived + deleted the non-keepers (keeper = the
+exact row the 35A readers already selected) and narrowed the unique key to
+(portfolio_id, snapshot_date, source); the writer is now an UPSERT. The
+duplicate row shape this suite originally exercised is therefore
+structurally IMPOSSIBLE — adaptation:
+
+  * the old fixture's duplicate pair (same date/source, different
+    recorded_at) now raises IntegrityError — pinned below as the NEW
+    structural guarantee that replaces reader tie-breaking;
+  * canonical nav/daily_pnl determinism is re-pinned over single rows
+    (the only legal state). The readers keep their recorded_at/id DESC
+    tiebreakers as defense-in-depth, but they can no longer choose
+    between competing rows.
 """
 
 from __future__ import annotations
@@ -14,6 +26,7 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from apps.api.src.api.paper_canonical import canonical_stock
 from apps.api.src.config import settings
@@ -22,7 +35,7 @@ from apps.api.src.db.models import PaperEquitySnapshot, PaperPortfolio
 pytestmark = pytest.mark.integration
 
 D_PRIOR = dt.datetime(2026, 6, 5, tzinfo=dt.timezone.utc)
-D_DUP = dt.datetime(2026, 6, 7, tzinfo=dt.timezone.utc)
+D_LATEST = dt.datetime(2026, 6, 7, tzinfo=dt.timezone.utc)
 REC = dt.datetime(2026, 6, 8, 23, 31, 3, tzinfo=dt.timezone.utc)
 
 
@@ -35,39 +48,50 @@ def _snap(pid, date, equity, recorded_at):
 
 
 @pytest.fixture
-def dup_portfolio(pg_session, monkeypatch):
+def snap_portfolio(pg_session, monkeypatch):
+    """Canonical portfolio with ONE live row per snapshot_date (the only
+    state the post-094 schema permits)."""
     p = PaperPortfolio(
         name="snapshot-determinism-test", starting_cash=100000, cash=100000,
     )
     pg_session.add(p)
     pg_session.flush()
     monkeypatch.setattr(settings, "CANONICAL_STOCK_PORTFOLIO_ID", str(p.id))
-    # prior day (daily_pnl basis) + the conflicting duplicate pair: same
-    # date, same source, SAME recorded_at, different equity.
     pg_session.add(_snap(p.id, D_PRIOR, 122073, REC - dt.timedelta(days=2)))
-    # NOTE: the current unique key (portfolio, date, source, recorded_at)
-    # FORBIDS exact recorded_at ties — the real live duplicates differ by
-    # microseconds/minutes. Winner = latest recorded_at (the id DESC
-    # tiebreaker is defense-in-depth, source-pinned in the unit suite).
-    a = _snap(p.id, D_DUP, 146155, REC - dt.timedelta(microseconds=1))
-    b = _snap(p.id, D_DUP, 121907, REC)
-    pg_session.add(a)
-    pg_session.add(b)
+    latest = _snap(p.id, D_LATEST, 121907, REC)
+    pg_session.add(latest)
     pg_session.commit()
-    winner = b   # later recorded_at wins, regardless of equity magnitude
-    return p, winner
+    return p, latest
 
 
-def test_canonical_picks_highest_id_on_exact_tie(pg_session, dup_portfolio):
-    _, hi = dup_portfolio
+def test_duplicate_date_source_row_is_structurally_impossible(
+    pg_session, snap_portfolio
+):
+    """The exact shape 35A had to tie-break (same portfolio/date/source,
+    DIFFERENT recorded_at, conflicting equity) is now an IntegrityError on
+    uq_paper_equity_snapshot — uniqueness moved from the reader into the
+    schema."""
+    p, _ = snap_portfolio
+    pg_session.add(
+        _snap(p.id, D_LATEST, 146155, REC - dt.timedelta(microseconds=1))
+    )
+    with pytest.raises(IntegrityError):
+        pg_session.commit()
+    pg_session.rollback()
+
+
+def test_canonical_reads_single_row_per_date(pg_session, snap_portfolio):
+    _, latest = snap_portfolio
     out = canonical_stock(db=pg_session)
     assert out["status"] == "live"
-    assert out["nav"] == float(hi.total_equity)   # latest-recorded row wins
-    assert out["source_snapshot_id"] == str(hi.id)
+    assert out["nav"] == float(latest.total_equity)
+    assert out["source_snapshot_id"] == str(latest.id)
 
 
-def test_canonical_daily_pnl_deterministic_across_calls(pg_session, dup_portfolio):
-    _, hi = dup_portfolio
+def test_canonical_daily_pnl_deterministic_across_calls(
+    pg_session, snap_portfolio
+):
+    _, latest = snap_portfolio
     results = {
         (canonical_stock(db=pg_session)["nav"],
          canonical_stock(db=pg_session)["daily_pnl"])
@@ -75,5 +99,5 @@ def test_canonical_daily_pnl_deterministic_across_calls(pg_session, dup_portfoli
     }
     assert len(results) == 1                              # identical every call
     nav, daily = results.pop()
-    assert nav == float(hi.total_equity)
-    assert daily == float(hi.total_equity) - 122073.0     # prior-day basis
+    assert nav == float(latest.total_equity)
+    assert daily == float(latest.total_equity) - 122073.0  # prior-day basis
