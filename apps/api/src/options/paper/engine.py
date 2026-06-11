@@ -43,6 +43,7 @@ from apps.api.src.options.paper.fills import (
     DEFAULT_FEE_PER_CONTRACT,
     FILL_MODEL_VERSION,
     FillResult,
+    compute_exit_fill,
     compute_fill,
     fees_for,
 )
@@ -330,7 +331,19 @@ def close_trade(
                 return {"accepted": False, "reason": REJECT_QUOTE_MISSING,
                         "missing": spec.option_symbol}
             close_side = "BUY" if spec.side == "SELL" else "SELL"
-            f = compute_fill(q, side=close_side)
+            # P6D.37B — exits use the exit fillability profile (sanity
+            # gates kept; OI + spread caps settings-parameterized).
+            # Inert defaults reproduce the entry gate exactly. The
+            # expiry settlement path (expire_trade) is quote-ungated
+            # and untouched.
+            f = compute_exit_fill(
+                q, side=close_side,
+                min_open_interest=int(settings.OPTIONS_EXIT_MIN_OI),
+                max_spread_pct=Decimal(
+                    str(settings.OPTIONS_EXIT_MAX_SPREAD_PCT)),
+                max_spread_floor=Decimal(
+                    str(settings.OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS)),
+            )
             if not f.accepted:
                 return {"accepted": False, "reason": REJECT_FILL_FAILED,
                         "leg": spec.option_symbol, "fill_reason": f.reason}

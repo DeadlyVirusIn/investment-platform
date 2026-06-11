@@ -1262,3 +1262,108 @@ def test_promotion_cycle_records_risk_control_skips(
         assert row["skip_underlying_cap"] == 1
         assert _trade_count(s) == 1
         assert pos.count_open_positions(s, pid) == 1
+
+
+# ===========================================================================
+# P6D.37B — exit-specific fillability profile
+# ===========================================================================
+#
+# Trade-3 scenario shape: TP condition met (capture >= 50%, net-positive,
+# fresh) but BOTH legs quote a $0.12 spread on ~$12.5 mids — the exact
+# live 06-10 blocker (~1% relative width, fails the $0.10 absolute cap).
+# Mids 12.50/12.46 keep the close cost at $4 (capture ≈ 0.886 of the $35
+# max profit) so the ONLY thing standing between decide_exit and a booked
+# close is the engine's exit fill gate.
+
+def _seed_tp_wide_spread_chain(session_factory, *, oi: int = 2000):
+    with session_factory() as s:
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("12.44"), short_ask=Decimal("12.56"),
+                      long_bid=Decimal("12.40"), long_ask=Decimal("12.52"),
+                      oi=oi)
+
+
+def test_exit_gate_inert_wide_spread_blocks_close_pin(
+    session_factory, fresh_portfolio,
+):
+    """REGRESSION PIN (inert defaults = current production): a TP-ready
+    close is rejected by the entry-grade $0.10 absolute spread cap —
+    trade stays OPEN, nothing released, cash untouched, reconcile clean.
+    This pins the exact failure mode 37B exists to fix; it goes away
+    only when the exit settings are flipped (next test)."""
+    pid, _ = fresh_portfolio
+    r = _promote_far(session_factory, pid, phash="37b-pin-1")
+    with session_factory() as s:
+        cash_after_open = _cash(s, pid)
+    _seed_tp_wide_spread_chain(session_factory)
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+        assert _cash(s, pid) == cash_after_open
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_exit_profile_unblocks_wide_spread_tp_close(
+    session_factory, fresh_portfolio, monkeypatch,
+):
+    """Same wide-spread TP setup, exit profile flipped to the rollout
+    values (MIN_OI=0, PCT=0.015): relative cap = max(0.10, 12.50×0.015
+    = 0.1875) admits the $0.12 spread → CLOSED_TAKE_PROFIT with
+    POSITIVE realized P&L (entry $35 − exit debit $14 − fees $2.80 =
+    +$18.20; slippage still capped at $0.05/leg)."""
+    pid, _ = fresh_portfolio
+    monkeypatch.setattr(settings, "OPTIONS_EXIT_MIN_OI", 0)
+    monkeypatch.setattr(settings, "OPTIONS_EXIT_MAX_SPREAD_PCT", 0.015)
+    r = _promote_far(session_factory, pid, phash="37b-rel-1")
+    with session_factory() as s:
+        cash_after_open = _cash(s, pid)
+    _seed_tp_wide_spread_chain(session_factory)
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "CLOSED"
+        assert _release_reason(s, r.trade_id) == "CLOSED_TAKE_PROFIT"
+        realized = Decimal(str(_realized(s, r.trade_id)))
+        assert realized == Decimal("18.20")
+        assert pos.count_open_positions(s, pid) == 0
+        assert _cash(s, pid) > cash_after_open
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_exit_profile_oi_ignored_blocked_then_closes(
+    session_factory, fresh_portfolio, monkeypatch,
+):
+    """Wing-OI-decay shape: TP-ready close on TIGHT spreads but the
+    chain's OI has dropped to 10 (entry needed >=500). Inert defaults
+    block the close (LOW_OPEN_INTEREST → trade stays OPEN); flipping
+    OPTIONS_EXIT_MIN_OI=0 closes it on the next cycle — same NOW, same
+    quotes, proving the OI gate was the only blocker."""
+    pid, _ = fresh_portfolio
+    r = _promote_far(session_factory, pid, phash="37b-oi-1")
+    with session_factory() as s:
+        # Cheap to close (TP test shape) but OI 10 on both legs.
+        rh.seed_chain(s, expiry=FAR_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.08"), short_ask=Decimal("0.12"),
+                      long_bid=Decimal("0.01"), long_ask=Decimal("0.05"),
+                      oi=10)
+
+    rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"     # blocked by OI
+
+    monkeypatch.setattr(settings, "OPTIONS_EXIT_MIN_OI", 0)
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "CLOSED"
+        assert _release_reason(s, r.trade_id) == "CLOSED_TAKE_PROFIT"
+        assert pos.count_open_positions(s, pid) == 0
+    assert report.clean
+    assert report.cash_drift == []

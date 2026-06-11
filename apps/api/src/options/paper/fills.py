@@ -129,6 +129,67 @@ def compute_fill(
     )
 
 
+def exit_max_spread_dollars(
+    quote: OptionChainQuote,
+    *,
+    max_spread_pct: Decimal,
+    max_spread_floor: Decimal,
+) -> Decimal:
+    """Effective EXIT spread cap: max(floor, pct × mid).
+
+    P6D.37B — the entry gate's absolute $0.10 cap cannot scale with
+    option price (a $0.12 spread on a $12 mid is the same ~1% relative
+    width the trade was opened at), so exits use a relative cap with an
+    absolute floor. pct <= 0 → floor only (inert). mid falls back to
+    (bid+ask)/2 when the quote's mid is missing; with no usable mid the
+    floor applies (compute_fill rejects NO_MID downstream anyway).
+    """
+    mid = quote.mid
+    if mid is None and quote.bid is not None and quote.ask is not None:
+        mid = (quote.bid + quote.ask) / Decimal("2")
+    if max_spread_pct <= 0 or mid is None or mid <= 0:
+        return max_spread_floor
+    rel = mid * max_spread_pct
+    return rel if rel > max_spread_floor else max_spread_floor
+
+
+def compute_exit_fill(
+    quote: OptionChainQuote,
+    *,
+    side: str,
+    slippage_cap: Decimal = DEFAULT_SLIPPAGE_CAP_DOLLARS,
+    min_open_interest: int = MIN_OPEN_INTEREST,
+    max_spread_pct: Decimal = Decimal("0"),
+    max_spread_floor: Decimal = MAX_BID_ASK_SPREAD_DOLLARS,
+    max_quote_age_seconds: int = MAX_QUOTE_AGE_SECONDS,
+) -> FillResult:
+    """Conservative fill for CLOSING a leg, under the EXIT profile.
+
+    P6D.37B — exits keep every SANITY gate (bid/ask present, bid > 0,
+    ask > bid, quote age, NO_MID) but parameterize the OPPORTUNITY
+    gates: `min_open_interest` (0 disables — a held position's close
+    is not an entry decision) and a relative spread cap
+    max(max_spread_floor, max_spread_pct × mid) instead of the entry
+    gate's absolute cap. The DEFAULTS are INERT — identical to
+    compute_fill's entry gate (OI>=500, $0.10 absolute, age<=60s) —
+    so behavior only changes when the caller passes the exit settings.
+    Fill-price math (mid ± min(half-spread, cap), SELL floored at bid)
+    is compute_fill's, unchanged.
+    """
+    return compute_fill(
+        quote,
+        side=side,
+        slippage_cap=slippage_cap,
+        enforce_liquidity=True,
+        min_open_interest=min_open_interest,
+        max_spread=exit_max_spread_dollars(
+            quote, max_spread_pct=max_spread_pct,
+            max_spread_floor=max_spread_floor,
+        ),
+        max_quote_age_seconds=max_quote_age_seconds,
+    )
+
+
 def fees_for(
     qty: int,
     *,

@@ -494,6 +494,24 @@ class Settings(BaseSettings):
     # OPTIONS_CANARY_MAX_CAPITAL_USD so exactly one max-size trade fits
     # — behavior-identical at max_open=1.
     OPTIONS_CANARY_MAX_AGGREGATE_LOSS_DOLLARS: float = 500.0
+    # P6D.37B — exit-specific fillability profile (settings-only, NOT
+    # wired into compose; same precedent as the 33A/34C/34D/36D knobs).
+    # Applies ONLY to close_trade exit fills; entry fills, expiry
+    # settlement, and the lifecycle decision gates are untouched.
+    # Defaults are INERT: they reproduce the entry gate exactly
+    # (OI>=500, absolute $0.10 spread cap). Rollout flips via env to
+    # OPTIONS_EXIT_MIN_OI=0 + OPTIONS_EXIT_MAX_SPREAD_PCT=0.015.
+    # Min open interest required on an EXIT fill. 0 disables the OI
+    # gate on exits (you already hold the position; OI is an entry-
+    # opportunity filter, not an exit-sanity one).
+    OPTIONS_EXIT_MIN_OI: int = 500
+    # Relative spread cap on exits, as a FRACTION of mid (0.015 = 1.5%).
+    # Effective cap = max(FLOOR, PCT * mid). 0.0 = relative term off →
+    # absolute floor only (inert/current behavior).
+    OPTIONS_EXIT_MAX_SPREAD_PCT: float = 0.0
+    # Absolute floor (dollars) of the exit spread cap. Equals the entry
+    # gate's MAX_BID_ASK_SPREAD_DOLLARS by default.
+    OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS: float = 0.10
     # P6D.34D — promotion freshness gate (settings-only, NOT wired into
     # compose; same precedent as the 33A/34C knobs above). Max effective
     # quote age (seconds) for a candidate's leg quotes at PROMOTION time;
