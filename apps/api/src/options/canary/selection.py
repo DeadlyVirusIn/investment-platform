@@ -186,16 +186,30 @@ def _build_request(
     )
 
 
+def _bump(counts: dict[str, int] | None, key: str, n: int = 1) -> None:
+    """P6D.36C — selector skip counting into the caller's out-param dict
+    (None → no-op, preserving every pre-existing call site)."""
+    if counts is not None and n:
+        counts[key] = counts.get(key, 0) + n
+
+
 def _load_promotable_requests(
     *, portfolio_id, run_date, session_factory,
     now: dt.datetime | None = None,
+    skip_counts: dict[str, int] | None = None,
 ):
     """Ranked, eligible (TradeRequest, proposal_hash) pairs for the canary.
 
     Filters: universe + strategy + DTE window + confidence + all legs priced
     in the latest chain. Deterministic order: confidence desc, composite desc,
     id asc. Liquidity is enforced downstream by the engine's compute_fill;
-    here we only require a chain quote (mid) to exist for each leg."""
+    here we only require a chain quote (mid) to exist for each leg.
+
+    P6D.36C: when `skip_counts` is passed, every selector-stage skip is
+    counted by reason key (confidence_below_gate / no_chain_for_proposal /
+    dte_outside_window / stale_quotes / uneconomic / other) so the funnel
+    can RECORD them instead of losing them (or leaving the promotion audit
+    to re-derive them read-side)."""
     universe = settings.OPTIONS_CANARY_UNIVERSE
     strategy = settings.OPTIONS_CANARY_STRATEGY
     min_dte = int(settings.OPTIONS_CANARY_MIN_DTE)
@@ -215,15 +229,31 @@ def _load_promotable_requests(
         ), {"u": universe, "strat": strategy, "rd": run_date,
             "minc": min_conf}).mappings().all()
 
+        # P6D.36C — candidates the confidence gate filtered out in SQL
+        # (same universe/strategy/run_date, confidence below the gate).
+        if skip_counts is not None:
+            below = s.execute(text(
+                """
+                SELECT COUNT(*) FROM options_strategy_candidate
+                WHERE underlying = :u AND rule_id = :strat
+                  AND run_date = :rd AND confidence < :minc
+                """
+            ), {"u": universe, "strat": strategy, "rd": run_date,
+                "minc": min_conf}).scalar() or 0
+            _bump(skip_counts, "confidence_below_gate", int(below))
+
         for c in cands:
             legs_rows = _candidate_legs(s, c["id"])
             if not legs_rows or any(not lr["option_symbol"] for lr in legs_rows):
+                _bump(skip_counts, "no_chain_for_proposal")
                 continue   # legs not materialized → skip (no_chain_for_proposal)
             expiries = {lr["expiry"] for lr in legs_rows}
             if len(expiries) != 1:
+                _bump(skip_counts, "other")
                 continue
             dte = (next(iter(expiries)) - run_date).days
             if not (min_dte <= dte <= max_dte):
+                _bump(skip_counts, "dte_outside_window")
                 continue
             syms = [lr["option_symbol"] for lr in legs_rows]
             quotes = latest_chain_quotes(s, syms, now=now)
@@ -253,6 +283,7 @@ def _load_promotable_requests(
                     c["id"], max(known) if known else None, max_promo_age,
                     sum(1 for a in leg_ages if a is None),
                 )
+                _bump(skip_counts, "stale_quotes")
                 continue
             # P6D.12 fillability parity — every leg must clear the SAME
             # liquidity gate the paper engine enforces at open (OI>=500,
@@ -268,6 +299,7 @@ def _load_promotable_requests(
                     break
                 fills.append(fr.fill_price)
             if not fills:
+                _bump(skip_counts, "other")
                 continue   # unpriced or unfillable leg → skip
             req = _build_request(underlying=c["underlying"], strategy=strategy,
                                  legs_rows=legs_rows, quotes=quotes)
@@ -299,6 +331,7 @@ def _load_promotable_requests(
                     "canary selection: candidate id={} skipped "
                     "(economics shape error: {})", c["id"], exc,
                 )
+                _bump(skip_counts, "other")
                 continue
             if not econ.viable:
                 logger.info(
@@ -309,6 +342,7 @@ def _load_promotable_requests(
                     econ.min_viable_credit, econ.expected_tp_close_net_pnl,
                     econ.net_reward_risk,
                 )
+                _bump(skip_counts, "uneconomic")
                 continue
             phash = pos.proposal_hash(
                 portfolio_id=portfolio_id, run_date=run_date,

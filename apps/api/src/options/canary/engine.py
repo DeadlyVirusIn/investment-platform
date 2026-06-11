@@ -198,13 +198,13 @@ def release_one(
 # ===========================================================================
 
 def _load_promotable_requests(*, portfolio_id, run_date, session_factory,
-                              now=None):
+                              now=None, skip_counts=None):
     """Delegates to canary.selection (P6B.0). Lazy import avoids an import
     cycle (selection imports paper.engine.TradeRequest)."""
     from apps.api.src.options.canary import selection
     return selection._load_promotable_requests(
         portfolio_id=portfolio_id, run_date=run_date,
-        session_factory=session_factory, now=now,
+        session_factory=session_factory, now=now, skip_counts=skip_counts,
     )
 
 
@@ -219,8 +219,10 @@ def run_promotion_cycle(
     ingest_fn=None,
 ) -> FunnelCounts:
     """One promotion pass for a portfolio. Each candidate promoted in its own
-    transaction (single commit). Funnel counts are ABSOLUTE for this run;
-    upsert overwrites the (run_date, portfolio) row → idempotent.
+    transaction (single commit). Funnel counts are per-RUN deltas; the
+    upsert MERGES them additively into the (run_date, portfolio) row
+    (P6D.36C — same-day reruns no longer erase earlier counts; end-state
+    fields like open_at_end/cash_at_end stay last-writer-wins).
 
     P6D.34D: when `refresh_quotes` is effective-True (None → settings.
     OPTIONS_CANARY_QUOTE_REFRESH_ENABLED), the chain for the canary
@@ -262,11 +264,22 @@ def run_promotion_cycle(
                 "(cycle proceeds)", portfolio_id, exc,
             )
 
+    # P6D.36C — selector-stage skips are RECORDED, not lost. The selector
+    # fills this dict by reason; below it is folded into FunnelCounts.
+    sel_skips: dict[str, int] = {}
     requests = _load_promotable_requests(
         portfolio_id=portfolio_id, run_date=run_date,
-        session_factory=session_factory, now=now,
+        session_factory=session_factory, now=now, skip_counts=sel_skips,
     )
-    counts = FunnelCounts(candidates_total=len(requests))
+    counts = FunnelCounts(
+        candidates_total=len(requests),
+        skip_stale_quotes=sel_skips.get("stale_quotes", 0),
+        skip_uneconomic=sel_skips.get("uneconomic", 0),
+        skip_confidence_below_gate=sel_skips.get("confidence_below_gate", 0),
+        skip_dte_outside_window=sel_skips.get("dte_outside_window", 0),
+        skip_no_chain_for_proposal=sel_skips.get("no_chain_for_proposal", 0),
+        skip_other=sel_skips.get("other", 0),
+    )
 
     with session_factory() as s:
         open_start = pos.count_open_positions(s, portfolio_id)

@@ -34,6 +34,11 @@ class FunnelCounts:
     skip_no_chain_for_proposal: int = 0
     skip_proposal_duplicate: int = 0
     skip_other: int = 0
+    # P6D.36C — selector-stage skip split (previously invisible or folded
+    # into skip_other / only re-derived read-side by the promotion audit).
+    skip_stale_quotes: int = 0            # P6D.34D promotion freshness gate
+    skip_uneconomic: int = 0              # P6D.33A economic viability gate
+    skip_confidence_below_gate: int = 0   # OPTIONS_CANARY_MIN_CONFIDENCE
 
 
 @dataclass
@@ -54,7 +59,16 @@ def upsert_funnel_row(
     details: dict[str, Any] | None = None,
 ) -> None:
     """Insert or update one funnel row per (run_date, portfolio_id).
-    UPSERT semantics: re-running on same date overwrites counts."""
+
+    P6D.36C merge semantics (same-day reruns must not erase history):
+      * counters (candidates_total, promoted, filled, skip_*) — ADDITIVE:
+        each rerun's counts are added to the stored row, so a 23:00 run's
+        promoted=1 survives a later same-day rerun that promotes nothing.
+      * end-state (open_at_end, cash_at_end, details_json) — last writer
+        wins (they describe "now", not the run).
+      * start-state (open_at_start, cash_at_start) — first writer wins
+        (set on insert, never updated on conflict).
+    """
     payload: dict[str, Any] = {
         "run_date": run_date,
         "portfolio_id": portfolio_id,
@@ -77,6 +91,8 @@ def upsert_funnel_row(
                skip_over_capital_cap, skip_dte_outside_window,
                skip_no_chain_for_proposal, skip_proposal_duplicate,
                skip_other,
+               skip_stale_quotes, skip_uneconomic,
+               skip_confidence_below_gate,
                open_at_start, open_at_end,
                cash_at_start, cash_at_end,
                details_json)
@@ -89,24 +105,31 @@ def upsert_funnel_row(
                :skip_over_capital_cap, :skip_dte_outside_window,
                :skip_no_chain_for_proposal, :skip_proposal_duplicate,
                :skip_other,
+               :skip_stale_quotes, :skip_uneconomic,
+               :skip_confidence_below_gate,
                :open_at_start, :open_at_end,
                :cash_at_start, :cash_at_end,
                CAST(:details_json AS jsonb))
             ON CONFLICT ON CONSTRAINT ux_opt_funnel_run_portfolio
             DO UPDATE SET
-              candidates_total          = EXCLUDED.candidates_total,
-              candidates_after_universe = EXCLUDED.candidates_after_universe,
-              candidates_after_strategy = EXCLUDED.candidates_after_strategy,
-              promoted                  = EXCLUDED.promoted,
-              filled                    = EXCLUDED.filled,
-              closed_today              = EXCLUDED.closed_today,
-              skip_canary_disabled      = EXCLUDED.skip_canary_disabled,
-              skip_slot_full            = EXCLUDED.skip_slot_full,
-              skip_over_capital_cap     = EXCLUDED.skip_over_capital_cap,
-              skip_dte_outside_window   = EXCLUDED.skip_dte_outside_window,
-              skip_no_chain_for_proposal= EXCLUDED.skip_no_chain_for_proposal,
-              skip_proposal_duplicate   = EXCLUDED.skip_proposal_duplicate,
-              skip_other                = EXCLUDED.skip_other,
+              -- P6D.36C: counters are ADDITIVE across same-day reruns
+              -- (COALESCE: pre-095 rows may hold NULL in the new columns).
+              candidates_total          = options_execution_funnel.candidates_total + EXCLUDED.candidates_total,
+              candidates_after_universe = options_execution_funnel.candidates_after_universe + EXCLUDED.candidates_after_universe,
+              candidates_after_strategy = options_execution_funnel.candidates_after_strategy + EXCLUDED.candidates_after_strategy,
+              promoted                  = options_execution_funnel.promoted + EXCLUDED.promoted,
+              filled                    = options_execution_funnel.filled + EXCLUDED.filled,
+              closed_today              = options_execution_funnel.closed_today + EXCLUDED.closed_today,
+              skip_canary_disabled      = options_execution_funnel.skip_canary_disabled + EXCLUDED.skip_canary_disabled,
+              skip_slot_full            = options_execution_funnel.skip_slot_full + EXCLUDED.skip_slot_full,
+              skip_over_capital_cap     = options_execution_funnel.skip_over_capital_cap + EXCLUDED.skip_over_capital_cap,
+              skip_dte_outside_window   = options_execution_funnel.skip_dte_outside_window + EXCLUDED.skip_dte_outside_window,
+              skip_no_chain_for_proposal= options_execution_funnel.skip_no_chain_for_proposal + EXCLUDED.skip_no_chain_for_proposal,
+              skip_proposal_duplicate   = options_execution_funnel.skip_proposal_duplicate + EXCLUDED.skip_proposal_duplicate,
+              skip_other                = options_execution_funnel.skip_other + EXCLUDED.skip_other,
+              skip_stale_quotes         = COALESCE(options_execution_funnel.skip_stale_quotes, 0) + EXCLUDED.skip_stale_quotes,
+              skip_uneconomic           = COALESCE(options_execution_funnel.skip_uneconomic, 0) + EXCLUDED.skip_uneconomic,
+              skip_confidence_below_gate= COALESCE(options_execution_funnel.skip_confidence_below_gate, 0) + EXCLUDED.skip_confidence_below_gate,
               open_at_end               = EXCLUDED.open_at_end,
               cash_at_end               = EXCLUDED.cash_at_end,
               details_json              = EXCLUDED.details_json
@@ -139,7 +162,11 @@ def recent_rows(
                    SUM(skip_dte_outside_window) AS skip_dte_outside_window,
                    SUM(skip_no_chain_for_proposal) AS skip_no_chain_for_proposal,
                    SUM(skip_proposal_duplicate) AS skip_proposal_duplicate,
-                   SUM(skip_other)              AS skip_other
+                   SUM(skip_other)              AS skip_other,
+                   COALESCE(SUM(skip_stale_quotes), 0) AS skip_stale_quotes,
+                   COALESCE(SUM(skip_uneconomic), 0)   AS skip_uneconomic,
+                   COALESCE(SUM(skip_confidence_below_gate), 0)
+                       AS skip_confidence_below_gate
               FROM options_execution_funnel
              WHERE run_date >= CURRENT_DATE - (:days)::int
              GROUP BY run_date ORDER BY run_date DESC
@@ -161,6 +188,10 @@ def by_portfolio(
                    closed_today, skip_slot_full, skip_over_capital_cap,
                    skip_dte_outside_window, skip_no_chain_for_proposal,
                    skip_proposal_duplicate, skip_other,
+                   COALESCE(skip_stale_quotes, 0)  AS skip_stale_quotes,
+                   COALESCE(skip_uneconomic, 0)    AS skip_uneconomic,
+                   COALESCE(skip_confidence_below_gate, 0)
+                       AS skip_confidence_below_gate,
                    open_at_start, open_at_end,
                    cash_at_start, cash_at_end
               FROM options_execution_funnel
@@ -188,7 +219,11 @@ def reason_distribution(
               SUM(skip_dte_outside_window)    AS dte_outside_window,
               SUM(skip_no_chain_for_proposal) AS no_chain_for_proposal,
               SUM(skip_proposal_duplicate)    AS proposal_duplicate,
-              SUM(skip_other)                 AS other
+              SUM(skip_other)                 AS other,
+              COALESCE(SUM(skip_stale_quotes), 0) AS stale_quotes,
+              COALESCE(SUM(skip_uneconomic), 0)   AS uneconomic,
+              COALESCE(SUM(skip_confidence_below_gate), 0)
+                  AS confidence_below_gate
               FROM options_execution_funnel
              WHERE run_date >= CURRENT_DATE - (:days)::int
             """

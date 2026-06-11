@@ -252,6 +252,28 @@ def test_aggregate_funnel_only_is_live():
     assert r["eligible_count"] == 0
 
 
+def test_aggregate_reports_recorded_skip_split_counters():
+    """P6D.36C — runs expose the RECORDED selector-stage skip counters
+    (stale_quotes / uneconomic / confidence_below_gate), defaulting 0
+    for pre-095 rows that lack the keys."""
+    row = _funnel(
+        dt.date(2026, 6, 8),
+        skip_stale_quotes=3, skip_uneconomic=2,
+        skip_confidence_below_gate=1,
+    )
+    r = aggregate_audit([row], [])
+    run = r["runs"][0]
+    assert run["skip_stale_quotes"] == 3
+    assert run["skip_uneconomic"] == 2
+    assert run["skip_confidence_below_gate"] == 1
+
+    legacy = aggregate_audit([_funnel(dt.date(2026, 6, 7))], [])
+    run = legacy["runs"][0]
+    assert run["skip_stale_quotes"] == 0
+    assert run["skip_uneconomic"] == 0
+    assert run["skip_confidence_below_gate"] == 0
+
+
 def test_aggregate_candidates_only_is_live():
     r = aggregate_audit([], [_classified(1, dt.date(2026, 6, 8), "eligible")])
     assert r["status"] == "live"

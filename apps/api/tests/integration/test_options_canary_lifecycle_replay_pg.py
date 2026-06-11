@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from apps.api.src.config import settings
 from apps.api.src.options.canary import engine as canary_engine
+from apps.api.src.options.canary import funnel as canary_funnel
 from apps.api.src.options.canary import lifecycle
 from apps.api.src.options.canary import positions as pos
 from apps.api.src.options.canary import quotes_refresh
@@ -903,6 +904,156 @@ def test_weekend_expiry_settles_with_prior_trading_close(
         assert Decimal(str(settle)) == Decimal("420")
     assert report.clean
     assert report.cash_drift == []
+
+
+# ===========================================================================
+# 12) P6D.36C — funnel same-day merge + skip-reason split
+# ===========================================================================
+
+def _funnel_row(s: Session, pid: str) -> dict:
+    return dict(s.execute(text(
+        "SELECT * FROM options_execution_funnel WHERE portfolio_id = :p"
+    ), {"p": pid}).mappings().one())
+
+
+def test_funnel_same_day_rerun_merges_not_erases(
+    session_factory, fresh_portfolio,
+):
+    """First run promotes 1; a same-day rerun promotes nothing and skips 4.
+    The merged row must keep promoted=1 (additive counters), keep the
+    FIRST run's start-state, and take the LAST run's end-state."""
+    pid, _ = fresh_portfolio
+    with session_factory() as s:
+        canary_funnel.upsert_funnel_row(
+            s, run_date=TODAY, portfolio_id=pid,
+            counts=canary_funnel.FunnelCounts(
+                candidates_total=1, promoted=1, filled=1),
+            snapshot=canary_funnel.FunnelSnapshot(
+                open_at_start=0, open_at_end=1,
+                cash_at_start=Decimal("10000"),
+                cash_at_end=Decimal("9907.20")),
+        )
+        s.commit()
+    with session_factory() as s:
+        canary_funnel.upsert_funnel_row(
+            s, run_date=TODAY, portfolio_id=pid,
+            counts=canary_funnel.FunnelCounts(
+                candidates_total=0, skip_stale_quotes=1, skip_uneconomic=1,
+                skip_confidence_below_gate=2),
+            snapshot=canary_funnel.FunnelSnapshot(
+                open_at_start=1, open_at_end=1,
+                cash_at_start=Decimal("9907.20"),
+                cash_at_end=Decimal("9907.20")),
+        )
+        s.commit()
+    with session_factory() as s:
+        row = _funnel_row(s, pid)
+    assert row["promoted"] == 1                  # rerun did NOT erase it
+    assert row["filled"] == 1
+    assert row["candidates_total"] == 1
+    assert row["skip_stale_quotes"] == 1
+    assert row["skip_uneconomic"] == 1
+    assert row["skip_confidence_below_gate"] == 2
+    assert row["open_at_start"] == 0             # first writer wins
+    assert Decimal(str(row["cash_at_start"])) == Decimal("10000")
+    assert row["open_at_end"] == 1               # last writer wins
+    assert Decimal(str(row["cash_at_end"])) == Decimal("9907.20")
+
+
+def test_promotion_cycle_records_stale_quotes_skip(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """2h-stale chain, refresh off → selector skips stale_quotes and the
+    skip is RECORDED in both FunnelCounts and the funnel row."""
+    pid, _ = fresh_portfolio
+    _seed_promotable_candidate(session_factory, snapshot_at=STALE_SNAPSHOT_AT)
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory, refresh_quotes=False,
+    )
+    assert counts.promoted == 0
+    assert counts.skip_stale_quotes == 1
+    with session_factory() as s:
+        row = _funnel_row(s, pid)
+        assert row["skip_stale_quotes"] == 1
+        assert row["promoted"] == 0
+        assert _trade_count(s) == 0              # nothing promoted
+
+
+def test_promotion_cycle_records_uneconomic_skip(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """Fresh but structurally uneconomic chain (scenario-7 'rejects' shape)
+    → skip_uneconomic recorded; nothing promoted."""
+    pid, _ = fresh_portfolio
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY)
+        rh.seed_chain(s, expiry=CAND_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.35"), short_ask=Decimal("0.44"),
+                      long_bid=Decimal("0.16"), long_ask=Decimal("0.25"))
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory, refresh_quotes=False,
+    )
+    assert counts.promoted == 0
+    assert counts.skip_uneconomic == 1
+    with session_factory() as s:
+        row = _funnel_row(s, pid)
+        assert row["skip_uneconomic"] == 1
+        assert _trade_count(s) == 0
+
+
+def test_promotion_cycle_records_confidence_below_gate(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """Candidate below OPTIONS_CANARY_MIN_CONFIDENCE (0.60) is filtered in
+    the selector's SQL — previously invisible; now recorded."""
+    pid, _ = fresh_portfolio
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY,
+                          confidence=Decimal("0.10"))
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory, refresh_quotes=False,
+    )
+    assert counts.candidates_total == 0
+    assert counts.skip_confidence_below_gate == 1
+    with session_factory() as s:
+        row = _funnel_row(s, pid)
+        assert row["skip_confidence_below_gate"] == 1
+        assert _trade_count(s) == 0
+
+
+def test_funnel_readers_expose_new_counters(
+    session_factory, fresh_portfolio,
+):
+    """recent_rows / by_portfolio / reason_distribution all carry the new
+    counters (existing rows readable; new keys present)."""
+    pid, _ = fresh_portfolio
+    with session_factory() as s:
+        canary_funnel.upsert_funnel_row(
+            s, run_date=TODAY, portfolio_id=pid,
+            counts=canary_funnel.FunnelCounts(
+                skip_stale_quotes=3, skip_uneconomic=2,
+                skip_confidence_below_gate=1),
+            snapshot=canary_funnel.FunnelSnapshot(
+                open_at_start=0, open_at_end=0,
+                cash_at_start=Decimal("10000"),
+                cash_at_end=Decimal("10000")),
+        )
+        s.commit()
+    with session_factory() as s:
+        recent = canary_funnel.recent_rows(s, days=14)
+        per = canary_funnel.by_portfolio(s, portfolio_id=pid, days=14)
+        dist = canary_funnel.reason_distribution(s, days=14)
+    assert recent and int(recent[0]["skip_stale_quotes"]) == 3
+    assert per and int(per[0]["skip_uneconomic"]) == 2
+    assert dist["stale_quotes"] == 3
+    assert dist["uneconomic"] == 2
+    assert dist["confidence_below_gate"] == 1
 
 
 def test_same_day_cycle_without_bar_holds_no_premature_settle(

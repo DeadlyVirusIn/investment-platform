@@ -134,6 +134,13 @@ def aggregate_audit(
                 "skip_proposal_duplicate": int(
                     r.get("skip_proposal_duplicate") or 0),
                 "skip_other": int(r.get("skip_other") or 0),
+                # P6D.36C — recorded selector-stage skip counters (the
+                # candidate-level read-side classification below remains
+                # as an independent cross-check).
+                "skip_stale_quotes": int(r.get("skip_stale_quotes") or 0),
+                "skip_uneconomic": int(r.get("skip_uneconomic") or 0),
+                "skip_confidence_below_gate": int(
+                    r.get("skip_confidence_below_gate") or 0),
             }
             for r in funnel_rows
         ),
@@ -205,7 +212,11 @@ def get_promotion_audit(
                SUM(skip_slot_full)          AS skip_slot_full,
                SUM(skip_over_capital_cap)   AS skip_over_capital_cap,
                SUM(skip_proposal_duplicate) AS skip_proposal_duplicate,
-               SUM(skip_other)              AS skip_other
+               SUM(skip_other)              AS skip_other,
+               COALESCE(SUM(skip_stale_quotes), 0) AS skip_stale_quotes,
+               COALESCE(SUM(skip_uneconomic), 0)   AS skip_uneconomic,
+               COALESCE(SUM(skip_confidence_below_gate), 0)
+                   AS skip_confidence_below_gate
           FROM options_execution_funnel
          WHERE {' AND '.join(where)}
          GROUP BY run_date ORDER BY run_date DESC
