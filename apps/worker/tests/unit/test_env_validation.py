@@ -84,6 +84,14 @@ def test_gate_summary_covers_all_gate_vars_and_marks_unset() -> None:
     assert summary["OPTIONS_CANARY_ENABLED"] == "<unset>"
 
 
+def test_gate_summary_pins_env_drift_vars() -> None:
+    # P6D.36A.1 — these two surfaced as <unset> on worker boot and are
+    # now passed by compose to api/worker-tickloop/worker-cron alike.
+    # They must stay in the boot summary so drift is visible.
+    assert "ML_CAN_AFFECT_TRADES" in GATE_VARS
+    assert "ENGINE_B_MODE" in GATE_VARS
+
+
 # --------------------------------------------------------------------- enforce
 
 def test_enforce_warn_mode_returns_problems_without_exiting() -> None:

@@ -176,6 +176,14 @@ services:
       # and SL=4% closes still fire. Revert to 10 (or unset) when
       # signal-aware max-hold goes live. See exit-policy research.
       PAPER_MAX_HOLD_DAYS: ${PAPER_MAX_HOLD_DAYS:-999}
+      # P6D.36A.1 env-drift parity — boot gate flagged these <unset>.
+      # ML_CAN_AFFECT_TRADES: kill-switch visibility (mirror api +
+      # worker-cron; settings default is already False — no behavior
+      # change). ENGINE_B_MODE: consumed by the v2_promotion_snapshot
+      # job (registry — either worker can claim it); settings default
+      # is already LEGACY — no behavior change. Mirrors api defaults.
+      ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
+      ENGINE_B_MODE: ${ENGINE_B_MODE:-LEGACY}
       # Phase Opt-B3a Step 6a — worker tickloop fires options_*
       # scheduled jobs and needs identical OPTIONS_*/TRADIER_*
       # env shape as the api service so wrapper gating + adapter
@@ -280,6 +288,10 @@ services:
       ML_PROMOTION_MAX_MISSED_WINNER_RATE: ${ML_PROMOTION_MAX_MISSED_WINNER_RATE:-0.50}
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
+      # P6D.36A.1 env-drift parity — ENGINE_B_MODE consumed by the
+      # v2_promotion_snapshot job (either worker can claim it).
+      # Settings default is already LEGACY — no behavior change.
+      ENGINE_B_MODE: ${ENGINE_B_MODE:-LEGACY}
       # 2026-05-29 — TEMPORARY max-hold suppression (mirror of
       # worker-tickloop). Keeps exit policy identical whichever worker
       # fires the cycle. Revert to 10 when signal-aware max-hold ships.
