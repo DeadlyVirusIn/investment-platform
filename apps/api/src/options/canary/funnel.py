@@ -39,6 +39,11 @@ class FunnelCounts:
     skip_stale_quotes: int = 0            # P6D.34D promotion freshness gate
     skip_uneconomic: int = 0              # P6D.33A economic viability gate
     skip_confidence_below_gate: int = 0   # OPTIONS_CANARY_MIN_CONFIDENCE
+    # P6D.36D — enforced portfolio risk-control rejections (promote_one).
+    skip_underlying_cap: int = 0          # OPTIONS_CANARY_MAX_PER_UNDERLYING
+    skip_daily_cap: int = 0               # OPTIONS_CANARY_MAX_PROMOTIONS_PER_DAY
+    skip_cash_floor: int = 0              # OPTIONS_CANARY_MIN_CASH_FLOOR_DOLLARS
+    skip_aggregate_loss_cap: int = 0      # OPTIONS_CANARY_MAX_AGGREGATE_LOSS_DOLLARS
 
 
 @dataclass
@@ -93,6 +98,8 @@ def upsert_funnel_row(
                skip_other,
                skip_stale_quotes, skip_uneconomic,
                skip_confidence_below_gate,
+               skip_underlying_cap, skip_daily_cap,
+               skip_cash_floor, skip_aggregate_loss_cap,
                open_at_start, open_at_end,
                cash_at_start, cash_at_end,
                details_json)
@@ -107,6 +114,8 @@ def upsert_funnel_row(
                :skip_other,
                :skip_stale_quotes, :skip_uneconomic,
                :skip_confidence_below_gate,
+               :skip_underlying_cap, :skip_daily_cap,
+               :skip_cash_floor, :skip_aggregate_loss_cap,
                :open_at_start, :open_at_end,
                :cash_at_start, :cash_at_end,
                CAST(:details_json AS jsonb))
@@ -130,6 +139,10 @@ def upsert_funnel_row(
               skip_stale_quotes         = COALESCE(options_execution_funnel.skip_stale_quotes, 0) + EXCLUDED.skip_stale_quotes,
               skip_uneconomic           = COALESCE(options_execution_funnel.skip_uneconomic, 0) + EXCLUDED.skip_uneconomic,
               skip_confidence_below_gate= COALESCE(options_execution_funnel.skip_confidence_below_gate, 0) + EXCLUDED.skip_confidence_below_gate,
+              skip_underlying_cap       = COALESCE(options_execution_funnel.skip_underlying_cap, 0) + EXCLUDED.skip_underlying_cap,
+              skip_daily_cap            = COALESCE(options_execution_funnel.skip_daily_cap, 0) + EXCLUDED.skip_daily_cap,
+              skip_cash_floor           = COALESCE(options_execution_funnel.skip_cash_floor, 0) + EXCLUDED.skip_cash_floor,
+              skip_aggregate_loss_cap   = COALESCE(options_execution_funnel.skip_aggregate_loss_cap, 0) + EXCLUDED.skip_aggregate_loss_cap,
               open_at_end               = EXCLUDED.open_at_end,
               cash_at_end               = EXCLUDED.cash_at_end,
               details_json              = EXCLUDED.details_json
@@ -166,7 +179,12 @@ def recent_rows(
                    COALESCE(SUM(skip_stale_quotes), 0) AS skip_stale_quotes,
                    COALESCE(SUM(skip_uneconomic), 0)   AS skip_uneconomic,
                    COALESCE(SUM(skip_confidence_below_gate), 0)
-                       AS skip_confidence_below_gate
+                       AS skip_confidence_below_gate,
+                   COALESCE(SUM(skip_underlying_cap), 0) AS skip_underlying_cap,
+                   COALESCE(SUM(skip_daily_cap), 0)      AS skip_daily_cap,
+                   COALESCE(SUM(skip_cash_floor), 0)     AS skip_cash_floor,
+                   COALESCE(SUM(skip_aggregate_loss_cap), 0)
+                       AS skip_aggregate_loss_cap
               FROM options_execution_funnel
              WHERE run_date >= CURRENT_DATE - (:days)::int
              GROUP BY run_date ORDER BY run_date DESC
@@ -192,6 +210,11 @@ def by_portfolio(
                    COALESCE(skip_uneconomic, 0)    AS skip_uneconomic,
                    COALESCE(skip_confidence_below_gate, 0)
                        AS skip_confidence_below_gate,
+                   COALESCE(skip_underlying_cap, 0) AS skip_underlying_cap,
+                   COALESCE(skip_daily_cap, 0)      AS skip_daily_cap,
+                   COALESCE(skip_cash_floor, 0)     AS skip_cash_floor,
+                   COALESCE(skip_aggregate_loss_cap, 0)
+                       AS skip_aggregate_loss_cap,
                    open_at_start, open_at_end,
                    cash_at_start, cash_at_end
               FROM options_execution_funnel
@@ -223,7 +246,12 @@ def reason_distribution(
               COALESCE(SUM(skip_stale_quotes), 0) AS stale_quotes,
               COALESCE(SUM(skip_uneconomic), 0)   AS uneconomic,
               COALESCE(SUM(skip_confidence_below_gate), 0)
-                  AS confidence_below_gate
+                  AS confidence_below_gate,
+              COALESCE(SUM(skip_underlying_cap), 0) AS underlying_cap,
+              COALESCE(SUM(skip_daily_cap), 0)      AS daily_cap,
+              COALESCE(SUM(skip_cash_floor), 0)     AS cash_floor,
+              COALESCE(SUM(skip_aggregate_loss_cap), 0)
+                  AS aggregate_loss_cap
               FROM options_execution_funnel
              WHERE run_date >= CURRENT_DATE - (:days)::int
             """

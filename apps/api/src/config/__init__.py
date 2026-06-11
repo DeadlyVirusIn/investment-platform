@@ -476,6 +476,24 @@ class Settings(BaseSettings):
     # a CLOSE decision (take-profit / DTE management) to be trusted; older
     # → HOLD_STALE_QUOTES. Expiry settlement is exempt (price_bar-based).
     OPTIONS_CANARY_MAX_DECISION_AGE_SECONDS: int = 900
+    # P6D.36D — enforced portfolio-level risk controls in promote_one
+    # (settings-only, NOT wired into compose; same precedent as the
+    # 33A/34C/34D knobs). Defaults PRESERVE max_open=1 behavior; scaling
+    # max_open beyond 1 stays blocked until the universe/per-underlying
+    # cap policy is decided (QQQ-only universe + cap 1 cannot fill a
+    # second slot by design).
+    # Max OPEN canary positions per underlying symbol.
+    OPTIONS_CANARY_MAX_PER_UNDERLYING: int = 1
+    # Max promotions per portfolio per calendar day (DB CURRENT_DATE).
+    OPTIONS_CANARY_MAX_PROMOTIONS_PER_DAY: int = 1
+    # Projected cash AFTER reserving must stay >= this floor. 0 = no
+    # floor beyond the existing non-negative-cash debit guard.
+    OPTIONS_CANARY_MIN_CASH_FLOOR_DOLLARS: float = 0.0
+    # Projected SUM of structural max_loss across OPEN positions
+    # (including the new trade) must stay <= this cap. Default equals
+    # OPTIONS_CANARY_MAX_CAPITAL_USD so exactly one max-size trade fits
+    # — behavior-identical at max_open=1.
+    OPTIONS_CANARY_MAX_AGGREGATE_LOSS_DOLLARS: float = 500.0
     # P6D.34D — promotion freshness gate (settings-only, NOT wired into
     # compose; same precedent as the 33A/34C knobs above). Max effective
     # quote age (seconds) for a candidate's leg quotes at PROMOTION time;

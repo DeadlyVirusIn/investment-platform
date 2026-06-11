@@ -52,7 +52,9 @@ from apps.api.src.options.paper.fills import DEFAULT_FEE_PER_CONTRACT
 @dataclass
 class PromoteResult:
     status: str           # promoted | slot_full | over_capital_cap |
-                          # proposal_duplicate | portfolio_inactive | rejected
+                          # proposal_duplicate | portfolio_inactive |
+                          # underlying_cap | daily_cap | cash_floor |
+                          # aggregate_loss_cap (P6D.36D) | rejected
     trade_id: int | None = None
     position_id: str | None = None
     reserved: Decimal | None = None
@@ -93,10 +95,24 @@ def promote_one(
         return PromoteResult("portfolio_inactive")
     if pos.count_open_positions(session, portfolio_id) >= int(port["max_open_trades"]):
         return PromoteResult("slot_full")
+    # P6D.36D — portfolio-level risk controls, enforced under the SAME
+    # advisory lock/transaction as the slot cap (race-free). The two
+    # pre-trade checks need no fill data; cash-floor and aggregate-loss
+    # need `reserved`/max_loss and run inside the SAVEPOINT below.
+    if pos.count_open_positions_for_underlying(
+        session, portfolio_id, request.underlying,
+    ) >= int(settings.OPTIONS_CANARY_MAX_PER_UNDERLYING):
+        return PromoteResult("underlying_cap")
+    if pos.count_promotions_today(session, portfolio_id) >= int(
+        settings.OPTIONS_CANARY_MAX_PROMOTIONS_PER_DAY,
+    ):
+        return PromoteResult("daily_cap")
     cap = min(
         Decimal(str(port["max_capital_per_trade"])),
         Decimal(str(settings.OPTIONS_CANARY_MAX_CAPITAL_USD)),
     )
+    cash_floor = Decimal(str(settings.OPTIONS_CANARY_MIN_CASH_FLOOR_DOLLARS))
+    agg_cap = Decimal(str(settings.OPTIONS_CANARY_MAX_AGGREGATE_LOSS_DOLLARS))
     try:
         with session.begin_nested():
             res = open_trade(
@@ -111,6 +127,15 @@ def promote_one(
             )
             if reserved > cap:
                 raise _Abort(("over_capital_cap",))
+            # P6D.36D — projected cash after reserve must hold the floor
+            # (boundary: == floor passes), checked BEFORE the debit.
+            if Decimal(str(port["cash_current"])) - reserved < cash_floor:
+                raise _Abort(("cash_floor",))
+            # P6D.36D — projected aggregate structural max_loss across
+            # OPEN positions incl. this trade (boundary: == cap passes).
+            agg = pos.aggregate_open_max_loss(session, portfolio_id)
+            if agg + Decimal(str(res.risk.max_loss_dollars)) > agg_cap:
+                raise _Abort(("aggregate_loss_cap",))
             if pos.debit_cash(session, portfolio_id, reserved) != 1:
                 raise _Abort(("over_capital_cap",))   # insufficient cash
             position_id = pos.reserve_position(
@@ -121,7 +146,12 @@ def promote_one(
         return PromoteResult("proposal_duplicate")
     except _Abort as a:
         reason = a.args[0] if a.args else ("rejected",)
-        status = "over_capital_cap" if reason[0] == "over_capital_cap" else "rejected"
+        status = (
+            reason[0]
+            if reason[0] in ("over_capital_cap", "cash_floor",
+                             "aggregate_loss_cap")
+            else "rejected"
+        )
         return PromoteResult(status, detail=tuple(reason))
     return PromoteResult(
         "promoted", trade_id=res.trade_id,
@@ -303,6 +333,15 @@ def run_promotion_cycle(
                     counts.skip_over_capital_cap += 1
                 elif r.status == "proposal_duplicate":
                     counts.skip_proposal_duplicate += 1
+                # P6D.36D — recorded risk-control rejections.
+                elif r.status == "underlying_cap":
+                    counts.skip_underlying_cap += 1
+                elif r.status == "daily_cap":
+                    counts.skip_daily_cap += 1
+                elif r.status == "cash_floor":
+                    counts.skip_cash_floor += 1
+                elif r.status == "aggregate_loss_cap":
+                    counts.skip_aggregate_loss_cap += 1
                 else:
                     counts.skip_other += 1
                 s.commit()

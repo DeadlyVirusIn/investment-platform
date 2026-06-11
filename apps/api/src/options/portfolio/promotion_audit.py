@@ -141,6 +141,12 @@ def aggregate_audit(
                 "skip_uneconomic": int(r.get("skip_uneconomic") or 0),
                 "skip_confidence_below_gate": int(
                     r.get("skip_confidence_below_gate") or 0),
+                # P6D.36D — enforced risk-control rejections.
+                "skip_underlying_cap": int(r.get("skip_underlying_cap") or 0),
+                "skip_daily_cap": int(r.get("skip_daily_cap") or 0),
+                "skip_cash_floor": int(r.get("skip_cash_floor") or 0),
+                "skip_aggregate_loss_cap": int(
+                    r.get("skip_aggregate_loss_cap") or 0),
             }
             for r in funnel_rows
         ),
@@ -216,7 +222,12 @@ def get_promotion_audit(
                COALESCE(SUM(skip_stale_quotes), 0) AS skip_stale_quotes,
                COALESCE(SUM(skip_uneconomic), 0)   AS skip_uneconomic,
                COALESCE(SUM(skip_confidence_below_gate), 0)
-                   AS skip_confidence_below_gate
+                   AS skip_confidence_below_gate,
+               COALESCE(SUM(skip_underlying_cap), 0) AS skip_underlying_cap,
+               COALESCE(SUM(skip_daily_cap), 0)      AS skip_daily_cap,
+               COALESCE(SUM(skip_cash_floor), 0)     AS skip_cash_floor,
+               COALESCE(SUM(skip_aggregate_loss_cap), 0)
+                   AS skip_aggregate_loss_cap
           FROM options_execution_funnel
          WHERE {' AND '.join(where)}
          GROUP BY run_date ORDER BY run_date DESC

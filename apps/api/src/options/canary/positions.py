@@ -121,6 +121,52 @@ def count_open_positions(session: Session, portfolio_id: str) -> int:
     ).scalar() or 0)
 
 
+def count_open_positions_for_underlying(
+    session: Session, portfolio_id: str, underlying: str,
+) -> int:
+    """P6D.36D — OPEN canary positions on one underlying (per-underlying
+    cap input). Read-only; race-free under lock_portfolio."""
+    return int(session.execute(
+        text(
+            "SELECT COUNT(*) FROM options_paper_position p "
+            "JOIN options_paper_trade t ON t.id = p.trade_id "
+            "WHERE p.portfolio_id = :pid AND p.released_at IS NULL "
+            "AND t.underlying = :u"
+        ),
+        {"pid": portfolio_id, "u": underlying},
+    ).scalar() or 0)
+
+
+def count_promotions_today(session: Session, portfolio_id: str) -> int:
+    """P6D.36D — positions reserved during the DB server's CURRENT day
+    (daily promotion cap input). Wall-clock by design: an operational
+    rate limit, deliberately NOT the logical run_date (a backfill/replay
+    of past run_dates still counts against today's budget)."""
+    return int(session.execute(
+        text(
+            "SELECT COUNT(*) FROM options_paper_position "
+            "WHERE portfolio_id = :pid "
+            "AND opened_at >= date_trunc('day', NOW())"
+        ),
+        {"pid": portfolio_id},
+    ).scalar() or 0)
+
+
+def aggregate_open_max_loss(session: Session, portfolio_id: str) -> Decimal:
+    """P6D.36D — SUM of structural max_loss_dollars across OPEN positions
+    (aggregate loss-cap input). Read-only; race-free under lock_portfolio."""
+    v = session.execute(
+        text(
+            "SELECT COALESCE(SUM(t.max_loss_dollars), 0) "
+            "FROM options_paper_position p "
+            "JOIN options_paper_trade t ON t.id = p.trade_id "
+            "WHERE p.portfolio_id = :pid AND p.released_at IS NULL"
+        ),
+        {"pid": portfolio_id},
+    ).scalar()
+    return Decimal(str(v or 0))
+
+
 def debit_cash(session: Session, portfolio_id: str, amount: Any) -> int:
     """Guarded debit. Returns rowcount (0 = insufficient cash → caller skips)."""
     return session.execute(

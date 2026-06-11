@@ -1081,3 +1081,184 @@ def test_same_day_cycle_without_bar_holds_no_premature_settle(
         assert pos.count_open_positions(s, pid) == 1
     assert report.clean
     assert report.cash_drift == []
+
+
+# ===========================================================================
+# 13) P6D.36D — enforced portfolio risk controls in promote_one
+#     (underlying_cap / daily_cap / cash_floor / aggregate_loss_cap)
+# ===========================================================================
+
+def _promote_n(session_factory, pid: str, phash: str):
+    """One default-economics SPCS promote (credit $35, max_loss $65,
+    reserved $67.80). Distinct phash strings make repeats non-duplicate."""
+    req = rh.make_spcs_request(expiry=FAR_EXPIRY, snapshot_at=NOW)
+    return rh.promote(session_factory, portfolio_id=pid, request=req,
+                      proposal_hash=phash, now=NOW)
+
+
+def _portfolio_state(s: Session, pid: str) -> tuple[Decimal, int, int]:
+    cash = Decimal(str(s.execute(text(
+        "SELECT cash_current FROM options_paper_portfolio WHERE id = :p"
+    ), {"p": pid}).scalar()))
+    return cash, _trade_count(s), pos.count_open_positions(s, pid)
+
+
+def _loosen_all_caps(monkeypatch):
+    """Make every 36D control non-binding so each test re-tightens ONE."""
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_MAX_PER_UNDERLYING", 10)
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_MAX_PROMOTIONS_PER_DAY", 10)
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_MIN_CASH_FLOOR_DOLLARS", 0.0)
+    monkeypatch.setattr(
+        settings, "OPTIONS_CANARY_MAX_AGGREGATE_LOSS_DOLLARS", 10000.0)
+
+
+def test_underlying_cap_blocks_and_leaves_state(
+    session_factory, fresh_portfolio, monkeypatch,
+):
+    pid, _ = fresh_portfolio
+    _loosen_all_caps(monkeypatch)
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_MAX_PER_UNDERLYING", 1)
+
+    r1 = _promote_n(session_factory, pid, "36d-und-1")
+    assert r1.status == "promoted", r1
+    with session_factory() as s:
+        cash_after_1, trades_1, open_1 = _portfolio_state(s, pid)
+    assert (trades_1, open_1) == (1, 1)
+
+    r2 = _promote_n(session_factory, pid, "36d-und-2")
+    assert r2.status == "underlying_cap"
+    with session_factory() as s:
+        assert _portfolio_state(s, pid) == (cash_after_1, 1, 1)  # unchanged
+
+
+def test_daily_cap_blocks_and_leaves_state(
+    session_factory, fresh_portfolio, monkeypatch,
+):
+    pid, _ = fresh_portfolio
+    _loosen_all_caps(monkeypatch)
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_MAX_PROMOTIONS_PER_DAY", 1)
+
+    r1 = _promote_n(session_factory, pid, "36d-day-1")
+    assert r1.status == "promoted", r1
+    with session_factory() as s:
+        cash_after_1, _, _ = _portfolio_state(s, pid)
+
+    r2 = _promote_n(session_factory, pid, "36d-day-2")
+    assert r2.status == "daily_cap"
+    with session_factory() as s:
+        assert _portfolio_state(s, pid) == (cash_after_1, 1, 1)
+
+
+def test_cash_floor_blocks_at_boundary_and_leaves_state(
+    session_factory, fresh_portfolio, monkeypatch,
+):
+    """Reserved is $67.80 → projected cash 9932.20. Floor above it blocks
+    (state fully unchanged); floor EXACTLY equal passes (boundary)."""
+    pid, _ = fresh_portfolio
+    _loosen_all_caps(monkeypatch)
+    monkeypatch.setattr(
+        settings, "OPTIONS_CANARY_MIN_CASH_FLOOR_DOLLARS", 9950.0)
+
+    r1 = _promote_n(session_factory, pid, "36d-floor-1")
+    assert r1.status == "cash_floor"
+    with session_factory() as s:
+        assert _portfolio_state(s, pid) == (Decimal("10000"), 0, 0)
+
+    monkeypatch.setattr(
+        settings, "OPTIONS_CANARY_MIN_CASH_FLOOR_DOLLARS", 9932.20)
+    r2 = _promote_n(session_factory, pid, "36d-floor-2")
+    assert r2.status == "promoted", r2
+    assert r2.reserved == Decimal("67.80")
+    with session_factory() as s:
+        cash, trades, opens = _portfolio_state(s, pid)
+    assert (cash, trades, opens) == (Decimal("9932.20"), 1, 1)
+
+
+def test_aggregate_loss_cap_boundary_then_blocks(
+    session_factory, fresh_portfolio, monkeypatch,
+):
+    """max_loss is $65/trade. Cap 130: trade 1 (65) and trade 2 (130 ==
+    cap, boundary) pass; trade 3 (195 > cap) is rejected with state
+    unchanged."""
+    pid, _ = fresh_portfolio
+    _loosen_all_caps(monkeypatch)
+    monkeypatch.setattr(
+        settings, "OPTIONS_CANARY_MAX_AGGREGATE_LOSS_DOLLARS", 130.0)
+
+    assert _promote_n(session_factory, pid, "36d-agg-1").status == "promoted"
+    r2 = _promote_n(session_factory, pid, "36d-agg-2")
+    assert r2.status == "promoted", r2          # exactly == cap → passes
+    with session_factory() as s:
+        cash_after_2, trades_2, open_2 = _portfolio_state(s, pid)
+    assert (trades_2, open_2) == (2, 2)
+
+    r3 = _promote_n(session_factory, pid, "36d-agg-3")
+    assert r3.status == "aggregate_loss_cap"
+    with session_factory() as s:
+        assert _portfolio_state(s, pid) == (cash_after_2, 2, 2)
+
+
+def test_promotion_cycle_records_risk_control_skips(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """DEFAULT controls + two eligible candidates: the first promotes
+    (max_open=1 behavior preserved), the second is rejected by the
+    per-underlying cap and the rejection is RECORDED in the funnel."""
+    pid, _ = fresh_portfolio
+    second_expiry = CAND_EXPIRY + dt.timedelta(days=7)   # DTE 37 ∈ [21,45]
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY)
+        # Second same-day candidate: shadow log is unique per
+        # (run_date, option_symbol) and candidate per (shadow_id, rule_id),
+        # so insert a SECOND shadow row keyed on the long symbol and hang
+        # the second candidate + legs off it.
+        shadow_id = s.execute(text(
+            "INSERT INTO options_shadow_decision_log "
+            "(run_date, underlying_symbol, option_symbol, expiration, strike, "
+            " option_type, side, strategy_name, would_trade, reason, "
+            " liquidity_pass, spread_pass, open_interest_pass, volume_pass, "
+            " greeks_pass, iv_rank_pass, risk_pass) "
+            "VALUES (:rd, 'QQQ', :sym, :e, :k, 'put', 'sell', "
+            " 'SHORT_PUT_CREDIT_SPREAD', TRUE, 'replay-sim-2', TRUE, TRUE, "
+            " TRUE, TRUE, TRUE, TRUE, TRUE) RETURNING id"
+        ), {"rd": TODAY, "sym": rh.LONG_SYM, "e": second_expiry,
+            "k": rh.LONG_STRIKE}).scalar()
+        cand2 = s.execute(text(
+            "INSERT INTO options_strategy_candidate "
+            "(shadow_observation_id, run_date, underlying, rule_id, bias, "
+            " directional_view, risk_profile, confidence, iv_suitability, "
+            " expiry_suitability, liquidity_suitability, composite_score, "
+            " why_emitted, triggering_rule) "
+            "VALUES (:sid, :rd, 'QQQ', 'SHORT_PUT_CREDIT_SPREAD', 'bullish', "
+            " 'bullish', 'defined', 0.75, 0.8, 0.8, 0.8, 0.8, "
+            " 'replay-sim seed 2', 'replay_sim') RETURNING id"
+        ), {"sid": shadow_id, "rd": TODAY}).scalar()
+        for role, side, strike, sym in [
+            ("short_put", "SELL", rh.SHORT_STRIKE, rh.SHORT_SYM),
+            ("long_put", "BUY", rh.LONG_STRIKE, rh.LONG_SYM),
+        ]:
+            s.execute(text(
+                "INSERT INTO options_candidate_leg "
+                "(candidate_id, role, side, option_type, strike, expiry, "
+                " option_symbol, entry_mid, priced_as_of) "
+                "VALUES (:cid, :role, :side, 'PUT', :k, :e, :sym, 0.5, NOW())"
+            ), {"cid": cand2, "role": role, "side": side, "k": strike,
+                "e": second_expiry, "sym": sym})
+        s.commit()
+        for exp in (CAND_EXPIRY, second_expiry):
+            rh.seed_chain(s, expiry=exp, snapshot_at=NOW,
+                          short_bid=Decimal("0.60"), short_ask=Decimal("0.65"),
+                          long_bid=Decimal("0.20"), long_ask=Decimal("0.25"))
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory, refresh_quotes=False,
+    )
+    assert counts.promoted == 1
+    assert counts.skip_underlying_cap == 1
+    with session_factory() as s:
+        row = _funnel_row(s, pid)
+        assert row["promoted"] == 1
+        assert row["skip_underlying_cap"] == 1
+        assert _trade_count(s) == 1
+        assert pos.count_open_positions(s, pid) == 1

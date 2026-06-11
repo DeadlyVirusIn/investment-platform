@@ -274,6 +274,28 @@ def test_aggregate_reports_recorded_skip_split_counters():
     assert run["skip_confidence_below_gate"] == 0
 
 
+def test_aggregate_reports_risk_control_counters():
+    """P6D.36D — runs expose the enforced risk-control rejection counters
+    (underlying_cap / daily_cap / cash_floor / aggregate_loss_cap),
+    defaulting 0 for pre-096 rows."""
+    row = _funnel(
+        dt.date(2026, 6, 8),
+        skip_underlying_cap=2, skip_daily_cap=1,
+        skip_cash_floor=3, skip_aggregate_loss_cap=4,
+    )
+    run = aggregate_audit([row], [])["runs"][0]
+    assert run["skip_underlying_cap"] == 2
+    assert run["skip_daily_cap"] == 1
+    assert run["skip_cash_floor"] == 3
+    assert run["skip_aggregate_loss_cap"] == 4
+
+    legacy = aggregate_audit([_funnel(dt.date(2026, 6, 7))], [])["runs"][0]
+    assert legacy["skip_underlying_cap"] == 0
+    assert legacy["skip_daily_cap"] == 0
+    assert legacy["skip_cash_floor"] == 0
+    assert legacy["skip_aggregate_loss_cap"] == 0
+
+
 def test_aggregate_candidates_only_is_live():
     r = aggregate_audit([], [_classified(1, dt.date(2026, 6, 8), "eligible")])
     assert r["status"] == "live"
