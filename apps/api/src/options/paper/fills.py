@@ -129,6 +129,37 @@ def compute_fill(
     )
 
 
+def compute_entry_fill(
+    quote: OptionChainQuote,
+    *,
+    side: str,
+    wing_min_oi: int = MIN_OPEN_INTEREST,
+    slippage_cap: Decimal = DEFAULT_SLIPPAGE_CAP_DOLLARS,
+) -> FillResult:
+    """Conservative fill for OPENING a leg, with a role-aware OI floor.
+
+    P6D.37C — at entry the OI gate is role-aware: SELL (risk) legs
+    always keep the strict MIN_OPEN_INTEREST (500); BUY legs use
+    `wing_min_oi`. side==BUY is exactly the protective hedge wing for
+    every strategy the engine admits (DEFINED_RISK_STRATEGIES are all
+    credit structures — SPCS/SCCS/IC), so no separate role field is
+    needed. The DEFAULT is INERT (wing_min_oi == MIN_OPEN_INTEREST →
+    byte-identical to compute_fill). Both the canary selector and the
+    engine open path MUST call this same helper — that is what keeps
+    selector-promotable == engine-fillable (P6D.12 parity) under the
+    role-aware threshold. All other gates (spread, age, bid/ask
+    sanity) and the fill-price math are compute_fill's, unchanged.
+    """
+    min_oi = wing_min_oi if side == "BUY" else MIN_OPEN_INTEREST
+    return compute_fill(
+        quote,
+        side=side,
+        slippage_cap=slippage_cap,
+        enforce_liquidity=True,
+        min_open_interest=min_oi,
+    )
+
+
 def exit_max_spread_dollars(
     quote: OptionChainQuote,
     *,

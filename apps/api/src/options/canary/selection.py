@@ -25,7 +25,7 @@ from apps.api.src.options.canary import positions as pos
 from apps.api.src.options.canary.economics import assess_economics
 from apps.api.src.options.data_provider.base_adapter import OptionChainQuote
 from apps.api.src.options.paper.engine import TradeRequest
-from apps.api.src.options.paper.fills import compute_fill
+from apps.api.src.options.paper.fills import compute_entry_fill
 from apps.api.src.options.paper.strategies import (
     LegSpec,
     compute_risk,
@@ -286,14 +286,22 @@ def _load_promotable_requests(
                 _bump(skip_counts, "stale_quotes")
                 continue
             # P6D.12 fillability parity — every leg must clear the SAME
-            # liquidity gate the paper engine enforces at open (OI>=500,
-            # spread<=$0.10, age<=60s, valid bid/ask). Reuses compute_fill so
-            # selector-promotable == engine-fillable; no duplicated thresholds.
+            # liquidity gate the paper engine enforces at open (role-aware
+            # OI floor, spread<=$0.10, age<=60s, valid bid/ask). Reuses
+            # compute_entry_fill so selector-promotable == engine-fillable;
+            # no duplicated thresholds.
             # The conservative FillResults are kept for the economics gate.
+            # P6D.37C — role-aware entry OI floor, via the SAME
+            # compute_entry_fill the engine open path uses (SELL legs
+            # strict 500, BUY wings OPTIONS_CANARY_WING_MIN_OI; inert
+            # default 500). Parity stays structural, not duplicated.
+            wing_min_oi = int(settings.OPTIONS_CANARY_WING_MIN_OI)
             fills: list[Decimal] = []
             for lr in legs_rows:
                 q = quotes.get(lr["option_symbol"])
-                fr = compute_fill(q, side=lr["side"]) if q is not None else None
+                fr = (compute_entry_fill(q, side=lr["side"],
+                                         wing_min_oi=wing_min_oi)
+                      if q is not None else None)
                 if fr is None or not fr.accepted:
                     fills = []
                     break

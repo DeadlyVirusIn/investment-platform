@@ -254,6 +254,7 @@ def seed_chain(
     short_bid: Decimal, short_ask: Decimal,
     long_bid: Decimal, long_ask: Decimal,
     age: int = 2, oi: int = 2000,
+    short_oi: int | None = None, long_oi: int | None = None,
 ) -> None:
     """Insert the LATEST options_chain_snapshot rows the manage_one MTM reads
     (latest_chain_quotes → DISTINCT ON option_symbol ORDER BY snapshot_at_utc
@@ -261,10 +262,12 @@ def seed_chain(
     snapshot recency.
     """
     rows = [
-        (SHORT_SYM, SHORT_STRIKE, short_bid, short_ask),
-        (LONG_SYM, LONG_STRIKE, long_bid, long_ask),
+        (SHORT_SYM, SHORT_STRIKE, short_bid, short_ask,
+         short_oi if short_oi is not None else oi),
+        (LONG_SYM, LONG_STRIKE, long_bid, long_ask,
+         long_oi if long_oi is not None else oi),
     ]
-    for sym, strike, bid, ask in rows:
+    for sym, strike, bid, ask, leg_oi in rows:
         mid = (bid + ask) / Decimal("2")
         session.execute(text(
             "INSERT INTO options_chain_snapshot "
@@ -276,7 +279,8 @@ def seed_chain(
             " -0.20, 0.02, -0.05, 0.10, 0.20, :age, 'thetadata', 'thetadata')"
         ), {
             "t": snapshot_at, "u": UNDERLYING, "e": expiry, "k": strike,
-            "sym": sym, "b": bid, "a": ask, "m": mid, "oi": oi, "age": age,
+            "sym": sym, "b": bid, "a": ask, "m": mid, "oi": leg_oi,
+            "age": age,
         })
     session.commit()
 

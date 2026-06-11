@@ -512,6 +512,17 @@ class Settings(BaseSettings):
     # Absolute floor (dollars) of the exit spread cap. Equals the entry
     # gate's MAX_BID_ASK_SPREAD_DOLLARS by default.
     OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS: float = 0.10
+    # P6D.37C — role-aware wing OI threshold at ENTRY (settings-only,
+    # NOT wired into compose). Min open interest for BUY (hedge/wing)
+    # legs at open; SELL (risk) legs always keep the strict
+    # MIN_OPEN_INTEREST=500. Every engine strategy is a credit
+    # structure (SPCS/SCCS/IC), so side==BUY is exactly the protective
+    # wing. Default 500 is INERT (== the strict gate); rollout flips to
+    # 100 via env after validation. Background: QQQ OI concentrates on
+    # the $5 strike grid, $1 wings land off-grid (~300 OI) with spreads
+    # as tight as 30k-OI strikes — 2 of 6 candidate-days in the 37A
+    # window were zero-promotable on wing OI alone.
+    OPTIONS_CANARY_WING_MIN_OI: int = 500
     # P6D.34D — promotion freshness gate (settings-only, NOT wired into
     # compose; same precedent as the 33A/34C knobs above). Max effective
     # quote age (seconds) for a candidate's leg quotes at PROMOTION time;

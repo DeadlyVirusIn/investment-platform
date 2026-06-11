@@ -1337,6 +1337,68 @@ def test_exit_profile_unblocks_wide_spread_tp_close(
     assert report.cash_drift == []
 
 
+# ===========================================================================
+# P6D.37C — role-aware wing OI threshold (entry)
+# ===========================================================================
+#
+# The 37A failure shape end-to-end: a candidate whose SHORT leg is deeply
+# liquid (OI 40k) but whose BUY wing sits off the $5 strike grid at OI 300.
+# Default WING_MIN_OI=500 must keep rejecting it (regression pin of the
+# 06-02/06-03 zero-promotable days); flipping to 100 must promote it
+# through BOTH the selector and the engine open path in one cycle —
+# the structural parity proof (same compute_entry_fill, same verdict).
+
+def _seed_thin_wing_candidate(session_factory):
+    with session_factory() as s:
+        rh.seed_candidate(s, run_date=TODAY, expiry=CAND_EXPIRY)
+        rh.seed_chain(s, expiry=CAND_EXPIRY, snapshot_at=NOW,
+                      short_bid=Decimal("0.60"), short_ask=Decimal("0.65"),
+                      long_bid=Decimal("0.20"), long_ask=Decimal("0.25"),
+                      short_oi=40000, long_oi=300)
+
+
+def test_wing_oi_default_rejects_thin_wing_candidate_pin(
+    session_factory, fresh_portfolio, canary_universe_qqq,
+):
+    """REGRESSION PIN (inert default 500): the thin-wing candidate is
+    not promotable — no trade, no position, cash untouched."""
+    pid, _ = fresh_portfolio
+    _seed_thin_wing_candidate(session_factory)
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory, refresh_quotes=False,
+    )
+    assert counts.promoted == 0
+    with session_factory() as s:
+        assert _trade_count(s) == 0
+        assert pos.count_open_positions(s, pid) == 0
+        assert _cash(s, pid) == Decimal("10000")
+
+
+def test_wing_oi_flip_promotes_thin_wing_selector_engine_parity(
+    session_factory, fresh_portfolio, canary_universe_qqq, monkeypatch,
+):
+    """WING_MIN_OI=100: the SAME candidate/chain promotes — the selector
+    admits it AND the engine fills it (promote_one → submit_trade re-
+    evaluates the same OI-300 wing) in a single cycle. Selector-
+    promotable == engine-fillable under the role-aware threshold."""
+    pid, _ = fresh_portfolio
+    monkeypatch.setattr(settings, "OPTIONS_CANARY_WING_MIN_OI", 100)
+    _seed_thin_wing_candidate(session_factory)
+
+    counts = canary_engine.run_promotion_cycle(
+        portfolio_id=pid, run_date=TODAY, now=NOW,
+        session_factory=session_factory, refresh_quotes=False,
+    )
+    assert counts.promoted == 1
+    with session_factory() as s:
+        assert _trade_count(s) == 1
+        assert pos.count_open_positions(s, pid) == 1
+        # Entry credit $35, reserve = max_loss $65 + round-trip fees.
+        assert _cash(s, pid) < Decimal("10000")
+
+
 def test_exit_profile_oi_ignored_blocked_then_closes(
     session_factory, fresh_portfolio, monkeypatch,
 ):

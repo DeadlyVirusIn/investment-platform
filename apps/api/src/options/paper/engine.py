@@ -43,8 +43,8 @@ from apps.api.src.options.paper.fills import (
     DEFAULT_FEE_PER_CONTRACT,
     FILL_MODEL_VERSION,
     FillResult,
+    compute_entry_fill,
     compute_exit_fill,
-    compute_fill,
     fees_for,
 )
 from apps.api.src.options.paper.pnl import (
@@ -169,7 +169,14 @@ def open_trade(
         if q is None:
             rejects.append(f"{REJECT_QUOTE_MISSING}:{leg.option_symbol}")
             continue
-        f = compute_fill(q, side=leg.side)
+        # P6D.37C — role-aware entry OI floor: SELL (risk) legs keep the
+        # strict 500; BUY (hedge wing) legs use the setting. Inert
+        # default (500) reproduces the prior gate exactly. The selector
+        # calls the SAME helper (P6D.12 parity).
+        f = compute_entry_fill(
+            q, side=leg.side,
+            wing_min_oi=int(settings.OPTIONS_CANARY_WING_MIN_OI),
+        )
         if not f.accepted:
             rejects.append(f"{REJECT_FILL_FAILED}:{leg.option_symbol}:{f.reason}")
         fills.append(f)
