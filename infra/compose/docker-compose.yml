@@ -109,6 +109,10 @@ services:
       # value; this default only matters when the key is absent, and
       # tradier is the adapter that works without OPRA access.
       OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-tradier}
+      OPTIONS_EXIT_MIN_OI: ${OPTIONS_EXIT_MIN_OI:-500}
+      OPTIONS_EXIT_MAX_SPREAD_PCT: ${OPTIONS_EXIT_MAX_SPREAD_PCT:-0.0}
+      OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS: ${OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS:-0.10}
+      OPTIONS_CANARY_WING_MIN_OI: ${OPTIONS_CANARY_WING_MIN_OI:-500}
       # Phase Opt-B3a — Finnhub key (also used by catalysts pipeline).
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       # Phase Opt-B3a — Tradier sandbox/prod options provider.
@@ -203,6 +207,10 @@ services:
       # Phase C Stage 2A — persist materialized candidate legs. Default OFF.
       # Pure persistence; no qualification/scoring/ranking/wing-width change.
       OPTIONS_PERSIST_LEGS: ${OPTIONS_PERSIST_LEGS:-false}
+      OPTIONS_EXIT_MIN_OI: ${OPTIONS_EXIT_MIN_OI:-500}
+      OPTIONS_EXIT_MAX_SPREAD_PCT: ${OPTIONS_EXIT_MAX_SPREAD_PCT:-0.0}
+      OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS: ${OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS:-0.10}
+      OPTIONS_CANARY_WING_MIN_OI: ${OPTIONS_CANARY_WING_MIN_OI:-500}
       FINNHUB_API_KEY: ${FINNHUB_API_KEY:-}
       TRADIER_BASE_URL: ${TRADIER_BASE_URL:-https://sandbox.tradier.com/v1}
       TRADIER_ACCESS_TOKEN: ${TRADIER_ACCESS_TOKEN:-}
@@ -269,6 +277,10 @@ services:
       # P6D.16 fix — data-provider parity (mirror api/worker-tickloop).
       # P6D.36A — all three services now share this 'tradier' default.
       OPTIONS_DATA_PROVIDER: ${OPTIONS_DATA_PROVIDER:-tradier}
+      OPTIONS_EXIT_MIN_OI: ${OPTIONS_EXIT_MIN_OI:-500}
+      OPTIONS_EXIT_MAX_SPREAD_PCT: ${OPTIONS_EXIT_MAX_SPREAD_PCT:-0.0}
+      OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS: ${OPTIONS_EXIT_MAX_SPREAD_FLOOR_DOLLARS:-0.10}
+      OPTIONS_CANARY_WING_MIN_OI: ${OPTIONS_CANARY_WING_MIN_OI:-500}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
       ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
