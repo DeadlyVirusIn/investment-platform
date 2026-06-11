@@ -16,6 +16,17 @@ sprints, NOT mixed with feature work or hotfixes.
 
 ## H1 — `max_drawdown_pct` schema drift in `paper_run_log`
 
+> **STATUS: FIXED (P6E.0, 2026-06-11).** Root cause was in
+> `activation.py:_gather_health_inputs` — the risk-control proxy
+> selected `max_drawdown_pct` ordered by `snapshot_date` from
+> `paper_portfolio_snapshot`, whose real columns are `max_dd_pct` +
+> `as_of_date`. The UndefinedColumn error poisoned the transaction so
+> the `system_health_score` INSERT failed every nightly run (table had
+> 0 rows ever). Fixed the query and added `session.rollback()` to all
+> four proxy except-blocks so no single failed read can poison the
+> health write again. Verify post-deploy: `system_health_score` gains
+> a row on the next alpha_nightly run.
+
 **Symptom**: `alpha_nightly` logs the following on every run:
 
 ```
@@ -43,6 +54,13 @@ not written and downstream "system health" surfaces are stale.
 ---
 
 ## H2 — Restore daily-loop log visibility (supercronic `-quiet`)
+
+> **STATUS: OBSOLETE (P6E.0, 2026-06-11).** The W1 worker rebuild
+> replaced supercronic entirely — `worker.Dockerfile` CMD is now
+> `python -m apps.worker.src.main` (job-schedule tick-loop). There is
+> no supercronic binary or `-quiet` flag left to fix; worker stdout
+> (boot env validation, tick-loop lines) is already visible via
+> `docker logs` (verified P6D.39). No action.
 
 **Symptom**: `worker.Dockerfile` runs supercronic with `-quiet`,
 which suppresses every job's stdout/stderr. `docker logs

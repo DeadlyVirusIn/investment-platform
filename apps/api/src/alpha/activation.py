@@ -363,6 +363,7 @@ def _gather_health_inputs(session: Session) -> dict[str, float]:
             signal_quality = _signal_quality_from_baselines(bases)
     except Exception as e:
         logger.warning("health: ml_research_snapshot read failed: {}", e)
+        session.rollback()   # P6E.0/H1 — never poison the health INSERT
 
     # Execution quality proxy — mean quality_score from recent trades
     try:
@@ -377,6 +378,7 @@ def _gather_health_inputs(session: Session) -> dict[str, float]:
             execution_quality = float(row["avg_eq"])
     except Exception as e:
         logger.warning("health: execution proxy read failed: {}", e)
+        session.rollback()   # P6E.0/H1 — never poison the health INSERT
 
     # Paper feedback — closed trade winrate in last 30d
     try:
@@ -391,19 +393,25 @@ def _gather_health_inputs(session: Session) -> dict[str, float]:
             paper_feedback = float(row["wr"])
     except Exception as e:
         logger.warning("health: paper proxy read failed: {}", e)
+        session.rollback()   # P6E.0/H1 — never poison the health INSERT
 
     # Risk control — invert latest drawdown
     try:
+        # P6E.0/H1 — the columns are max_dd_pct + as_of_date (the old
+        # max_drawdown_pct/snapshot_date names never existed on this
+        # table; the UndefinedColumn error poisoned the transaction and
+        # killed the system_health_score INSERT on every nightly run).
         row = session.execute(text("""
-            SELECT max_drawdown_pct FROM paper_portfolio_snapshot
-            ORDER BY snapshot_date DESC LIMIT 1
+            SELECT max_dd_pct FROM paper_portfolio_snapshot
+            ORDER BY as_of_date DESC LIMIT 1
         """)).mappings().first()
-        if row and row.get("max_drawdown_pct") is not None:
-            dd = abs(float(row["max_drawdown_pct"] or 0))
+        if row and row.get("max_dd_pct") is not None:
+            dd = abs(float(row["max_dd_pct"] or 0))
             # 0% dd → 1.0, 10% dd → 0.0
             risk_control = max(0.0, min(1.0, 1.0 - dd / 10.0))
     except Exception as e:
         logger.warning("health: risk proxy read failed: {}", e)
+        session.rollback()
 
     return {
         "data_quality":     max(0.0, min(1.0, data_quality)),

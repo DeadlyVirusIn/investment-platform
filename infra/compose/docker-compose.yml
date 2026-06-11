@@ -188,6 +188,29 @@ services:
       # is already LEGACY — no behavior change. Mirrors api defaults.
       ML_CAN_AFFECT_TRADES: ${ML_CAN_AFFECT_TRADES:-false}
       ENGINE_B_MODE: ${ENGINE_B_MODE:-LEGACY}
+      # P6E.0/I1 — ML_HYBRID_*/ML_PROMOTION_* parity (verbatim mirror
+      # of api + worker-cron). BOTH workers run the same job tick-loop
+      # and can claim ML jobs (P6B.6 lesson); tickloop previously
+      # omitted ALL of these → with ML_HYBRID_ENABLED=true in .env,
+      # hybrid behavior depended on which worker won the claim
+      # (cron=true, tickloop=<unset>→false; P6D.39 boot logs).
+      ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
+      ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
+      ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
+      ML_HYBRID_REQUIRE_BASELINE_BEAT: ${ML_HYBRID_REQUIRE_BASELINE_BEAT:-true}
+      ML_HYBRID_ALLOW_BLOCK: ${ML_HYBRID_ALLOW_BLOCK:-false}
+      ML_HYBRID_MIN_CONFIDENCE: ${ML_HYBRID_MIN_CONFIDENCE:-0.65}
+      ML_HYBRID_MAX_STALE_DAYS: ${ML_HYBRID_MAX_STALE_DAYS:-7}
+      ML_HYBRID_MIN_DATA_CONFIDENCE: ${ML_HYBRID_MIN_DATA_CONFIDENCE:-0.70}
+      ML_HYBRID_MIN_MULTIPLIER: ${ML_HYBRID_MIN_MULTIPLIER:-0.50}
+      ML_PROMOTION_MIN_ADVICE: ${ML_PROMOTION_MIN_ADVICE:-20}
+      ML_PROMOTION_MIN_OUTCOMES: ${ML_PROMOTION_MIN_OUTCOMES:-20}
+      ML_PROMOTION_MAX_ECE: ${ML_PROMOTION_MAX_ECE:-0.10}
+      ML_PROMOTION_MIN_DELTA_SHARPE: ${ML_PROMOTION_MIN_DELTA_SHARPE:-0.00}
+      ML_PROMOTION_MAX_FALSE_AVOID_RATE: ${ML_PROMOTION_MAX_FALSE_AVOID_RATE:-0.35}
+      ML_PROMOTION_REQUIRED_HEALTHY_DAYS: ${ML_PROMOTION_REQUIRED_HEALTHY_DAYS:-7}
+      ML_PROMOTION_REQUIRE_OPERATOR_APPROVAL: ${ML_PROMOTION_REQUIRE_OPERATOR_APPROVAL:-true}
+      ML_PROMOTION_MAX_MISSED_WINNER_RATE: ${ML_PROMOTION_MAX_MISSED_WINNER_RATE:-0.50}
       # Phase Opt-B3a Step 6a — worker tickloop fires options_*
       # scheduled jobs and needs identical OPTIONS_*/TRADIER_*
       # env shape as the api service so wrapper gating + adapter

@@ -113,7 +113,7 @@ logs:
 
 ## Apply migrations + seed stub symbols
 seed:
-	$(COMPOSE) exec api alembic upgrade head
+	$(COMPOSE) exec api alembic -c infra/alembic/alembic.ini upgrade head
 	$(COMPOSE) exec api python -m scripts.seed_symbols
 
 ## Run Python linters (ruff + mypy)
