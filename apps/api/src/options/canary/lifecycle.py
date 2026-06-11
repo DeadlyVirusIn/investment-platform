@@ -158,10 +158,23 @@ def manage_one(
                           terminal="close", now=now, quotes=quotes, reason=reason)
         released = rel.status == "released"
     elif action == "expire":
-        settle = selection.settlement_price(session, trade["underlying"])
-        rel = release_one(session, portfolio_id=portfolio_id, trade_id=trade_id,
-                          terminal="expire", now=now, settlement_price=settle)
-        released = rel.status == "released"
+        # P6D.36B — settlement must be the close FOR THE EXPIRY DATE
+        # (exact-day bar, or last trading-day close before a weekend/
+        # holiday expiry within the guard window), never just the latest
+        # bar. No valid settlement price → do NOT force settlement:
+        # HOLD and let the next lifecycle cycle retry once the bar lands.
+        settle = selection.settlement_price(
+            session, trade["underlying"],
+            expiry=min(expiries), as_of=now,
+        )
+        if settle is None:
+            action, reason = None, "HOLD_AWAITING_SETTLEMENT"
+        else:
+            rel = release_one(
+                session, portfolio_id=portfolio_id, trade_id=trade_id,
+                terminal="expire", now=now, settlement_price=settle,
+            )
+            released = rel.status == "released"
 
     return {"trade_id": trade_id, "action": action, "reason": reason,
             "dte": dte, "pct_max_profit": pct_max_profit,

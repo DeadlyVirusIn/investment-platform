@@ -329,9 +329,15 @@ def seed_candidate(
     return cand_id
 
 
-def seed_settlement(session: Session, *, close_price: Decimal) -> None:
+def seed_settlement(
+    session: Session, *, close_price: Decimal,
+    ts: dt.datetime | None = None,
+) -> None:
     """Seed the price_bar/asset row settlement_price() reads for the expiry
-    path (selection.settlement_price → latest price_bar.close for QQQ)."""
+    path. P6D.36B: settlement_price is date-aware (exact expiry-date 1d bar,
+    or last trading-day close before a weekend/holiday expiry within the
+    guard) — pass `ts` to place the bar on the intended trading date.
+    Default keeps the legacy wall-clock-now bar."""
     aid = session.execute(text(
         "SELECT id FROM asset WHERE symbol = :s"
     ), {"s": UNDERLYING}).scalar()
@@ -349,7 +355,7 @@ def seed_settlement(session: Session, *, close_price: Decimal) -> None:
         "VALUES (:id, :aid, '1d', :ts, :c, :c, :c, :c, 1000000, "
         " 'replay-sim', NOW())"
     ), {"id": str(uuid.uuid4()), "aid": aid,
-        "ts": dt.datetime.now(dt.timezone.utc), "c": close_price})
+        "ts": ts or dt.datetime.now(dt.timezone.utc), "c": close_price})
     session.commit()
 
 

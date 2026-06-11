@@ -41,6 +41,12 @@ TODAY = NOW.date()
 FAR_EXPIRY = TODAY + dt.timedelta(days=101)   # DTE = 101  (> dte_close 7)
 
 
+def _bar_ts(d: dt.date) -> dt.datetime:
+    """1d price_bar timestamp for trading date `d` (00:00 UTC — the shape
+    real ingested daily bars use; see P6D.36B settlement-date rule)."""
+    return dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # Container engine — alembic-migrated, isolation-asserted (SAFETY GUARDS 1+2)
 # ---------------------------------------------------------------------------
@@ -88,6 +94,10 @@ def fresh_portfolio(session_factory):
             "options_execution_funnel "
             "RESTART IDENTITY CASCADE"
         ))
+        # P6D.36B — settlement bars must not leak across tests (the
+        # settlement-date rule reads price_bar; a prior test's expiry-day
+        # bar would satisfy a later test's exact-date match).
+        s.execute(text("TRUNCATE price_bar"))
         s.execute(text(
             "DELETE FROM options_paper_portfolio WHERE name LIKE :p"
         ), {"p": f"{rh.REPLAY_PREFIX}%"})
@@ -269,8 +279,10 @@ def test_expiry_settlement(session_factory, fresh_portfolio):
                       short_bid=Decimal("0.10"), short_ask=Decimal("0.14"),
                       long_bid=Decimal("0.02"), long_ask=Decimal("0.06"))
         # settlement source for selection.settlement_price (QQQ well above the
-        # short strike → puts expire worthless / OTM).
-        rh.seed_settlement(s, close_price=Decimal("420"))
+        # short strike → puts expire worthless / OTM). P6D.36B: the bar must
+        # be DATED the expiry date (exact-day settlement rule).
+        rh.seed_settlement(s, close_price=Decimal("420"),
+                           ts=_bar_ts(exp_expiry))
 
     report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
 
@@ -759,3 +771,162 @@ def test_promotion_refresh_success_promotes(
         status = s.execute(text(
             "SELECT status FROM options_paper_trade LIMIT 1")).scalar()
         assert status == "OPEN"
+
+
+# ===========================================================================
+# 11) P6D.36B — settlement-date correctness (exact bar / guard / weekend /
+#     missing → HOLD_AWAITING_SETTLEMENT + retry)
+# ===========================================================================
+
+def _decision_at(session_factory, *, pid: str, trade_id: int,
+                 now: dt.datetime) -> dict:
+    """manage_one decision dict at an arbitrary `now`, rolled back."""
+    with session_factory() as s:
+        res = lifecycle.manage_one(
+            s, portfolio_id=pid, trade_id=trade_id, now=now,
+            tp_pct=float(settings.OPTIONS_CANARY_TP_PCT),
+            dte_close=int(settings.OPTIONS_CANARY_DTE_CLOSE),
+        )
+        s.rollback()
+    return res
+
+
+def _promote_expiring(session_factory, pid: str, *, expiry: dt.date,
+                      phash: str):
+    """Promoted SPCS at `expiry`, with a priced (mid-present) chain so
+    decide_exit reaches the expiry branch."""
+    req = rh.make_spcs_request(expiry=expiry, snapshot_at=NOW)
+    r = rh.promote(session_factory, portfolio_id=pid, request=req,
+                   proposal_hash=phash, now=NOW)
+    assert r.status == "promoted", r
+    with session_factory() as s:
+        rh.seed_chain(s, expiry=expiry, snapshot_at=NOW,
+                      short_bid=Decimal("0.10"), short_ask=Decimal("0.14"),
+                      long_bid=Decimal("0.02"), long_ask=Decimal("0.06"))
+    return r
+
+
+def test_missing_settlement_holds_then_retry_settles(
+    session_factory, fresh_portfolio,
+):
+    """No bar for the expiry date → HOLD_AWAITING_SETTLEMENT, position stays
+    OPEN (never force-settled with payoff-0 MISSING_SETTLEMENT). Once the
+    expiry-day bar lands, the NEXT cycle settles cleanly (retry semantics)."""
+    pid, _ = fresh_portfolio
+    r = _promote_expiring(session_factory, pid, expiry=TODAY,
+                          phash="36b-await-1")
+    # NO settlement bar seeded.
+    res = _decision_at(session_factory, pid=pid, trade_id=r.trade_id, now=NOW)
+    assert res["action"] is None
+    assert res["reason"] == "HOLD_AWAITING_SETTLEMENT"
+    assert res["released"] is False
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+        assert _realized(s, r.trade_id) is None
+    assert report.clean
+    assert report.cash_drift == []
+
+    # The expiry-day bar lands (late ingest) → next cycle settles.
+    with session_factory() as s:
+        rh.seed_settlement(s, close_price=Decimal("420"), ts=_bar_ts(TODAY))
+    report = rh.run_cycle(session_factory, portfolio_id=pid,
+                          now=NOW + dt.timedelta(days=1))
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) in ("EXPIRED", "ASSIGNED")
+        assert _released_at(s, r.trade_id) is not None
+        assert pos.count_open_positions(s, pid) == 0
+        assert _realized(s, r.trade_id) is not None
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_stale_bar_beyond_guard_does_not_settle(
+    session_factory, fresh_portfolio,
+):
+    """Only bar is 8 days BEFORE expiry (beyond SETTLEMENT_MAX_AGE_DAYS=4)
+    → no valid settlement context even though as_of is past expiry →
+    HOLD_AWAITING_SETTLEMENT, position stays OPEN. This is the exact bug
+    class P6D.36B fixes: the old query would have settled with this close."""
+    pid, _ = fresh_portfolio
+    r = _promote_expiring(session_factory, pid, expiry=TODAY,
+                          phash="36b-stale-1")
+    day_after = NOW + dt.timedelta(days=1)
+    with session_factory() as s:
+        rh.seed_settlement(s, close_price=Decimal("420"),
+                           ts=_bar_ts(TODAY - dt.timedelta(days=8)))
+
+    res = _decision_at(session_factory, pid=pid, trade_id=r.trade_id,
+                       now=day_after)
+    assert res["action"] is None
+    assert res["reason"] == "HOLD_AWAITING_SETTLEMENT"
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=day_after)
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_weekend_expiry_settles_with_prior_trading_close(
+    session_factory, fresh_portfolio,
+):
+    """Saturday expiry (2026-06-13): no Saturday bar ever exists. Once as_of
+    is PAST expiry (Monday cycle), settlement falls back to the last
+    trading-day close strictly before expiry within the guard window —
+    Friday 2026-06-12 → settles EXPIRED with that close."""
+    pid, _ = fresh_portfolio
+    saturday = dt.date(2026, 6, 13)
+    assert saturday.weekday() == 5
+    friday = dt.date(2026, 6, 12)
+    monday_cycle = dt.datetime(2026, 6, 15, 22, 0, tzinfo=dt.timezone.utc)
+
+    r = _promote_expiring(session_factory, pid, expiry=saturday,
+                          phash="36b-weekend-1")
+    with session_factory() as s:
+        rh.seed_settlement(s, close_price=Decimal("420"), ts=_bar_ts(friday))
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=monday_cycle)
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) in ("EXPIRED", "ASSIGNED")
+        assert _released_at(s, r.trade_id) is not None
+        assert pos.count_open_positions(s, pid) == 0
+        # The recorded settlement is the FRIDAY close, not some other bar.
+        settle = s.execute(text(
+            "SELECT underlying_settlement FROM options_expiration_event "
+            "WHERE trade_id = :t LIMIT 1"), {"t": r.trade_id}).scalar()
+        assert Decimal(str(settle)) == Decimal("420")
+    assert report.clean
+    assert report.cash_drift == []
+
+
+def test_same_day_cycle_without_bar_holds_no_premature_settle(
+    session_factory, fresh_portfolio,
+):
+    """Expiry-DAY cycle, bar not ingested yet, but YESTERDAY's bar exists:
+    must NOT settle with yesterday's close (the wrong-day bug) — fallback
+    is only allowed once as_of is past expiry. HOLD_AWAITING_SETTLEMENT."""
+    pid, _ = fresh_portfolio
+    r = _promote_expiring(session_factory, pid, expiry=TODAY,
+                          phash="36b-sameday-1")
+    with session_factory() as s:
+        # Yesterday's close present, expiry-day bar absent (ingest lag).
+        rh.seed_settlement(s, close_price=Decimal("410"),
+                           ts=_bar_ts(TODAY - dt.timedelta(days=1)))
+
+    res = _decision_at(session_factory, pid=pid, trade_id=r.trade_id, now=NOW)
+    assert res["action"] is None
+    assert res["reason"] == "HOLD_AWAITING_SETTLEMENT"
+
+    report = rh.run_cycle(session_factory, portfolio_id=pid, now=NOW)
+    with session_factory() as s:
+        assert _trade_status(s, r.trade_id) == "OPEN"
+        assert _released_at(s, r.trade_id) is None
+        assert pos.count_open_positions(s, pid) == 1
+    assert report.clean
+    assert report.cash_drift == []

@@ -108,12 +108,48 @@ def latest_chain_quotes(
     return out
 
 
-def settlement_price(session: Session, underlying: str) -> Decimal | None:
-    """Latest daily close for the underlying (expiry settlement source)."""
+# P6D.36B — settlement fallback window. A weekend/holiday expiry settles
+# with the last trading-day close strictly before expiry, but never one
+# older than this many calendar days (covers Sat/Sun + a long-weekend
+# holiday; anything older is the wrong settlement context → HOLD).
+SETTLEMENT_MAX_AGE_DAYS = 4
+
+
+def settlement_price(
+    session: Session, underlying: str, *,
+    expiry: dt.date, as_of: dt.datetime,
+) -> Decimal | None:
+    """Settlement close for `underlying` at `expiry` (P6D.36B).
+
+    Rule (date-correct — never "latest close, whatever the day"):
+      1. EXACT — the 1d price_bar dated the expiry date.
+      2. FALLBACK — only once `as_of` is PAST the expiry date (so an
+         expiry-day bar had a full chance to ingest): the latest 1d bar
+         STRICTLY BEFORE expiry, at most SETTLEMENT_MAX_AGE_DAYS old.
+         This is the weekend/holiday-expiry path.
+      3. None — no valid settlement context; the caller must HOLD the
+         position and retry next lifecycle cycle.
+    """
     v = session.execute(text(
         "SELECT pb.close FROM price_bar pb JOIN asset a ON a.id = pb.asset_id "
-        "WHERE a.symbol = :s ORDER BY pb.ts DESC LIMIT 1"
-    ), {"s": underlying}).scalar()
+        "WHERE a.symbol = :s AND pb.timeframe = '1d' "
+        "AND (pb.ts AT TIME ZONE 'UTC')::date = :exp "
+        "ORDER BY pb.ts DESC LIMIT 1"
+    ), {"s": underlying, "exp": expiry}).scalar()
+    if v is not None:
+        return _dec(v)
+    if as_of.date() <= expiry:
+        # Same-day cycle: the expiry-day bar may simply not be ingested
+        # yet — do NOT settle with a prior day's close.
+        return None
+    floor = expiry - dt.timedelta(days=SETTLEMENT_MAX_AGE_DAYS)
+    v = session.execute(text(
+        "SELECT pb.close FROM price_bar pb JOIN asset a ON a.id = pb.asset_id "
+        "WHERE a.symbol = :s AND pb.timeframe = '1d' "
+        "AND (pb.ts AT TIME ZONE 'UTC')::date < :exp "
+        "AND (pb.ts AT TIME ZONE 'UTC')::date >= :floor "
+        "ORDER BY pb.ts DESC LIMIT 1"
+    ), {"s": underlying, "exp": expiry, "floor": floor}).scalar()
     return _dec(v)
 
 
