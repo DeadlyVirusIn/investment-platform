@@ -263,7 +263,7 @@ export function TryFromLesson() {
           description={
             existing
               ? 'We mark this position daily. When the thesis resolves, come back to review.'
-              : 'Pre-filled from the lesson. Adjust the knobs if you want; open the position when you are ready.'
+              : 'An illustrative practice scenario pre-filled from the lesson — not live market guidance. Adjust the knobs if you want; open the position when you are ready.'
           }
         />
       </FadeIn>
@@ -280,6 +280,10 @@ export function TryFromLesson() {
       <FadeIn delay={0.15}>
         <section className="mb-12 surface-drawer p-5 sm:p-7">
           <MetaLabel>The setup</MetaLabel>
+          <p className="ink-fainter text-[12px] leading-relaxed mt-2 italic">
+            Illustrative practice scenario · uses educational sample data ·
+            not live market guidance.
+          </p>
           <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-[15px]">
             <div>
               <dt className="ink-fainter text-meta mb-1">Symbol</dt>
