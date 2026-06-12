@@ -1,7 +1,8 @@
 // V2 Command Palette — ⌘K / Ctrl+K. Tier-1 index is gated to
-// lessons + picks only; secondary surfaces (terms, concepts,
-// briefings archive, closed trades) are skipped because their
-// routes are not ported yet and would 404 on Enter.
+// lessons only; secondary surfaces (terms, concepts, briefings
+// archive, closed trades) are skipped because their routes are
+// not ported yet and would 404 on Enter. Picks are not indexed
+// until they can be sourced from the live engine.
 
 import {
   useCallback,
@@ -15,8 +16,8 @@ import {
 } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, BookOpen, TrendingUp } from 'lucide-react';
-import { LESSONS, PORTFOLIO } from '../data/arthosData';
+import { Search, BookOpen } from 'lucide-react';
+import { LESSONS } from '../data/arthosData';
 
 interface PaletteCtx {
   open: () => void;
@@ -28,7 +29,7 @@ const Ctx = createContext<PaletteCtx | undefined>(undefined);
 
 interface Result {
   id: string;
-  category: 'Lessons' | 'Picks';
+  category: 'Lessons';
   title: string;
   subtitle: string;
   to: string;
@@ -45,16 +46,6 @@ function buildIndex(): Result[] {
       subtitle: `${l.readMinutes} min · ${l.abstract.slice(0, 80)}`,
       to: `/v2/learn/lesson/${l.slug}`,
       icon: <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />,
-    })
-  );
-  PORTFOLIO.positions.forEach((p) =>
-    out.push({
-      id: `pick-${p.symbol}`,
-      category: 'Picks',
-      title: `${p.symbol} · ${p.company}`,
-      subtitle: `${p.thesisShort} Day ${p.dayHeld}.`,
-      to: `/v2/today/pick/${p.symbol}`,
-      icon: <TrendingUp className="w-3.5 h-3.5" strokeWidth={1.5} />,
     })
   );
   return out;

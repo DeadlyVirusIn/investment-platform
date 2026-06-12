@@ -6,7 +6,6 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
-import { getSymbolContext } from '../data/arthosData';
 
 export function Watchlist() {
   const { watchlist, toggleWatchlist } = useUserPrefs();
@@ -42,95 +41,35 @@ export function Watchlist() {
         </div>
       ) : (
         <ul className="space-y-px bg-hairline">
-          {watchlist.map((symbol, i) => {
-            const ctx = getSymbolContext(symbol);
-            const tierLabel =
-              ctx.opportunityTier === 'strongest-setups'
-                ? 'Strongest setup today'
-                : ctx.opportunityTier === 'setups-forming'
-                  ? 'Setup forming'
-                  : ctx.opportunityTier === 'tracking'
-                    ? "We're tracking"
-                    : null;
-            return (
-              <motion.li
-                key={symbol}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: i * 0.04 }}
-                className="surface-base py-6 flex items-baseline justify-between gap-5 flex-wrap"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
-                    <span aria-hidden className="ink-primary">★</span>
-                    <span className="font-mono ink-primary text-[15px]">
-                      {symbol}
-                    </span>
-                    {ctx.held && (
-                      <span className="text-meta ink-muted">
-                        Held · Day {ctx.position?.dayHeld}
-                      </span>
-                    )}
-                    {tierLabel && !ctx.held && (
-                      <span className="text-meta ink-primary">
-                        {tierLabel}
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[13px] ink-muted leading-relaxed">
-                    {ctx.held
-                      ? ctx.position?.thesisShort
-                      : ctx.opportunity
-                        ? ctx.opportunity.actionLabel
-                        : ctx.tracking
-                          ? ctx.tracking.oneLineSetup
-                          : 'On the radar. Not held; not currently in opportunities.'}
-                  </div>
-                  {ctx.mentionedInChangedToday && (
-                    <div className="text-meta ink-fainter mt-2">
-                      Mentioned today: {ctx.changedToday?.headline}
-                    </div>
-                  )}
-                  {ctx.catalystsThisHorizon.length > 0 && (
-                    <div className="text-meta ink-fainter mt-1.5">
-                      Catalyst:{' '}
-                      <Link
-                        to="/v2/catalysts"
-                        className="ink-muted hover:ink-primary transition-colors"
-                      >
-                        {ctx.catalystsThisHorizon[0].title} ·{' '}
-                        {ctx.catalystsThisHorizon[0].prettyDate}
-                      </Link>
-                    </div>
-                  )}
+          {watchlist.map((symbol, i) => (
+            <motion.li
+              key={symbol}
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: i * 0.04 }}
+              className="surface-base py-6 flex items-baseline justify-between gap-5 flex-wrap"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
+                  <span aria-hidden className="ink-primary">★</span>
+                  <span className="font-mono ink-primary text-[15px]">
+                    {symbol}
+                  </span>
                 </div>
-                <div className="flex items-baseline gap-4 shrink-0">
-                  {ctx.held && (
-                    <Link
-                      to={`/v2/today/pick/${symbol}`}
-                      className="text-meta ink-muted hover:ink-primary transition-colors"
-                    >
-                      Open
-                    </Link>
-                  )}
-                  {!ctx.held && ctx.opportunityTier && (
-                    <Link
-                      to="/v2/opportunities"
-                      className="text-meta ink-muted hover:ink-primary transition-colors"
-                    >
-                      Open
-                    </Link>
-                  )}
-                  <button
-                    onClick={() => toggleWatchlist(symbol)}
-                    className="text-meta ink-fainter hover:ink-muted transition-colors"
-                  >
-                    Remove
-                  </button>
+                <div className="text-[13px] ink-fainter leading-relaxed">
+                  Live contextual insights are not yet connected.
                 </div>
-              </motion.li>
-            );
-          })}
+              </div>
+              <div className="flex items-baseline gap-4 shrink-0">
+                <button
+                  onClick={() => toggleWatchlist(symbol)}
+                  className="text-meta ink-fainter hover:ink-muted transition-colors"
+                >
+                  Remove
+                </button>
+              </div>
+            </motion.li>
+          ))}
         </ul>
       )}
     </ArthosPage>
