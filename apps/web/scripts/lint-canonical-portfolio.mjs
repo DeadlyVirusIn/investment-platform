@@ -32,7 +32,6 @@ const EXEMPT = [
   join('src', 'v2', 'components', 'ArthHeroCard.tsx'),
   join('src', 'v2', 'components', 'DecisionDeskHero.tsx'),
   join('src', 'v2', 'components', 'FirstPositionPanel.tsx'),
-  join('src', 'v2', 'components', 'TradeSheet.tsx'),
   join('src', 'v2', 'pages', 'MePage.tsx'),
   join('src', 'v2', 'pages', 'ReflectionsReview.tsx'),
   join('src', 'v2', 'pages', 'StartHere.tsx'),
