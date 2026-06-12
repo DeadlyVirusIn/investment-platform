@@ -27,6 +27,18 @@ _MAX_CONCURRENT: int = 3          # asyncio.Semaphore slots
 _HEARTBEAT_FILE: str = os.environ.get("WORKER_HEARTBEAT_FILE", "/tmp/worker_heartbeat")
 
 
+def _result_reports_failure(result: object) -> bool:
+    """P0-2A.4 — jobs may swallow their own exceptions and signal failure
+    via a returned ``{"status": "error"|"failed"}`` dict (e.g.
+    options_candidate_generation). The scheduler must honor that contract,
+    not just raised exceptions — on 2026-06-12 a NoSuchColumnError outage
+    was recorded as status=success because the return value was discarded."""
+    return (
+        isinstance(result, dict)
+        and str(result.get("status", "")).lower() in ("error", "failed")
+    )
+
+
 def _touch_heartbeat() -> None:
     try:
         Path(_HEARTBEAT_FILE).touch()
@@ -62,11 +74,22 @@ async def _execute_job(schedule: JobSchedule, semaphore: asyncio.Semaphore) -> N
         status = "success"
         error_msg: str | None = None
         try:
-            await job_fn()
+            result = await job_fn()
         except Exception:
             status = "error"
             error_msg = traceback.format_exc()
             logger.error("Job '{}' failed:\n{}", schedule.name, error_msg)
+        else:
+            # P0-2A.4 — honor job-reported failure (swallowed exceptions
+            # returned as {"status": "error"}). Same recording path as a
+            # raise; scheduling/retry semantics unchanged.
+            if _result_reports_failure(result):
+                status = "error"
+                error_msg = f"job returned failure status: {result!r}"[:2000]
+                logger.error(
+                    "Job '{}' reported failure via return value: {}",
+                    schedule.name, error_msg,
+                )
         finally:
             finished_at = datetime.datetime.now(datetime.timezone.utc)
             duration = Decimal(str((finished_at - started_at).total_seconds()))
