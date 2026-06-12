@@ -126,6 +126,22 @@ def _row_to_observation(row: dict) -> ShadowObservation:
     )
 
 
+def _extract_quote_age(row) -> float | None:
+    """P0-2A.3 hotfix — defensive freshness extraction.
+
+    The 2026-06-12 regression (NoSuchColumnError: quote_age_seconds —
+    column selected in the LATERAL but not projected in the outer
+    SELECT) killed the WHOLE generation run, not just the shadow.
+    Candidate generation must never fail because the shadow freshness
+    input is absent: missing key or NULL -> None (the shadow then emits
+    its labeled 'quote age unavailable' degradation)."""
+    try:
+        raw = row.get("quote_age_seconds")
+    except AttributeError:
+        raw = None
+    return float(raw) if raw is not None else None
+
+
 def _attach_confidence_v2(
     candidate: StrategyCandidate,
     quote: ChainQuote,
@@ -276,6 +292,7 @@ def generate_for_observations(
           s.score, s.diagnostics,
           c.bid, c.ask, c.mid, c.delta, c.gamma, c.theta, c.vega,
           c.iv AS chain_iv, c.open_interest, c.volume,
+          c.quote_age_seconds,
           f.iv_rank_252d, f.atm_iv, f.realized_vol_30d
         FROM options_shadow_decision_log s
         LEFT JOIN LATERAL (
@@ -355,8 +372,7 @@ def generate_for_observations(
                               if row["realized_vol_30d"] is not None
                               else None),
         )
-        quote_age = (float(row["quote_age_seconds"])
-                     if row["quote_age_seconds"] is not None else None)
+        quote_age = _extract_quote_age(row)
         catalyst = earliest_event_in_window(
             session,
             underlying=obs.underlying,
