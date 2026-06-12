@@ -26,8 +26,13 @@ upgrade:
 downgrade:
   Drop the index.
 
-Revision ID: 097_paper_trade_autotrader_idempotency
+Revision ID: 097_paper_trade_idempotency
 Revises: 096_funnel_risk_control_skips
+
+NOTE: revision id is intentionally shorter than the filename —
+alembic_version.version_num is varchar(32) and the long form
+(38 chars) failed the verify-deploy rehearsal with
+StringDataRightTruncation.
 """
 
 from __future__ import annotations
@@ -35,7 +40,7 @@ from __future__ import annotations
 from alembic import op
 
 
-revision = "097_paper_trade_autotrader_idempotency"
+revision = "097_paper_trade_idempotency"
 down_revision = "096_funnel_risk_control_skips"
 branch_labels = None
 depends_on = None
