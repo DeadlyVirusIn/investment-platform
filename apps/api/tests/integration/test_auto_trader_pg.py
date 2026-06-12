@@ -589,3 +589,83 @@ def test_execute_decisions_converts_integrity_error_to_rejection(
     ).all()
     assert len(trades_a) == 1   # only the pre-existing fill; dup blocked
     assert len(trades_b) == 1   # sibling valid trade survived
+
+
+# ---------------------------------------------------------------------------
+# P0-3B.3 — engine-sell-day idempotency (migration 098)
+# ---------------------------------------------------------------------------
+
+
+def test_engine_sell_index_blocks_same_day_duplicate(pg_session: Session) -> None:
+    """Second engine sell with the same (portfolio, asset, fill_ts) is
+    rejected — exit-cycle reasons carry no recommendation_id, so this is
+    the only guard for that path."""
+    from sqlalchemy.exc import IntegrityError
+
+    asset_id = _seed_asset_with_prices(pg_session, "XSD1")
+    p = _active_portfolio(pg_session, "ct-xsell-dup")
+    june = dt.datetime(2026, 6, 12, tzinfo=dt.timezone.utc)
+
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=june, reason="exit_cycle: take_profit(0.09 >= 0.08)")
+    pg_session.commit()
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=june, reason="exit_cycle: take_profit(0.09 >= 0.08)")
+    with pytest.raises(IntegrityError):
+        pg_session.commit()
+    pg_session.rollback()
+
+
+def test_engine_sell_index_blocks_autotrader_norec_dup(pg_session: Session) -> None:
+    """auto_trader max_holding sells (recommendation_id NULL — invisible
+    to migration 097) are covered by the 098 sell-day index."""
+    from sqlalchemy.exc import IntegrityError
+
+    asset_id = _seed_asset_with_prices(pg_session, "XSD2")
+    p = _active_portfolio(pg_session, "ct-xsell-at")
+    june = dt.datetime(2026, 6, 12, tzinfo=dt.timezone.utc)
+
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=june, reason="auto_trader: max_holding_days=10 exceeded (held 11d)")
+    pg_session.commit()
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=june, reason="auto_trader: max_holding_days=10 exceeded (held 11d)")
+    with pytest.raises(IntegrityError):
+        pg_session.commit()
+    pg_session.rollback()
+
+
+def test_engine_sell_index_allows_later_exit(pg_session: Session) -> None:
+    """Re-exit after a re-entry fills on a different bar -> different
+    fill_ts -> allowed."""
+    asset_id = _seed_asset_with_prices(pg_session, "XSD3")
+    p = _active_portfolio(pg_session, "ct-xsell-later")
+    d1 = dt.datetime(2026, 6, 12, tzinfo=dt.timezone.utc)
+    d2 = dt.datetime(2026, 6, 19, tzinfo=dt.timezone.utc)
+
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=d1, reason="exit_cycle: stop_loss(-0.05 <= -0.04)")
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=d2, reason="exit_cycle: stop_loss(-0.06 <= -0.04)")
+    pg_session.commit()  # both insert cleanly
+
+
+def test_engine_sell_index_ignores_manual_and_legacy(pg_session: Session) -> None:
+    """Manual/replay sell reasons stay unconstrained; legacy-window
+    (06-04..06-10) engine sell duplicates stay tolerated until repair."""
+    asset_id = _seed_asset_with_prices(pg_session, "XSD4")
+    p = _active_portfolio(pg_session, "ct-xsell-ok")
+    june = dt.datetime(2026, 6, 12, tzinfo=dt.timezone.utc)
+    legacy = dt.datetime(2026, 6, 8, tzinfo=dt.timezone.utc)
+
+    # manual reason, duplicated on the same day -> not constrained
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=june, reason="manual: operator close")
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=june, reason="manual: operator close")
+    # engine reason inside the corrupted legacy window -> not constrained
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=legacy, reason="exit_cycle: max_hold(12d >= 10d)")
+    _mk_trade(pg_session, p, asset_id, None, side="sell",
+              fill_ts=legacy, reason="exit_cycle: max_hold(12d >= 10d)")
+    pg_session.commit()  # all four insert cleanly

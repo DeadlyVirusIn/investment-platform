@@ -182,6 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     from apps.api.src.db.models import (
         Asset, PaperPortfolio, PaperPosition,
     )
+    from sqlalchemy.exc import IntegrityError
     from apps.api.src.domain.paper_trading.paper_execution import (
         submit_trade, PaperTradeRejected,
     )
@@ -312,6 +313,21 @@ def main(argv: list[str] | None = None) -> int:
                 "reason": f"exec_rejected:{exc}",
                 "rule": reason,
             })
+        except IntegrityError as exc:
+            # P0-3B.3 — duplicate engine sell blocked by
+            # ux_paper_trade_engine_sell_day (migration 098). Each sell
+            # runs in its own session/transaction, so only this close is
+            # lost; the loop continues to the remaining positions.
+            skipped.append({
+                "portfolio_id": portfolio_id, "symbol": symbol,
+                "reason": "idempotency_unique_violation (migration 098): "
+                          "duplicate engine sell blocked",
+                "rule": reason,
+            })
+            logger.error(
+                "[exit-cycle] IDEMPOTENCY VIOLATION {} {} rule={}: {}",
+                portfolio_id[:8], symbol, reason, exc,
+            )
 
     summary = {
         "schema_version": 1,
