@@ -381,3 +381,143 @@ def test_portfolio_detail_includes_validation(pg_session: Session) -> None:
     assert "confidence_validation" in data["validation"]
     labels = [b["bucket"] for b in data["validation"]["confidence_validation"]]
     assert labels == ["Low (0-30)", "Medium (30-60)", "High (60-100)", "Unknown"]
+
+
+# ---------------------------------------------------------------------------
+# P0-3B — double-fill prevention (in-run dedup + migration 097 index)
+# ---------------------------------------------------------------------------
+
+
+def test_tied_generated_at_recs_emit_single_buy(pg_session: Session) -> None:
+    """Two Buy recs for the same asset with IDENTICAL generated_at tie at
+    max-ts in _latest_buy_candidates' join — the duplicated candidate list
+    must still emit exactly ONE open_buy (pending-buy guard)."""
+    asset_id = _seed_asset_with_prices(pg_session, "DUPC")
+    ts = dt.datetime(2026, 6, 1, 22, 30, tzinfo=dt.timezone.utc)
+    for snap in ("dupc-a", "dupc-b"):
+        pg_session.add(Recommendation(
+            asset_id=asset_id, action="Buy", conviction=Decimal("80"),
+            model_version="0.1.0", snapshot_hash=snap,
+            rationale='{"snapshot_hash":"' + snap + '"}',
+            generated_at=ts,
+        ))
+    pg_session.commit()
+    p = _active_portfolio(pg_session, "ct-dup-cand")
+
+    skips: list[dict] = []
+    decisions = generate_decisions(
+        pg_session, p, AutoTradeConfig(), now=BASE_TS, skips_out=skips,
+    )
+    buys = [d for d in decisions if d.kind == "open_buy"]
+    assert len(buys) == 1
+    assert buys[0].asset_id == asset_id
+    assert any(s["reason"] == "duplicate_candidate_in_run" for s in skips)
+
+
+def test_duplicate_position_rows_emit_single_sell(pg_session: Session) -> None:
+    """Two open position rows for the same asset (the 06-04..06-10 artifact
+    shape) + a Sell rec → exactly ONE close_sell decision per run."""
+    asset_id = _seed_asset_with_prices(pg_session, "DUPP")
+    _seed_recommendation(pg_session, asset_id, "Sell", Decimal("80"), "dupp-s")
+    p = _active_portfolio(pg_session, "ct-dup-pos")
+    for _ in range(2):
+        pg_session.add(PaperPosition(
+            portfolio_id=p.id, asset_id=asset_id,
+            quantity=Decimal("5"), avg_cost=Decimal("100"),
+            is_open=True, opened_at=BASE_TS,
+        ))
+    pg_session.commit()
+
+    decisions = generate_decisions(pg_session, p, AutoTradeConfig(), now=BASE_TS)
+    sells = [d for d in decisions if d.kind == "close_sell"]
+    assert len(sells) == 1
+    assert sells[0].asset_id == asset_id
+
+
+def test_single_position_sell_behavior_unchanged(pg_session: Session) -> None:
+    """Regression: one open position + Sell rec still emits exactly one
+    close_sell with full quantity (pre-P0-3B behavior preserved)."""
+    asset_id = _seed_asset_with_prices(pg_session, "SELL1")
+    _seed_recommendation(pg_session, asset_id, "Sell", Decimal("80"), "sell1-s")
+    p = _active_portfolio(pg_session, "ct-sell-one")
+    pg_session.add(PaperPosition(
+        portfolio_id=p.id, asset_id=asset_id,
+        quantity=Decimal("7"), avg_cost=Decimal("100"),
+        is_open=True, opened_at=BASE_TS,
+    ))
+    pg_session.commit()
+
+    decisions = generate_decisions(pg_session, p, AutoTradeConfig(), now=BASE_TS)
+    sells = [d for d in decisions if d.kind == "close_sell"]
+    assert len(sells) == 1
+    assert sells[0].quantity == Decimal("7")
+
+
+def _mk_trade(pg_session, p, asset_id, rec_id, *, side="buy",
+              fill_ts=None, reason="auto_trader: test fill"):
+    from apps.api.src.db.models import PaperTrade as _PT
+    t = _PT(
+        portfolio_id=p.id, asset_id=asset_id, side=side,
+        quantity=Decimal("1"), fill_price=Decimal("100"),
+        fill_ts=fill_ts or dt.datetime(2026, 6, 12, tzinfo=dt.timezone.utc),
+        submitted_at=dt.datetime(2026, 6, 11, 23, 59, tzinfo=dt.timezone.utc),
+        reason=reason, recommendation_id=rec_id,
+    )
+    pg_session.add(t)
+    return t
+
+
+def test_index_blocks_duplicate_autotrader_fill(pg_session: Session) -> None:
+    """Migration 097: second auto_trader fill with the same
+    (portfolio, recommendation, side) on/after 2026-06-11 is rejected."""
+    from sqlalchemy.exc import IntegrityError
+
+    asset_id = _seed_asset_with_prices(pg_session, "IDX1")
+    rec_id = _seed_recommendation(pg_session, asset_id, "Buy", Decimal("80"), "idx1")
+    p = _active_portfolio(pg_session, "ct-idx-dup")
+
+    _mk_trade(pg_session, p, asset_id, rec_id)
+    pg_session.commit()
+    _mk_trade(pg_session, p, asset_id, rec_id)
+    with pytest.raises(IntegrityError):
+        pg_session.commit()
+    pg_session.rollback()
+
+
+def test_index_allows_distinct_recommendation(pg_session: Session) -> None:
+    """Re-entry on a NEW recommendation_id is never blocked."""
+    asset_id = _seed_asset_with_prices(pg_session, "IDX2")
+    rec_a = _seed_recommendation(pg_session, asset_id, "Buy", Decimal("80"), "idx2a")
+    rec_b = _seed_recommendation(pg_session, asset_id, "Buy", Decimal("80"), "idx2b")
+    p = _active_portfolio(pg_session, "ct-idx-ok")
+
+    _mk_trade(pg_session, p, asset_id, rec_a)
+    _mk_trade(pg_session, p, asset_id, rec_b)
+    pg_session.commit()  # both insert cleanly
+
+
+def test_index_ignores_null_rec_and_non_autotrader(pg_session: Session) -> None:
+    """NULL recommendation_id and non-auto_trader reasons stay
+    unconstrained (manual/replay fills)."""
+    asset_id = _seed_asset_with_prices(pg_session, "IDX3")
+    rec_id = _seed_recommendation(pg_session, asset_id, "Buy", Decimal("80"), "idx3")
+    p = _active_portfolio(pg_session, "ct-idx-null")
+
+    _mk_trade(pg_session, p, asset_id, None)
+    _mk_trade(pg_session, p, asset_id, None)
+    _mk_trade(pg_session, p, asset_id, rec_id, reason="replay: backfill")
+    _mk_trade(pg_session, p, asset_id, rec_id, reason="replay: backfill")
+    pg_session.commit()  # all four insert cleanly
+
+
+def test_index_excludes_pre_20260611_window(pg_session: Session) -> None:
+    """Fills inside the corrupted 06-04..06-10 window are NOT constrained
+    (repair is P0-3C; the index must not block on legacy duplicates)."""
+    asset_id = _seed_asset_with_prices(pg_session, "IDX4")
+    rec_id = _seed_recommendation(pg_session, asset_id, "Buy", Decimal("80"), "idx4")
+    p = _active_portfolio(pg_session, "ct-idx-old")
+
+    old = dt.datetime(2026, 6, 8, tzinfo=dt.timezone.utc)
+    _mk_trade(pg_session, p, asset_id, rec_id, fill_ts=old)
+    _mk_trade(pg_session, p, asset_id, rec_id, fill_ts=old)
+    pg_session.commit()  # legacy-window duplicates tolerated

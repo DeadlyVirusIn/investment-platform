@@ -249,6 +249,11 @@ def generate_decisions(
     ))
     pending_sell_assets: set[str] = set()
     for pos in open_positions:
+        # P0-3B — in-run dedup. Duplicate open-position rows for the same
+        # asset (the 06-04..06-10 double-fill artifacts) must not emit two
+        # sell decisions in one run; close one leg per run.
+        if pos.asset_id in pending_sell_assets:
+            continue
         age = _holding_age_days(now, pos.opened_at)
         if age >= config.max_holding_days:
             decisions.append(AutoTradeDecision(
@@ -316,10 +321,17 @@ def generate_decisions(
             "asset_id": asset_id, "reason": code, "detail": detail or {},
         })
 
+    # P0-3B — pending-buy guard, the buy-side twin of pending_sell_assets.
+    # A duplicated candidate list (or any double iteration) can emit at most
+    # ONE buy decision per asset per run.
+    pending_buy_assets: set[str] = set()
     for rec in candidates:
         if running_open_count >= max_open:
             _record_skip(rec.asset_id, "portfolio_full",
                          {"running_open": running_open_count, "max_open": max_open})
+            continue
+        if rec.asset_id in pending_buy_assets:
+            _record_skip(rec.asset_id, "duplicate_candidate_in_run")
             continue
         if rec.asset_id in held_asset_ids:
             _record_skip(rec.asset_id, "duplicate_holding")
@@ -351,6 +363,7 @@ def generate_decisions(
                 f"{config.buy_confidence_threshold}"
             ),
         ))
+        pending_buy_assets.add(rec.asset_id)
         running_open_count += 1
 
     return decisions
