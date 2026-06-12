@@ -521,3 +521,71 @@ def test_index_excludes_pre_20260611_window(pg_session: Session) -> None:
     _mk_trade(pg_session, p, asset_id, rec_id, fill_ts=old)
     _mk_trade(pg_session, p, asset_id, rec_id, fill_ts=old)
     pg_session.commit()  # legacy-window duplicates tolerated
+
+
+def test_execute_decisions_converts_integrity_error_to_rejection(
+    pg_session: Session,
+) -> None:
+    """P0-3B.1 — a migration-097 idempotency violation on one decision is
+    contained by the per-decision SAVEPOINT: that decision lands in
+    run.rejected, sibling valid trades in the SAME run still commit."""
+    from apps.api.src.domain.paper_trading.auto_trader import (
+        AutoTradeDecision,
+        execute_decisions,
+    )
+
+    june = dt.datetime(2026, 6, 12, tzinfo=dt.timezone.utc)
+
+    def _seed_june_asset(symbol: str) -> str:
+        asset = Asset(symbol=symbol, asset_class="equity",
+                      exchange="NASDAQ", currency="USD")
+        pg_session.add(asset)
+        pg_session.flush()
+        for i in range(5):
+            p = Decimal("100")
+            pg_session.add(PriceBar(
+                asset_id=asset.id, timeframe="1d",
+                ts=june + dt.timedelta(days=i),
+                open=p, high=p + Decimal("0.5"), low=p - Decimal("0.5"),
+                close=p, adjusted_close=p, volume=1_000_000, provider="test",
+            ))
+        pg_session.commit()
+        return asset.id
+
+    a_id = _seed_june_asset("SVPA")
+    b_id = _seed_june_asset("SVPB")
+    rec_a = _seed_recommendation(pg_session, a_id, "Buy", Decimal("80"), "svp-a")
+    rec_b = _seed_recommendation(pg_session, b_id, "Buy", Decimal("80"), "svp-b")
+    p = _active_portfolio(pg_session, "ct-savepoint", cash="100000")
+
+    # Pre-existing committed auto_trader fill for (portfolio, rec_a, buy)
+    # inside the index window -> the re-execution below must collide.
+    _mk_trade(pg_session, p, a_id, rec_a,
+              fill_ts=june, reason="auto_trader: prior fill")
+    pg_session.commit()
+
+    decisions = [
+        AutoTradeDecision(kind="open_buy", asset_id=a_id,
+                          recommendation_id=rec_a,
+                          usd_amount=Decimal("1000"), reason="dup attempt"),
+        AutoTradeDecision(kind="open_buy", asset_id=b_id,
+                          recommendation_id=rec_b,
+                          usd_amount=Decimal("1000"), reason="valid buy"),
+    ]
+    run = execute_decisions(
+        pg_session, p, decisions,
+        submitted_at=dt.datetime(2026, 6, 11, 12, tzinfo=dt.timezone.utc),
+    )
+    pg_session.commit()  # session must still be usable after the violation
+
+    assert len(run.executed) == 1
+    assert len(run.rejected) == 1
+    assert "idempotency_unique_violation" in run.rejected[0]["reason"]
+    trades_a = pg_session.scalars(
+        select(PaperTrade).where(PaperTrade.asset_id == a_id)
+    ).all()
+    trades_b = pg_session.scalars(
+        select(PaperTrade).where(PaperTrade.asset_id == b_id)
+    ).all()
+    assert len(trades_a) == 1   # only the pre-existing fill; dup blocked
+    assert len(trades_b) == 1   # sibling valid trade survived

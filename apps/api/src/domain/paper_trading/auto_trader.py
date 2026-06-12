@@ -25,6 +25,7 @@ from decimal import Decimal
 
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from apps.api.src.db.models import (
@@ -391,30 +392,35 @@ def execute_decisions(
     run.decisions = decisions
     for d in decisions:
         try:
-            if d.kind == "open_buy":
-                result = submit_trade(
-                    session,
-                    portfolio_id=portfolio.id,
-                    asset_id=d.asset_id,
-                    side="buy",
-                    usd_amount=d.usd_amount,
-                    submitted_at=submitted_at,
-                    reason=f"auto_trader: {d.reason}",
-                    recommendation_id=d.recommendation_id,
-                )
-                run.executed.append(result.trade_id)
-            elif d.kind == "close_sell":
-                result = submit_trade(
-                    session,
-                    portfolio_id=portfolio.id,
-                    asset_id=d.asset_id,
-                    side="sell",
-                    quantity=d.quantity,
-                    submitted_at=submitted_at,
-                    reason=f"auto_trader: {d.reason}",
-                    recommendation_id=d.recommendation_id,
-                )
-                run.executed.append(result.trade_id)
+            # P0-3B.1 — per-decision SAVEPOINT so a migration-097
+            # idempotency violation (duplicate auto_trader fill) rolls back
+            # ONLY this decision, never the portfolio's already-valid
+            # trades in the same run.
+            with session.begin_nested():
+                if d.kind == "open_buy":
+                    result = submit_trade(
+                        session,
+                        portfolio_id=portfolio.id,
+                        asset_id=d.asset_id,
+                        side="buy",
+                        usd_amount=d.usd_amount,
+                        submitted_at=submitted_at,
+                        reason=f"auto_trader: {d.reason}",
+                        recommendation_id=d.recommendation_id,
+                    )
+                    run.executed.append(result.trade_id)
+                elif d.kind == "close_sell":
+                    result = submit_trade(
+                        session,
+                        portfolio_id=portfolio.id,
+                        asset_id=d.asset_id,
+                        side="sell",
+                        quantity=d.quantity,
+                        submitted_at=submitted_at,
+                        reason=f"auto_trader: {d.reason}",
+                        recommendation_id=d.recommendation_id,
+                    )
+                    run.executed.append(result.trade_id)
         except PaperTradeRejected as exc:
             run.rejected.append({
                 "asset_id": d.asset_id,
@@ -424,6 +430,23 @@ def execute_decisions(
             logger.info(
                 "auto_trader rejected kind={} asset={}: {}",
                 d.kind, d.asset_id, exc,
+            )
+        except IntegrityError as exc:
+            # Duplicate auto_trader fill blocked by
+            # ux_paper_trade_autotrader_idempotency (migration 097).
+            # Fail LOUD but contained: this decision is rejected; the
+            # run's other trades stand.
+            run.rejected.append({
+                "asset_id": d.asset_id,
+                "kind": d.kind,
+                "reason": (
+                    "idempotency_unique_violation: duplicate auto_trader "
+                    "fill blocked (migration 097)"
+                ),
+            })
+            logger.error(
+                "auto_trader IDEMPOTENCY VIOLATION kind={} asset={} rec={}: {}",
+                d.kind, d.asset_id, d.recommendation_id, exc,
             )
     return run
 
