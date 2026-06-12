@@ -31,6 +31,11 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/api.Dockerfile
+      args:  # P0-4 provenance — set by `make build` / build wrapper
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        GIT_DIRTY: ${GIT_DIRTY:-unknown}
+        BUILD_TS: ${BUILD_TS:-unknown}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
@@ -158,6 +163,11 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/worker.Dockerfile
+      args:  # P0-4 provenance — set by `make build` / build wrapper
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        GIT_DIRTY: ${GIT_DIRTY:-unknown}
+        BUILD_TS: ${BUILD_TS:-unknown}
     restart: unless-stopped
     command: ["python", "-m", "apps.worker.src.main"]
     environment:
@@ -269,6 +279,11 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/worker.Dockerfile
+      args:  # P0-4 provenance — set by `make build` / build wrapper
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_BRANCH: ${GIT_BRANCH:-unknown}
+        GIT_DIRTY: ${GIT_DIRTY:-unknown}
+        BUILD_TS: ${BUILD_TS:-unknown}
     restart: unless-stopped
     environment:
       TZ: ${TZ:-America/New_York}

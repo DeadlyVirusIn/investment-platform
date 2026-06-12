@@ -27,6 +27,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from apps.api.src.build_provenance import get_build_provenance
 from apps.api.src.config import settings
 from apps.api.src.db import SessionLocal
 
@@ -653,6 +654,10 @@ def observability() -> dict[str, Any]:
             "status": "ok",
             "version": settings.APP_VERSION,
             "uptime_seconds": int((now - _PROCESS_START).total_seconds()),
+            # P0-4 — build provenance (image <-> git traceability). NOTE:
+            # this is the API container's provenance; worker provenance is
+            # in the worker boot log ("build-provenance ..." line).
+            "provenance": get_build_provenance(),
         },
         "db": {
             "reachable": db_reachable,

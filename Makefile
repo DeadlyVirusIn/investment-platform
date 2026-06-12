@@ -4,7 +4,19 @@
 COMPOSE_FILE := infra/compose/docker-compose.yml
 COMPOSE := docker compose -f $(COMPOSE_FILE)
 
-.PHONY: up down logs seed lint test web-dev
+.PHONY: up down logs seed lint test web-dev build
+
+## P0-4 — provenance-stamped image build (api + both workers).
+## Bakes GIT_SHA/GIT_BRANCH/GIT_DIRTY/BUILD_TS into the images so every
+## container ties back to an exact git state (see build_provenance.py).
+## Building any other way leaves provenance "unknown" — flagged at
+## runtime as unknown_sha. Always uses --env-file .env (compose-dir gotcha).
+build:
+	GIT_SHA=$$(git rev-parse HEAD) \
+	GIT_BRANCH=$$(git rev-parse --abbrev-ref HEAD) \
+	GIT_DIRTY=$$([ -n "$$(git status --porcelain)" ] && echo true || echo false) \
+	BUILD_TS=$$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+	$(COMPOSE) --env-file .env build api worker-cron worker-tickloop
 
 ## Start backend services (db, api, worker) in detached mode
 up:

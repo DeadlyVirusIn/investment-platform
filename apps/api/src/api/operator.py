@@ -841,8 +841,12 @@ def system_health(db: Session = Depends(get_session)) -> dict:
     elif items:
         overall = "degraded"
 
+    # P0-4 — build provenance (additive; image <-> git traceability).
+    from apps.api.src.build_provenance import get_build_provenance
+
     return {
         "as_of_date": today.isoformat(),
         "overall": overall,
         "items": items,
+        "provenance": get_build_provenance(),
     }

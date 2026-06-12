@@ -142,6 +142,9 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         colorize=True,
     )
     logger.info("Starting investment-platform API v{}", settings.APP_VERSION)
+    # P0-4 — build provenance banner (image <-> git state traceability).
+    from apps.api.src.build_provenance import provenance_log_line
+    logger.info(provenance_log_line())
     # Log effective ML hybrid + promotion config at startup so operators
     # can confirm env passthrough is working.
     _ml_keys = (

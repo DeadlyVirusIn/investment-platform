@@ -16,6 +16,9 @@ def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level=settings.LOG_LEVEL, colorize=True)
     logger.info("Investment-platform worker starting")
+    # P0-4 — build provenance banner (image <-> git state traceability).
+    from apps.api.src.build_provenance import provenance_log_line
+    logger.info(provenance_log_line())
     # P6D.36A — boot-log gate values + env validation (warn|strict|off
     # via WORKER_ENV_VALIDATION; default warn).
     enforce()
