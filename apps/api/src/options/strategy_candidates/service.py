@@ -26,6 +26,9 @@ from apps.api.src.options.strategy_candidates.generator import (
     ChainQuote, ShadowObservation, StrategyCandidate, UnderlyingFeature,
     build_iron_condor, generate,
 )
+from apps.api.src.options.strategy_candidates.derived_confidence import (
+    compute_confidence_v2,
+)
 from apps.api.src.options.strategy_candidates.legs import (
     insert_legs, materialize_legs,
 )
@@ -123,6 +126,77 @@ def _row_to_observation(row: dict) -> ShadowObservation:
     )
 
 
+def _attach_confidence_v2(
+    candidate: StrategyCandidate,
+    quote: ChainQuote,
+    quote_age_seconds: float | None,
+) -> None:
+    """P0-2A — SHADOW ONLY. Compute confidence_v2 from signals already on
+    the candidate and merge the payload into `candidate.diagnostics`.
+    Never touches `candidate.confidence`, scores, ordering, or gates.
+
+    Inputs preference: persisted legs (short-leg deltas + credit/width)
+    when materialized; falls back to the anchor quote's delta. POP is not
+    derivable at generation time -> always None here (credit-ratio path,
+    labeled in reasons)."""
+    legs = list(getattr(candidate, "legs", None) or [])
+    short_abs_deltas: list[float] = []
+    credit: float | None = None
+    width: float | None = None
+
+    if legs:
+        shorts = [
+            l for l in legs
+            if str(getattr(l, "role", "")).startswith("short")
+        ]
+        longs = [
+            l for l in legs
+            if str(getattr(l, "role", "")).startswith("long")
+        ]
+        for s in shorts:
+            d = getattr(s, "delta", None)
+            if d is not None:
+                short_abs_deltas.append(abs(float(d)))
+        side_credits: list[float] = []
+        widths: list[float] = []
+        complete = True
+        for ot in ("put", "call"):
+            s_leg = next(
+                (l for l in shorts
+                 if str(getattr(l, "option_type", "")).lower() == ot), None)
+            l_leg = next(
+                (l for l in longs
+                 if str(getattr(l, "option_type", "")).lower() == ot), None)
+            if s_leg is None and l_leg is None:
+                continue
+            s_mid = getattr(s_leg, "entry_mid", None) if s_leg else None
+            l_mid = getattr(l_leg, "entry_mid", None) if l_leg else None
+            if s_leg is None or l_leg is None or s_mid is None or l_mid is None:
+                complete = False
+                break
+            side_credits.append(float(s_mid) - float(l_mid))
+            widths.append(abs(float(s_leg.strike) - float(l_leg.strike)))
+        if complete and side_credits and widths:
+            credit = sum(side_credits)
+            width = max(widths)
+
+    if not short_abs_deltas and quote.delta is not None:
+        short_abs_deltas = [abs(float(quote.delta))]
+
+    result = compute_confidence_v2(
+        short_abs_deltas=short_abs_deltas,
+        credit=credit,
+        width=width,
+        pop=None,
+        is_directional=candidate.bias in ("bullish", "bearish"),
+        high_importance_event=(
+            candidate.earliest_event_importance == "high"
+        ),
+        quote_age_seconds=quote_age_seconds,
+    )
+    candidate.diagnostics.update(result.to_diagnostics())
+
+
 def _persist_one(
     session: Session, obs: ShadowObservation,
     candidate: StrategyCandidate,
@@ -206,7 +280,7 @@ def generate_for_observations(
         FROM options_shadow_decision_log s
         LEFT JOIN LATERAL (
           SELECT bid, ask, mid, delta, gamma, theta, vega, iv,
-                 open_interest, volume
+                 open_interest, volume, quote_age_seconds
           FROM options_chain_snapshot
           WHERE option_symbol = s.option_symbol
           ORDER BY snapshot_at_utc DESC LIMIT 1
@@ -281,6 +355,8 @@ def generate_for_observations(
                               if row["realized_vol_30d"] is not None
                               else None),
         )
+        quote_age = (float(row["quote_age_seconds"])
+                     if row["quote_age_seconds"] is not None else None)
         catalyst = earliest_event_in_window(
             session,
             underlying=obs.underlying,
@@ -304,6 +380,16 @@ def generate_for_observations(
                         "[candidate_leg] materialize failed obs={} rule={}: {}",
                         obs_id, c.rule_id, exc,
                     )
+        # P0-2A — shadow confidence_v2 into diagnostics. Never blocks
+        # persistence; never touches confidence/scores/ordering/gates.
+        for c in cands:
+            try:
+                _attach_confidence_v2(c, quote, quote_age)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "[confidence_v2] shadow compute failed obs={} rule={}: {}",
+                    obs_id, c.rule_id, exc,
+                )
         for c in cands:
             try:
                 if _persist_one(session, obs, c):
@@ -325,6 +411,7 @@ def generate_for_observations(
                     "obs": obs, "quote": quote, "feat": feat,
                     "catalyst": catalyst, "dist": dist,
                     "has_rec": obs.underlying in bias_by_underlying,
+                    "quote_age": quote_age,
                 }
         processed += 1
 
@@ -358,6 +445,14 @@ def generate_for_observations(
                     logger.warning(
                         "[candidate_leg] IC materialize failed u={}: {}", u, exc,
                     )
+            # P0-2A — shadow confidence_v2 (same non-blocking contract).
+            try:
+                _attach_confidence_v2(ic, rep["quote"], rep.get("quote_age"))
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "[confidence_v2] shadow compute failed IC u={}: {}",
+                    u, exc,
+                )
             try:
                 if _persist_one(session, rep["obs"], ic):
                     inserted += 1
