@@ -19,12 +19,10 @@ import {
   Moon,
   Search,
   Sunrise,
-  NotebookPen,
   BookOpen,
   Compass,
   Sparkles,
   User,
-  Award,
   type LucideProps,
 } from 'lucide-react';
 import { getTerm } from '../data/arthosData';
@@ -440,13 +438,6 @@ const NAV_PRIMARY: NavItem[] = [
     match: (p) => p.startsWith('/v2/today'),
   },
   {
-    label: 'Journal',
-    shortLabel: 'Journal',
-    to: '/v2/journal',
-    icon: NotebookPen,
-    match: (p) => p.startsWith('/v2/journal') || p.startsWith('/v2/reflections'),
-  },
-  {
     label: 'Practice',
     to: '/v2/portfolio',
     icon: BookOpen,
@@ -470,17 +461,16 @@ const NAV_PRIMARY: NavItem[] = [
     match: (p) => p.startsWith('/v2/opportunities') || p.startsWith('/v2/catalysts'),
   },
   {
-    label: 'Report Card',
-    shortLabel: 'Report',
-    to: '/v2/arth',
-    icon: Award,
-    match: (p) => p.startsWith('/v2/arth'),
-  },
-  {
     label: 'Me',
     to: '/v2/me',
     icon: User,
-    match: (p) => p.startsWith('/v2/me'),
+    // P1.5A — Me now owns Journal + Report Card (nav-collapsed off
+    // primary; routes unchanged). Highlight Me on those deep links.
+    match: (p) =>
+      p.startsWith('/v2/me') ||
+      p.startsWith('/v2/journal') ||
+      p.startsWith('/v2/reflections') ||
+      p.startsWith('/v2/arth'),
   },
 ];
 
@@ -651,9 +641,9 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
 // top-pill active indicator, brand color on active state.
 // (Opportunities accessible via drawer on mobile.)
 // ──────────────────────────────────────────────────────────────
-const MOBILE_TABS: NavItem[] = NAV_PRIMARY.filter(
-  (n) => n.label !== 'Opportunities',
-);
+// P1.5A — all 5 primary destinations on the mobile bottom bar (the old
+// Opportunities filter existed only to thin a 7-item bar).
+const MOBILE_TABS: NavItem[] = NAV_PRIMARY;
 
 export function MobileBottomTab() {
   const location = useLocation();
