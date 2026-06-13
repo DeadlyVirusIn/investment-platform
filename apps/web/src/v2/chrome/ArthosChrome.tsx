@@ -634,8 +634,9 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
               ))}
             </nav>
 
+            {/* P1.2A — was a hardcoded fake edition/date; truthful copy only. */}
             <div className="text-meta ink-fainter mt-12">
-              Edition #142 · Friday, May 21
+              Built for learning, practice, and disciplined decisions.
             </div>
           </motion.aside>
         </>
