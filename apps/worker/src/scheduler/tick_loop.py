@@ -11,7 +11,7 @@ from pathlib import Path
 
 from croniter import croniter
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from apps.api.src.db import SessionLocal
 from apps.api.src.db.models import JobRun, JobSchedule
@@ -37,6 +37,37 @@ def _result_reports_failure(result: object) -> bool:
         isinstance(result, dict)
         and str(result.get("status", "")).lower() in ("error", "failed")
     )
+
+
+def _claim_due_job(schedule: JobSchedule, now: datetime.datetime) -> bool:
+    """P0-5A — atomically claim one due job for execution.
+
+    Both worker containers run this same scheduler loop. To guarantee a
+    job runs exactly once, advance `next_run_at` to the next cron slot
+    inside a single guarded UPDATE: the scheduler whose UPDATE matches
+    the row (RETURNING a row) wins; any sibling's identical UPDATE then
+    matches 0 rows (next_run_at already in the future) and skips. No
+    migration — reuses the existing next_run_at column.
+
+    Returns True if THIS scheduler claimed the job. A malformed cron is
+    surfaced loudly and NOT claimed (the job won't fire until fixed —
+    safer than re-running every tick)."""
+    try:
+        next_run = croniter(schedule.cron_expr, now).get_next(datetime.datetime)
+    except Exception as exc:  # noqa: BLE001 — malformed cron, don't claim
+        logger.warning("croniter error claiming '{}': {}", schedule.name, exc)
+        return False
+    with SessionLocal() as session:
+        row = session.execute(
+            text(
+                "UPDATE job_schedule SET next_run_at = :next "
+                "WHERE id = :id AND enabled = true AND next_run_at <= :now "
+                "RETURNING id"
+            ),
+            {"next": next_run, "id": schedule.id, "now": now},
+        ).first()
+        session.commit()
+    return row is not None
 
 
 def _touch_heartbeat() -> None:
@@ -105,12 +136,11 @@ async def _execute_job(schedule: JobSchedule, semaphore: asyncio.Semaphore) -> N
 
                 sched_row = session.get(JobSchedule, schedule.id)
                 if sched_row is not None:
+                    # P0-5A — next_run_at is advanced atomically at CLAIM
+                    # time in _claim_due_job; no longer recomputed here
+                    # (recomputing post-execution was the non-atomic step
+                    # that let both schedulers run the same job).
                     sched_row.last_run_at = finished_at
-                    try:
-                        cron = croniter(sched_row.cron_expr, finished_at)
-                        sched_row.next_run_at = cron.get_next(datetime.datetime)
-                    except Exception as cron_exc:
-                        logger.warning("croniter error for '{}': {}", sched_row.name, cron_exc)
 
                 session.commit()
 
@@ -132,8 +162,18 @@ async def _tick() -> None:
     if not due:
         return
 
-    logger.debug("Scheduler tick: {} job(s) due", len(due))
-    tasks = [asyncio.create_task(_execute_job(sched, semaphore)) for sched in due]
+    # P0-5A — atomically claim each due job before executing. A racing
+    # scheduler claims the rest; no job runs twice. Skipped (lost-race)
+    # rows return False and are not executed by this instance.
+    claimed = [sched for sched in due if _claim_due_job(sched, now)]
+    if not claimed:
+        return
+
+    logger.debug(
+        "Scheduler tick: {} due, {} claimed by this instance",
+        len(due), len(claimed),
+    )
+    tasks = [asyncio.create_task(_execute_job(sched, semaphore)) for sched in claimed]
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
