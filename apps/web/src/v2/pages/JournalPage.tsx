@@ -3,6 +3,7 @@
 // your decisions. One stream. Latest first.
 
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { MeTabs } from './components/MeTabs';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice, ArthGlyph } from '../chrome/ArthVoice';
@@ -36,6 +37,8 @@ export function JournalPage() {
         title={<>The running conversation<br />between you and Arth.</>}
         description="Every memory Arth keeps about you, every decision you make on his calls, every reflection you write. Newest first. Nothing leaves your device."
       />
+
+      <MeTabs />
 
       {stream.length === 0 ? (
         <SurfaceCard variant="muted" className="p-8">

@@ -8,6 +8,7 @@
 import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { MeTabs } from './components/MeTabs';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice, ArthGlyph } from '../chrome/ArthVoice';
@@ -70,6 +71,8 @@ export function MentorProfile() {
         title={<>What Arth has<br />learned about you.</>}
         description="This page is the running record of our relationship. Every section answers a question I've been asked enough times to bother writing it down: what have you told me, what have I seen you do, what do I think I'm seeing — and where the evidence runs out."
       />
+
+      <MeTabs />
 
       <StreakHero streak={streak} />
 

@@ -12,6 +12,7 @@
 // No localStorage performance metrics, no fabricated cohort statistics.
 
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { MeTabs } from './components/MeTabs';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
@@ -39,6 +40,8 @@ export function ArthReportCard() {
         title={<>The work, in<br />the open.</>}
         description="Honest status of the engine. There is not yet an audited published-call track record — so this page shows what the engine is actually doing today and what is still accruing, not an accuracy score I can't back."
       />
+
+      <MeTabs />
 
       {/* Honest experimental banner — replaces the old fabricated accuracy summary */}
       <SurfaceCard variant="highlight" className="mb-8 p-5 lg:p-6">
