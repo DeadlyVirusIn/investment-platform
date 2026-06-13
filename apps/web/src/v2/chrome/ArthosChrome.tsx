@@ -217,6 +217,29 @@ export function SideNav() {
               </Link>
             );
           })}
+          <p
+            className="px-3 pt-4 pb-1 font-semibold uppercase tracking-[0.14em]"
+            style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}
+          >
+            Engine room
+          </p>
+          {NAV_ENGINE_ROOM.map(({ to, label }) => {
+            const active = location.pathname.startsWith(to);
+            return (
+              <Link
+                key={to}
+                to={to}
+                className="flex items-center px-3 h-9 rounded-lg font-medium transition-colors"
+                style={{
+                  fontSize: 13,
+                  backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                  color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
         </div>
       </nav>
 
@@ -461,11 +484,16 @@ const NAV_PRIMARY: NavItem[] = [
   },
 ];
 
+// P1.2 — beginner-facing secondary nav only. Watchlist + Notes parked
+// (routes/pages unchanged, just no nav slot until they serve live data).
 const NAV_SECONDARY = [
-  { label: 'Notes', to: '/v2/field-notes' },
-  { label: 'Watchlist', to: '/v2/watchlist' },
   { label: 'Methodology', to: '/v2/methodology' },
   { label: 'Options portfolio', to: '/v2/options/portfolio' },
+];
+
+// P1.2 — Engine room: diagnostics surfaces, deliberately separated from
+// the product nav so beginners never wander into cron matrices.
+const NAV_ENGINE_ROOM = [
   { label: 'Options Diagnostics', to: '/v2/options' },
   { label: 'System', to: '/v2/admin/observability' },
 ];
@@ -591,6 +619,19 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                   </Link>
                 );
               })}
+
+              {/* P1.2 — Engine room group (diagnostics, separated) */}
+              <div className="text-meta ink-fainter mt-6">Engine room</div>
+              {NAV_ENGINE_ROOM.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onClose}
+                  className="font-serif text-[15px] ink-fainter hover:ink-primary inline-flex items-baseline gap-2 w-fit transition-colors"
+                >
+                  {item.label}
+                </Link>
+              ))}
             </nav>
 
             <div className="text-meta ink-fainter mt-12">

@@ -113,7 +113,8 @@ export function OptionsSetupDetail() {
             />
             <span>{opt.descriptor}</span>
             <span>·</span>
-            <span>{opt.confidenceLabel} confidence · {opt.confidence}</span>
+            {/* P1.2 — numeric hidden (per-strategy constant until P0-2B) */}
+            <span>{opt.confidenceLabel} confidence</span>
             <span>·</span>
             <span>DTE {opt.dte}</span>
             {opt.qualified && <><span>·</span><span style={{ color: 'var(--brand)' }}>qualified</span></>}

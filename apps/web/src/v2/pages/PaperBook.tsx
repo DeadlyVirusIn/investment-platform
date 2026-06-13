@@ -119,6 +119,15 @@ export function PaperBook() {
                 </span>
               )}
             </p>
+            {/* P1.2 — honest negative-cash narrative. Conditional copy only;
+                no calculations touched. Self-removes once cash recovers. */}
+            {(cash ?? 0) < 0 && (
+              <p className="ink-muted leading-relaxed max-w-narrative text-[13px] mt-3">
+                Cash is negative after a ledger correction on Jun 12. Arth
+                pauses new buys until sales rebuild cash; your book value is
+                unaffected.
+              </p>
+            )}
             <p className="ink-fainter text-[12px] mt-2 tabular-nums">
               As of{' '}
               {book?.as_of

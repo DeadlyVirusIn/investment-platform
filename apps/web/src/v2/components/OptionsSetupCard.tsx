@@ -127,7 +127,9 @@ export function OptionsSetupCard({
           risk). Secondary chips (premium/liquidity/qualified) live on the
           detail page; freshness shows here only when stale (trust warning). */}
       <div className="flex items-center gap-2 flex-wrap mt-3">
-        <Chip>{opt.confidenceLabel} confidence · {opt.confidence}</Chip>
+        {/* P1.2 — qualitative label only; the numeric is a per-strategy
+            constant until the derived score ships (P0-2B). */}
+        <Chip>{opt.confidenceLabel} confidence</Chip>
         <Chip tone="muted">DTE {opt.dte}</Chip>
         {opt.economics && <Chip tone="muted">Max profit {opt.economics.maxProfit}</Chip>}
         {opt.economics && <Chip tone="muted">Max risk {opt.economics.maxRisk}</Chip>}
@@ -205,7 +207,7 @@ export function OptionsSetupRow({
       </span>
       <span className="shrink-0 tabular-nums flex items-baseline gap-1.5" style={{ fontSize: 12.5 }}>
         <span style={{ color: ACTION_COLOR[opt.action.tone], fontWeight: 600 }}>{opt.action.label}</span>
-        <span className="ink-muted">· {opt.confidence} · {opt.dte}d</span>
+        <span className="ink-muted">· {opt.dte}d</span>
       </span>
     </Link>
   );
