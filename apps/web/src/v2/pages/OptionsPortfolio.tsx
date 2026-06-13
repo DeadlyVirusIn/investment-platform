@@ -229,17 +229,39 @@ function Dashboard({ data }: { data: OptionsPortfolio }) {
 
 // ── Phase G2 — position detail / explainability ────────────────────────────
 
-const signedUsd = (n: number | null | undefined): string =>
-  n == null ? '—'
+// P1.2B — the API serializes Postgres numeric columns as JSON strings
+// (e.g. entry_credit_dollars: "10.0000") while the interfaces say number;
+// "10.0000".toFixed crashed TradeHistoryRow. Coerce safely at the DISPLAY
+// layer only: number/numeric-string -> number, anything else -> null ("—").
+// Calculations are untouched; real negative values render normally.
+const asNum = (v: unknown): number | null => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+};
+
+const signedUsd = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? '—'
     : `${n >= 0 ? '+' : '−'}$${Math.abs(n).toLocaleString(undefined, {
         minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const money2 = (n: number | null | undefined): string =>
-  n == null ? '—' : `$${n.toFixed(2)}`;
-const pct1 = (n: number | null | undefined): string =>
-  n == null ? '—' : `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}%`;
-const pnlColor = (n: number | null | undefined): string =>
-  n == null ? 'var(--ink-primary)'
+};
+const money2 = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? '—' : `$${n.toFixed(2)}`;
+};
+const pct1 = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? '—' : `${n >= 0 ? '+' : '−'}${Math.abs(n).toFixed(1)}%`;
+};
+const pnlColor = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? 'var(--ink-primary)'
     : n > 0 ? 'var(--brand)' : n < 0 ? 'var(--destructive)' : 'var(--ink-primary)';
+};
 
 function DetailSection() {
   const { data, isLoading, isError } = useOptionsPortfolioDetail();
@@ -360,9 +382,10 @@ function LegRow({ l }: { l: OptionsLeg }) {
         entry {money2(l.entry_fill_price)} · mid {money2(l.mid)}
       </span>
       <span className="tabular-nums ink-fainter" style={{ fontSize: 11.5 }}>
-        {l.bid != null && l.ask != null ? `${l.bid.toFixed(2)}/${l.ask.toFixed(2)}` : '—'}
-        {l.open_interest != null ? ` · OI ${l.open_interest.toLocaleString()}` : ''}
-        {l.spread != null ? ` · sp ${l.spread.toFixed(2)}` : ''}
+        {asNum(l.bid) != null && asNum(l.ask) != null
+          ? `${asNum(l.bid)!.toFixed(2)}/${asNum(l.ask)!.toFixed(2)}` : '—'}
+        {asNum(l.open_interest) != null ? ` · OI ${asNum(l.open_interest)!.toLocaleString()}` : ''}
+        {asNum(l.spread) != null ? ` · sp ${asNum(l.spread)!.toFixed(2)}` : ''}
         {/* true age (effective), not the misleading ingest-time stored age */}
         {l.effective_age_seconds != null
           ? ` · ${fmtAge(l.effective_age_seconds)}`
@@ -591,10 +614,14 @@ function TradeHistoryRow({ t }: { t: OptionsTradeHistoryItem }) {
 
 // ── Closed-trade analytics (Phase 2) — read-only, display-only ─────────────
 
-const pctRate = (n: number | null | undefined): string =>
-  n == null ? '—' : `${(n * 100).toFixed(1)}%`;
-const factor = (n: number | null | undefined): string =>
-  n == null ? '—' : n.toFixed(2);
+const pctRate = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? '—' : `${(n * 100).toFixed(1)}%`;
+};
+const factor = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? '—' : n.toFixed(2);
+};
 
 function ClosedAnalyticsSection() {
   const { data, isLoading, isError } = useOptionsClosedAnalytics();
@@ -738,8 +765,10 @@ const REASON_LABELS: Record<string, string> = {
 const humanizeReason = (r: string): string =>
   REASON_LABELS[r] ?? r.replace(/_/g, ' ');
 
-const conf2 = (n: number | null | undefined): string =>
-  n == null ? '—' : n.toFixed(2);
+const conf2 = (v: number | string | null | undefined): string => {
+  const n = asNum(v);
+  return n == null ? '—' : n.toFixed(2);
+};
 
 function PromotionAuditSection() {
   const { data, isLoading, isError } = useOptionsPromotionAudit();
@@ -813,7 +842,7 @@ function PromotionAuditBody({ a }: { a: OptionsPromotionAudit }) {
         {a.gates && (
           <span className="ink-fainter" style={{ fontSize: 11 }}>
             gates: {a.gates.universe} · {a.gates.strategy.replace(/_/g, ' ').toLowerCase()} ·
-            {' '}{a.gates.min_dte}–{a.gates.max_dte} DTE · conf ≥ {a.gates.min_confidence.toFixed(2)} ·
+            {' '}{a.gates.min_dte}–{a.gates.max_dte} DTE · conf ≥ {conf2(a.gates.min_confidence)} ·
             {' '}last {a.gates.days}d
           </span>
         )}
