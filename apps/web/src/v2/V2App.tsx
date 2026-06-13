@@ -31,7 +31,6 @@ import { AcademyPage } from './pages/AcademyPage';
 import { GlossaryIndex } from './pages/GlossaryIndex';
 // UX Phase 2 — guided coach surfaces.
 import { StartHere } from './pages/StartHere';
-import { MePage } from './pages/MePage';
 import { Methodology } from './pages/Methodology';
 // Phase 2E — Mentor Profile replaces the old metric dashboard at /v2/me.
 import { MentorProfile } from './pages/MentorProfile';
@@ -70,11 +69,11 @@ function V2Surface() {
         <Route index element={<Navigate to="learn" replace />} />
         {/* UX Phase 2 — guided coach surfaces. */}
         <Route path="start" element={<StartHere />} />
-        {/* Phase 2E — Mentor Profile is /v2/me. Legacy MePage moved to
-            /v2/me-legacy for backstop comparison; primary route serves
-            the relationship document. */}
+        {/* Phase 2E — Mentor Profile is /v2/me. P1.5C1 — legacy MePage
+            deprecated; /v2/me-legacy now redirects to the canonical Me.
+            MePage.tsx retained, no longer routed. */}
         <Route path="me" element={<MentorProfile />} />
-        <Route path="me-legacy" element={<MePage />} />
+        <Route path="me-legacy" element={<Navigate to="/v2/me" replace />} />
         <Route path="methodology" element={<Methodology />} />
         {/* UX Phase 3A — close-the-loop surfaces. */}
         <Route path="try/:lessonSlug" element={<TryFromLesson />} />
