@@ -12,7 +12,7 @@
 
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
 import { useOptionsLanes } from '../lib/optionsLanes';
 import { presentOption } from '../lib/optionsPresent';
 import { OPTIONS_TAB_HREF, ActionPill } from '../components/OptionsSetupCard';
@@ -116,7 +116,7 @@ export function OptionsSetupDetail() {
             {/* P1.2 — numeric hidden (per-strategy constant until P0-2B) */}
             <span>{opt.confidenceLabel} confidence</span>
             <span>·</span>
-            <span>DTE {opt.dte}</span>
+            <span><ParagraphWithTerms text="<term:days-to-expiration>DTE</term>" /> {opt.dte}</span>
             {opt.qualified && <><span>·</span><span style={{ color: 'var(--brand)' }}>qualified</span></>}
           </div>
           {(opt.runDate || opt.quoteAge || opt.freshness.label !== 'Unknown') && (
@@ -169,7 +169,7 @@ export function OptionsSetupDetail() {
               {opt.economics.pop && (
                 <Num label="Probability of profit" value={opt.economics.pop} color="var(--brand)" />
               )}
-              {opt.economics.breakeven && <Num label="Breakeven" value={opt.economics.breakeven} />}
+              {opt.economics.breakeven && <Num label="<term:breakeven>Breakeven</term>" value={opt.economics.breakeven} />}
               {opt.economics.premium && <Num label="Premium" value={opt.economics.premium} />}
               {opt.economics.pricedAsOf && <Num label="Priced as of" value={opt.economics.pricedAsOf} />}
             </ul>
@@ -350,7 +350,7 @@ function Num({ label, value, color, hint }: {
   return (
     <li className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
       <span className="ink-muted text-[13.5px]">
-        {label}
+        <ParagraphWithTerms text={label} />
         {hint && (
           <span title={hint} aria-label={hint} className="ink-fainter"
             style={{ marginLeft: 4, cursor: 'help' }}>ⓘ</span>

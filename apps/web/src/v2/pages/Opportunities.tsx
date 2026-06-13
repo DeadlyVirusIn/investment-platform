@@ -15,6 +15,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
+import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
@@ -58,6 +59,11 @@ export function Opportunities() {
       />
 
       <div className="mb-6"><TrustBanner /></div>
+
+      {/* P1.3 — confidence doctrine (shared SSOT) */}
+      <p className="ink-fainter text-[12px] leading-relaxed mb-6 max-w-narrative">
+        {CONFIDENCE_DOCTRINE}
+      </p>
 
       <OppSegment
         tab={tab}

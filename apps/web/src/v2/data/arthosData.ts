@@ -1284,6 +1284,46 @@ export const GLOSSARY: GlossaryTerm[] = [
   lessonRefs: ['why-great-investors-do-nothing-most-days']
 },
 {
+  slug: 'net-asset-value',
+  term: 'NAV',
+  shortDefinition: 'The total value of the portfolio — cash plus the market value of every open position.',
+  longDefinition:
+  'Net asset value (NAV) is the portfolio total: cash plus the current market value of every open position. It is the single number that answers "what is the book worth right now?" — moving with prices each day, not just when trades close.',
+  body: 'NAV — net asset value — is what the whole book is worth at this moment: the cash on hand plus the market value of everything held. It is not profit. Profit is NAV minus what you started with. NAV is the running total that profit is measured against.',
+  examples: [],
+  lessonRefs: []
+},
+{
+  slug: 'expectancy',
+  term: 'expectancy',
+  shortDefinition: 'The average profit or loss per trade across all closed trades.',
+  longDefinition:
+  'Expectancy is the average realized result per closed trade — total realized profit and loss divided by the number of trades. A positive expectancy means the average trade made money; it says nothing about any single trade, only the long-run average of the process.',
+  body: 'Expectancy is the average dollars a trade returns, win or lose, across everything that has closed. It folds the win rate and the size of wins and losses into one number. A strategy can win less than half its trades and still have positive expectancy if the wins are larger than the losses — and the reverse is the trap.',
+  examples: [],
+  lessonRefs: []
+},
+{
+  slug: 'days-to-expiration',
+  term: 'DTE',
+  shortDefinition: 'The number of days until an options contract expires.',
+  longDefinition:
+  'Days to expiration (DTE) is the count of calendar days until an options contract expires. It governs how much time value the contract still holds and how fast that value decays — shorter DTE means faster decay and less room for the thesis to play out.',
+  body: 'DTE — days to expiration — is how long an options position has left to live. Time is part of the trade: an option loses value as expiration approaches, all else equal, and that decay accelerates near the end. A setup with more DTE gives the thesis more room; less DTE means the move has to happen soon.',
+  examples: [],
+  lessonRefs: []
+},
+{
+  slug: 'breakeven',
+  term: 'breakeven',
+  shortDefinition: 'The underlying price at which a position makes neither a profit nor a loss at expiration.',
+  longDefinition:
+  'Breakeven is the underlying price at which a position comes out exactly even at expiration — the credit received or paid offsets the outcome. Above or below it (depending on the structure) the position profits; on the other side it loses.',
+  body: 'Breakeven is the line between profit and loss at expiration. For a credit spread it is the short strike adjusted by the premium collected: stay on the right side of it and the trade keeps the credit; cross it and the credit starts giving way to loss. Knowing the breakeven is knowing exactly what the underlying has to do for the trade to work.',
+  examples: [],
+  lessonRefs: []
+},
+{
   slug: 'stop-loss',
   term: 'stop-loss',
   shortDefinition:

@@ -33,6 +33,11 @@ const ALIASES: Record<string, string[]> = {
   'momentum': ['momentum'],
   'mean-reversion': ['mean reversion', 'mean-reversion'],
   'position-sizing': ['position sizing', 'sizing'],
+  // P1.3 — additions (entries live in arthosData GLOSSARY).
+  'net-asset-value': ['NAV', 'net asset value'],
+  'expectancy': ['expectancy'],
+  'days-to-expiration': ['DTE', 'days to expiration'],
+  'breakeven': ['breakeven', 'break-even'],
 };
 
 // Build one regex with capture groups, longest aliases first so longer

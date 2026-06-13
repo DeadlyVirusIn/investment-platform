@@ -10,6 +10,7 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
+import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import {
   type RecApi,
   effectiveAction,
@@ -73,6 +74,10 @@ export function LiveTodayHero({
         <Chip tone={fresh.tone}>{fresh.label}</Chip>
         {(rec.tags ?? []).slice(0, 3).map((t) => <Chip key={t}>{t}</Chip>)}
       </div>
+      {/* P1.3 — confidence doctrine (shared SSOT) */}
+      <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
+        {CONFIDENCE_DOCTRINE}
+      </p>
 
       {rec.thesis && (
         <p className="ink-primary leading-relaxed mt-4 max-w-narrative" style={{ fontSize: 15 }}>

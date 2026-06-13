@@ -8,7 +8,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
 import {
   useCanonicalStockPortfolio,
   usePaperEquity,
@@ -103,7 +103,7 @@ export function TrackRecord() {
                 {book.total_return_pct >= 0 ? '+' : '−'}{Math.abs(book.total_return_pct).toFixed(2)}%
               </div>
               <p className="ink-muted text-[15px] leading-relaxed">
-                NAV{' '}
+                <ParagraphWithTerms text="<term:net-asset-value>NAV</term>" />{' '}
                 <span className="ink-primary tabular-nums">
                   ${(book.nav ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
@@ -145,7 +145,7 @@ export function TrackRecord() {
                 <StatCell label="Hit rate" value={`${(stats.hitRate * 100).toFixed(0)}%`} sub={`${stats.wins} of ${stats.total}`} />
                 <StatCell label="Avg win" value={`+$${stats.avgWin.toFixed(0)}`} />
                 <StatCell label="Avg loss" value={`-$${Math.abs(stats.avgLoss).toFixed(0)}`} />
-                <StatCell label="Expectancy" value={`${stats.expectancy >= 0 ? '+' : '−'}$${Math.abs(stats.expectancy).toFixed(0)}`} sub="realized/trade" />
+                <StatCell label="<term:expectancy>Expectancy</term>" value={`${stats.expectancy >= 0 ? '+' : '−'}$${Math.abs(stats.expectancy).toFixed(0)}`} sub="realized/trade" />
               </div>
               <p className="text-[13px] ink-fainter italic leading-relaxed mt-5 max-w-narrative">
                 Computed from {stats.total} resolved (closed) trades' realized P&L. Past results do not promise the next trade.
@@ -193,7 +193,7 @@ export function TrackRecord() {
 function StatCell({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="surface-drawer p-5 sm:p-6">
-      <div className="text-meta ink-fainter mb-2.5">{label}</div>
+      <div className="text-meta ink-fainter mb-2.5"><ParagraphWithTerms text={label} /></div>
       <div className="font-serif text-[24px] sm:text-[28px] ink-primary leading-none tabular-nums">{value}</div>
       {sub && <div className="text-[11px] ink-fainter mt-1.5">{sub}</div>}
     </div>

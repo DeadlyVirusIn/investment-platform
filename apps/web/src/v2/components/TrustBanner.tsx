@@ -7,16 +7,30 @@
 // count comes straight from /recommendations.
 
 import { Link } from 'react-router-dom';
-import { useRecommendations, useCanonicalStockPortfolio } from '@/lib/operator/hooks';
+import {
+  useRecommendations,
+  useCanonicalStockPortfolio,
+  useExecutedTrades,
+} from '@/lib/operator/hooks';
+
+// P1.3 — accuracy publishes once this many real closed outcomes exist
+// (same threshold + closed-trade definition as Track Record).
+const ACCURACY_THRESHOLD = 10;
 
 export function TrustBanner() {
   const { data: recs, isLoading: recsLoading } = useRecommendations();
   // Phase A/B — practice-book return now comes from the canonical
   // portfolio (single source of truth), not the aggregate summary.
   const { data: book } = useCanonicalStockPortfolio();
+  // P1.3 — closed outcomes = sells with realized P&L (Track Record's
+  // exact definition). Drives the honest accuracy-publish meter.
+  const { data: tradesData } = useExecutedTrades(false, book?.portfolio_id);
 
   const callCount = recs?.recommendations?.length ?? null;
   const totalRet = book?.total_return_pct ?? null;
+  const closedCount = (tradesData?.trades ?? []).filter(
+    (t) => t.side === 'sell' && t.realized_pnl != null,
+  ).length;
 
   return (
     <div className="flex items-baseline gap-3 flex-wrap mb-6 py-3 px-4 rounded-2xl"
@@ -34,7 +48,7 @@ export function TrustBanner() {
               : "Arth's record is unavailable right now.")
           : callCount === 0
             ? 'No calls published yet.'
-            : `${callCount} call${callCount === 1 ? '' : 's'} live — closed-outcome accuracy builds as positions resolve.`}
+            : `${callCount} call${callCount === 1 ? '' : 's'} live · accuracy publishes at ${ACCURACY_THRESHOLD} closed outcomes (${Math.min(closedCount, ACCURACY_THRESHOLD)}/${ACCURACY_THRESHOLD} so far).`}
       </span>
       {totalRet != null && (
         <span className="font-mono ink-muted" style={{ fontSize: 12 }}>

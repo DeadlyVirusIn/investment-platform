@@ -8,6 +8,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
+import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import {
   useTodaysRecommendations,
   effectiveAction,
@@ -129,6 +130,10 @@ export function PickPage() {
             </span>
             {rec.composite_score != null && <> · composite {Number(rec.composite_score).toFixed(3)}</>}
           </div>
+          {/* P1.3 — confidence doctrine (shared SSOT) */}
+          <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
+            {CONFIDENCE_DOCTRINE}
+          </p>
         </div>
       </FadeIn>
 
