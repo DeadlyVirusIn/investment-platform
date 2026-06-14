@@ -479,9 +479,11 @@ const NAV_PRIMARY: NavItem[] = [
 
 // P1.2 — beginner-facing secondary nav only. Watchlist + Notes parked
 // (routes/pages unchanged, just no nav slot until they serve live data).
+// P1.5D2b — 'Options portfolio' removed: now reachable as a Practice tab
+// (PracticeTabs), so the secondary-nav duplicate entry is redundant.
+// Route /v2/options/portfolio unchanged.
 const NAV_SECONDARY = [
   { label: 'Methodology', to: '/v2/methodology' },
-  { label: 'Options portfolio', to: '/v2/options/portfolio' },
 ];
 
 // P1.2 — Engine room: diagnostics surfaces, deliberately separated from
