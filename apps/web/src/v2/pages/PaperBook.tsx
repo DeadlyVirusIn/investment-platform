@@ -12,6 +12,7 @@
 // "—") whenever no price is available — we never fabricate a mark.
 
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { PracticeTabs } from './components/PracticeTabs';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -73,6 +74,8 @@ export function PaperBook() {
           and see what holds up over time.
         </p>
       </header>
+
+      <PracticeTabs />
 
       <motion.section
         initial={{ opacity: 0, y: 6 }}

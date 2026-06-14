@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
+import { PracticeTabs } from './components/PracticeTabs';
 import {
   useCanonicalStockPortfolio,
   usePaperEquity,
@@ -91,6 +92,8 @@ export function TrackRecord() {
           </p>
         )}
       </header>
+
+      <PracticeTabs />
 
       <FadeIn delay={0.04}>
         <section className="mb-14">
