@@ -4,6 +4,7 @@
 // positions). No execution / lifecycle / mutation.
 
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { PracticeTabs } from './components/PracticeTabs';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { useState } from 'react';
@@ -55,6 +56,8 @@ export function OptionsPortfolio() {
         title={<>Options portfolio.</>}
         description="Open options positions — capital at risk, net greeks, and concentration. Read-only; nothing here trades or closes."
       />
+
+      <PracticeTabs />
 
       {isLoading && (
         <SurfaceCard variant="muted" className="p-6">

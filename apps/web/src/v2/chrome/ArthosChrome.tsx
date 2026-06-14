@@ -444,7 +444,10 @@ const NAV_PRIMARY: NavItem[] = [
     match: (p) =>
       p.startsWith('/v2/portfolio') ||
       p.startsWith('/v2/try') ||
-      p.startsWith('/v2/track-record'),
+      p.startsWith('/v2/track-record') ||
+      // P1.5D2a — Options book is a Practice tab. Specific prefix; does
+      // NOT match /v2/options (engine-room diagnostics).
+      p.startsWith('/v2/options/portfolio'),
   },
   {
     label: 'Learn',
