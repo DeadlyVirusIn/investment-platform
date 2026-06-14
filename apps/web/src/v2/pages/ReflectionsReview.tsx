@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { MeTabs } from './components/MeTabs';
 import {
   useReflections,
   deleteReflection,
@@ -174,6 +175,7 @@ export function ReflectionsReview() {
 
   return (
     <ArthosPage maxWidth="max-w-3xl">
+      <MeTabs />
       <FadeIn>
         <MetaLabel>Reflect</MetaLabel>
         <h1 className="font-serif ink-primary text-masthead leading-[1.05] mt-2 mb-5 max-w-[18ch]">
