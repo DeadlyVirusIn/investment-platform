@@ -1,17 +1,19 @@
-// Phase UI-TERMINAL-LAYERS — Layer 1: NOW / NEXT / RISK rail.
+// Phase UI-TERMINAL-LAYERS — Layer 1: NOW / NEXT / PORTFOLIO rail.
 // Thin context strip directly below MarketTicker. 30px.
+// P1.6B.2 — third segment is a beginner-legible portfolio drawdown state
+// (links to TrackRecord). Operator event counts moved to Observability.
 
+import { Link } from "react-router-dom";
 import {
-  useCurrentState, useAnomalySummary, useCanonicalDrawdownPct,
+  useCurrentState, useCanonicalDrawdownPct,
 } from "@/lib/operator/hooks";
 import { cn } from "@/lib/cn";
 
 export default function StatusRail() {
   const { data: state } = useCurrentState();
-  const { data: anom } = useAnomalySummary();
-  // P2 root-shell canonicalization — drawdown risk flag derives from the
-  // single canonical portfolio's equity curve, NOT the all-portfolios
-  // aggregate (summary.max_drawdown_pct). Same source as NAV.
+  // P2 root-shell canonicalization — drawdown derives from the single
+  // canonical portfolio's equity curve, NOT the all-portfolios aggregate
+  // (summary.max_drawdown_pct). Same source as NAV. Unchanged in P1.6B.2.
   const canonicalDd = useCanonicalDrawdownPct();
 
   // NOW
@@ -34,22 +36,20 @@ export default function StatusRail() {
         ? "Await credit + rates alignment"
         : "Await regime qualification";
 
-  // RISK
-  const crit = anom?.by_severity?.critical ?? 0;
-  const warn = anom?.by_severity?.warning ?? 0;
-  const dd = canonicalDd ?? 0;
-  const ddFlag = dd < -5 ? " · DD>5%" : dd < -2 ? " · DD watch" : "";
-  let riskLabel: string;
-  let riskTone: "pos" | "warn" | "neg" = "pos";
-  if (crit > 0) {
-    riskLabel = `${crit} critical${ddFlag}`;
-    riskTone = "neg";
-  } else if (warn > 0) {
-    riskLabel = `${warn} warning${ddFlag}`;
-    riskTone = "warn";
+  // PORTFOLIO — plain-language distance from the equity peak. No operator
+  // vocabulary. Drawdown source unchanged.
+  const dd = canonicalDd;
+  let portfolioLabel: string;
+  let portfolioTone: "pos" | "warn" | "neg" = "pos";
+  if (dd == null) {
+    portfolioLabel = "—";
+  } else if (dd <= -2) {
+    // Any meaningful drawdown (≥2% below peak) reads as caution amber; the
+    // figure itself conveys severity (e.g. 3.1% vs 6.4% below peak).
+    portfolioLabel = `${Math.abs(dd).toFixed(1)}% below peak`;
+    portfolioTone = "warn";
   } else {
-    riskLabel = `Low · no anomalies${ddFlag}`;
-    riskTone = "pos";
+    portfolioLabel = "Near high";
   }
 
   return (
@@ -57,22 +57,29 @@ export default function StatusRail() {
       <Segment label="NOW" tone={nowTone}
                value={`${regime} · ${engineText}`} />
       <Segment label="NEXT" tone="accent" value={nextText} />
-      <Segment label="RISK" tone={riskTone} value={riskLabel} />
+      <Segment label="PORTFOLIO" tone={portfolioTone}
+               value={portfolioLabel} to="/v2/track-record" />
     </div>
   );
 }
 
-function Segment({ label, value, tone }: {
+function Segment({ label, value, tone, to }: {
   label: string; value: string;
   tone: "pos" | "neg" | "warn" | "accent";
+  // P1.6B.2 — when set, the segment becomes a drilldown link (same class →
+  // layout unchanged). Used by PORTFOLIO → TrackRecord for verifiability.
+  to?: string;
 }) {
   const cls = {
     pos: "is-pos", neg: "is-neg", warn: "is-warn", accent: "is-accent",
   }[tone];
-  return (
-    <div className={cn("u-status-seg", cls)}>
+  const inner = (
+    <>
       <span className="u-status-seg-label">{label}</span>
       <span className="u-status-seg-value">{value}</span>
-    </div>
+    </>
   );
+  return to
+    ? <Link to={to} className={cn("u-status-seg", cls)}>{inner}</Link>
+    : <div className={cn("u-status-seg", cls)}>{inner}</div>;
 }
