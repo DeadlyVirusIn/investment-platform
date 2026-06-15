@@ -89,8 +89,22 @@ export function OptionsPortfolio() {
       <AdvisorySection />
       <DetailSection />
       <TradeHistorySection />
-      <ClosedAnalyticsSection />
-      <PromotionAuditSection />
+
+      {/* P1.5D3a — engine/analytics sections collapsed by default so
+          beginners aren't met with promotion-audit gates and factor
+          analytics. Nothing removed; all data still here when expanded. */}
+      <details className="mt-10">
+        <summary
+          className="text-meta ink-muted cursor-pointer select-none"
+          style={{ letterSpacing: '0.04em' }}
+        >
+          Advanced
+        </summary>
+        <div className="mt-6">
+          <ClosedAnalyticsSection />
+          <PromotionAuditSection />
+        </div>
+      </details>
     </ArthosPage>
   );
 }
