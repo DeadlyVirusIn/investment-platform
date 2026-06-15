@@ -45,7 +45,9 @@ const STEPS: StartStep[] = [
     blurb:
       "Read how the engine sized a real position. Open the working; the reasoning is in plain English.",
     estMinutes: 8,
-    to: '/v2/today/pick/AMAT',
+    // P1.7B — link to today's Briefing (leads with the live top pick) rather
+    // than a hardcoded symbol that dead-ends when the picks list drifts.
+    to: '/v2/today',
   },
   {
     n: 3,
@@ -61,7 +63,7 @@ const STEPS: StartStep[] = [
     kind: 'try',
     title: "See how the AI portfolio is doing",
     blurb:
-      "Twelve paper positions, marked daily. Watch a real decision play out — nothing real is at stake.",
+      "Your paper portfolio, marked daily. Watch a real decision play out — nothing real is at stake.",
     estMinutes: 10,
     to: '/v2/portfolio',
   },

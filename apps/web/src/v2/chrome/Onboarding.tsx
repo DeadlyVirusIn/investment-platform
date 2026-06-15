@@ -3,7 +3,7 @@
 // Prior 4-screen flow (Welcome / Level / Topics / Time) collected
 // preferences the product never read. Phase B will wire those when
 // personalization is implemented. Until then: 1 screen, promise lands,
-// user drops into Today.
+// then the user is routed into the guided Day 1 flow (/v2/start).
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
