@@ -17,6 +17,9 @@ import {
   type ObsAlert,
 } from '../lib/observability';
 import { pipelineHealth } from '../lib/observabilityHealth';
+// P1.6B.1 — anomaly_event counts relocated here from the global rail.
+// Strategy/data observations; distinct from the operational alerts above.
+import { useAnomalySummary } from '@/lib/operator/hooks';
 
 // ── status → color mapping (theme-aware via tokens + mid-tone amber) ──
 type Tone = 'good' | 'warn' | 'bad' | 'muted';
@@ -217,6 +220,8 @@ function slaBands(cadenceHours: number | null): string {
 export function Observability() {
   const { data, isLoading, isError, error, dataUpdatedAt } = useObservability();
   const health = data ? pipelineHealth(data) : null;
+  // P1.6B.1 — anomaly_event summary (open / warning / critical).
+  const { data: anomalies } = useAnomalySummary();
   const [spark, setSpark] = useState<number[]>([]);
 
   // Append this fetch's health score to the rolling session buffer. Real
@@ -452,6 +457,36 @@ export function Observability() {
                 })}
             </div>
           )}
+
+          {/* ── Strategy / data anomalies (anomaly_event counts). Distinct
+              source from the operational alerts above; relocated here from
+              the global rail in P1.6B. ── */}
+          <p
+            className="font-semibold uppercase mt-8 mb-3 ink-muted"
+            style={{ fontSize: 11, letterSpacing: '0.12em' }}
+          >
+            Strategy / data anomalies
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard
+              label="Open"
+              value={anomalies?.total_open ?? '—'}
+              tone={(anomalies?.total_open ?? 0) > 0 ? 'warn' : 'good'}
+              sub="anomaly events open"
+            />
+            <StatCard
+              label="Warning"
+              value={anomalies?.by_severity?.warning ?? '—'}
+              tone={(anomalies?.by_severity?.warning ?? 0) > 0 ? 'warn' : 'good'}
+              sub="severity = warning"
+            />
+            <StatCard
+              label="Critical"
+              value={anomalies?.by_severity?.critical ?? '—'}
+              tone={(anomalies?.by_severity?.critical ?? 0) > 0 ? 'bad' : 'good'}
+              sub="severity = critical"
+            />
+          </div>
 
           {/* ── B. Job timeline table ── */}
           <SectionTitle n="02" title="Jobs" />
