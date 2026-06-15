@@ -603,3 +603,49 @@ def test_mp1s_attribution_join_conviction_to_realized(pg_session: Session) -> No
     assert row.opened_by_recommendation_id == rec.id
     assert Decimal(str(row.conviction)) == Decimal("80")
     assert Decimal(str(row.realized_pnl)) == Decimal("90")
+
+
+def test_mp2a_conviction_outcome_buckets_join_and_gate(pg_session: Session) -> None:
+    """MP2A — conviction_outcome_buckets joins closed attributed positions
+    to recommendation.conviction, buckets them, and honours the gate."""
+    from apps.api.src.analytics.confidence_outcomes import (
+        conviction_outcome_buckets,
+    )
+    # 5 bars; two sequential same-asset round trips on one portfolio.
+    asset_id = _seed_asset_with_prices(
+        pg_session, "MP2A",
+        closes=["100", "100", "110", "100", "90"],
+        opens=["100", "100", "110", "100", "90"],
+    )
+    p = create_portfolio(pg_session, PortfolioCreate(name="mp2a", starting_cash=Decimal("5000")))
+    pg_session.commit()
+
+    rec_hi = _mk_recommendation(pg_session, asset_id, conviction="75")  # high bucket
+    submit_trade(pg_session, portfolio_id=p.id, asset_id=asset_id, side="buy",
+                 quantity=Decimal("1"), submitted_at=BASE_TS, recommendation_id=rec_hi.id)
+    pg_session.commit()  # fill day1 = 100
+    submit_trade(pg_session, portfolio_id=p.id, asset_id=asset_id, side="sell",
+                 quantity=Decimal("1"), submitted_at=BASE_TS + dt.timedelta(days=1))
+    pg_session.commit()  # fill day2 = 110 -> +10, closed
+
+    rec_lo = _mk_recommendation(pg_session, asset_id, conviction="35")  # low bucket
+    submit_trade(pg_session, portfolio_id=p.id, asset_id=asset_id, side="buy",
+                 quantity=Decimal("1"), submitted_at=BASE_TS + dt.timedelta(days=2),
+                 recommendation_id=rec_lo.id)
+    pg_session.commit()  # fill day3 = 100
+    submit_trade(pg_session, portfolio_id=p.id, asset_id=asset_id, side="sell",
+                 quantity=Decimal("1"), submitted_at=BASE_TS + dt.timedelta(days=3))
+    pg_session.commit()  # fill day4 = 90 -> -10, closed
+
+    res = conviction_outcome_buckets(pg_session)
+    assert res["dimension"] == "stock_conviction"
+    assert res["total_closed"] == 2
+    # 2 < MIN_CLOSES(10) -> insufficient: counts honest, rates suppressed.
+    assert res["note"] == "insufficient_data"
+    by = {b["bucket"]: b for b in res["buckets"]}
+    assert by["high (60–80)"]["trade_count"] == 1
+    assert by["high (60–80)"]["total_realized_pnl"] == 10.0
+    assert by["high (60–80)"]["win_rate"] is None
+    assert by["low (<40)"]["trade_count"] == 1
+    assert by["low (<40)"]["total_realized_pnl"] == -10.0
+    assert by["low (<40)"]["win_rate"] is None
