@@ -175,16 +175,18 @@ export function SideNav() {
             as a quiet group so Notes/Watchlist/Methodology/System are
             clickable on the desktop SideNav too. */}
         <div className="mt-6 pt-4" style={{ borderTop: '1px solid var(--border)' }}>
-          <p
-            className="px-3 mb-2 font-semibold uppercase"
-            style={{
-              fontSize: 10,
-              letterSpacing: '0.16em',
-              color: 'var(--muted-foreground)',
-            }}
-          >
-            More
-          </p>
+          {NAV_SECONDARY.length > 0 && (
+            <p
+              className="px-3 mb-2 font-semibold uppercase"
+              style={{
+                fontSize: 10,
+                letterSpacing: '0.16em',
+                color: 'var(--muted-foreground)',
+              }}
+            >
+              More
+            </p>
+          )}
           {NAV_SECONDARY.map(({ to, label }) => {
             const active = location.pathname.startsWith(to);
             return (
@@ -479,12 +481,11 @@ const NAV_PRIMARY: NavItem[] = [
 
 // P1.2 — beginner-facing secondary nav only. Watchlist + Notes parked
 // (routes/pages unchanged, just no nav slot until they serve live data).
-// P1.5D2b — 'Options portfolio' removed: now reachable as a Practice tab
-// (PracticeTabs), so the secondary-nav duplicate entry is redundant.
-// Route /v2/options/portfolio unchanged.
-const NAV_SECONDARY = [
-  { label: 'Methodology', to: '/v2/methodology' },
-];
+// P1.5E2 — Methodology removed: it lives under Learn (LearnHome links it +
+// Learn nav match highlights /v2/methodology). NAV_SECONDARY is now empty;
+// render sites guard on length so no empty 'More' header / divider shows.
+// Explicit type keeps .map/.length valid on the empty array.
+const NAV_SECONDARY: { label: string; to: string }[] = [];
 
 // P1.2 — Engine room: diagnostics surfaces, deliberately separated from
 // the product nav so beginners never wander into cron matrices.
@@ -580,7 +581,9 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
               })}
 
               {/* Secondary nav — quieter, in same drawer */}
-              <div className="h-px bg-hairline my-4" />
+              {NAV_SECONDARY.length > 0 && (
+                <div className="h-px bg-hairline my-4" />
+              )}
               {NAV_SECONDARY.map((item) => {
                 const isActive = location.pathname.startsWith(item.to);
                 return (
