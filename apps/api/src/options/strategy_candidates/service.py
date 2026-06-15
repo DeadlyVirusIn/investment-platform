@@ -300,6 +300,11 @@ def generate_for_observations(
                  open_interest, volume, quote_age_seconds
           FROM options_chain_snapshot
           WHERE option_symbol = s.option_symbol
+            -- QW1-FIX.A: never read a snapshot stamped after the candidate's
+            -- decision date (s.run_date). Live = no-op (latest is today);
+            -- replay/backtest = picks the on-or-before snapshot, not a future
+            -- one. Mirrors the f.as_of_date = s.run_date feature bound.
+            AND (snapshot_at_utc AT TIME ZONE 'UTC')::date <= s.run_date
           ORDER BY snapshot_at_utc DESC LIMIT 1
         ) c ON TRUE
         LEFT JOIN options_feature_daily f

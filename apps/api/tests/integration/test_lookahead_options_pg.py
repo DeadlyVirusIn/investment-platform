@@ -1,23 +1,21 @@
-"""QW1.2 — options chain-selection lookahead detector (integration).
+"""QW1.2 + QW1-FIX.A — options chain-selection lookahead detector + fix proof.
 
 Mirrors the chain-quote subquery in
-options/strategy_candidates/service.py (~line 300-303):
+options/strategy_candidates/service.py (~line 300-308):
 
     SELECT ... FROM options_chain_snapshot
-     WHERE <natural key minus snapshot_at>
+     WHERE option_symbol = s.option_symbol
+       AND (snapshot_at_utc AT TIME ZONE 'UTC')::date <= s.run_date   -- QW1-FIX.A
      ORDER BY snapshot_at_utc DESC LIMIT 1
 
-That ordering picks the LATEST snapshot with NO `snapshot_at_utc <= run_date`
-bound. For a past run_date (replay/backtest) it selects a snapshot stamped
-AFTER the decision date -> lookahead bias.
+Without the bound (old behaviour) a past run_date selects a snapshot stamped
+AFTER the decision date -> lookahead. With the bound the on-or-before
+snapshot is chosen.
 
 Two tests:
-  * one documents the CURRENT (leaky) behaviour: future snapshot is selected.
-  * one asserts the DESIRED invariant (selected <= run_date) and is marked
-    xfail(strict) — it fails today (leak), and will XPASS (forcing removal of
-    the marker) once QW1-FIX bounds the query.
-
-Detector only — no query fix here.
+  * unbounded regression guard — proves the OLD query would still leak (the
+    bound is load-bearing).
+  * bounded invariant — QW1-FIX.A: selected snapshot <= run_date.
 """
 
 from __future__ import annotations
@@ -52,45 +50,46 @@ def _seed(pg_session: Session, snap_at: dt.datetime) -> None:
     ))
 
 
-def _selected_snapshot_at(pg_session: Session) -> dt.datetime:
-    """Run the exact DESC LIMIT 1 selection the generator uses (unbounded)."""
+def _selected_snapshot_at(pg_session: Session, *, bounded: bool) -> dt.datetime:
+    """Run the generator's chain selection. `bounded=True` mirrors QW1-FIX.A
+    (snapshot_at_utc::date <= run_date); `bounded=False` is the old unbounded
+    DESC LIMIT 1 that leaked."""
+    clause = (
+        "AND (snapshot_at_utc AT TIME ZONE 'UTC')::date <= :rd" if bounded else ""
+    )
     return pg_session.execute(text(
-        """
+        f"""
         SELECT snapshot_at_utc
           FROM options_chain_snapshot
          WHERE underlying = 'SPY' AND expiry = DATE '2026-07-18'
            AND strike = 440 AND option_type = 'PUT'
+           {clause}
          ORDER BY snapshot_at_utc DESC
          LIMIT 1
         """
-    )).scalar()
+    ), {"rd": RUN_DATE}).scalar()
 
 
-def test_current_behavior_selects_future_snapshot(pg_session: Session) -> None:
-    """Documents the leak: DESC LIMIT 1 picks the post-run_date snapshot.
-    Green = leak reproduced."""
+def test_unbounded_selection_would_leak(pg_session: Session) -> None:
+    """Regression guard: the OLD unbounded DESC LIMIT 1 picks the
+    post-run_date snapshot. Proves the QW1-FIX.A bound is load-bearing."""
     _seed(pg_session, BEFORE)
     _seed(pg_session, AFTER)
     pg_session.commit()
-    sel = _selected_snapshot_at(pg_session)
+    sel = _selected_snapshot_at(pg_session, bounded=False)
     assert sel.date() == dt.date(2026, 6, 16)  # future snapshot chosen -> leak
-    # invariant helper agrees this is a lookahead violation
     run_decision = dt.datetime(2026, 6, 15, 23, 59, 59, tzinfo=dt.timezone.utc)
-    res = max_input_ts_le_decision(run_decision, [sel])
-    assert res["ok"] is False
+    assert max_input_ts_le_decision(run_decision, [sel])["ok"] is False
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="QW1 lookahead: chain selection uses ORDER BY snapshot_at_utc DESC "
-           "LIMIT 1 with no snapshot_at_utc<=run_date bound; future snapshot "
-           "is selected. Remove this marker once QW1-FIX bounds the query.",
-)
 def test_chain_selection_respects_decision_boundary(pg_session: Session) -> None:
-    """DESIRED invariant: the selected snapshot must not be after run_date.
-    Fails today (leak); XPASS after QW1-FIX -> strict xfail flags removal."""
+    """QW1-FIX.A: with the snapshot_at_utc::date <= run_date bound, the
+    selected snapshot is the on-or-before one, never the future snapshot."""
     _seed(pg_session, BEFORE)
     _seed(pg_session, AFTER)
     pg_session.commit()
-    sel = _selected_snapshot_at(pg_session)
+    sel = _selected_snapshot_at(pg_session, bounded=True)
     assert sel.date() <= RUN_DATE
+    assert sel.date() == dt.date(2026, 6, 14)  # the pre-run_date snapshot
+    run_decision = dt.datetime(2026, 6, 15, 23, 59, 59, tzinfo=dt.timezone.utc)
+    assert max_input_ts_le_decision(run_decision, [sel])["ok"] is True
