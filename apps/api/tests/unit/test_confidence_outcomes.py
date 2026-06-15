@@ -99,3 +99,36 @@ def test_win_rate_mixed_bucket():
 def test_constants_match_trackrecord_threshold():
     assert MIN_CLOSES == 10
     assert PER_BUCKET_MIN == 3
+
+
+# --- MP2B.2A: calibration pair mapping + result shaping (pure) ---
+
+def test_mp2b2a_stock_pairs_mapping():
+    from apps.api.src.analytics.confidence_outcomes import _stock_pairs
+    pairs = _stock_pairs(
+        [(66.67, 12.0), (40.0, -3.0), (80.0, 0.0), (None, 5.0), (50.0, None)]
+    )
+    assert len(pairs) == 3  # None score/pnl rows dropped
+    assert round(pairs[0][0], 4) == 0.6667 and pairs[0][1] is True  # 66.67->0.6667, win
+    assert pairs[1] == (0.4, False)   # realized -3 not a win
+    assert pairs[2][1] is False       # realized 0.0 not > 0
+
+
+def test_mp2b2a_options_pairs_mapping():
+    from apps.api.src.analytics.confidence_outcomes import _options_pairs
+    pairs = _options_pairs([(0.71, 5.0), (0.3, -1.0), (0.9, 0.0)])
+    assert pairs[0] == (0.71, True)   # confidence_v2 kept as-is; win
+    assert pairs[1] == (0.3, False)
+    assert pairs[2][1] is False       # 0.0 not > 0
+
+
+def test_mp2b2a_calibration_result_insufficient():
+    from apps.api.src.analytics.confidence_outcomes import _calibration_result
+    res = _calibration_result("stock", [(0.6, True)] * 3)  # 3 < 50
+    assert res["asset_class"] == "stock"
+    assert res["sample_count"] == 3
+    assert res["status"] == "insufficient_for_calibration"
+    assert res["note"] == "insufficient_for_calibration"
+    assert res["brier_score"] is None
+    assert res["expected_calibration_error"] is None
+    assert res["reliability_bins"] is None
