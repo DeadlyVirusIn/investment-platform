@@ -291,6 +291,10 @@ def submit_trade(
 
     cash = _d(portfolio.cash)
     realized_pnl: Decimal | None = None
+    # MP1S — track new/closed position so trade-id provenance can be stamped
+    # after the trade row is flushed (trade.id is DB-assigned).
+    created_position: PaperPosition | None = None
+    closed_position: PaperPosition | None = None
 
     if side == "buy":
         config = _portfolio_config(portfolio)
@@ -319,8 +323,11 @@ def submit_trade(
                 avg_cost=fill_price,
                 is_open=True,
                 opened_at=fill_ts,
+                # MP1S — entry-decision identity (NULL when no rec drove it).
+                opened_by_recommendation_id=recommendation_id,
             )
             session.add(pos)
+            created_position = pos
         else:
             old_qty = _d(existing.quantity)
             old_basis = _d(existing.avg_cost)
@@ -343,11 +350,15 @@ def submit_trade(
         realized_pnl = qty * (fill_price - basis)
 
         portfolio.cash = cash + proceeds
+        # MP1S — accumulate executed P&L at the position level. COALESCE via
+        # _d() (None→0). Does NOT alter PaperTrade.realized_pnl set below.
+        existing.realized_pnl = _d(existing.realized_pnl) + realized_pnl
         remaining = open_qty - qty
         if remaining == 0:
             existing.quantity = Decimal("0")
             existing.is_open = False
             existing.closed_at = fill_ts
+            closed_position = existing
         else:
             existing.quantity = remaining
 
@@ -367,6 +378,12 @@ def submit_trade(
     )
     session.add(trade)
     session.flush()
+
+    # MP1S — stamp trade-id provenance now that trade.id is assigned.
+    if created_position is not None:
+        created_position.opening_trade_id = trade.id
+    if closed_position is not None:
+        closed_position.closed_by_trade_id = trade.id
 
     return TradeResult(
         trade_id=trade.id,

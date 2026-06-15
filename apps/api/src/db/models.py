@@ -441,12 +441,33 @@ class PaperPosition(Base):
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
     )
+    # MP1S — executed-outcome attribution (migration 100). Forward-only,
+    # nullable. opened_by_recommendation_id = entry-decision identity (the
+    # rec that first opened this position); realized_pnl = executed P&L
+    # accumulated at position level; opening/closed trade ids = entry/exit
+    # provenance. Real ORM FKs are safe here (targets are in Base.metadata,
+    # acyclic) — unlike the options side. Legacy rows stay NULL (no backfill).
+    opened_by_recommendation_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("recommendation.id", ondelete="SET NULL")
+    )
+    realized_pnl: Mapped[object | None] = mapped_column(EQUITY_NUM)
+    opening_trade_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("paper_trade.id", ondelete="SET NULL")
+    )
+    closed_by_trade_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("paper_trade.id", ondelete="SET NULL")
+    )
 
     portfolio: Mapped[PaperPortfolio] = relationship(back_populates="positions")
 
     __table_args__ = (
         Index("ix_paper_position_open",
               "portfolio_id", "asset_id", "is_open"),
+        # MP1S attribution lookups (mirror migration 100 indexes).
+        Index("ix_paper_position_opened_by_recommendation_id",
+              "opened_by_recommendation_id"),
+        Index("ix_paper_position_opening_trade_id", "opening_trade_id"),
+        Index("ix_paper_position_closed_by_trade_id", "closed_by_trade_id"),
     )
 
 

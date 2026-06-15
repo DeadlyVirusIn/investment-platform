@@ -16,6 +16,7 @@ from apps.api.src.db.models import (
     PaperPosition,
     PaperTrade,
     PriceBar,
+    Recommendation,
 )
 from apps.api.src.domain.paper_trading.paper_execution import (
     PaperTradeRejected,
@@ -453,3 +454,152 @@ def test_api_snapshot_and_equity_curve(pg_session: Session) -> None:
     assert "current" in body
     assert "curve" in body
     assert len(body["curve"]) == 1
+
+
+# ---------------------------------------------------------------------------
+# MP1S — stock executed-outcome attribution (recommendation -> position -> pnl)
+# ---------------------------------------------------------------------------
+
+
+def _mk_recommendation(pg_session: Session, asset_id: str, conviction: str = "72") -> Recommendation:
+    rec = Recommendation(
+        asset_id=asset_id, action="buy",
+        conviction=Decimal(conviction), model_version="mp1s-test",
+    )
+    pg_session.add(rec)
+    pg_session.commit()
+    return rec
+
+
+def test_mp1s_buy_from_recommendation_stamps_opener(pg_session: Session) -> None:
+    asset_id = _seed_asset_with_prices(
+        pg_session, "MP1S1", closes=["100", "100", "100"], opens=["100", "100", "100"],
+    )
+    rec = _mk_recommendation(pg_session, asset_id)
+    p = create_portfolio(pg_session, PortfolioCreate(name="mp1s-open"))
+    pg_session.commit()
+    res = submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="buy", quantity=Decimal("2"), submitted_at=BASE_TS,
+        recommendation_id=rec.id,
+    )
+    pg_session.commit()
+    pos = pg_session.scalar(
+        select(PaperPosition).where(PaperPosition.portfolio_id == p.id)
+    )
+    assert pos is not None
+    assert pos.opened_by_recommendation_id == rec.id   # (1)
+    assert pos.opening_trade_id == res.trade_id         # (3)
+    assert pos.realized_pnl is None
+
+
+def test_mp1s_buy_without_recommendation_opener_null(pg_session: Session) -> None:
+    asset_id = _seed_asset_with_prices(
+        pg_session, "MP1S2", closes=["100", "100"], opens=["100", "100"],
+    )
+    p = create_portfolio(pg_session, PortfolioCreate(name="mp1s-norec"))
+    pg_session.commit()
+    res = submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="buy", quantity=Decimal("1"), submitted_at=BASE_TS,
+    )
+    pg_session.commit()
+    pos = pg_session.scalar(
+        select(PaperPosition).where(PaperPosition.portfolio_id == p.id)
+    )
+    assert pos is not None
+    assert pos.opened_by_recommendation_id is None      # (2)
+    assert pos.opening_trade_id == res.trade_id          # (3) still stamped
+
+
+def test_mp1s_sell_accumulates_realized_and_stamps_closed_by(pg_session: Session) -> None:
+    asset_id = _seed_asset_with_prices(
+        pg_session, "MP1S3",
+        closes=["100", "100", "110", "120"], opens=["100", "100", "110", "120"],
+    )
+    rec = _mk_recommendation(pg_session, asset_id)
+    p = create_portfolio(pg_session, PortfolioCreate(name="mp1s-sell", starting_cash=Decimal("1000")))
+    pg_session.commit()
+    submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="buy", quantity=Decimal("4"), submitted_at=BASE_TS,
+        recommendation_id=rec.id,
+    )  # fills day1 open = 100 (avg cost basis)
+    pg_session.commit()
+    # partial sell, fills day2 open = 110 -> realized 2*(110-100) = 20
+    submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="sell", quantity=Decimal("2"), submitted_at=BASE_TS + dt.timedelta(days=1),
+    )
+    pg_session.commit()
+    pos = pg_session.scalar(
+        select(PaperPosition).where(PaperPosition.portfolio_id == p.id)
+    )
+    assert Decimal(str(pos.realized_pnl)) == Decimal("20")   # (4) accumulate
+    assert pos.is_open is True
+    assert pos.closed_by_trade_id is None
+    # full sell remaining 2, fills day3 open = 120 -> realized 2*(120-100)=40 -> 60 total
+    full = submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="sell", quantity=Decimal("2"), submitted_at=BASE_TS + dt.timedelta(days=2),
+    )
+    pg_session.commit()
+    pg_session.refresh(pos)
+    assert Decimal(str(pos.realized_pnl)) == Decimal("60")   # (4) accumulated
+    assert pos.is_open is False
+    assert pos.closed_by_trade_id == full.trade_id           # (5) full close
+
+
+def test_mp1s_legacy_position_null_attribution_valid(pg_session: Session) -> None:
+    """(6) A position with no MP1S attribution (legacy shape) stays valid."""
+    asset_id = _seed_asset_with_prices(pg_session, "MP1S4", closes=["100"], opens=["100"])
+    p = create_portfolio(pg_session, PortfolioCreate(name="mp1s-legacy"))
+    pg_session.commit()
+    pos = PaperPosition(
+        portfolio_id=p.id, asset_id=asset_id,
+        quantity=Decimal("1"), avg_cost=Decimal("100"), is_open=True,
+    )
+    pg_session.add(pos)
+    pg_session.commit()
+    pg_session.refresh(pos)
+    assert pos.opened_by_recommendation_id is None
+    assert pos.realized_pnl is None
+    assert pos.opening_trade_id is None
+    assert pos.closed_by_trade_id is None
+
+
+def test_mp1s_attribution_join_conviction_to_realized(pg_session: Session) -> None:
+    """(7) recommendation.conviction joins to executed realized P&L."""
+    asset_id = _seed_asset_with_prices(
+        pg_session, "MP1S5", closes=["100", "100", "130"], opens=["100", "100", "130"],
+    )
+    rec = _mk_recommendation(pg_session, asset_id, conviction="80")
+    p = create_portfolio(pg_session, PortfolioCreate(name="mp1s-join", starting_cash=Decimal("1000")))
+    pg_session.commit()
+    submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="buy", quantity=Decimal("3"), submitted_at=BASE_TS,
+        recommendation_id=rec.id,
+    )  # fills day1 = 100
+    pg_session.commit()
+    submit_trade(
+        pg_session, portfolio_id=p.id, asset_id=asset_id,
+        side="sell", quantity=Decimal("3"), submitted_at=BASE_TS + dt.timedelta(days=1),
+    )  # fills day2 = 130 -> realized 3*(130-100) = 90
+    pg_session.commit()
+
+    row = pg_session.execute(
+        select(
+            Recommendation.id,
+            Recommendation.conviction,
+            PaperPosition.opened_by_recommendation_id,
+            PaperPosition.realized_pnl,
+        ).join(
+            PaperPosition,
+            PaperPosition.opened_by_recommendation_id == Recommendation.id,
+        ).where(Recommendation.id == rec.id)
+    ).first()
+    assert row is not None
+    assert row.opened_by_recommendation_id == rec.id
+    assert Decimal(str(row.conviction)) == Decimal("80")
+    assert Decimal(str(row.realized_pnl)) == Decimal("90")
