@@ -5,7 +5,7 @@
 //   NAV · Health · Market tape · NOW
 //
 // Expanded sheet (this component) adds:
-//   Today P&L · Total Return · Regime · Engine · NEXT · RISK
+//   Today P&L · Total Return · Regime · Engine · NEXT
 //
 // Same hooks as the legacy rail components; React Query dedupes so
 // there is no extra network traffic. No business / API / anomaly /
@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from 'react';
 import {
-  useCanonicalStockPortfolio, useCurrentState, useAnomalySummary,
+  useCanonicalStockPortfolio, useCurrentState,
 } from '@/lib/operator/hooks';
 import { fmtPct } from '@/components/ui/primitives';
 
@@ -21,7 +21,6 @@ export function V2RailDisclosure({ onClose }: { onClose: () => void }) {
   // Phase A/B — rail portfolio metrics read the canonical portfolio.
   const { data: summary } = useCanonicalStockPortfolio();
   const { data: state } = useCurrentState();
-  const { data: anom } = useAnomalySummary();
   const ref = useRef<HTMLDivElement>(null);
 
   // Esc + outside-tap dismiss.
@@ -66,14 +65,6 @@ export function V2RailDisclosure({ onClose }: { onClose: () => void }) {
         ? 'Await credit + rates alignment'
         : 'Await regime qualification';
 
-  const crit = anom?.by_severity?.critical ?? 0;
-  const warn = anom?.by_severity?.warning ?? 0;
-  const risk = crit > 0
-    ? `${crit} critical`
-    : warn > 0
-      ? `${warn} warning`
-      : 'Low · no anomalies';
-
   return (
     <div className="v2-rail-disclosure-sheet" ref={ref} role="region"
          aria-label="Rail detail">
@@ -83,7 +74,6 @@ export function V2RailDisclosure({ onClose }: { onClose: () => void }) {
       <Row label="Engine" value={engine} />
       <div className="v2-rail-disclosure-divider" aria-hidden="true" />
       <Row label="Next" value={next} />
-      <Row label="Risk" value={risk} />
     </div>
   );
 }

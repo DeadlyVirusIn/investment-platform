@@ -2,11 +2,12 @@
 // Shows live portfolio + system heartbeat. Dense, single line.
 
 import {
-  usePaperSummary, useCurrentState, useAnomalySummary,
+  usePaperSummary, useCurrentState,
   useCanonicalStockPortfolio,
 } from "@/lib/operator/hooks";
 // HEALTH badge shares the Observability page's single source so the two can
-// never disagree. Anomalies are surfaced separately (Alerts cell).
+// never disagree. Operator event counts live on the Observability page
+// (engine room), not on this global rail (P1.6B).
 import { useObservability } from "@/v2/lib/observability";
 import { pipelineHealth } from "@/v2/lib/observabilityHealth";
 import { Pill, fmtUSD, fmtPct, toneForNumber } from "@/components/ui/primitives";
@@ -26,8 +27,7 @@ function Cell({
   tooltip?: string;
   // Phase 14f-B — slot identifier used by mobile CSS to hide
   // non-essential cells. "essential" cells stay visible at <=768.
-  slot?: "nav" | "day-pnl" | "total-return" | "regime" | "engine" | "health"
-       | "alerts";
+  slot?: "nav" | "day-pnl" | "total-return" | "regime" | "engine" | "health";
 }) {
   return (
     <div
@@ -53,7 +53,6 @@ export default function TopStrip() {
   // summary retained ONLY for the non-financial "last run" heartbeat.
   const { data: summary } = usePaperSummary();
   const { data: state } = useCurrentState();
-  const { data: anomalies } = useAnomalySummary();
   // Operational health — same backend source the Observability page reads.
   const { data: obs } = useObservability();
 
@@ -79,13 +78,6 @@ export default function TopStrip() {
         : health.tone === "bad" ? "danger" : "neutral")
     : "neutral";
   const healthLabel = health ? health.label : "—";
-
-  // ALERTS — open anomaly_event counts, surfaced independently of platform
-  // health (strategy/data observations, not operational degradation).
-  const crit = anomalies?.by_severity?.critical ?? 0;
-  const warn = anomalies?.by_severity?.warning ?? 0;
-  const openAlerts = anomalies?.total_open ?? 0;
-  const alertsTone = crit > 0 ? "danger" : warn > 0 ? "warning" : "neutral";
 
   return (
     <div className="topstrip-root bg-ink/95 backdrop-blur
@@ -151,16 +143,6 @@ export default function TopStrip() {
         tooltip="Operational health — data freshness, jobs, DB, workers. Same source as the Observability page."
       >
         <Pill tone={healthTone} dot>{healthLabel}</Pill>
-      </Cell>
-      <Cell
-        label="Alerts"
-        slot="alerts"
-        className="min-w-[100px]"
-        tooltip="Open anomaly events (strategy / data observations). Independent of platform health."
-      >
-        <Pill tone={alertsTone} dot={openAlerts > 0}>
-          {openAlerts > 0 ? `${openAlerts} open` : "None"}
-        </Pill>
       </Cell>
       <div className="topstrip-toggles ml-auto px-4 py-3 flex items-center gap-3
                         u-caption-2 font-mono">
