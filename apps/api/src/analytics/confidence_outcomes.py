@@ -72,17 +72,23 @@ def bucketize(
 
     out: list[dict[str, Any]] = []
     for label, lo, hi in buckets:
-        pnls = [
-            p for (s, p) in clean
-            if s >= lo and (hi is None or s < hi)
-        ]
-        n = len(pnls)
+        sel = [(s, p) for (s, p) in clean if s >= lo and (hi is None or s < hi)]
+        n = len(sel)
+        pnls = [p for (_s, p) in sel]
         tot = round(sum(pnls), 2) if n else 0.0
+        # MP2B.1 — mean predicted score in this bucket. Enables an
+        # expected-vs-observed reliability view later without retaining
+        # item-level rows. Always emitted (not gated) — it is an input
+        # descriptor, not an outcome rate.
+        expected_score_avg = (
+            round(sum(s for (s, _p) in sel) / n, 4) if n else None
+        )
         if not sufficient or n < per_bucket_min:
             # No rates on thin samples — counts only, never a fake %.
             out.append({
                 "bucket": label,
                 "trade_count": n,
+                "expected_score_avg": expected_score_avg,
                 "win_rate": None,
                 "avg_realized_pnl": None,
                 "expectancy": None,
@@ -94,6 +100,7 @@ def bucketize(
             out.append({
                 "bucket": label,
                 "trade_count": n,
+                "expected_score_avg": expected_score_avg,
                 "win_rate": round(wins / n, 4),
                 "avg_realized_pnl": round(mean, 2),
                 # For realized P&L, expectancy = mean realized per trade.
