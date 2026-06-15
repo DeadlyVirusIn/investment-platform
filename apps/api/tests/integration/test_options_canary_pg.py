@@ -16,7 +16,9 @@ NON-prod db). Paper-only; touches only options_* tables.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import uuid
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -229,3 +231,79 @@ def test_injected_session_no_commit(session_factory, options_enabled):
                 "SELECT COUNT(*) FROM options_paper_trade WHERE id=:i"
             ), {"i": res.trade_id}).scalar()
         assert gone == 0
+
+
+# ---------------------------------------------------------------------------
+# MP1A — candidate→trade attribution (closes first outcome-feedback join)
+# ---------------------------------------------------------------------------
+
+def test_promote_one_stamps_strategy_candidate_id(session_factory, options_enabled):
+    """A trade promoted from a candidate records its candidate id."""
+    with session_factory() as s:
+        pid = _seed_portfolio(s)
+        req, _ = _spread_request()
+        req = replace(req, strategy_candidate_id=4242)
+        r = canary_engine.promote_one(
+            s, portfolio_id=pid, request=req,
+            proposal_hash=_hash(pid, req), now=NOW)
+        s.commit()
+        assert r.status == "promoted"
+        stamped = s.execute(text(
+            "SELECT strategy_candidate_id FROM options_paper_trade WHERE id=:t"
+        ), {"t": r.trade_id}).scalar()
+        assert stamped == 4242
+
+
+def test_promote_one_without_candidate_id_is_null(session_factory, options_enabled):
+    """Backward-compat — writers with no candidate leave the link NULL."""
+    with session_factory() as s:
+        pid = _seed_portfolio(s)
+        req, _ = _spread_request()   # no strategy_candidate_id
+        r = canary_engine.promote_one(
+            s, portfolio_id=pid, request=req,
+            proposal_hash=_hash(pid, req), now=NOW)
+        s.commit()
+        assert r.status == "promoted"
+        stamped = s.execute(text(
+            "SELECT strategy_candidate_id FROM options_paper_trade WHERE id=:t"
+        ), {"t": r.trade_id}).scalar()
+        assert stamped is None
+
+
+def test_candidate_attribution_join(session_factory, options_enabled):
+    """confidence + confidence_v2 join to the executed trade via the link."""
+    from apps.api.src.options import analytics_queries
+    with session_factory() as s:
+        # options_strategy_candidate is migration-managed and absent from the
+        # create_all metadata; stub the columns the attribution join reads.
+        s.execute(text(
+            """
+            CREATE TABLE IF NOT EXISTS options_strategy_candidate (
+                id BIGINT PRIMARY KEY,
+                confidence NUMERIC,
+                diagnostics JSONB
+            )
+            """
+        ))
+        s.execute(text(
+            "DELETE FROM options_strategy_candidate WHERE id=:i"), {"i": 9001})
+        s.execute(text(
+            "INSERT INTO options_strategy_candidate (id, confidence, diagnostics) "
+            "VALUES (:i, :c, :d)"
+        ), {"i": 9001, "c": Decimal("0.64"),
+            "d": json.dumps({"confidence_v2": 0.71})})
+        pid = _seed_portfolio(s)
+        req, _ = _spread_request()
+        req = replace(req, strategy_candidate_id=9001)
+        r = canary_engine.promote_one(
+            s, portfolio_id=pid, request=req,
+            proposal_hash=_hash(pid, req), now=NOW)
+        s.commit()
+        assert r.status == "promoted"
+
+        rows = analytics_queries.candidate_attribution(s)
+        match = [x for x in rows if x["candidate_id"] == 9001]
+        assert len(match) == 1
+        assert match[0]["trade_id"] == r.trade_id
+        assert match[0]["candidate_confidence"] == 0.64
+        assert match[0]["confidence_v2"] == 0.71

@@ -146,6 +146,12 @@ class OptionTradeProposal:
     fees_total_dollars: Decimal = field(default_factory=lambda: Decimal("0"))
     paper_only: bool = True
 
+    # MP1A — outcome-loop attribution. Originating
+    # options_strategy_candidate.id. EXCLUDED from proposal_hash (provenance,
+    # not identity) — see proposal_hash(); None when the writer has no
+    # candidate to attribute (e.g. manual replay of legacy proposals).
+    strategy_candidate_id: int | None = None
+
 
 # ---------------------------------------------------------------------------
 # Hash + write
@@ -257,6 +263,7 @@ def persist_option(
         fees_total_dollars=proposal.fees_total_dollars,
         fill_model_version=proposal.fill_model_version,
         proposal_hash=fp,
+        strategy_candidate_id=proposal.strategy_candidate_id,  # MP1A attribution
         paper_only=True,  # FORCED — see docstring
     )
     session.add(trade)
@@ -349,6 +356,7 @@ def persist_option_from_dicts(
     breakeven_lower: Decimal | None = None,
     breakeven_upper: Decimal | None = None,
     fees_total_dollars: Decimal | None = None,
+    strategy_candidate_id: int | None = None,
 ) -> tuple[int, str]:
     """Convenience wrapper for callers that already build leg dicts.
 
@@ -398,5 +406,6 @@ def persist_option_from_dicts(
         breakeven_lower=breakeven_lower,
         breakeven_upper=breakeven_upper,
         fees_total_dollars=fees_total_dollars or Decimal("0"),
+        strategy_candidate_id=strategy_candidate_id,  # MP1A attribution
     )
     return persist_option(session, prop)

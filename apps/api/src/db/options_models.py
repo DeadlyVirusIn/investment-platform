@@ -248,6 +248,15 @@ class OptionsPaperTrade(Base):
     # P6D.19 — widened 32->64: canary positions.proposal_hash is a 64-char
     # SHA-256 hex digest (migration 093).
     proposal_hash: Mapped[str | None] = mapped_column(String(64))
+    # MP1A — outcome-loop attribution. Links an executed paper trade back to
+    # the options_strategy_candidate (and thus its confidence /
+    # diagnostics->confidence_v2) that produced it. NULL on rows pre-dating
+    # MP1A and on writers that don't carry a candidate. Deliberately NOT a
+    # SQLAlchemy ForeignKey here: options_strategy_candidate is
+    # migration-managed and absent from Base.metadata, so a declared FK would
+    # break create_all in the test harness. The real FK constraint
+    # (fk_options_paper_trade_strategy_candidate) lives in migration 099.
+    strategy_candidate_id: Mapped[int | None] = mapped_column(BigInteger)
     paper_only: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True,
     )
@@ -309,6 +318,11 @@ class OptionsPaperTrade(Base):
         Index(
             "ix_options_paper_trade_underlying_status",
             "underlying", "status",
+        ),
+        # MP1A — attribution lookup (mirrors migration 099 index).
+        Index(
+            "ix_options_paper_trade_strategy_candidate_id",
+            "strategy_candidate_id",
         ),
     )
 

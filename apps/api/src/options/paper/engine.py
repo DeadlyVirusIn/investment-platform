@@ -75,6 +75,10 @@ class TradeRequest:
     legs: tuple[LegSpec, ...]
     quotes_by_symbol: dict[str, OptionChainQuote]
     rationale_note: str | None = None
+    # MP1A — originating options_strategy_candidate.id, threaded from the
+    # selector so the executed trade can be attributed back to the candidate
+    # (and its confidence / confidence_v2). None for non-candidate writers.
+    strategy_candidate_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -593,6 +597,7 @@ def _open_trade_in_session(
         risk=risk,
         now_utc=now,
         proposal_hash=proposal_hash,
+        strategy_candidate_id=req.strategy_candidate_id,  # MP1A attribution
     )
     for idx, (leg, f, q) in enumerate(zip(req.legs, fills, [
         req.quotes_by_symbol[leg.option_symbol] for leg in req.legs
@@ -626,6 +631,7 @@ def _insert_trade_row(
     risk: RiskMetrics,
     now_utc: datetime.datetime,
     proposal_hash: str | None = None,
+    strategy_candidate_id: int | None = None,
 ) -> int:
     row = session.execute(text(
         """
@@ -634,13 +640,15 @@ def _insert_trade_row(
             status, opened_at, entry_credit_dollars,
             fees_total_dollars, max_loss_dollars, max_profit_dollars,
             breakeven_lower, breakeven_upper,
-            fill_model_version, paper_only, proposal_hash
+            fill_model_version, paper_only, proposal_hash,
+            strategy_candidate_id
         ) VALUES (
             :underlying, :strategy_name, :strategy_version,
             :status, :opened_at, :entry_credit_dollars,
             :fees_total_dollars, :max_loss_dollars, :max_profit_dollars,
             :breakeven_lower, :breakeven_upper,
-            :fill_model_version, TRUE, :proposal_hash
+            :fill_model_version, TRUE, :proposal_hash,
+            :strategy_candidate_id
         )
         RETURNING id
         """
@@ -658,6 +666,7 @@ def _insert_trade_row(
         "breakeven_upper": risk.breakeven_upper,
         "fill_model_version": FILL_MODEL_VERSION,
         "proposal_hash": proposal_hash,
+        "strategy_candidate_id": strategy_candidate_id,  # MP1A attribution
     }).one()
     return int(row.id)
 

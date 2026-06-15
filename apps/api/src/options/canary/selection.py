@@ -168,6 +168,7 @@ def _candidate_legs(session: Session, candidate_id: int) -> list[dict]:
 def _build_request(
     *, underlying: str, strategy: str, legs_rows: list[dict],
     quotes: dict[str, OptionChainQuote],
+    candidate_id: int | None = None,
 ) -> TradeRequest:
     legs = tuple(
         LegSpec(
@@ -183,6 +184,9 @@ def _build_request(
         underlying=underlying, strategy_name=strategy,
         strategy_version=STRATEGY_VERSION, legs=legs,
         quotes_by_symbol=quotes_by_symbol,
+        # MP1A — attribution: carry the originating candidate id onto the
+        # request so the executed trade row records it.
+        strategy_candidate_id=candidate_id,
     )
 
 
@@ -310,7 +314,8 @@ def _load_promotable_requests(
                 _bump(skip_counts, "other")
                 continue   # unpriced or unfillable leg → skip
             req = _build_request(underlying=c["underlying"], strategy=strategy,
-                                 legs_rows=legs_rows, quotes=quotes)
+                                 legs_rows=legs_rows, quotes=quotes,
+                                 candidate_id=c["id"])
             # P6D.33A economic viability — entry credit estimated from the
             # SAME conservative fills the engine would use at open
             # (SELL fills − BUY fills, ×100×qty); max_loss via compute_risk;

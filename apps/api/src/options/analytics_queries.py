@@ -548,6 +548,56 @@ def job_runs(session: Session, *, limit: int = 10) -> list[dict[str, Any]]:
     ]
 
 
+def candidate_attribution(
+    session: Session, *, limit: int = 200,
+) -> list[dict[str, Any]]:
+    """MP1A — proves the first closed outcome-feedback join (SELECT-only).
+
+    Joins each executed options paper trade back to the strategy candidate
+    that produced it, exposing the candidate's legacy `confidence` and its
+    shadow `confidence_v2` (from diagnostics) alongside the trade's realized
+    P&L and close time. Only rows with a stamped strategy_candidate_id appear
+    (NULL/pre-MP1A trades are unattributable and excluded).
+    """
+    rows = session.execute(text(
+        """
+        SELECT t.id                                       AS trade_id,
+               t.strategy_candidate_id                    AS candidate_id,
+               c.confidence                               AS candidate_confidence,
+               (c.diagnostics ->> 'confidence_v2')::numeric AS confidence_v2,
+               t.status                                   AS status,
+               t.realized_pnl_dollars                     AS realized_pnl_dollars,
+               t.opened_at                                AS opened_at,
+               t.closed_at                                AS closed_at
+          FROM options_paper_trade t
+          JOIN options_strategy_candidate c
+            ON c.id = t.strategy_candidate_id
+         WHERE t.strategy_candidate_id IS NOT NULL
+         ORDER BY t.closed_at DESC NULLS LAST, t.id DESC
+         LIMIT :limit
+        """
+    ), {"limit": _coerce_int(limit, 200)}).mappings().all()
+    return [
+        {
+            "trade_id":             r["trade_id"],
+            "candidate_id":         r["candidate_id"],
+            "candidate_confidence": (float(r["candidate_confidence"])
+                                     if r["candidate_confidence"] is not None
+                                     else None),
+            "confidence_v2":        (float(r["confidence_v2"])
+                                     if r["confidence_v2"] is not None
+                                     else None),
+            "status":               r["status"],
+            "realized_pnl_dollars": (float(r["realized_pnl_dollars"])
+                                     if r["realized_pnl_dollars"] is not None
+                                     else None),
+            "opened_at":            r["opened_at"].isoformat() if r["opened_at"] else None,
+            "closed_at":            r["closed_at"].isoformat() if r["closed_at"] else None,
+        }
+        for r in rows
+    ]
+
+
 __all__ = [
     "integrity_status",
     "daily_counts",
@@ -559,4 +609,5 @@ __all__ = [
     "learning_readiness",
     "scheduler_rows",
     "job_runs",
+    "candidate_attribution",
 ]
