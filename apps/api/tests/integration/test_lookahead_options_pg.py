@@ -29,6 +29,8 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.db.options_models import OptionsChainSnapshot
 from apps.api.src.analytics.lookahead import max_input_ts_le_decision
+# QW1-FIX.B — exercise the real bounded strike-ladder selector.
+from apps.api.src.options.strategy_candidates.legs import _fetch_ladder
 
 pytestmark = pytest.mark.integration
 
@@ -93,3 +95,48 @@ def test_chain_selection_respects_decision_boundary(pg_session: Session) -> None
     assert sel.date() == dt.date(2026, 6, 14)  # the pre-run_date snapshot
     run_decision = dt.datetime(2026, 6, 15, 23, 59, 59, tzinfo=dt.timezone.utc)
     assert max_input_ts_le_decision(run_decision, [sel])["ok"] is True
+
+
+# --- QW1-FIX.B: strike-ladder (_fetch_ladder) lookahead ---
+
+def _seed_ladder(pg_session: Session, snap_at: dt.datetime, strikes) -> None:
+    for k in strikes:
+        pg_session.add(OptionsChainSnapshot(
+            snapshot_at_utc=snap_at, underlying="SPY",
+            expiry=dt.date(2026, 7, 18), strike=Decimal(str(k)),
+            option_type="PUT",
+            option_symbol=f"SPY260718P{int(k * 1000):08d}",
+            bid=Decimal("0.95"), ask=Decimal("1.05"), mid=Decimal("1.00"),
+            delta=Decimal("-0.30"), quote_age_seconds=2, provider="qw1b-test",
+        ))
+
+
+def test_strike_ladder_bounded_by_run_date(pg_session: Session) -> None:
+    """QW1-FIX.B: _fetch_ladder(as_of=run_date) returns the on-or-before
+    ladder, never the post-run_date one."""
+    _seed_ladder(pg_session, BEFORE, [435, 440])
+    _seed_ladder(pg_session, AFTER, [435, 440])
+    pg_session.commit()
+    ladder = _fetch_ladder(
+        pg_session, "SPY", dt.date(2026, 7, 18), "PUT", as_of=RUN_DATE,
+    )
+    assert ladder  # non-empty
+    for row in ladder:
+        assert row.priced_as_of.date() <= RUN_DATE
+        assert row.priced_as_of.date() == dt.date(2026, 6, 14)  # before ladder
+
+
+def test_unbounded_ladder_would_leak(pg_session: Session) -> None:
+    """Regression guard: the OLD unbounded MAX(snapshot_at_utc) picks the
+    post-run_date ladder. Proves the QW1-FIX.B bound is load-bearing."""
+    _seed_ladder(pg_session, BEFORE, [435, 440])
+    _seed_ladder(pg_session, AFTER, [435, 440])
+    pg_session.commit()
+    sel = pg_session.execute(text(
+        """
+        SELECT MAX(snapshot_at_utc) FROM options_chain_snapshot
+         WHERE underlying = 'SPY' AND expiry = DATE '2026-07-18'
+           AND option_type = 'PUT'
+        """
+    )).scalar()
+    assert sel.date() == dt.date(2026, 6, 16)  # unbounded MAX -> future -> leak

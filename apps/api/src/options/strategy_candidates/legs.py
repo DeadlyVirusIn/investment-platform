@@ -76,20 +76,30 @@ class _Row:
 
 def _fetch_ladder(
     session: Session, underlying: str, expiry: dt.date, option_type: str,
+    as_of: dt.date,
 ) -> list[_Row]:
-    """Latest-snapshot strike ladder for one underlying/expiry/type,
-    ascending by strike. Only rows with a usable mid are returned."""
+    """Strike ladder for one underlying/expiry/type from the latest snapshot
+    ON OR BEFORE ``as_of``, ascending by strike. Only rows with a usable mid
+    are returned.
+
+    QW1-FIX.B: bounded to as_of (the candidate's run_date) so replay/backtest
+    never materializes legs from a FUTURE ladder. Live = no-op (latest
+    snapshot is same-day). The bound is applied to BOTH the outer filter and
+    the inner MAX() so the newest is taken within the on-or-before set."""
     rows = session.execute(text(
         """
         SELECT strike, option_symbol, bid, ask, mid, delta, snapshot_at_utc
         FROM options_chain_snapshot
         WHERE underlying = :u AND expiry = :e AND option_type = :ot
+          AND (snapshot_at_utc AT TIME ZONE 'UTC')::date <= :as_of
           AND snapshot_at_utc = (
             SELECT MAX(snapshot_at_utc) FROM options_chain_snapshot
-            WHERE underlying = :u AND expiry = :e AND option_type = :ot)
+            WHERE underlying = :u AND expiry = :e AND option_type = :ot
+              AND (snapshot_at_utc AT TIME ZONE 'UTC')::date <= :as_of)
         ORDER BY strike
         """
-    ), {"u": underlying, "e": expiry, "ot": option_type}).mappings().all()
+    ), {"u": underlying, "e": expiry, "ot": option_type,
+        "as_of": as_of}).mappings().all()
     # Stage 2A.1 — keep ALL listed strikes (including unquoted rows) so the
     # protective leg can be the STRICTLY adjacent listed strike. mid may be
     # None; callers treat a null-mid adjacent strike as incomplete (economics
@@ -110,11 +120,14 @@ def _fetch_ladder(
 
 def _ladder(
     session: Session, cache: dict, underlying: str, expiry: dt.date,
-    option_type: str,
+    option_type: str, as_of: dt.date,
 ) -> list[_Row]:
-    key = (underlying, str(expiry), option_type)
+    # QW1-FIX.B: as_of is part of the cache key so a multi-run_date pass can
+    # never reuse a ladder resolved for a different decision date.
+    key = (underlying, str(expiry), option_type, str(as_of))
     if key not in cache:
-        cache[key] = _fetch_ladder(session, underlying, expiry, option_type)
+        cache[key] = _fetch_ladder(
+            session, underlying, expiry, option_type, as_of)
     return cache[key]
 
 
@@ -151,7 +164,9 @@ def _credit_legs(
     """Short = the engine's accepted strike; long = next listed strike on
     the protective side (1-strike wide). PUT spread protects below; CALL
     spread protects above."""
-    ladder = _ladder(session, cache, obs.underlying, obs.expiration, option_type)
+    ladder = _ladder(
+        session, cache, obs.underlying, obs.expiration, option_type,
+        obs.run_date)
     if not ladder:
         return []
     i = _index_of_strike(ladder, float(obs.strike))
@@ -181,8 +196,8 @@ def _iron_condor_legs(
     short at the existing ~0.30 delta target; 1-strike wings either side."""
     underlying, expiry = obs.underlying, obs.expiration
     anchor_type = (obs.option_type or "").upper()  # 'PUT' | 'CALL'
-    puts = _ladder(session, cache, underlying, expiry, "PUT")
-    calls = _ladder(session, cache, underlying, expiry, "CALL")
+    puts = _ladder(session, cache, underlying, expiry, "PUT", obs.run_date)
+    calls = _ladder(session, cache, underlying, expiry, "CALL", obs.run_date)
     if not puts or not calls:
         return []
 

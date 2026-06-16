@@ -17,6 +17,8 @@ from apps.api.src.options.strategy_candidates.legs import (  # noqa: E402
 
 PAF = dt.datetime(2026, 6, 1, 14, 0, 0)
 EXP = dt.date(2026, 6, 18)
+# QW1-FIX.B — candidate decision date; now part of the ladder cache key.
+RUN_DATE = dt.date(2026, 6, 17)
 
 
 def _row(strike: float, mid: float, delta: float, sym: str = "X") -> _Row:
@@ -28,7 +30,8 @@ def _row(strike: float, mid: float, delta: float, sym: str = "X") -> _Row:
 
 
 def _obs(**kw):
-    base = dict(underlying="QQQ", expiration=EXP, strike=720.0, option_type="put")
+    base = dict(underlying="QQQ", expiration=EXP, strike=720.0,
+                option_type="put", run_date=RUN_DATE)
     base.update(kw)
     return SimpleNamespace(**base)
 
@@ -39,7 +42,7 @@ def _cand(rule_id: str):
 
 def test_put_credit_spread_two_legs():
     puts = [_row(719, 6.565, -0.235), _row(720, 6.815, -0.280), _row(721, 7.065, -0.289)]
-    cache = {("QQQ", str(EXP), "PUT"): puts}
+    cache = {("QQQ", str(EXP), "PUT", str(RUN_DATE)): puts}
     legs = materialize_legs(None, _obs(strike=720.0, option_type="put"),
                             _cand("SHORT_PUT_CREDIT_SPREAD"), cache)
     assert [l.role for l in legs] == ["short_put", "long_put"]
@@ -50,7 +53,7 @@ def test_put_credit_spread_two_legs():
 
 def test_call_credit_spread_two_legs():
     calls = [_row(765, 5.165, 0.382), _row(766, 4.72, 0.363), _row(767, 4.315, 0.340)]
-    cache = {("SPY", str(EXP), "CALL"): calls}
+    cache = {("SPY", str(EXP), "CALL", str(RUN_DATE)): calls}
     legs = materialize_legs(None, _obs(underlying="SPY", strike=765.0, option_type="call"),
                             _cand("SHORT_CALL_CREDIT_SPREAD"), cache)
     assert [l.role for l in legs] == ["short_call", "long_call"]
@@ -62,7 +65,7 @@ def test_iron_condor_four_legs_anchored_call_side():
             _row(749, 5.20, -0.314), _row(750, 5.48, -0.330)]
     calls = [_row(764, 5.625, 0.398), _row(765, 5.165, 0.382),
              _row(766, 4.72, 0.363), _row(767, 4.315, 0.340)]
-    cache = {("SPY", str(EXP), "PUT"): puts, ("SPY", str(EXP), "CALL"): calls}
+    cache = {("SPY", str(EXP), "PUT", str(RUN_DATE)): puts, ("SPY", str(EXP), "CALL", str(RUN_DATE)): calls}
     # anchor = accepted short CALL 765; put short chosen by ~0.30 delta → 748
     legs = materialize_legs(None, _obs(underlying="SPY", strike=765.0, option_type="call"),
                             _cand("IRON_CONDOR"), cache)
@@ -79,7 +82,7 @@ def test_iron_condor_four_legs_anchored_call_side():
 def test_incomplete_when_wing_missing():
     # short put at the lowest listed strike → no protective wing below → omit
     puts = [_row(720, 6.815, -0.28), _row(721, 7.065, -0.289)]
-    cache = {("QQQ", str(EXP), "PUT"): puts}
+    cache = {("QQQ", str(EXP), "PUT", str(RUN_DATE)): puts}
     legs = materialize_legs(None, _obs(strike=720.0, option_type="put"),
                             _cand("SHORT_PUT_CREDIT_SPREAD"), cache)
     assert legs == []
@@ -87,7 +90,7 @@ def test_incomplete_when_wing_missing():
 
 def test_short_strike_absent_from_ladder():
     puts = [_row(700, 3.0, -0.16)]
-    cache = {("QQQ", str(EXP), "PUT"): puts}
+    cache = {("QQQ", str(EXP), "PUT", str(RUN_DATE)): puts}
     legs = materialize_legs(None, _obs(strike=720.0, option_type="put"),
                             _cand("SHORT_PUT_CREDIT_SPREAD"), cache)
     assert legs == []
