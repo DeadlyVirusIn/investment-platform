@@ -45,6 +45,7 @@ import datetime as dt
 import json
 import os
 import sys
+from dataclasses import dataclass, field
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -139,6 +140,200 @@ def _latest_close(session, asset_id: str, as_of: dt.date) -> tuple[
     return row[0], Decimal(str(row[1]))
 
 
+@dataclass
+class ExitCycleResult:
+    as_of: dt.date
+    take_profit_pct: Decimal
+    stop_loss_pct: Decimal
+    max_hold_days: int
+    force_close_all: bool
+    scanned: int = 0
+    closed: list[dict[str, Any]] = field(default_factory=list)
+    skipped: list[dict[str, Any]] = field(default_factory=list)
+    realized_pnl_total: Decimal = Decimal("0")
+
+
+def run_exit_cycle(
+    session,
+    *,
+    as_of: dt.date,
+    portfolio_id: str | None = None,
+    take_profit_pct: Decimal | None = None,
+    stop_loss_pct: Decimal | None = None,
+    max_hold_days: int | None = None,
+    commit: bool = True,
+    force_close_all: bool = False,
+    snapshot_equity: bool = False,
+) -> ExitCycleResult:
+    """Evaluate take-profit / stop-loss / max-hold on open paper positions and
+    (when ``commit``) close them via the submit_trade SELL path.
+
+    Operates on the PASSED ``session``. ``portfolio_id=None`` scans every open
+    position across all active portfolios (legacy CLI behaviour); a value
+    scopes the scan to that one portfolio (replay). Rule params fall back to
+    the PAPER_* env defaults when None. Each close runs in a SAVEPOINT so a
+    rejected/duplicate sell never poisons the surrounding transaction (the
+    P0-3B.3 isolation, preserved without per-position sub-sessions). The
+    caller owns the outer commit. CONFIRM_ENV is NOT consulted here — that
+    operator gate lives only in the CLI ``main``.
+    """
+    from sqlalchemy.exc import IntegrityError
+    from apps.api.src.db.models import PaperPortfolio
+    from apps.api.src.domain.paper_trading.paper_execution import (
+        submit_trade, PaperTradeRejected,
+    )
+    from apps.api.src.domain.paper_trading.paper_service import (
+        snapshot_equity_now,
+    )
+
+    take_profit = (
+        take_profit_pct if take_profit_pct is not None
+        else _env_decimal("PAPER_TAKE_PROFIT_PCT", Decimal("0.08"))
+    )
+    stop_loss = (
+        stop_loss_pct if stop_loss_pct is not None
+        else _env_decimal("PAPER_STOP_LOSS_PCT", Decimal("0.04"))
+    )
+    max_hold = (
+        max_hold_days if max_hold_days is not None
+        else _env_int("PAPER_MAX_HOLD_DAYS", 10)
+    )
+
+    submitted_at = dt.datetime.combine(
+        as_of, dt.time(15, 0), tzinfo=dt.timezone.utc,
+    )
+
+    res = ExitCycleResult(
+        as_of=as_of, take_profit_pct=take_profit, stop_loss_pct=stop_loss,
+        max_hold_days=max_hold, force_close_all=force_close_all,
+    )
+
+    sql = """
+        SELECT pp.id, pp.portfolio_id, pp.asset_id,
+               pp.quantity, pp.avg_cost, pp.opened_at,
+               a.symbol, p.is_active, p.name
+        FROM paper_position pp
+        JOIN paper_portfolio p ON p.id = pp.portfolio_id
+        JOIN asset a ON a.id = pp.asset_id
+        WHERE pp.is_open = TRUE AND p.is_active = TRUE
+    """
+    params: dict[str, Any] = {}
+    if portfolio_id is not None:
+        sql += " AND pp.portfolio_id = :pid"
+        params["pid"] = portfolio_id
+    rows = session.execute(text(sql), params).all()
+
+    for r in rows:
+        res.scanned += 1
+        symbol = r.symbol
+        pid = r.portfolio_id
+        asset_id = r.asset_id
+        qty = Decimal(str(r.quantity))
+        basis = Decimal(str(r.avg_cost))
+        opened_at = r.opened_at
+        held_days = _trading_days_between(opened_at.date(), as_of)
+
+        lc = _latest_close(session, asset_id, as_of)
+        if lc is None:
+            res.skipped.append({
+                "portfolio_id": pid, "symbol": symbol,
+                "reason": "no_price_bar_for_mark",
+            })
+            continue
+        last_d, last_px = lc
+        unrl_pct = (last_px - basis) / basis
+
+        reason: str | None = None
+        if force_close_all:
+            reason = "force_close_all_operator_override"
+        elif unrl_pct >= take_profit:
+            reason = f"take_profit({unrl_pct:.4f} >= {take_profit})"
+        elif unrl_pct <= -stop_loss:
+            reason = f"stop_loss({unrl_pct:.4f} <= {-stop_loss})"
+        elif held_days >= max_hold:
+            reason = f"max_hold({held_days}d >= {max_hold}d)"
+
+        if reason is None:
+            res.skipped.append({
+                "portfolio_id": pid, "symbol": symbol,
+                "unrealized_pct": float(unrl_pct),
+                "held_days": held_days,
+                "reason": "no_rule_triggered",
+            })
+            continue
+
+        if not commit:
+            res.closed.append({
+                "portfolio_id": pid, "symbol": symbol,
+                "asset_id": asset_id, "qty": float(qty),
+                "basis": float(basis), "last_close": float(last_px),
+                "last_close_date": last_d.isoformat(),
+                "unrealized_pct": float(unrl_pct),
+                "held_days": held_days,
+                "reason": reason,
+                "result": "dry_run_planned",
+            })
+            continue
+
+        try:
+            with session.begin_nested():
+                result = submit_trade(
+                    session,
+                    portfolio_id=pid, asset_id=asset_id,
+                    side="sell", quantity=qty,
+                    submitted_at=submitted_at,
+                    reason=f"exit_cycle: {reason}",
+                )
+                if snapshot_equity:
+                    pf = session.get(PaperPortfolio, pid)
+                    if pf is not None:
+                        snapshot_equity_now(
+                            session, pf,
+                            as_of=submitted_at.replace(hour=22),
+                            source="live",
+                        )
+            realized = Decimal(str(result.realized_pnl or 0))
+            res.realized_pnl_total += realized
+            res.closed.append({
+                "portfolio_id": pid, "symbol": symbol,
+                "trade_id": str(result.trade_id),
+                "qty": float(qty), "basis": float(basis),
+                "fill_price": float(result.fill_price),
+                "fill_ts": result.fill_ts.isoformat(),
+                "realized_pnl": float(realized),
+                "reason": reason,
+                "result": "submitted",
+            })
+            logger.info(
+                "[exit-cycle.submitted] {} {} qty={} basis={} "
+                "fill={} pnl={:.4f} reason={}",
+                pid[:8], symbol, qty, basis,
+                result.fill_price, realized, reason,
+            )
+        except PaperTradeRejected as exc:
+            res.skipped.append({
+                "portfolio_id": pid, "symbol": symbol,
+                "reason": f"exec_rejected:{exc}",
+                "rule": reason,
+            })
+        except IntegrityError as exc:
+            # P0-3B.3 — duplicate engine sell blocked by
+            # ux_paper_trade_engine_sell_day (migration 098). The SAVEPOINT
+            # rolls back only this close; the loop continues.
+            res.skipped.append({
+                "portfolio_id": pid, "symbol": symbol,
+                "reason": "idempotency_unique_violation (migration 098): "
+                          "duplicate engine sell blocked",
+                "rule": reason,
+            })
+            logger.error(
+                "[exit-cycle] IDEMPOTENCY VIOLATION {} {} rule={}: {}",
+                pid[:8], symbol, reason, exc,
+            )
+
+    return res
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _argparse().parse_args(argv)
     if args.as_of:
@@ -179,155 +374,21 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     from apps.api.src.db import SessionLocal
-    from apps.api.src.db.models import (
-        Asset, PaperPortfolio, PaperPosition,
-    )
-    from sqlalchemy.exc import IntegrityError
-    from apps.api.src.domain.paper_trading.paper_execution import (
-        submit_trade, PaperTradeRejected,
-    )
-    from apps.api.src.domain.paper_trading.paper_service import (
-        snapshot_equity_now,
-    )
-
-    submitted_at = dt.datetime.combine(
-        as_of, dt.time(15, 0), tzinfo=dt.timezone.utc,
-    )
-
-    closed: list[dict[str, Any]] = []
-    skipped: list[dict[str, Any]] = []
-    n_scanned = 0
-    realized_pnl_total = Decimal("0")
 
     with SessionLocal() as session:
-        rows = session.execute(text("""
-            SELECT pp.id, pp.portfolio_id, pp.asset_id,
-                   pp.quantity, pp.avg_cost, pp.opened_at,
-                   a.symbol, p.is_active, p.name
-            FROM paper_position pp
-            JOIN paper_portfolio p ON p.id = pp.portfolio_id
-            JOIN asset a ON a.id = pp.asset_id
-            WHERE pp.is_open = TRUE AND p.is_active = TRUE
-        """)).all()
-
-    for r in rows:
-        n_scanned += 1
-        symbol = r.symbol
-        portfolio_id = r.portfolio_id
-        asset_id = r.asset_id
-        qty = Decimal(str(r.quantity))
-        basis = Decimal(str(r.avg_cost))
-        opened_at = r.opened_at
-        held_days = _trading_days_between(
-            opened_at.date(), as_of,
+        res = run_exit_cycle(
+            session,
+            as_of=as_of,
+            portfolio_id=None,
+            take_profit_pct=take_profit,
+            stop_loss_pct=stop_loss,
+            max_hold_days=max_hold_days,
+            commit=args.commit,
+            force_close_all=args.force_close_all,
+            snapshot_equity=True,
         )
-
-        # Latest close (for diagnostics) — actual fill is next-bar.
-        with SessionLocal() as s:
-            lc = _latest_close(s, asset_id, as_of)
-        if lc is None:
-            skipped.append({
-                "portfolio_id": portfolio_id, "symbol": symbol,
-                "reason": "no_price_bar_for_mark",
-            })
-            continue
-        last_d, last_px = lc
-        unrl_pct = (last_px - basis) / basis
-
-        reason: str | None = None
-        if args.force_close_all:
-            reason = "force_close_all_operator_override"
-        elif unrl_pct >= take_profit:
-            reason = (
-                f"take_profit({unrl_pct:.4f} >= {take_profit})"
-            )
-        elif unrl_pct <= -stop_loss:
-            reason = (
-                f"stop_loss({unrl_pct:.4f} <= {-stop_loss})"
-            )
-        elif held_days >= max_hold_days:
-            reason = (
-                f"max_hold({held_days}d >= {max_hold_days}d)"
-            )
-
-        if reason is None:
-            skipped.append({
-                "portfolio_id": portfolio_id, "symbol": symbol,
-                "unrealized_pct": float(unrl_pct),
-                "held_days": held_days,
-                "reason": "no_rule_triggered",
-            })
-            continue
-
-        if not args.commit:
-            closed.append({
-                "portfolio_id": portfolio_id, "symbol": symbol,
-                "asset_id": asset_id, "qty": float(qty),
-                "basis": float(basis), "last_close": float(last_px),
-                "last_close_date": last_d.isoformat(),
-                "unrealized_pct": float(unrl_pct),
-                "held_days": held_days,
-                "reason": reason,
-                "result": "dry_run_planned",
-            })
-            continue
-
-        try:
-            with SessionLocal() as s:
-                result = submit_trade(
-                    s,
-                    portfolio_id=portfolio_id, asset_id=asset_id,
-                    side="sell", quantity=qty,
-                    submitted_at=submitted_at,
-                    reason=f"exit_cycle: {reason}",
-                )
-                pf = s.get(PaperPortfolio, portfolio_id)
-                if pf is not None:
-                    snapshot_equity_now(
-                        s, pf,
-                        as_of=submitted_at.replace(hour=22),
-                        source="live",
-                    )
-                s.commit()
-            realized = Decimal(str(result.realized_pnl or 0))
-            realized_pnl_total += realized
-            closed.append({
-                "portfolio_id": portfolio_id, "symbol": symbol,
-                "trade_id": str(result.trade_id),
-                "qty": float(qty), "basis": float(basis),
-                "fill_price": float(result.fill_price),
-                "fill_ts": result.fill_ts.isoformat(),
-                "realized_pnl": float(realized),
-                "reason": reason,
-                "result": "submitted",
-            })
-            logger.info(
-                "[exit-cycle.submitted] {} {} qty={} basis={} "
-                "fill={} pnl={:.4f} reason={}",
-                portfolio_id[:8], symbol, qty, basis,
-                result.fill_price, realized, reason,
-            )
-        except PaperTradeRejected as exc:
-            skipped.append({
-                "portfolio_id": portfolio_id, "symbol": symbol,
-                "reason": f"exec_rejected:{exc}",
-                "rule": reason,
-            })
-        except IntegrityError as exc:
-            # P0-3B.3 — duplicate engine sell blocked by
-            # ux_paper_trade_engine_sell_day (migration 098). Each sell
-            # runs in its own session/transaction, so only this close is
-            # lost; the loop continues to the remaining positions.
-            skipped.append({
-                "portfolio_id": portfolio_id, "symbol": symbol,
-                "reason": "idempotency_unique_violation (migration 098): "
-                          "duplicate engine sell blocked",
-                "rule": reason,
-            })
-            logger.error(
-                "[exit-cycle] IDEMPOTENCY VIOLATION {} {} rule={}: {}",
-                portfolio_id[:8], symbol, reason, exc,
-            )
+        if args.commit:
+            session.commit()
 
     summary = {
         "schema_version": 1,
@@ -339,13 +400,13 @@ def main(argv: list[str] | None = None) -> int:
             "max_hold_days": max_hold_days,
             "force_close_all": args.force_close_all,
         },
-        "scanned": n_scanned,
-        "closed_count": len(closed),
-        "skipped_count": len(skipped),
-        "realized_pnl_total": float(realized_pnl_total),
-        "closed": closed,
-        "skipped": skipped[:50],
-        "skipped_total": len(skipped),
+        "scanned": res.scanned,
+        "closed_count": len(res.closed),
+        "skipped_count": len(res.skipped),
+        "realized_pnl_total": float(res.realized_pnl_total),
+        "closed": res.closed,
+        "skipped": res.skipped[:50],
+        "skipped_total": len(res.skipped),
         "safety": {
             "live_execution_enabled": False,
             "ml_can_affect_trades": False,
@@ -357,7 +418,8 @@ def main(argv: list[str] | None = None) -> int:
     logger.info(
         "[exit-cycle.summary] scanned={} closed={} skipped={} "
         "realized_pnl={:.4f}",
-        n_scanned, len(closed), len(skipped), realized_pnl_total,
+        res.scanned, len(res.closed), len(res.skipped),
+        res.realized_pnl_total,
     )
     ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
     out_path = ARTIFACT_DIR / ARTIFACT_NAME.format(
