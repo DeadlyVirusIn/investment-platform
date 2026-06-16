@@ -129,18 +129,38 @@ def _atr(series: Series, period: int = 14) -> Decimal | None:
 # ---------------------------------------------------------------------------
 
 
-def load_series(session: Session, asset_id: str, days: int = 400) -> Series | None:
-    """Fetch the trailing daily series for an asset from price_bar."""
-    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
-    stmt = (
-        select(PriceBar)
-        .where(
-            PriceBar.asset_id == asset_id,
-            PriceBar.timeframe == "1d",
-            PriceBar.ts >= since,
-        )
-        .order_by(PriceBar.ts.asc())
+def load_series(
+    session: Session,
+    asset_id: str,
+    days: int = 400,
+    *,
+    as_of: dt.date | None = None,
+) -> Series | None:
+    """Fetch the trailing daily series for an asset from price_bar.
+
+    QW2-A: ``as_of`` makes the loader replay-correct. Default (None) is the
+    exact legacy behaviour — trailing ``days`` window anchored to wall-clock
+    now(), no upper bound (live: newest bar is same-day, so harmless). When
+    ``as_of`` is set the window is anchored to the DECISION date instead and
+    an upper bound is added so a past run never sees a bar stamped AFTER the
+    decision date (lookahead). Live callers pass no as_of -> no behaviour
+    change; only replay/backtest callers pass one.
+    """
+    stmt = select(PriceBar).where(
+        PriceBar.asset_id == asset_id,
+        PriceBar.timeframe == "1d",
     )
+    if as_of is None:
+        since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=days)
+        stmt = stmt.where(PriceBar.ts >= since)
+    else:
+        anchor = dt.datetime(
+            as_of.year, as_of.month, as_of.day, tzinfo=dt.timezone.utc
+        )
+        since = anchor - dt.timedelta(days=days)
+        end = anchor + dt.timedelta(days=1)   # exclusive: ts < start of as_of+1
+        stmt = stmt.where(PriceBar.ts >= since, PriceBar.ts < end)
+    stmt = stmt.order_by(PriceBar.ts.asc())
     bars = list(session.execute(stmt).scalars())
     if not bars:
         return None
