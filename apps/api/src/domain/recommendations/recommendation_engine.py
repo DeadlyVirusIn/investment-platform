@@ -138,15 +138,26 @@ def _check_enough_data(series: Series | None, asset: Asset, config: EngineConfig
     return len(series) >= min_bars
 
 
-def _is_stale(series: Series | None) -> bool:
-    """True if the most recent bar in ``series`` is older than STALE_DAYS."""
+def _is_stale(series: Series | None, *, as_of: dt.date | None = None) -> bool:
+    """True if the most recent bar in ``series`` is older than STALE_DAYS.
+
+    BACKTEST-PAPER-2: ``as_of`` makes staleness replay-correct. Default (None)
+    is the exact legacy behaviour — age measured against wall-clock now(). When
+    ``as_of`` is set, the reference is midnight(as_of + 1 day) UTC (end of the
+    decision day) so a historical run does not flag a series as stale merely
+    because real-world time has elapsed since the decision date.
+    """
     if series is None or not series.ts:
         return True
     latest = series.ts[-1]
     if latest.tzinfo is None:
         latest = latest.replace(tzinfo=dt.timezone.utc)
-    age = dt.datetime.now(dt.timezone.utc) - latest
-    return age > dt.timedelta(days=STALE_DAYS)
+    ref = (
+        dt.datetime.now(dt.timezone.utc) if as_of is None
+        else dt.datetime(as_of.year, as_of.month, as_of.day,
+                         tzinfo=dt.timezone.utc) + dt.timedelta(days=1)
+    )
+    return (ref - latest) > dt.timedelta(days=STALE_DAYS)
 
 
 def _compute_confidence(
@@ -232,14 +243,17 @@ def compute_for_asset(
     account_id: str,
     asset_id: str,
     config: EngineConfig,
+    as_of: dt.date | None = None,
 ) -> RecommendationResult:
     asset = session.get(Asset, asset_id)
     if asset is None:
         raise ValueError(f"unknown asset_id: {asset_id}")
 
-    series = load_series(session, asset_id)
+    # BACKTEST-PAPER-2: as_of (default None) bounds the price series and the
+    # staleness reference to the decision date. None = exact live behaviour.
+    series = load_series(session, asset_id, as_of=as_of)
     enough_by_bars = _check_enough_data(series, asset, config)
-    stale = _is_stale(series)
+    stale = _is_stale(series, as_of=as_of)
 
     # Stale data forces Watch; we still compute families for evidence transparency.
     if series is not None:
