@@ -65,19 +65,29 @@ def effective_age_seconds(
 def latest_chain_quotes(
     session: Session, symbols: list[str],
     now: dt.datetime | None = None,
+    *,
+    max_snapshot_at: dt.datetime | None = None,
 ) -> dict[str, OptionChainQuote]:
     """Latest snapshot row per option_symbol → OptionChainQuote. Symbols
     absent from the chain are simply omitted (caller treats as unpriced).
 
     P6D.34A: every rehydrated quote carries effective_age_seconds (true age
-    vs `now`); evaluate_quote prefers it over the stored-at-ingest age."""
+    vs `now`); evaluate_quote prefers it over the stored-at-ingest age.
+
+    QW1-FIX.C2 — when ``max_snapshot_at`` is given (promotion passes the
+    decision moment), snapshots stamped AFTER it are excluded so replay/
+    backtest can't read a future quote. Default None = unbounded (the legacy
+    behaviour) so lifecycle/exit/MTM selection is UNCHANGED."""
     if now is None:
         now = dt.datetime.now(dt.timezone.utc)
     syms = sorted({s for s in symbols if s})
     if not syms:
         return {}
+    bound_clause = (
+        "AND snapshot_at_utc <= :max_snap" if max_snapshot_at is not None else ""
+    )
     rows = session.execute(text(
-        """
+        f"""
         SELECT DISTINCT ON (option_symbol)
                option_symbol, snapshot_at_utc, underlying, expiry, strike,
                option_type, bid, ask, mid, last, volume, open_interest,
@@ -85,9 +95,10 @@ def latest_chain_quotes(
                provider, provider_version
         FROM options_chain_snapshot
         WHERE option_symbol = ANY(:syms)
+          {bound_clause}
         ORDER BY option_symbol, snapshot_at_utc DESC
         """
-    ), {"syms": syms}).mappings().all()
+    ), {"syms": syms, "max_snap": max_snapshot_at}).mappings().all()
     out: dict[str, OptionChainQuote] = {}
     for r in rows:
         out[r["option_symbol"]] = OptionChainQuote(
@@ -260,7 +271,9 @@ def _load_promotable_requests(
                 _bump(skip_counts, "dte_outside_window")
                 continue
             syms = [lr["option_symbol"] for lr in legs_rows]
-            quotes = latest_chain_quotes(s, syms, now=now)
+            # QW1-FIX.C2 — promotion is bounded to the decision moment (now);
+            # lifecycle/exit/MTM call sites stay unbounded (unchanged).
+            quotes = latest_chain_quotes(s, syms, now=now, max_snapshot_at=now)
             # P6D.34D promotion freshness gate — runs BEFORE the fillability
             # loop for correct reason attribution: compute_fill's
             # evaluate_quote already rejects effective age > 60s

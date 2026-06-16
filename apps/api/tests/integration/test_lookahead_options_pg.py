@@ -31,6 +31,8 @@ from apps.api.src.db.options_models import OptionsChainSnapshot
 from apps.api.src.analytics.lookahead import max_input_ts_le_decision
 # QW1-FIX.B — exercise the real bounded strike-ladder selector.
 from apps.api.src.options.strategy_candidates.legs import _fetch_ladder
+# QW1-FIX.C2 — exercise the promotion-only bounded quote selector.
+from apps.api.src.options.canary.selection import latest_chain_quotes
 
 pytestmark = pytest.mark.integration
 
@@ -140,3 +142,41 @@ def test_unbounded_ladder_would_leak(pg_session: Session) -> None:
         """
     )).scalar()
     assert sel.date() == dt.date(2026, 6, 16)  # unbounded MAX -> future -> leak
+
+
+# --- QW1-FIX.C2: promotion-only bounded canary quote selection ---
+
+NOW_TS = dt.datetime(2026, 6, 15, 14, 0, tzinfo=dt.timezone.utc)
+_SYM = "SPY260718P00440000"
+
+
+def _seed_quote(pg_session: Session, snap_at: dt.datetime) -> None:
+    pg_session.add(OptionsChainSnapshot(
+        snapshot_at_utc=snap_at, underlying="SPY",
+        expiry=dt.date(2026, 7, 18), strike=Decimal("440"), option_type="PUT",
+        option_symbol=_SYM, bid=Decimal("1.18"), ask=Decimal("1.22"),
+        mid=Decimal("1.20"), delta=Decimal("-0.30"),
+        quote_age_seconds=2, provider="qw1c-test",
+    ))
+
+
+def test_promotion_quote_bounded_by_now(pg_session: Session) -> None:
+    """QW1-FIX.C2: max_snapshot_at=now picks the on-or-before snapshot;
+    effective age is non-negative."""
+    _seed_quote(pg_session, NOW_TS - dt.timedelta(days=1))   # before now
+    _seed_quote(pg_session, NOW_TS + dt.timedelta(days=1))   # after now
+    pg_session.commit()
+    q = latest_chain_quotes(pg_session, [_SYM], now=NOW_TS, max_snapshot_at=NOW_TS)[_SYM]
+    assert q.snapshot_at_utc <= NOW_TS
+    assert q.snapshot_at_utc == NOW_TS - dt.timedelta(days=1)  # before snapshot
+    assert q.effective_age_seconds >= 0
+
+
+def test_unbounded_quote_default_unchanged_selects_future(pg_session: Session) -> None:
+    """Default (no max_snapshot_at) preserves the legacy newest-wins
+    behaviour -> lifecycle/exit/MTM selection is unchanged."""
+    _seed_quote(pg_session, NOW_TS - dt.timedelta(days=1))
+    _seed_quote(pg_session, NOW_TS + dt.timedelta(days=1))
+    pg_session.commit()
+    q = latest_chain_quotes(pg_session, [_SYM], now=NOW_TS)[_SYM]
+    assert q.snapshot_at_utc == NOW_TS + dt.timedelta(days=1)  # newest/future, as before
