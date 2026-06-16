@@ -28,22 +28,46 @@ from apps.api.src.options.data.chain_ingest import DEFAULT_UNIVERSE
 from apps.api.src.options.features.engine import compute_features_for
 
 
-def _latest_price_bar_close(symbol: str) -> Decimal | None:
+def _latest_price_bar_close(
+    symbol: str,
+    *,
+    session=None,
+    as_of: dt.date | None = None,
+) -> Decimal | None:
     """Latest daily close from price_bar (reuses the stock pipeline's
     bars) as the moneyness spot. Returns None when the symbol has no
     price_bar coverage (e.g. GLD/TLT) — caller falls back to spot=None.
+
+    QW2-B: ``as_of`` makes the spot read replay-correct. Default (None) keeps
+    the legacy unbounded newest-bar selection (live: newest = same-day, so
+    harmless). When set, an upper bound (ts date <= as_of) excludes any bar
+    stamped AFTER the decision date so a replay never sources a future spot
+    (spot feeds persisted moneyness/ATM/strike-distance fields). ``session``
+    lets a caller/test inject a session; when None a SessionLocal is opened
+    and closed internally (legacy). An injected session is NOT closed here.
     """
-    with SessionLocal() as session:
-        row = session.execute(text(
-            """
-            SELECT coalesce(adjusted_close, close)
-            FROM price_bar
-            WHERE asset_id IN (
-                SELECT id FROM asset WHERE symbol = :s LIMIT 1
-            ) AND timeframe = '1d'
-            ORDER BY ts DESC LIMIT 1
-            """
-        ), {"s": symbol}).first()
+    bound = "AND (ts AT TIME ZONE 'UTC')::date <= :as_of" if as_of is not None else ""
+    sql = text(
+        f"""
+        SELECT coalesce(adjusted_close, close)
+        FROM price_bar
+        WHERE asset_id IN (
+            SELECT id FROM asset WHERE symbol = :s LIMIT 1
+        ) AND timeframe = '1d'
+          {bound}
+        ORDER BY ts DESC LIMIT 1
+        """
+    )
+    params = {"s": symbol}
+    if as_of is not None:
+        params["as_of"] = as_of
+    own = session is None
+    s = SessionLocal() if own else session
+    try:
+        row = s.execute(sql, params).first()
+    finally:
+        if own:
+            s.close()
     if row is None or row[0] is None:
         return None
     return Decimal(str(row[0]))
