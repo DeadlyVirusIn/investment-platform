@@ -395,18 +395,30 @@ def persist(
     session: Session,
     result: RecommendationResult,
     decision: "PolicyDecision | None" = None,
+    *,
+    generated_at: dt.datetime | None = None,
+    model_version_override: str | None = None,
 ) -> str:
     """Write Recommendation + evidence + outcome rows. Idempotent on snapshot_hash.
+
+    BACKTEST-PAPER-4: ``generated_at`` and ``model_version_override`` let a
+    replay/backtest caller stamp rows with the DECISION date and a namespaced
+    version (e.g. ``"{engine}+replay:{label}"``). Both default None →
+    byte-identical live behaviour (generated_at = DB default now(),
+    model_version = result.engine_version). The override flows into BOTH the
+    idempotency lookup and the inserted row, so replay rows dedup within their
+    own namespace and never collide with live rows.
 
     Uses the dedicated snapshot_hash column with UNIQUE index on
     (asset_id, model_version, snapshot_hash). Policy adjustments (when
     provided) are stored in rationale JSON alongside the original action
     and confidence.
     """
+    version = model_version_override or result.engine_version
     existing = _find_existing_by_snapshot(
         session,
         asset_id=result.asset_id,
-        engine_version=result.engine_version,
+        engine_version=version,
         snapshot_hash=result.snapshot_hash,
     )
     if existing is not None:
@@ -442,8 +454,9 @@ def persist(
         action=result.action,
         conviction=result.confidence,
         rationale=json.dumps(rationale),
-        model_version=result.engine_version,
+        model_version=version,
         snapshot_hash=result.snapshot_hash,
+        **({"generated_at": generated_at} if generated_at is not None else {}),
     )
     session.add(rec)
     session.flush()
