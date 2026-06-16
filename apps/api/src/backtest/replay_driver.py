@@ -18,10 +18,10 @@ recommendation's opened_by_recommendation_id. Rerun = no-op.
 from __future__ import annotations
 
 import datetime as dt
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db.models import Account, PaperPortfolio, PaperPosition
@@ -41,6 +41,7 @@ from apps.api.src.domain.recommendations.recommendation_engine import (
     load_engine_config,
     persist,
 )
+from scripts.run_paper_exit_cycle import run_exit_cycle
 
 
 @dataclass
@@ -56,6 +57,7 @@ class ReplayDayResult:
     trades_submitted: int
     trades_skipped_existing: int
     rejected: int
+    insufficient_data: int = 0
 
 
 def _get_or_create_account(session: Session, name: str) -> str:
@@ -89,14 +91,22 @@ def replay_one_day(
     starting_cash: Decimal = Decimal("100000"),
     trade_usd: Decimal = Decimal("1000"),
     config: EngineConfig | None = None,
+    account_id: str | None = None,
+    portfolio_id: str | None = None,
 ) -> ReplayDayResult:
-    """Replay one historical decision day through the real paper pipeline."""
+    """Replay one historical decision day through the real paper pipeline.
+
+    ``account_id``/``portfolio_id`` (default None) let a caller (replay_range)
+    pass an already-resolved replay account/portfolio so it is created ONCE
+    across a multi-day run; when None they are get-or-created by name.
+    """
     cfg = config or load_engine_config()
     version = f"{cfg.version}+replay:{run_label}"
     name = f"replay:{run_label}"
 
-    account_id = _get_or_create_account(session, name)
-    portfolio_id = _get_or_create_portfolio(session, name, starting_cash)
+    account_id = account_id or _get_or_create_account(session, name)
+    portfolio_id = portfolio_id or _get_or_create_portfolio(
+        session, name, starting_cash)
 
     # Decision date = midnight(T) UTC; fill submitted at end-of-T so the next
     # bar (T+1) fills (decision uses data through T's close).
@@ -108,7 +118,7 @@ def replay_one_day(
     assets = _universe_assets(session, universe_name, as_of)
 
     recommendations = buys = trades_submitted = 0
-    trades_skipped_existing = rejected = 0
+    trades_skipped_existing = rejected = insufficient_data = 0
 
     for asset in assets:
         result = compute_for_asset(
@@ -121,6 +131,8 @@ def replay_one_day(
             model_version_override=version,
         )
         recommendations += 1
+        if not result.enough_data or result.action == "Watch":
+            insufficient_data += 1
 
         if result.action != "Buy":
             continue
@@ -157,4 +169,140 @@ def replay_one_day(
         assets_evaluated=len(assets), recommendations=recommendations,
         buys=buys, trades_submitted=trades_submitted,
         trades_skipped_existing=trades_skipped_existing, rejected=rejected,
+        insufficient_data=insufficient_data,
+    )
+
+
+@dataclass
+class ReplayRangeResult:
+    start: dt.date
+    end: dt.date
+    run_label: str
+    model_version: str
+    account_id: str
+    portfolio_id: str
+    trading_days: int
+    days: list[dt.date]
+    recommendations: int
+    buys: int
+    trades_submitted: int
+    trades_skipped_existing: int
+    rejected: int
+    exits_closed: int
+    realized_pnl_total: Decimal
+    insufficient_data: int
+    closed_pairs: list[tuple[Decimal | None, Decimal | None]] = field(
+        default_factory=list)
+
+
+def _trading_days(
+    session: Session, universe_name: str, start: dt.date, end: dt.date,
+) -> list[dt.date]:
+    """Distinct 1d price_bar dates for the universe's assets in [start, end],
+    ascending. Weekends/holidays fall out naturally (no bars)."""
+    rows = session.execute(text(
+        """
+        SELECT DISTINCT (pb.ts AT TIME ZONE 'UTC')::date AS d
+        FROM price_bar pb
+        JOIN universe_membership um ON um.asset_id = pb.asset_id
+        WHERE pb.timeframe = '1d' AND um.universe_name = :u
+          AND (pb.ts AT TIME ZONE 'UTC')::date BETWEEN :start AND :end
+        ORDER BY d
+        """
+    ), {"u": universe_name, "start": start, "end": end}).all()
+    return [r[0] for r in rows]
+
+
+def replay_range(
+    session: Session,
+    *,
+    start: dt.date,
+    end: dt.date,
+    run_label: str,
+    universe_name: str = "stock_swing_v1",
+    starting_cash: Decimal = Decimal("100000"),
+    trade_usd: Decimal = Decimal("1000"),
+    take_profit_pct: Decimal | None = None,
+    stop_loss_pct: Decimal | None = None,
+    max_hold_days: int | None = None,
+    config: EngineConfig | None = None,
+) -> ReplayRangeResult:
+    """Deterministic forward-chronological stock replay over [start, end].
+
+    One replay account+portfolio is reused across all days (resolved once),
+    so paper cash/holdings stay self-consistent day to day. Per trading day,
+    in live order: EXITS first (run_exit_cycle, portfolio-scoped) then OPENS
+    (replay_one_day). Commits per day. Idempotent: a full rerun on identical
+    data is a no-op (persist dedups recs; trades skip on existing
+    opened_by_recommendation_id; exits scan only is_open positions).
+
+    Caveat (v1): the recommendation exposure family reads the LEDGER
+    (compute_positions), not paper_position, and the replay account has no
+    ledger transactions — so the exposure family is NEUTRAL throughout replay.
+    Portfolio cash/holdings/realized_pnl (paper_position) are still
+    self-consistent; only the exposure feature input is unaffected by replay
+    holdings. Pointing exposure at paper_position is deferred (BP7+).
+    """
+    cfg = config or load_engine_config()
+    version = f"{cfg.version}+replay:{run_label}"
+    name = f"replay:{run_label}"
+
+    account_id = _get_or_create_account(session, name)
+    portfolio_id = _get_or_create_portfolio(session, name, starting_cash)
+
+    days = _trading_days(session, universe_name, start, end)
+
+    recommendations = buys = trades_submitted = 0
+    trades_skipped_existing = rejected = insufficient_data = 0
+    exits_closed = 0
+    realized_pnl_total = Decimal("0")
+
+    for day in days:
+        # Exits first (mirror live: free slots before opens).
+        exit_res = run_exit_cycle(
+            session, as_of=day, portfolio_id=portfolio_id,
+            take_profit_pct=take_profit_pct, stop_loss_pct=stop_loss_pct,
+            max_hold_days=max_hold_days, commit=True,
+        )
+        exits_closed += len(exit_res.closed)
+        realized_pnl_total += exit_res.realized_pnl_total
+
+        # Opens second, into the same account/portfolio.
+        day_res = replay_one_day(
+            session, as_of=day, run_label=run_label,
+            universe_name=universe_name, trade_usd=trade_usd, config=cfg,
+            account_id=account_id, portfolio_id=portfolio_id,
+        )
+        recommendations += day_res.recommendations
+        buys += day_res.buys
+        trades_submitted += day_res.trades_submitted
+        trades_skipped_existing += day_res.trades_skipped_existing
+        rejected += day_res.rejected
+        insufficient_data += day_res.insufficient_data
+
+        session.commit()
+
+    closed_pairs = [
+        (r[0], r[1])
+        for r in session.execute(text(
+            """
+            SELECT r.conviction, pp.realized_pnl
+            FROM paper_position pp
+            JOIN recommendation r ON r.id = pp.opened_by_recommendation_id
+            WHERE pp.portfolio_id = :pf
+              AND pp.is_open = FALSE
+              AND pp.realized_pnl IS NOT NULL
+            """
+        ), {"pf": portfolio_id}).all()
+    ]
+
+    return ReplayRangeResult(
+        start=start, end=end, run_label=run_label, model_version=version,
+        account_id=account_id, portfolio_id=portfolio_id,
+        trading_days=len(days), days=days,
+        recommendations=recommendations, buys=buys,
+        trades_submitted=trades_submitted,
+        trades_skipped_existing=trades_skipped_existing, rejected=rejected,
+        exits_closed=exits_closed, realized_pnl_total=realized_pnl_total,
+        insufficient_data=insufficient_data, closed_pairs=closed_pairs,
     )
