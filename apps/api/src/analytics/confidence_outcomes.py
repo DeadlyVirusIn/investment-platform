@@ -240,10 +240,61 @@ def stock_conviction_calibration(session: Session) -> dict[str, Any]:
            AND pp.is_open = false
            AND pp.realized_pnl IS NOT NULL
            AND r.conviction IS NOT NULL
+           -- BP7: live calibration must never include replay-namespaced rows
+           -- ("{engine}+replay:{run_label}"). Result-invariant on live-only
+           -- data; prevents replay outcomes from contaminating live.
+           AND r.model_version NOT LIKE '%+replay:%'
         """
     )).all()
     pairs = _stock_pairs((r.score, r.pnl) for r in rows)
     return _calibration_result("stock", pairs)
+
+
+def _like_escape(s: str) -> str:
+    """Escape LIKE metacharacters so a run_label is matched literally."""
+    return s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
+def conviction_calibration_from_pairs(
+    pairs: Any, *, scope: str = "replay", run_label: str | None = None,
+) -> dict[str, Any]:
+    """Pure calibration from (conviction 0-100, realized_pnl) pairs — e.g.
+    ReplayRangeResult.closed_pairs. Reuses the gated math; labels scope/
+    run_label so a replay result is never mistaken for live performance."""
+    out = _calibration_result("stock", _stock_pairs(pairs))
+    out["scope"] = scope
+    out["run_label"] = run_label
+    return out
+
+
+def replay_conviction_calibration(
+    session: Session, *, run_label: str,
+) -> dict[str, Any]:
+    """REPLAY-SCOPED stock conviction calibration — same join as the live
+    surface but restricted to the replay namespace
+    ``model_version LIKE '%+replay:{run_label}'`` (trailing-anchored, so
+    run_label 'r1' never matches 'r12'). Reuses the MIN_CALIBRATION_SAMPLES
+    gating; the payload is tagged scope='replay' + run_label so it is NOT
+    live performance. SELECT-only, no schema."""
+    pattern = f"%+replay:{_like_escape(run_label)}"
+    rows = session.execute(text(
+        """
+        SELECT r.conviction        AS score,
+               pp.realized_pnl     AS pnl
+          FROM paper_position pp
+          JOIN recommendation r
+            ON r.id = pp.opened_by_recommendation_id
+         WHERE pp.opened_by_recommendation_id IS NOT NULL
+           AND pp.is_open = false
+           AND pp.realized_pnl IS NOT NULL
+           AND r.conviction IS NOT NULL
+           AND r.model_version LIKE :pat ESCAPE '\\'
+        """
+    ), {"pat": pattern}).all()
+    out = _calibration_result("stock", _stock_pairs((r.score, r.pnl) for r in rows))
+    out["scope"] = "replay"
+    out["run_label"] = run_label
+    return out
 
 
 def options_confidence_v2_calibration(session: Session) -> dict[str, Any]:
@@ -276,5 +327,7 @@ __all__ = [
     "conviction_outcome_buckets",
     "confidence_v2_outcome_buckets",
     "stock_conviction_calibration",
+    "replay_conviction_calibration",
+    "conviction_calibration_from_pairs",
     "options_confidence_v2_calibration",
 ]
