@@ -317,16 +317,22 @@ async def ingest_symbols(
     end_date: dt.date | None = None,
     incremental: bool = True,
     incremental_floor_days: int = 365,
+    include_benchmark: bool = True,
     now: dt.datetime | None = None,
 ) -> IngestionRunReport:
-    """Run ingestion over a list of symbols. Always includes benchmark symbols."""
+    """Run ingestion over a list of symbols.
+
+    ``include_benchmark`` (default True) appends ``BENCHMARK_SYMBOLS`` (SPY) to
+    every run — required by the daily ingest so regime/factor jobs always have a
+    fresh benchmark. The gap-backfill driver passes ``False`` so a scoped run
+    writes ONLY the requested symbols (no surprise benchmark rows)."""
     now = now or dt.datetime.now(dt.timezone.utc)
     today = now.date()
 
-    # Always include benchmarks
     symbol_set = {s.upper() for s in symbols}
-    for b in BENCHMARK_SYMBOLS:
-        symbol_set.add(b)
+    if include_benchmark:
+        for b in BENCHMARK_SYMBOLS:
+            symbol_set.add(b)
     symbols_sorted = sorted(symbol_set)
 
     run = IngestionRunReport(started_at=now)

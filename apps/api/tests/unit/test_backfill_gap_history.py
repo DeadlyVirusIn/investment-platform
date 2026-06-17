@@ -195,6 +195,40 @@ def test_resume_filters_completed_in_dry_run(session: Session, tmp_path: Path) -
     assert {g.symbol for g in summary.gap_symbols} == {"LATE", "EMPTY"}
 
 
+# --- shared fake ingest_symbols (postgres pg_insert can't run on sqlite) ----
+
+
+class _SR:
+    """Stand-in for SymbolRunReport."""
+    def __init__(self, symbol: str, bars_written: int = 0, bars_updated: int = 0):
+        self.symbol = symbol
+        self.bars_written = bars_written
+        self.bars_updated = bars_updated
+
+
+class _Report:
+    def __init__(self, srs: list[_SR]):
+        self.symbols = srs
+
+    @property
+    def total_written(self) -> int:
+        return sum(s.bars_written + s.bars_updated for s in self.symbols)
+
+
+def _fake_ingest_factory(bars_by_symbol, *, seen=None, calls=None, benchmark_rows=0):
+    async def _fake(sess, batch, *, providers, start_date, incremental,
+                    include_benchmark=True):
+        if seen is not None:
+            seen.append(list(batch))
+        if calls is not None:
+            calls.append(include_benchmark)
+        srs = [_SR(s, bars_written=bars_by_symbol.get(s, 0)) for s in batch]
+        if include_benchmark and benchmark_rows:
+            srs.append(_SR("SPY", bars_written=benchmark_rows))
+        return _Report(srs)
+    return _fake
+
+
 def test_resume_live_writes_checkpoint_then_skips(
     session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -203,51 +237,134 @@ def test_resume_live_writes_checkpoint_then_skips(
     session.commit()
 
     seen: list[list[str]] = []
-
-    class _Report:
-        total_written = 5
-
-    async def _fake_ingest(sess, batch, *, providers, start_date, incremental):
-        seen.append(list(batch))
-        assert start_date == bgh.HISTORY_FLOOR
-        assert incremental is False
-        return _Report()
-
-    monkeypatch.setattr(bgh, "ingest_symbols", _fake_ingest)
+    monkeypatch.setattr(bgh, "ingest_symbols", _fake_ingest_factory(
+        {"GAP0": 5, "GAP1": 5, "GAP2": 5}, seen=seen))
 
     ckpt = tmp_path / "ckpt.json"
     s1 = asyncio.run(
         bgh.backfill_gap_history(
-            dry_run=False,
-            batch_size=2,
-            checkpoint_path=ckpt,
-            session_factory=lambda: session,
-            providers=[object()],   # bypass real chain construction
+            dry_run=False, batch_size=2, checkpoint_path=ckpt,
+            session_factory=lambda: session, providers=[object()],
         )
     )
-
-    # 3 gaps, batch_size 2 → 2 batches; all processed
     assert s1.batches == 2
-    assert sorted(s1.processed) == ["GAP0", "GAP1", "GAP2"]
-    assert s1.bars_written == 10          # 2 batches * 5
+    assert sorted(s1.completed_with_data) == ["GAP0", "GAP1", "GAP2"]
+    assert s1.bars_written == 15          # 3 symbols * 5
+    assert s1.bars_written_by_symbol == {"GAP0": 5, "GAP1": 5, "GAP2": 5}
     saved = json.loads(ckpt.read_text(encoding="utf-8"))
     assert sorted(saved["completed"]) == ["GAP0", "GAP1", "GAP2"]
+    assert saved["no_data"] == []
     assert saved["floor"] == bgh.HISTORY_FLOOR.isoformat()
 
     # Second run resumes: everything already in checkpoint → nothing re-ingested
     seen.clear()
     s2 = asyncio.run(
         bgh.backfill_gap_history(
-            dry_run=False,
-            batch_size=2,
-            checkpoint_path=ckpt,
-            session_factory=lambda: session,
-            providers=[object()],
+            dry_run=False, batch_size=2, checkpoint_path=ckpt,
+            session_factory=lambda: session, providers=[object()],
         )
     )
     assert s2.processed == []
     assert sorted(s2.skipped_resume) == ["GAP0", "GAP1", "GAP2"]
     assert seen == []                     # idempotent: no re-fetch
+
+
+# ---------------------------------------------------------------------------
+# 6. BP29C — no-data visibility, benchmark control, no-data resume
+# ---------------------------------------------------------------------------
+
+
+def test_no_data_symbol_recorded_distinctly(
+    session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _add_asset(session, "withdata")
+    _add_asset(session, "nodata")
+    session.commit()
+    monkeypatch.setattr(bgh, "ingest_symbols", _fake_ingest_factory(
+        {"WITHDATA": 800}))   # NODATA absent -> 0 bars
+
+    ckpt = tmp_path / "ckpt.json"
+    s = asyncio.run(bgh.backfill_gap_history(
+        dry_run=False, batch_size=25, checkpoint_path=ckpt,
+        session_factory=lambda: session, providers=[object()]))
+
+    assert s.completed_with_data == ["WITHDATA"]
+    assert s.completed_no_data == ["NODATA"]
+    assert s.failures == {}                       # no-data is NOT a failure
+    assert s.bars_written_by_symbol == {"WITHDATA": 800, "NODATA": 0}
+    saved = json.loads(ckpt.read_text(encoding="utf-8"))
+    assert saved["completed"] == ["WITHDATA"]
+    assert saved["no_data"] == ["NODATA"]
+
+
+def test_batch_failure_separate_from_no_data(
+    session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _add_asset(session, "boom")
+    session.commit()
+
+    async def _raise(sess, batch, *, providers, start_date, incremental,
+                     include_benchmark=True):
+        raise RuntimeError("provider exploded")
+
+    monkeypatch.setattr(bgh, "ingest_symbols", _raise)
+    s = asyncio.run(bgh.backfill_gap_history(
+        dry_run=False, checkpoint_path=tmp_path / "c.json",
+        session_factory=lambda: session, providers=[object()]))
+
+    assert "BOOM" in s.failures                    # batch exception -> failure
+    assert s.completed_no_data == []               # NOT conflated with no-data
+    assert s.completed_with_data == []
+
+
+def test_benchmark_disabled_by_default_else_reported(
+    session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _add_asset(session, "aaa")
+    session.commit()
+
+    # default: include_benchmark must be False (no SPY)
+    calls: list[bool] = []
+    monkeypatch.setattr(bgh, "ingest_symbols", _fake_ingest_factory(
+        {"AAA": 500}, calls=calls, benchmark_rows=83))
+    s = asyncio.run(bgh.backfill_gap_history(
+        dry_run=False, checkpoint_path=tmp_path / "c1.json",
+        session_factory=lambda: session, providers=[object()]))
+    assert calls == [False]                        # driver disabled benchmark
+    assert s.benchmark == [] and s.benchmark_rows == 0
+    assert s.bars_written == 500
+
+    # opt-in: SPY reported under its own bucket, not in gap totals
+    calls2: list[bool] = []
+    monkeypatch.setattr(bgh, "ingest_symbols", _fake_ingest_factory(
+        {"AAA": 500}, calls=calls2, benchmark_rows=83))
+    s2 = asyncio.run(bgh.backfill_gap_history(
+        dry_run=False, include_benchmark=True, checkpoint_path=tmp_path / "c2.json",
+        session_factory=lambda: session, providers=[object()]))
+    assert calls2 == [True]
+    assert s2.benchmark == ["SPY"] and s2.benchmark_rows == 83
+    assert "SPY" not in s2.bars_written_by_symbol
+    assert "SPY" not in s2.completed_with_data
+    assert s2.bars_written == 500                  # gap-only total excludes SPY
+
+
+def test_rerun_skips_no_data_unless_retry(session: Session, tmp_path: Path) -> None:
+    _add_asset(session, "brkb")        # zero-history gap
+    session.commit()
+    ckpt = tmp_path / "ckpt.json"
+    ckpt.write_text(json.dumps({"completed": [], "no_data": ["BRKB"]}), encoding="utf-8")
+
+    # default: no_data skipped on rerun
+    s = asyncio.run(bgh.backfill_gap_history(
+        dry_run=True, checkpoint_path=ckpt, session_factory=lambda: session))
+    assert s.skipped_resume == ["BRKB"]
+
+    # retry_no_data=True: BRKB is reprocessed
+    s2 = asyncio.run(bgh.backfill_gap_history(
+        dry_run=True, retry_no_data=True, checkpoint_path=ckpt,
+        session_factory=lambda: session))
+    assert s2.skipped_resume == []
+    assert {g.symbol for g in s2.gap_symbols} == {"BRKB"}
 
 
 # ---------------------------------------------------------------------------
