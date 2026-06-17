@@ -246,6 +246,8 @@ def submit_trade(
     fill_price_override: Decimal | None = None,
     slippage_bps: Decimal | None = None,
     commission: Decimal | None = None,
+    merge_positions: bool = True,
+    position_id: str | None = None,
 ) -> TradeResult:
     """Submit a paper trade.
 
@@ -299,7 +301,13 @@ def submit_trade(
     if side == "buy":
         config = _portfolio_config(portfolio)
         max_open = int(config.get("max_open_positions", DEFAULT_MAX_OPEN_POSITIONS))
-        existing = _get_open_position(session, portfolio_id, asset_id)
+        # BP9a — merge_positions=False (replay) forces a NEW position per Buy so
+        # each recommendation maps 1:1 to a position (decision-level attribution).
+        # Default True preserves the legacy averaging-into-one-position behaviour.
+        existing = (
+            _get_open_position(session, portfolio_id, asset_id)
+            if merge_positions else None
+        )
         if existing is None:
             current_open = _count_open_positions(session, portfolio_id)
             if current_open >= max_open:
@@ -337,9 +345,23 @@ def submit_trade(
             existing.avg_cost = new_avg
 
     else:  # sell
-        existing = _get_open_position(session, portfolio_id, asset_id)
-        if existing is None:
-            raise PaperTradeRejected("no open position to sell")
+        # BP9a — when position_id is given (e.g. exit cycle scanning a specific
+        # lot), close/reduce THAT exact position; validate it is open and
+        # belongs to this portfolio+asset. Default None keeps the legacy
+        # single-open-position lookup.
+        if position_id is not None:
+            existing = session.get(PaperPosition, position_id)
+            if (existing is None or existing.portfolio_id != portfolio_id
+                    or existing.asset_id != asset_id
+                    or not bool(existing.is_open)):
+                raise PaperTradeRejected(
+                    f"position_id {position_id!r} is not an open position for "
+                    f"this portfolio/asset"
+                )
+        else:
+            existing = _get_open_position(session, portfolio_id, asset_id)
+            if existing is None:
+                raise PaperTradeRejected("no open position to sell")
         open_qty = _d(existing.quantity)
         if qty > open_qty:
             raise PaperTradeRejected(

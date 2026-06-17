@@ -283,6 +283,10 @@ def run_exit_cycle(
                     side="sell", quantity=qty,
                     submitted_at=submitted_at,
                     reason=f"exit_cycle: {reason}",
+                    # BP9a — close the EXACT scanned lot. Equivalent to the
+                    # legacy lookup when there is one open position per asset
+                    # (live); required for correct per-lot closes under no-merge.
+                    position_id=r.id,
                 )
                 if snapshot_equity:
                     pf = session.get(PaperPortfolio, pid)
