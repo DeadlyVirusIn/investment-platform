@@ -18,6 +18,7 @@ recommendation's opened_by_recommendation_id. Rerun = no-op.
 from __future__ import annotations
 
 import datetime as dt
+import json
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -77,9 +78,17 @@ def _get_or_create_portfolio(
     ).first()
     if existing is not None:
         return existing.id
-    return create_portfolio(
-        session, PortfolioCreate(name=name, starting_cash=starting_cash)
-    ).id
+    pf = create_portfolio(
+        session, PortfolioCreate(name=name, starting_cash=starting_cash))
+    # BP9b — replay opens one position PER Buy (merge_positions=False), so the
+    # portfolio holds far more concurrent positions than a live one. Lift
+    # max_open_positions above the PortfolioCreate le=100 live-safety cap
+    # (replay-only) so the BUY guard does not reject replay opens.
+    cfg = json.loads(pf.config_json or "{}")
+    cfg["max_open_positions"] = 100000
+    pf.config_json = json.dumps(cfg)
+    session.flush()
+    return pf.id
 
 
 def replay_one_day(
@@ -158,6 +167,9 @@ def replay_one_day(
                 submitted_at=submitted_at,
                 recommendation_id=rec_id,
                 reason=f"replay:{run_label}",
+                # BP9b — one PaperPosition per Buy so every recommendation maps
+                # 1:1 to a realized outcome (decision-level attribution).
+                merge_positions=False,
             )
             trades_submitted += 1
         except PaperTradeRejected:
