@@ -21,6 +21,12 @@ def _provider_chain() -> list[DailyPriceProvider]:
     else:
         logger.warning("TIINGO_API_KEY not set — skipping Tiingo provider")
     chain.append(YahooProvider())
+    # BP27B: Polygon is intentionally NOT in the daily chain. Its raw bars
+    # carry adjusted_close=None; first-non-empty chain semantics mean a
+    # Polygon-first daily run would write None adjusted_close on fresh days,
+    # degrading the live total-return series. Polygon is reserved for the
+    # explicit gap-backfill driver (BP24), where adj=None on uncovered names
+    # is acceptable. Tiingo/Yahoo remain the live adjusted_close authority.
     return chain
 
 

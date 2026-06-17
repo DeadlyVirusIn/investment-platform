@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+psycopg://postgres:postgres@localhost:5432/investment"
     FERNET_KEY: str = ""          # base64-urlsafe 32-byte key; required for secret encryption
     TIINGO_API_KEY: str = ""
+    POLYGON_API_KEY: str = ""     # paid Massive/Polygon — primary historical daily source
     LOG_LEVEL: str = "INFO"
     APP_VERSION: str = "0.1.0"
 

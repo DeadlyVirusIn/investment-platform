@@ -38,8 +38,12 @@ class CanonicalBar:
 
 # Provider priority (higher = preferred). Used in reconcile + upsert policy.
 SOURCE_PRIORITY: dict[str, int] = {
-    "tiingo": 100,
-    "yahoo": 50,
+    "tiingo": 100,             # total-return adjusted_close authority
+    "yahoo": 50,               # total-return adjusted_close authority
+    # BP27B: Polygon supplies RAW OHLCV only (no total-return adjusted_close),
+    # so it sits BELOW tiingo/yahoo — it never wins read-selection over a
+    # complete total-return bar; it only fills gap dates.
+    "polygon": 40,
     "demo": 10,
     "test": 5,
 }
