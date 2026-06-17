@@ -96,6 +96,7 @@ class BackfillSummary:
     started_at: dt.datetime
     finished_at: dt.datetime | None = None
     universe_size: int = 0
+    only_symbols: set[str] | None = None    # pilot scope, if any (normalized)
     gap_symbols: list[GapSymbol] = field(default_factory=list)
     skipped_resume: list[str] = field(default_factory=list)
     processed: list[str] = field(default_factory=list)
@@ -115,6 +116,7 @@ class BackfillSummary:
             f"deep cohort cut  : {self.deep_cohort_cutoff.isoformat()}  (earliest > this => gap)",
             f"batch size       : {self.batch_size}",
             f"universe (equity): {self.universe_size}",
+            f"pilot scope      : {len(self.only_symbols)} symbols" if self.only_symbols else "pilot scope      : (full universe)",
             f"gap symbols      : {self.gap_count}",
             f"skipped (resume) : {len(self.skipped_resume)}",
             f"to process       : {len(self.gap_symbols) - len(self.skipped_resume)}",
@@ -278,6 +280,7 @@ async def backfill_gap_history(
     batch_size: int = DEFAULT_BATCH_SIZE,
     dry_run: bool = True,
     resume: bool = True,
+    only_symbols: set[str] | None = None,
     checkpoint_path: Path | None = None,
     providers: Sequence[DailyPriceProvider] | None = None,
     session_factory: Callable[[], Session] = SessionLocal,
@@ -288,16 +291,22 @@ async def backfill_gap_history(
     ``floor`` is the backfill *start_date*; ``deep_cohort_cutoff`` is the
     gap-detection threshold (gap = no bars OR earliest > cutoff).
 
+    ``only_symbols`` scopes the run to a pilot subset: after gap detection, only
+    these symbols are kept (case/whitespace-normalized). Symbols not in the gap
+    set are silently ignored. Applies to dry-run and live alike.
+
     ``dry_run=True`` (default) performs detection + resume filtering only — no
     provider calls, no DB writes, no checkpoint write. Safe to invoke anywhere.
     """
     started = now or dt.datetime.now(dt.timezone.utc)
+    scope = {s.strip().upper() for s in only_symbols} if only_symbols else None
     summary = BackfillSummary(
         floor=floor,
         deep_cohort_cutoff=deep_cohort_cutoff,
         dry_run=dry_run,
         batch_size=batch_size,
         started_at=started,
+        only_symbols=scope,
     )
 
     # --- 1. enumerate + detect (read-only) ---
@@ -306,6 +315,10 @@ async def backfill_gap_history(
         summary.gap_symbols = detect_gap_symbols(
             session, deep_cohort_cutoff=deep_cohort_cutoff
         )
+
+    # --- 1b. pilot scope filter (after detection, before batching) ---
+    if scope is not None:
+        summary.gap_symbols = [g for g in summary.gap_symbols if g.symbol in scope]
 
     # --- 2. resume filtering ---
     completed = load_checkpoint(checkpoint_path) if resume else set()

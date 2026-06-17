@@ -248,3 +248,75 @@ def test_resume_live_writes_checkpoint_then_skips(
     assert s2.processed == []
     assert sorted(s2.skipped_resume) == ["GAP0", "GAP1", "GAP2"]
     assert seen == []                     # idempotent: no re-fetch
+
+
+# ---------------------------------------------------------------------------
+# 5. only_symbols pilot scope (BP29A)
+# ---------------------------------------------------------------------------
+
+
+def _seed_two_cohorts(s: Session) -> None:
+    """LATE (2025 gap) + EMPTY (no-bars gap) + DEEP (2022-05-02 complete)."""
+    late = _add_asset(s, "late")
+    _add_bar(s, late.id, dt.date(2025, 5, 5))
+    _add_asset(s, "empty")
+    deep = _add_asset(s, "deep")
+    _add_bar(s, deep.id, dt.date(2022, 5, 2))
+    s.commit()
+
+
+def test_only_symbols_limits_dry_run_scope(session: Session) -> None:
+    _seed_two_cohorts(session)
+    summary = asyncio.run(
+        bgh.backfill_gap_history(
+            dry_run=True, only_symbols={"LATE"}, session_factory=lambda: session
+        )
+    )
+    assert {g.symbol for g in summary.gap_symbols} == {"LATE"}   # EMPTY excluded
+    assert summary.only_symbols == {"LATE"}
+
+
+def test_only_symbols_normalization(session: Session) -> None:
+    _seed_two_cohorts(session)
+    summary = asyncio.run(
+        bgh.backfill_gap_history(
+            dry_run=True,
+            only_symbols={" late ", "Empty"},   # whitespace + mixed case
+            session_factory=lambda: session,
+        )
+    )
+    assert summary.only_symbols == {"LATE", "EMPTY"}
+    assert {g.symbol for g in summary.gap_symbols} == {"LATE", "EMPTY"}
+
+
+def test_only_symbols_ignores_non_gap_symbols(session: Session) -> None:
+    _seed_two_cohorts(session)
+    summary = asyncio.run(
+        bgh.backfill_gap_history(
+            dry_run=True,
+            only_symbols={"DEEP", "ZZZZ"},   # DEEP complete, ZZZZ unknown
+            session_factory=lambda: session,
+        )
+    )
+    assert summary.gap_symbols == []        # neither is in the gap set
+
+
+def test_only_symbols_with_resume(session: Session, tmp_path: Path) -> None:
+    _seed_two_cohorts(session)
+    ckpt = tmp_path / "ckpt.json"
+    ckpt.write_text(json.dumps({"completed": ["LATE"]}), encoding="utf-8")
+
+    summary = asyncio.run(
+        bgh.backfill_gap_history(
+            dry_run=True,
+            only_symbols={"LATE", "EMPTY"},
+            checkpoint_path=ckpt,
+            session_factory=lambda: session,
+        )
+    )
+    # scope keeps both gaps; resume drops LATE; EMPTY remains to process
+    assert {g.symbol for g in summary.gap_symbols} == {"LATE", "EMPTY"}
+    assert summary.skipped_resume == ["LATE"]
+    to_process = [g.symbol for g in summary.gap_symbols
+                  if g.symbol not in summary.skipped_resume]
+    assert to_process == ["EMPTY"]
