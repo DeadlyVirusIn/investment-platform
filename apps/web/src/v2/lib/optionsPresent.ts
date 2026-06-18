@@ -461,6 +461,7 @@ export interface PresentedOption {
   confidence: number;          // 0–100
   confidenceLabel: 'High' | 'Medium' | 'Low';
   dte: number;
+  expiry: string | null;            // ISO date the option expires
   premiumLabel: string | null;
   liquidityLabel: string | null;
   thesis: string | null;
@@ -494,6 +495,7 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     confidence,
     confidenceLabel: confidenceLabel(confidence),
     dte: o.dte,
+    expiry: o.expiry,
     premiumLabel: premiumLabel(o.premium_tier),
     liquidityLabel: liquidityLabel(o.liquidity_tier),
     thesis: thesisLine(o),

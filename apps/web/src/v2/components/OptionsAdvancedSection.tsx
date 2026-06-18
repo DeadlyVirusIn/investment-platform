@@ -43,8 +43,11 @@ function BeginnerOptionCard({ opt }: { opt: PresentedOption }) {
       </div>
       <ul className="mt-2">
         <Row label="Time left" value={b.timeLeft} />
+        {b.endsOn && <Row label="Ends on" value={b.endsOn.replace(/^Ends on /, '')} />}
+        {b.entry && <Row label="Practice entry" value={b.entry} />}
         <Row label="Risk level" value={b.riskLevel} />
         <Row label="Why this exists" value={b.why} />
+        {b.maxGain && <Row label="Best case" value={b.maxGain} />}
         <Row label="Maximum loss" value={b.maxLoss} />
         <Row label="What fails it" value={b.whatFails} />
       </ul>
@@ -77,6 +80,10 @@ export function OptionsAdvancedSection({ alwaysOpen = false }: { alwaysOpen?: bo
       }}>
         <p style={{ fontSize: 12.5, fontWeight: 600, color: AMBER }}>
           ⚠ Options are advanced. Practice only. Not recommended for beginners.
+        </p>
+        <p className="ink-muted mt-1.5" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+          These are advanced practice setups. They use capped-risk option structures
+          and should be practiced before real money.
         </p>
       </div>
 
