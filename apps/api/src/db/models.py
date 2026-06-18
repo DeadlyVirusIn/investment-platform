@@ -1957,3 +1957,85 @@ class IntradayObservation(Base):
         ),
     )
 
+
+# ---------------------------------------------------------------------------
+# MVP — model portfolios ("Ideas you can follow and prove")
+# ---------------------------------------------------------------------------
+
+class ModelPortfolio(Base):
+    """A curated, follow-able portfolio: a thesis + a set of weighted holdings.
+    Track record is computed from the price panel into ModelPortfolioPerf."""
+    __tablename__ = "model_portfolio"
+
+    id: Mapped[str]   = mapped_column(String(36), primary_key=True, default=_uuid)
+    slug: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    thesis: Mapped[str | None] = mapped_column(Text)
+    risk_label: Mapped[str | None] = mapped_column(String(32))   # conservative | balanced | growth
+    is_published: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    holdings: Mapped[list[ModelPortfolioHolding]] = relationship(
+        back_populates="portfolio", cascade="all, delete-orphan"
+    )
+
+
+class ModelPortfolioHolding(Base):
+    __tablename__ = "model_portfolio_holding"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    model_portfolio_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("model_portfolio.id", ondelete="CASCADE"), nullable=False
+    )
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    weight: Mapped[object] = mapped_column(EQUITY_NUM, nullable=False)   # 0..1 fraction
+
+    portfolio: Mapped[ModelPortfolio] = relationship(back_populates="holdings")
+
+    __table_args__ = (
+        UniqueConstraint("model_portfolio_id", "symbol", name="uq_model_holding"),
+    )
+
+
+class ModelPortfolioPerf(Base):
+    """Cached daily track record (equity curve) for a model portfolio."""
+    __tablename__ = "model_portfolio_perf"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    model_portfolio_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("model_portfolio.id", ondelete="CASCADE"), nullable=False
+    )
+    d: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    nav: Mapped[object]    = mapped_column(EQUITY_NUM, nullable=False)   # indexed to 1.0 at start
+    ret: Mapped[object | None] = mapped_column(EQUITY_NUM)               # daily return
+    computed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint("model_portfolio_id", "d", name="uq_model_perf_day"),
+        Index("ix_model_perf_pf_day", "model_portfolio_id", text("d DESC")),
+    )
+
+
+class PortfolioFollow(Base):
+    """Links a user's paper portfolio to the model portfolio it mirrors."""
+    __tablename__ = "portfolio_follow"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    user_id: Mapped[str | None] = mapped_column(String(64))   # nullable until auth lands
+    model_portfolio_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("model_portfolio.id", ondelete="CASCADE"), nullable=False
+    )
+    paper_portfolio_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    followed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        Index("ix_follow_model", "model_portfolio_id"),
+        Index("ix_follow_user", "user_id"),
+    )
+
