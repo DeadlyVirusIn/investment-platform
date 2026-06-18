@@ -13,8 +13,8 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import text
+from fastapi import APIRouter, Depends, Header
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
@@ -43,9 +43,22 @@ def _iso(ts: dt.datetime | dt.date | None) -> str | None:
 
 
 @router.get("/stock")
-def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
-    """Single-portfolio canonical contract for the stock practice book."""
+def canonical_stock(
+    db: Session = Depends(get_session),
+    x_auth_user_id: str | None = Header(default=None, alias="X-Auth-User-Id"),
+) -> dict[str, Any]:
+    """Canonical stock practice book. Per-user when an X-Auth-User-Id is sent
+    (resolves the caller's own ``user:<id>:stock`` book — Sprint B isolation);
+    falls back to the shared demo portfolio for anonymous/legacy callers."""
+    from apps.api.src.db.models import PaperPortfolio
     pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+    uid = (x_auth_user_id or "").strip()
+    if uid:
+        upf = db.scalars(
+            select(PaperPortfolio).where(PaperPortfolio.name == f"user:{uid[:64]}:stock")
+        ).first()
+        if upf is not None:
+            pid = upf.id
     now = _now_utc()
 
     portfolio = db.execute(

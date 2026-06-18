@@ -15,18 +15,18 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from apps.api.src.config import settings
 from apps.api.src.db import get_session
 from apps.api.src.db.models import (
     Asset,
     ModelPortfolio,
     ModelPortfolioHolding,
     ModelPortfolioPerf,
+    PaperPortfolio,
     PortfolioFollow,
 )
 from apps.api.src.domain.paper_trading.paper_execution import (
@@ -39,6 +39,38 @@ from apps.api.src.domain.paper_trading.paper_service import (
 )
 
 router = APIRouter(prefix="/model-portfolios", tags=["model-portfolios"])
+
+
+# ---------------------------------------------------------------------------
+# Per-user identity + portfolio ownership (MVP auth layer)
+# ---------------------------------------------------------------------------
+
+
+def require_user_id(
+    x_auth_user_id: str | None = Header(default=None, alias="X-Auth-User-Id"),
+) -> str:
+    """MVP auth: the edge/frontend supplies a stable per-user identity via the
+    ``X-Auth-User-Id`` header (a device id today; swap for the IdP subject when
+    a full auth provider lands). Write endpoints REQUIRE it so every paper book
+    is per-user and no two users ever share state."""
+    uid = (x_auth_user_id or "").strip()
+    if not uid:
+        raise HTTPException(status_code=401, detail="authentication required")
+    return uid[:64]
+
+
+def _resolve_user_portfolio(db: Session, user_id: str) -> str:
+    """Get-or-create the user's OWN stock paper book — the per-user replacement
+    for the old shared canonical portfolio. Returns its id."""
+    name = f"user:{user_id}:stock"
+    pf = db.scalars(select(PaperPortfolio).where(PaperPortfolio.name == name)).first()
+    if pf is None:
+        pf = create_portfolio(
+            db,
+            PortfolioCreate(name=name, starting_cash=Decimal("100000"),
+                            max_open_positions=100),
+        )
+    return pf.id
 
 
 # ---------------------------------------------------------------------------
@@ -250,6 +282,7 @@ def follow_model_portfolio(
     slug: str,
     body: FollowRequest | None = None,
     db: Session = Depends(get_session),
+    user_id: str = Depends(require_user_id),
 ) -> dict[str, Any]:
     """Create a paper portfolio that mirrors the model portfolio's weights —
     one BUY per holding, sized to weight × starting_cash. Reuses the existing
@@ -267,7 +300,7 @@ def follow_model_portfolio(
     if capital <= 0:
         raise HTTPException(status_code=400, detail="starting_cash must be positive")
 
-    name = f"Follow: {pf.name} · {uuid4().hex[:6]}"
+    name = f"Follow:{user_id}:{pf.name} · {uuid4().hex[:6]}"
     paper = create_portfolio(
         db,
         PortfolioCreate(
@@ -308,7 +341,7 @@ def follow_model_portfolio(
             skipped[h.symbol] = str(exc)
 
     db.add(PortfolioFollow(
-        model_portfolio_id=pf.id, paper_portfolio_id=paper.id, user_id=None,
+        model_portfolio_id=pf.id, paper_portfolio_id=paper.id, user_id=user_id,
     ))
     db.commit()
 
@@ -336,16 +369,18 @@ def add_idea_to_paper(
     symbol: str,
     body: AddIdeaRequest | None = None,
     db: Session = Depends(get_session),
+    user_id: str = Depends(require_user_id),
 ) -> dict[str, Any]:
-    """Buy ``usd_amount`` of a single idea into the canonical practice book.
-    Reuses the paper engine; the idea detail's 'Add to paper' CTA calls this."""
+    """Buy ``usd_amount`` of a single idea into THE USER'S OWN paper book
+    (per-user, never the shared canonical). Reuses the paper engine; the idea
+    detail's 'Add to paper' CTA calls this."""
     asset = db.scalars(select(Asset).where(Asset.symbol == symbol.upper())).first()
     if asset is None:
         raise HTTPException(status_code=404, detail=f"unknown symbol: {symbol}")
     usd = (body or AddIdeaRequest()).usd_amount
     if usd <= 0:
         raise HTTPException(status_code=400, detail="usd_amount must be positive")
-    pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+    pid = _resolve_user_portfolio(db, user_id)
     sa = _fill_submitted_at(db, asset.id)
     if sa is None:
         raise HTTPException(status_code=409, detail=f"no price data for {symbol}")

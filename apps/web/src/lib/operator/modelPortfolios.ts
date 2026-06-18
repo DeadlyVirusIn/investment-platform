@@ -80,8 +80,11 @@ export function useFollowModelPortfolio() {
         starting_cash: startingCash ?? 10000,
       }),
     onSuccess: () => {
+      // ["paper"] prefix-matches the real canonical key ["paper","canonical",
+      // "stock"] AND the executed-positions queries — so My Portfolio refreshes
+      // after Follow/Add. ["model-portfolios"] refreshes cards + social proof.
       qc.invalidateQueries({ queryKey: ["paper"] });
-      qc.invalidateQueries({ queryKey: ["canonical-stock"] });
+      qc.invalidateQueries({ queryKey: ["model-portfolios"] });
     },
   });
 }
@@ -97,8 +100,11 @@ export function useAddIdeaToPaper() {
     mutationFn: ({ symbol, usd }) =>
       apiPost(`/model-portfolios/idea/${symbol}/add-to-paper`, { usd_amount: usd ?? 1000 }),
     onSuccess: () => {
+      // ["paper"] prefix-matches the real canonical key ["paper","canonical",
+      // "stock"] AND the executed-positions queries — so My Portfolio refreshes
+      // after Follow/Add. ["model-portfolios"] refreshes cards + social proof.
       qc.invalidateQueries({ queryKey: ["paper"] });
-      qc.invalidateQueries({ queryKey: ["canonical-stock"] });
+      qc.invalidateQueries({ queryKey: ["model-portfolios"] });
     },
   });
 }

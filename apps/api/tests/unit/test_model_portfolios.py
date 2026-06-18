@@ -4,7 +4,14 @@ from __future__ import annotations
 
 import datetime as dt
 
-from apps.api.src.api.model_portfolios import compute_nav_series, CURATED
+import pytest
+from fastapi import HTTPException
+
+from apps.api.src.api.model_portfolios import (
+    compute_nav_series,
+    require_user_id,
+    CURATED,
+)
 
 
 D = dt.date
@@ -46,3 +53,18 @@ def test_curated_weights_sum_to_one():
     for spec in CURATED:
         assert abs(sum(spec["holdings"].values()) - 1.0) < 1e-9, spec["slug"]
         assert spec["slug"] and spec["name"] and spec["thesis"]
+
+
+# --- Sprint B — per-user identity (auth layer) ---
+
+
+def test_require_user_id_rejects_anonymous():
+    for bad in (None, "", "   "):
+        with pytest.raises(HTTPException) as e:
+            require_user_id(bad)
+        assert e.value.status_code == 401
+
+
+def test_require_user_id_returns_trimmed_capped_id():
+    assert require_user_id("  user-abc  ") == "user-abc"
+    assert require_user_id("x" * 100) == "x" * 64   # capped to column width
