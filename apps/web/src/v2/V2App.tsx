@@ -66,7 +66,11 @@ function V2Surface() {
     <div className="v2-root" data-theme={theme}>
       <Onboarding />
       <Routes>
-        <Route index element={<Navigate to="learn" replace />} />
+        {/* MVP — Discover is the homepage, not Learn. Phase 2 transforms
+            Opportunities into the full Today's-Ideas feed; /v2/discover is
+            the canonical entry and currently renders it. */}
+        <Route index element={<Navigate to="discover" replace />} />
+        <Route path="discover" element={<Opportunities />} />
         {/* UX Phase 2 — guided coach surfaces. */}
         <Route path="start" element={<StartHere />} />
         {/* Phase 2E — Mentor Profile is /v2/me. P1.5C1 — legacy MePage
@@ -105,7 +109,7 @@ function V2Surface() {
         <Route path="options" element={<OptionsVisibility />} />
         {/* Phase G1 — read-only options portfolio (open positions). */}
         <Route path="options/portfolio" element={<OptionsPortfolio />} />
-        <Route path="*" element={<Navigate to="learn" replace />} />
+        <Route path="*" element={<Navigate to="discover" replace />} />
       </Routes>
     </div>
   );

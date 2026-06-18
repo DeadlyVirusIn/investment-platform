@@ -18,7 +18,6 @@ import {
   Sun,
   Moon,
   Search,
-  Sunrise,
   BookOpen,
   Compass,
   Sparkles,
@@ -432,45 +431,43 @@ export function TopBar({
 // so the slot points at /v2/reflections (the user's local Decision
 // Journal in practice). Document the redirect for future migration:
 // when the Journal surface lands, swap the `to` here.
+// MVP "Ideas you can follow and prove" — primary nav collapsed to the
+// four approved tabs: Discover · My Portfolio · Learn · Me. Today,
+// Opportunities and Catalysts now fold into the single Discover feed;
+// the old routes remain reachable but carry no nav slot.
 const NAV_PRIMARY: NavItem[] = [
   {
-    label: 'Today',
-    to: '/v2/today',
-    icon: Sunrise,
-    match: (p) => p.startsWith('/v2/today'),
+    label: 'Discover',
+    to: '/v2/discover',
+    icon: Sparkles,
+    match: (p) =>
+      p === '/v2' ||
+      p.startsWith('/v2/discover') ||
+      p.startsWith('/v2/opportunities') ||
+      p.startsWith('/v2/today') ||
+      p.startsWith('/v2/catalysts'),
   },
   {
-    label: 'Practice',
+    label: 'My Portfolio',
+    shortLabel: 'Portfolio',
     to: '/v2/portfolio',
     icon: BookOpen,
     match: (p) =>
       p.startsWith('/v2/portfolio') ||
       p.startsWith('/v2/try') ||
-      p.startsWith('/v2/track-record') ||
-      // P1.5D2a — Options book is a Practice tab. Specific prefix; does
-      // NOT match /v2/options (engine-room diagnostics).
-      p.startsWith('/v2/options/portfolio'),
+      p.startsWith('/v2/track-record'),
   },
   {
     label: 'Learn',
     to: '/v2/learn',
     icon: Compass,
     match: (p) =>
-      p === '/v2' || p.startsWith('/v2/learn') || p.startsWith('/v2/methodology'),
-  },
-  {
-    label: 'Opportunities',
-    shortLabel: 'Opps',
-    to: '/v2/opportunities',
-    icon: Sparkles,
-    match: (p) => p.startsWith('/v2/opportunities') || p.startsWith('/v2/catalysts'),
+      p.startsWith('/v2/learn') || p.startsWith('/v2/methodology'),
   },
   {
     label: 'Me',
     to: '/v2/me',
     icon: User,
-    // P1.5A — Me now owns Journal + Report Card (nav-collapsed off
-    // primary; routes unchanged). Highlight Me on those deep links.
     match: (p) =>
       p.startsWith('/v2/me') ||
       p.startsWith('/v2/journal') ||

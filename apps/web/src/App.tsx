@@ -90,10 +90,13 @@ import V2App from '@/v2/V2App';
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/overview" replace />} />
+      {/* MVP — the beginner product (v2) is now the homepage. The full
+          operator/quant surface (overview, labs, options, legacy, …) is
+          moved behind /advanced and carries NO product-nav entry. */}
+      <Route path="/" element={<Navigate to="/v2" replace />} />
+      <Route path="/advanced" element={<Navigate to="/overview" replace />} />
 
-      {/* Tier-1 V2 surface — additive, scoped under .v2-root for
-          token isolation. Defaults to /v2/learn. */}
+      {/* V2 surface — the product. Defaults to /v2/discover. */}
       <Route path="/v2/*" element={<V2App />} />
 
 
