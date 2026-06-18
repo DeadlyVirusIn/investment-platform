@@ -180,17 +180,24 @@ export function PaperBook() {
         ) : positions.length === 0 ? (
           <div className="border-t border-hairline pt-12 pb-2">
             <p className="font-serif italic ink-muted text-[18px] leading-relaxed max-w-narrative mb-6">
-              No open positions yet.
+              Your portfolio is empty — let's fix that.
             </p>
             <p className="ink-muted leading-relaxed max-w-narrative mb-6 text-[15px]">
-              The briefing publishes a fresh desk of placements every weekday.
+              Follow a model portfolio or add a single idea to paper. It starts
+              tracking immediately and becomes your track record.
             </p>
-            <Link
-              to="/v2/today"
-              className="text-meta ink-primary hover:opacity-70 transition-opacity inline-flex items-center gap-1.5"
-            >
-              Open today's briefing <span aria-hidden>→</span>
-            </Link>
+            <div className="flex flex-wrap items-center gap-5">
+              <Link
+                to="/v2/discover"
+                className="px-4 py-2 rounded-full inline-flex items-center gap-1.5"
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--background)', backgroundColor: 'var(--brand)' }}
+              >
+                Browse ideas <span aria-hidden>→</span>
+              </Link>
+              <Link to="/v2/track-record" className="text-meta ink-muted hover:ink-primary transition-colors">
+                See track record →
+              </Link>
+            </div>
           </div>
         ) : (
           <ul className="space-y-px bg-hairline">
