@@ -68,3 +68,15 @@ def test_require_user_id_rejects_anonymous():
 def test_require_user_id_returns_trimmed_capped_id():
     assert require_user_id("  user-abc  ") == "user-abc"
     assert require_user_id("x" * 100) == "x" * 64   # capped to column width
+
+
+def test_rate_check_caps_writes_per_user():
+    import apps.api.src.api.model_portfolios as m
+    m._RATE_HITS.clear()
+    for _ in range(m._RATE_MAX):
+        m._rate_check("u1", "follow")               # allowed up to the cap
+    with pytest.raises(HTTPException) as e:
+        m._rate_check("u1", "follow")               # one over → rejected
+    assert e.value.status_code == 429
+    m._rate_check("u2", "follow")                   # a different user is unaffected
+    m._RATE_HITS.clear()

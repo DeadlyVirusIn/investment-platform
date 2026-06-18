@@ -11,14 +11,16 @@ Track record is computed from the source-priority total-return panel
 from __future__ import annotations
 
 import datetime as dt
+import time
 from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select, text
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from apps.api.src.db import get_session
 from apps.api.src.db.models import (
@@ -71,6 +73,24 @@ def _resolve_user_portfolio(db: Session, user_id: str) -> str:
                             max_open_positions=100),
         )
     return pf.id
+
+
+# Lightweight per-user, in-process rate limit on the write endpoints. Caps
+# abuse (unbounded paper-portfolio / trade creation). Per-process only — fine
+# for the MVP; swap for Redis when scaling beyond one worker.
+_RATE_HITS: dict[str, list[float]] = {}
+_RATE_MAX = 30
+_RATE_WINDOW_SEC = 3600.0
+
+
+def _rate_check(user_id: str, kind: str) -> None:
+    key = f"{kind}:{user_id}"
+    now = time.monotonic()
+    hits = [t for t in _RATE_HITS.get(key, []) if now - t < _RATE_WINDOW_SEC]
+    if len(hits) >= _RATE_MAX:
+        raise HTTPException(status_code=429, detail="too many requests — please slow down")
+    hits.append(now)
+    _RATE_HITS[key] = hits
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +183,17 @@ def compute_and_store(session: Session, portfolio: ModelPortfolio) -> int:
         price_map[row.symbol.upper()][row.d] = row.adj
     series = compute_nav_series(price_map, weights)
 
+    # Never wipe an existing track record when the price feed is empty/stale —
+    # a recompute with no data must be a no-op, not a destructive delete.
+    if not series:
+        logger.warning(
+            "compute_and_store: empty series for %s (%s) — keeping existing perf",
+            portfolio.slug, syms,
+        )
+        return 0
+
+    # DELETE + re-insert run in the caller's single transaction (atomic: both
+    # commit or both roll back), so the replace is safe once `series` is real.
     session.execute(
         text("DELETE FROM model_portfolio_perf WHERE model_portfolio_id=:p"),
         {"p": portfolio.id},
@@ -191,16 +222,25 @@ def _summary(perf: list[ModelPortfolioPerf]) -> dict[str, Any]:
 
 @router.get("")
 def list_model_portfolios(db: Session = Depends(get_session)) -> dict[str, Any]:
+    # Eager-load holdings + batch all perf rows in one query (no N+1).
     pfs = db.scalars(
         select(ModelPortfolio).where(ModelPortfolio.is_published.is_(True))
+        .options(selectinload(ModelPortfolio.holdings))
         .order_by(ModelPortfolio.name.asc())
     ).all()
-    items = []
-    for pf in pfs:
-        perf = db.scalars(
-            select(ModelPortfolioPerf).where(ModelPortfolioPerf.model_portfolio_id == pf.id)
+    perf_by_pf: dict[str, list[ModelPortfolioPerf]] = {}
+    ids = [pf.id for pf in pfs]
+    if ids:
+        rows = db.scalars(
+            select(ModelPortfolioPerf)
+            .where(ModelPortfolioPerf.model_portfolio_id.in_(ids))
             .order_by(ModelPortfolioPerf.d.asc())
         ).all()
+        for r in rows:
+            perf_by_pf.setdefault(r.model_portfolio_id, []).append(r)
+    items = []
+    for pf in pfs:
+        perf = perf_by_pf.get(pf.id, [])
         items.append({
             "slug": pf.slug, "name": pf.name, "thesis": pf.thesis,
             "risk_label": pf.risk_label, "holdings_count": len(pf.holdings),
@@ -218,7 +258,8 @@ def social_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
     def _rows(sql: str) -> list[Any]:
         try:
             return list(db.execute(text(sql)).all())
-        except Exception:  # noqa: BLE001 — missing table/col → empty, never 500
+        except Exception as exc:  # noqa: BLE001 — missing table/col → empty, never 500
+            logger.warning("social_summary query failed (returning empty): {}", exc)
             return []
 
     most_followed = [
@@ -289,6 +330,7 @@ def follow_model_portfolio(
     paper engine (create_portfolio + submit_trade). Idempotency is by design
     loose: each follow makes a fresh paper book (a user may follow more than
     once over time)."""
+    _rate_check(user_id, "follow")
     pf = db.scalars(select(ModelPortfolio).where(ModelPortfolio.slug == slug)).first()
     if pf is None:
         raise HTTPException(status_code=404, detail="model portfolio not found")
@@ -374,6 +416,7 @@ def add_idea_to_paper(
     """Buy ``usd_amount`` of a single idea into THE USER'S OWN paper book
     (per-user, never the shared canonical). Reuses the paper engine; the idea
     detail's 'Add to paper' CTA calls this."""
+    _rate_check(user_id, "add")
     asset = db.scalars(select(Asset).where(Asset.symbol == symbol.upper())).first()
     if asset is None:
         raise HTTPException(status_code=404, detail=f"unknown symbol: {symbol}")

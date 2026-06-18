@@ -2029,7 +2029,9 @@ class PortfolioFollow(Base):
     model_portfolio_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("model_portfolio.id", ondelete="CASCADE"), nullable=False
     )
-    paper_portfolio_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    paper_portfolio_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("paper_portfolio.id", ondelete="CASCADE"), nullable=False
+    )
     followed_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
