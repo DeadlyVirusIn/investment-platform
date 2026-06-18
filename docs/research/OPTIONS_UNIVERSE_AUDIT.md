@@ -28,18 +28,48 @@ Dev provider = **Tradier** (`OPTIONS_DATA_PROVIDER=tradier`,
 Tradier returns full chains for any optionable equity. The provider was
 never the blocker.
 
-## Is Alpaca needed? NO (optional complement only)
+## The REAL blocker for stock cards: sandbox quote quality
 
-Alpaca Market Data (alpaca.markets/data) does offer OPRA options:
-- **Free tier:** *indicative* options quotes, 200 calls/min, 30 WS symbols.
-- **Algo Trader Plus ($99/mo):** real-time OPRA, unlimited.
-- Covers stocks + ETFs.
+Capability ≠ usable data. After expanding the universe, a targeted ingest of
+AAPL + MSFT through the live pipeline showed:
 
-Verdict: **not required** — Tradier already delivers stock + ETF chains.
-Alpaca would only be worth adding later if (a) Tradier sandbox data quality
-is insufficient for production, or (b) the universe grows large enough that
-Tradier's 1 qps rate limit becomes the bottleneck. A user-provided Alpaca
-token exists but is **not wired** — deferred until a real blocker appears.
+```
+AAPL: provider_quotes=1378 inserted=0
+      rejects={BID_NONPOSITIVE:381, WIDE_SPREAD:787, STALE_QUOTE:130, LOW_OPEN_INTEREST:80}
+MSFT: provider_quotes=1578 inserted=0
+      rejects={BID_NONPOSITIVE:298, WIDE_SPREAD:1094, STALE_QUOTE:147, LOW_OPEN_INTEREST:39}
+```
+
+The **Tradier sandbox** returns chains but with synthetic/stale quotes
+(non-positive bids, wide spreads, stale timestamps) that fail the liquidity
+gate (`liquidity_filter`). Result: **0 snapshot rows → 0 stock candidates**,
+even with the universe expanded. The ETF candidates that exist today scrape
+through the same gates only marginally.
+
+So the universe expansion is correct and additive, but stock cards will NOT
+appear until a **real-quality options quote source** is wired.
+
+## Is Alpaca needed? Now YES — for real quotes (or Tradier production)
+
+To populate single-name option candidates we need real bid/ask/OI, which the
+sandbox does not provide. Two paths:
+
+1. **Tradier production token** — same adapter, just real quotes. Cheapest
+   change (swap `TRADIER_ACCESS_TOKEN` + base URL to production). No new code.
+2. **Alpaca options** (user has a token) — new adapter:
+   - Free tier = *indicative* OPRA quotes (200 calls/min, 30 WS symbols);
+     Algo Trader Plus ($99/mo) = real-time OPRA. Covers stocks + ETFs.
+   - Plan: add `apps/api/src/options/data_provider/alpaca_adapter.py`
+     implementing `BaseOptionsAdapter.get_chain_snapshot()` (REST
+     `/v1beta1/options/snapshots/{underlying}`), wire into
+     `chain_ingest._build_adapter('alpaca')`, add `ALPACA_API_KEY_ID` /
+     `ALPACA_API_SECRET_KEY` env, set `OPTIONS_DATA_PROVIDER=alpaca`.
+   - Validate indicative-quote quality against the liquidity gate before
+     committing (indicative quotes may still trip WIDE_SPREAD).
+
+**Recommendation:** try the Tradier production token first (zero new code);
+fall back to the Alpaca adapter if production access isn't available. Do NOT
+relax the liquidity filter to admit sandbox junk.
 
 ## What was implemented now
 
@@ -64,9 +94,10 @@ token exists but is **not wired** — deferred until a real blocker appears.
 
 ## Remaining / operational
 
-- New equity candidates require api+worker redeploy (new constant) **and** a
-  nightly options pipeline cycle to appear as cards. Expansion is additive +
-  safe; visibility is deferred to that cycle.
+- New equity candidates require api+worker redeploy (done) **and** a
+  real-quality quote source (Tradier production OR Alpaca). Under the current
+  sandbox token they ingest 0 rows, so no stock cards appear yet — this is
+  the open blocker, not a code gap. ETFs remain fully functional.
 - The advanced **detail page** (`/v2/today/options/:id`, "ENGINE SETUP",
   reached only via an explicit "View option idea" after the warning) keeps
   trader vocabulary (DTE, POP, breakeven, Greeks) by design — it is the
