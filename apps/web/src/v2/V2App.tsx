@@ -23,6 +23,7 @@ import { PaperBook } from './pages/PaperBook';
 import { TrackRecord } from './pages/TrackRecord';
 import { LessonPage } from './pages/LessonPage';
 import { Opportunities } from './pages/Opportunities';
+import { ModelPortfolioDetail } from './pages/ModelPortfolioDetail';
 import { Catalysts } from './pages/Catalysts';
 import { FieldNotes } from './pages/FieldNotes';
 import { Watchlist } from './pages/Watchlist';
@@ -71,6 +72,8 @@ function V2Surface() {
             the canonical entry and currently renders it. */}
         <Route index element={<Navigate to="discover" replace />} />
         <Route path="discover" element={<Opportunities />} />
+        {/* MVP Phase 3 — model portfolio detail (follow-able). */}
+        <Route path="portfolios/:slug" element={<ModelPortfolioDetail />} />
         {/* UX Phase 2 — guided coach surfaces. */}
         <Route path="start" element={<StartHere />} />
         {/* Phase 2E — Mentor Profile is /v2/me. P1.5C1 — legacy MePage

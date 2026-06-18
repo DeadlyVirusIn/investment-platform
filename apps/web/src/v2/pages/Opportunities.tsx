@@ -9,6 +9,7 @@
 
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { ModelPortfoliosSection } from '../components/ModelPortfolioCards';
 import { OpportunitiesOptionsSection } from '../components/OpportunitiesOptionsSection';
 import { useOptionsAvailability } from '../lib/optionsAvailability';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -59,6 +60,9 @@ export function Opportunities() {
       />
 
       <div className="mb-6"><TrustBanner /></div>
+
+      {/* MVP — follow-able model portfolios lead the Discover feed. */}
+      <ModelPortfoliosSection />
 
       {/* P1.3 — confidence doctrine (shared SSOT) */}
       <p className="ink-fainter text-[12px] leading-relaxed mb-6 max-w-narrative">
