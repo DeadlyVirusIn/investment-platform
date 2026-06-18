@@ -80,6 +80,32 @@ Run from a worker container, weekday 13:30–20:00 UTC:
    shows at least one individual-stock card with Name (TICKER), Ends on, and
    (when priced) Practice entry / Best case / Maximum loss.
 
+## It validates AUTOMATICALLY on the next market day
+
+The whole options pipeline is already scheduled + enabled (job_schedule,
+weekday UTC), and the worker is redeployed with the expanded universe:
+```
+options_chain_snapshot       15 14 * * 1-5   (10:15 ET — ingest)
+compute_options_features     25 14 * * 1-5
+options_shadow_eval          35 14 * * 1-5
+options_candidate_generation 45 14 * * 1-5   (→ stock candidates by ~10:45 ET)
+```
+So on **Mon Jun 22, 2026** (Fri Jun 19 = Juneteenth holiday, markets closed)
+the pipeline will ingest AAPL/MSFT/NVDA/AMZN/META/GOOGL on its own during
+market hours. No manual run required — just verify after ~15:00 UTC:
+```
+select underlying, count(*) from options_chain_snapshot
+  where underlying in ('AAPL','MSFT','NVDA','AMZN','META','GOOGL')
+  and snapshot_at_utc::date = '2026-06-22' group by underlying;
+select underlying, count(*) from options_strategy_candidate
+  where underlying in ('AAPL','MSFT','NVDA','AMZN','META','GOOGL')
+  and run_date = '2026-06-22' group by underlying;
+```
+NOTE: an in-session CronCreate reminder was set but is session-scoped and will
+not survive to Monday — the **deployed job_schedule cron above is the real
+mechanism**. The manual checklist below is a fallback if the cron run is
+missed.
+
 ### Success criteria
 ≥3 individual-stock underlyings (AAPL, MSFT, NVDA or equivalent) produce valid
 option candidates visible through the API and UI.
