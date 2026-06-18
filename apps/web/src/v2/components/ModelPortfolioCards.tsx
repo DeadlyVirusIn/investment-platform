@@ -6,8 +6,45 @@ import { Link } from 'react-router-dom';
 import { SurfaceCard } from './ui/SurfaceCard';
 import {
   useModelPortfolios,
+  useSocialProof,
   type ModelPortfolioSummary,
 } from '@/lib/operator/modelPortfolios';
+
+// MVP Phase 7 — social proof strip: most-followed portfolio, trending,
+// most-added idea. Hidden entirely when there's no activity yet (honest).
+export function SocialProofStrip() {
+  const { data } = useSocialProof();
+  const topFollow = data?.most_followed?.[0];
+  const trending = data?.trending?.[0];
+  const topAdd = data?.most_added?.[0];
+  if (!topFollow && !trending && !topAdd) return null;
+  return (
+    <div className="flex flex-wrap gap-2 mb-6">
+      {topFollow && (
+        <Pill to={`/v2/portfolios/${topFollow.slug}`}
+          label="Most followed" value={`${topFollow.name} · ${topFollow.follows}★`} />
+      )}
+      {trending && trending.slug !== topFollow?.slug && (
+        <Pill to={`/v2/portfolios/${trending.slug}`}
+          label="Trending" value={trending.name} />
+      )}
+      {topAdd && (
+        <Pill to={`/v2/today/pick/${topAdd.symbol}`}
+          label="Most added" value={`${topAdd.symbol} · ${topAdd.adds}×`} />
+      )}
+    </div>
+  );
+}
+
+function Pill({ to, label, value }: { to: string; label: string; value: string }) {
+  return (
+    <Link to={to} className="px-3 py-1.5 rounded-full inline-flex items-center gap-1.5"
+      style={{ fontSize: 12, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+      <span className="ink-fainter" style={{ fontSize: 10.5, textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</span>
+      <span className="ink-primary" style={{ fontWeight: 600 }}>{value}</span>
+    </Link>
+  );
+}
 
 function Spark({ points }: { points: number[] }) {
   if (!points || points.length < 2) return null;
@@ -93,7 +130,7 @@ export function ModelPortfoliosSection() {
           <p className="ink-muted" style={{ fontSize: 14 }}>Loading portfolios…</p>
         </SurfaceCard>
       ) : (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))' }}>
           {pfs.map((pf) => <ModelPortfolioCard key={pf.slug} pf={pf} />)}
         </div>
       )}

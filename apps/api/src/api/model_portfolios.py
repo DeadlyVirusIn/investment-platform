@@ -162,6 +162,44 @@ def list_model_portfolios(db: Session = Depends(get_session)) -> dict[str, Any]:
     return {"portfolios": items}
 
 
+@router.get("/social/summary")
+def social_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
+    """Social proof for the Discover feed: most-followed portfolios, trending
+    (followed in the last 7 days), and most-added single ideas. Each block is
+    defensive — empty when there is no activity yet (honest, no fabrication)."""
+    def _rows(sql: str) -> list[Any]:
+        try:
+            return list(db.execute(text(sql)).all())
+        except Exception:  # noqa: BLE001 — missing table/col → empty, never 500
+            return []
+
+    most_followed = [
+        {"slug": r[0], "name": r[1], "follows": int(r[2])}
+        for r in _rows(
+            "SELECT mp.slug, mp.name, count(*) n FROM portfolio_follow f "
+            "JOIN model_portfolio mp ON mp.id=f.model_portfolio_id "
+            "GROUP BY mp.slug, mp.name ORDER BY n DESC LIMIT 5"
+        )
+    ]
+    trending = [
+        {"slug": r[0], "name": r[1], "follows": int(r[2])}
+        for r in _rows(
+            "SELECT mp.slug, mp.name, count(*) n FROM portfolio_follow f "
+            "JOIN model_portfolio mp ON mp.id=f.model_portfolio_id "
+            "WHERE f.followed_at >= now() - interval '7 days' "
+            "GROUP BY mp.slug, mp.name ORDER BY n DESC LIMIT 5"
+        )
+    ]
+    most_added = [
+        {"symbol": str(r[0]).replace("idea:", ""), "adds": int(r[1])}
+        for r in _rows(
+            "SELECT reason, count(*) n FROM paper_trade "
+            "WHERE reason LIKE 'idea:%' GROUP BY reason ORDER BY n DESC LIMIT 8"
+        )
+    ]
+    return {"most_followed": most_followed, "trending": trending, "most_added": most_added}
+
+
 @router.get("/{slug}")
 def model_portfolio_detail(slug: str, db: Session = Depends(get_session)) -> dict[str, Any]:
     pf = db.scalars(select(ModelPortfolio).where(ModelPortfolio.slug == slug)).first()

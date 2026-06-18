@@ -46,6 +46,20 @@ export function useModelPortfolio(slug: string | undefined) {
   });
 }
 
+export interface SocialProof {
+  most_followed: { slug: string; name: string; follows: number }[];
+  trending: { slug: string; name: string; follows: number }[];
+  most_added: { symbol: string; adds: number }[];
+}
+
+export function useSocialProof() {
+  return useQuery<SocialProof>({
+    queryKey: ["model-portfolios", "social"],
+    queryFn: () => apiGet<SocialProof>("/model-portfolios/social/summary"),
+    staleTime: 120_000,
+  });
+}
+
 export interface FollowResult {
   paper_portfolio_id: string;
   name: string;

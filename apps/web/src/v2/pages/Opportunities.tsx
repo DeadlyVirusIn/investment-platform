@@ -9,7 +9,7 @@
 
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
-import { ModelPortfoliosSection } from '../components/ModelPortfolioCards';
+import { ModelPortfoliosSection, SocialProofStrip } from '../components/ModelPortfolioCards';
 import { OpportunitiesOptionsSection } from '../components/OpportunitiesOptionsSection';
 import { useOptionsAvailability } from '../lib/optionsAvailability';
 import { PageHeader } from '../components/ui/PageHeader';
@@ -60,6 +60,9 @@ export function Opportunities() {
       />
 
       <div className="mb-6"><TrustBanner /></div>
+
+      {/* MVP Phase 7 — social proof strip (hidden until there's activity). */}
+      <SocialProofStrip />
 
       {/* MVP — follow-able model portfolios lead the Discover feed. */}
       <ModelPortfoliosSection />
