@@ -22,6 +22,7 @@ import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
@@ -113,8 +114,8 @@ export function Opportunities() {
                 <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {trims.slice(0, 8).map((r) => (
                     <li key={r.id} className="py-3 grid grid-cols-[90px_1fr] items-baseline gap-3">
-                      <Link to={`/v2/today/pick/${r.symbol}`} className="font-mono ink-primary" style={{ fontSize: 13 }}>
-                        {r.symbol}
+                      <Link to={`/v2/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13 }}>
+                        <CompanyTitle symbol={r.symbol} name={r.name} />
                       </Link>
                       <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{plainThesis(r.thesis) ?? 'Cautious for now.'}</span>
                     </li>
@@ -193,7 +194,8 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
-        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: 16 }}>{rec.symbol}</span>
+        <CompanyTitle symbol={rec.symbol} name={rec.name}
+          className="ink-primary" style={{ fontSize: 15 }} />
         <span className="ink-muted" style={{ fontSize: 13 }}>{action}</span>
       </div>
       <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">

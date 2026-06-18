@@ -15,6 +15,7 @@ import { useOptionsLanes } from '../lib/optionsLanes';
 import { rankSetups } from '../lib/optionsPresent';
 import { beginnerOption } from '../lib/optionPlain';
 import { optionDetailHref } from './OptionsSetupCard';
+import { CompanyTitle } from './CompanyTitle';
 import type { PresentedOption } from '../lib/optionsPresent';
 
 const AMBER = 'oklch(0.70 0.14 75)';
@@ -37,7 +38,7 @@ function BeginnerOptionCard({ opt }: { opt: PresentedOption }) {
   return (
     <SurfaceCard variant="default" className="p-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
-        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: 16 }}>{opt.underlying}</span>
+        <CompanyTitle symbol={opt.underlying} className="ink-primary" style={{ fontSize: 15 }} />
         <span className="ink-muted" style={{ fontSize: 13 }}>{opt.strategyName}</span>
       </div>
       <ul className="mt-2">

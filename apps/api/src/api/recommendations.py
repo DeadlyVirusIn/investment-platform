@@ -59,6 +59,7 @@ def _rec_payload(
     symbol: str | None,
     evidences: list[RecommendationEvidence],
     sector: str | None = None,
+    name: str | None = None,
 ) -> dict[str, Any]:
     rationale = _parse_json(rec.rationale)
     policy = rationale.get("policy") or {}
@@ -66,6 +67,10 @@ def _rec_payload(
         "id": rec.id,
         "asset_id": rec.asset_id,
         "symbol": symbol,
+        # Human company name (e.g. "Royalty Pharma plc"); null until the
+        # Polygon backfill populates it. Never fabricated — UI falls back to
+        # the ticker.
+        "name": name,
         # Coded sector (e.g. "consumer_disc"); the frontend humanizes it.
         # Null when the asset has no sector. Never fabricated.
         "sector": sector,
@@ -140,17 +145,22 @@ def list_recommendations(
     asset_ids = [r.asset_id for r in recs]
     symbol_map: dict[str, str] = {}
     sector_map: dict[str, str | None] = {}
+    name_map: dict[str, str | None] = {}
     if asset_ids:
-        for asset_id, symbol, sector in session.execute(
-            select(Asset.id, Asset.symbol, Asset.sector).where(Asset.id.in_(asset_ids))
+        for asset_id, symbol, sector, name in session.execute(
+            select(Asset.id, Asset.symbol, Asset.sector, Asset.name).where(Asset.id.in_(asset_ids))
         ).all():
             symbol_map[asset_id] = symbol
             sector_map[asset_id] = sector
+            name_map[asset_id] = name
 
     ev_map = _attach_evidence(session, recs)
 
     payload = [
-        _rec_payload(r, symbol_map.get(r.asset_id), ev_map.get(r.id, []), sector_map.get(r.asset_id))
+        _rec_payload(
+            r, symbol_map.get(r.asset_id), ev_map.get(r.id, []),
+            sector_map.get(r.asset_id), name_map.get(r.asset_id),
+        )
         for r in recs
     ]
     return {"recommendations": payload, "count": len(payload)}

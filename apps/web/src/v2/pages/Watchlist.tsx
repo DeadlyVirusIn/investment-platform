@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
+import { CompanyTitle } from '../components/CompanyTitle';
 
 export function Watchlist() {
   const { watchlist, toggleWatchlist } = useUserPrefs();
@@ -52,9 +53,7 @@ export function Watchlist() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-baseline gap-3 mb-1.5 flex-wrap">
                   <span aria-hidden className="ink-primary">★</span>
-                  <span className="font-mono ink-primary text-[15px]">
-                    {symbol}
-                  </span>
+                  <CompanyTitle symbol={symbol} className="ink-primary text-[15px]" />
                 </div>
                 <div className="text-[13px] ink-fainter leading-relaxed">
                   Live contextual insights are not yet connected.

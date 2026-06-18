@@ -126,6 +126,7 @@ export interface RecApi {
   id: string;
   asset_id: string;
   symbol: string | null;
+  name: string | null;              // human company name; null until Polygon backfill
   sector: string | null;            // coded (e.g. "consumer_disc"); humanize via sectorLabel
   action: string | null;            // original engine action
   adjusted_action: string | null;   // post-policy (null = unchanged)

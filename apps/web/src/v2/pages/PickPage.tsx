@@ -12,6 +12,7 @@ import { useUserPrefs } from '../state/UserPrefsContext';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { plainThesis, ideaSignals } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
@@ -188,7 +189,9 @@ export function PickPage() {
             </button>
           </div>
           <h1 className="font-serif text-headline ink-primary mb-3">
-            {rec.symbol} — {action}
+            <CompanyTitle symbol={rec.symbol} name={rec.name}
+              tickerClassName="font-mono ink-muted" tickerStyle={{ fontSize: '0.6em' }} />
+            {' — '}{action}
           </h1>
           <div className="text-meta ink-muted tabular-nums">
             {sec && <>{sec}{' · '}</>}

@@ -12,6 +12,7 @@
 // "—") whenever no price is available — we never fabricate a mark.
 
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -236,7 +237,7 @@ function PositionRow({ position }: { position: ExecutedPosition }) {
   return (
     <li className="surface-base py-6">
       <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-        <span className="font-mono ink-primary text-[14px]">{position.symbol}</span>
+        <CompanyTitle symbol={position.symbol} className="ink-primary text-[14px]" />
         <span className="text-meta ink-fainter">{qty} {units}</span>
         <span className="text-meta ink-fainter">· {holdStatus}</span>
         {position.source !== 'live' && (
@@ -288,7 +289,7 @@ function RankCard({ title, rows, metric }: {
             const v = metric === 'day' ? p.day_pnl : p.unrealized_pnl;
             return (
               <li key={p.position_id} className="flex items-baseline justify-between gap-3">
-                <span className="font-mono ink-primary text-[13px]">{p.symbol}</span>
+                <CompanyTitle symbol={p.symbol} className="ink-primary text-[13px]" />
                 <span className={`tabular-nums text-[13px] ${toneCls(v)}`}>
                   {rankLine(p, metric)}
                 </span>

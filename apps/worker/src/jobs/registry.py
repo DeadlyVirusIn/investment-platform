@@ -230,6 +230,7 @@ async def run_recommendations_for_all_accounts() -> None:
 JobFn = Callable[[], Coroutine[Any, Any, None]]
 
 from apps.worker.src.jobs.backfill_prices import backfill_prices
+from apps.worker.src.jobs.refresh_company_names import refresh_company_names
 from apps.worker.src.jobs.compute_factor_snapshots import compute_factor_snapshots
 from apps.worker.src.jobs.compute_regime_snapshot import compute_regime_snapshot
 from apps.worker.src.jobs.fetch_news import fetch_news
@@ -266,6 +267,9 @@ REGISTRY: dict[str, JobFn] = {
     # Ingestion (new: Tiingo → Yahoo fallback)
     "ingest_prices_daily": ingest_prices_daily,
     "backfill_prices": backfill_prices,
+    # Phase 2 — company-name backfill + nightly refresh from Polygon.
+    # Idempotent (only fills NULL names). Scheduled by migration 103.
+    "refresh_company_names": refresh_company_names,
     # Ingestion (legacy: Tiingo-only, kept for backward compat)
     "tiingo_backfill_eod": tiingo_backfill_eod,
     # Stock engine

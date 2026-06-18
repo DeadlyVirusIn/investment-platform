@@ -9,6 +9,7 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
 import {
   useCanonicalStockPortfolio,
@@ -168,7 +169,7 @@ export function TrackRecord() {
               {closed.slice().sort((a, b) => (b.fill_ts ?? '').localeCompare(a.fill_ts ?? '')).map((t) => (
                 <li key={t.trade_id} className="surface-base py-5 flex items-baseline justify-between gap-4 flex-wrap">
                   <div className="min-w-0 flex-1">
-                    <span className="font-mono ink-primary text-[14px]">{t.symbol}</span>
+                    <CompanyTitle symbol={t.symbol} className="ink-primary text-[14px]" />
                     <span className="text-meta ink-fainter tabular-nums ml-3">
                       {t.fill_ts ? absTime(t.fill_ts) : '—'}{t.source !== 'live' && ` · ${t.source}`}
                     </span>

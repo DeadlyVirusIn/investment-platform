@@ -18,8 +18,13 @@ router = APIRouter(prefix="/assets", tags=["assets"])
 
 
 @router.get("")
-def get_assets(session: Session = Depends(get_session)) -> dict[str, Any]:
-    assets = [a.model_dump(mode="json") for a in list_assets(session)]
+def get_assets(
+    limit: int = 500,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    # Phase 2 — frontend name map needs the full universe (>500). Cap at 5000.
+    limit = max(1, min(limit, 5000))
+    assets = [a.model_dump(mode="json") for a in list_assets(session, limit=limit)]
     return {"assets": assets, "count": len(assets)}
 
 

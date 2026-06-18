@@ -5,6 +5,7 @@ import { useParams, Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { useModelPortfolio, useFollowModelPortfolio } from '@/lib/operator/modelPortfolios';
 
 function Curve({ navs }: { navs: number[] }) {
@@ -87,7 +88,7 @@ export function ModelPortfolioDetail() {
             <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
               {(pf.holdings ?? []).map((h) => (
                 <li key={h.symbol} className="py-2 flex items-center justify-between">
-                  <span className="font-mono ink-primary" style={{ fontSize: 13 }}>{h.symbol}</span>
+                  <CompanyTitle symbol={h.symbol} className="ink-primary" style={{ fontSize: 13 }} />
                   <span className="ink-muted tabular-nums" style={{ fontSize: 13 }}>
                     {h.weight_pct.toFixed(0)}%
                   </span>

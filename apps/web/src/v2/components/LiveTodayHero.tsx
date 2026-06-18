@@ -9,6 +9,7 @@ import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { plainThesis, ideaSignals } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
+import { CompanyTitle } from './CompanyTitle';
 import { PlanRows } from './PlanRows';
 import { type RecApi, effectiveAction } from '@/lib/operator/hooks';
 
@@ -63,9 +64,9 @@ export function LiveTodayHero({
       </div>
 
       <div className="flex items-baseline gap-3 flex-wrap mt-2">
-        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: 24 }}>
-          {rec.symbol ?? '—'}
-        </span>
+        <CompanyTitle symbol={rec.symbol} name={rec.name}
+          className="ink-primary" style={{ fontSize: 22 }}
+          tickerClassName="font-mono ink-muted" tickerStyle={{ fontSize: 16 }} />
         <span className="ink-muted" style={{ fontSize: 14 }}>{action}</span>
       </div>
 
@@ -135,9 +136,8 @@ export function LiveTodayHero({
           <ul className="space-y-2">
             {alsoConsider.slice(0, 4).map((r) => (
               <li key={r.id} className="flex items-baseline gap-3">
-                <Link to={`/v2/today/pick/${r.symbol}`}
-                  className="font-mono ink-primary" style={{ fontSize: 13.5 }}>
-                  {r.symbol}
+                <Link to={`/v2/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13.5 }}>
+                  <CompanyTitle symbol={r.symbol} name={r.name} />
                 </Link>
                 <span className="ink-muted" style={{ fontSize: 12.5 }}>
                   {effectiveAction(r)} · {(r.confidence_label ?? 'Medium').toLowerCase()} confidence
