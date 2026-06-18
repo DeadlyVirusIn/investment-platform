@@ -42,7 +42,7 @@ export function PlanRows({
       </ul>
       <p className="ink-fainter mt-2" style={{ fontSize: 11, lineHeight: 1.5 }}>
         {plan.estimate
-          ? 'Paper planning estimate from price + volatility (ATR) — not investment advice. Practice it in paper first.'
+          ? 'Paper planning estimate from price and how much it typically moves — not investment advice. Practice it in paper first.'
           : 'ArthOS gives the decision, not exact prices yet — choose your own levels and practice in paper first.'}
       </p>
     </div>

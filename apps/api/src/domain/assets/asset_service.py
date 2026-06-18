@@ -28,6 +28,7 @@ class AssetOut(BaseModel):
     id: str
     symbol: str
     name: str | None
+    sector: str | None          # coded (e.g. "consumer_disc"); frontend humanizes
     asset_class: str
     exchange: str | None
     currency: str
@@ -40,6 +41,7 @@ def _to_out(row: Asset) -> AssetOut:
         id=row.id,
         symbol=row.symbol,
         name=row.name,
+        sector=row.sector,
         asset_class=row.asset_class,
         exchange=row.exchange,
         currency=row.currency,

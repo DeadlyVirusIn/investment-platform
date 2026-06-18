@@ -126,6 +126,7 @@ export interface RecApi {
   id: string;
   asset_id: string;
   symbol: string | null;
+  sector: string | null;            // coded (e.g. "consumer_disc"); humanize via sectorLabel
   action: string | null;            // original engine action
   adjusted_action: string | null;   // post-policy (null = unchanged)
   confidence: string | null;        // numeric string e.g. "80.000000"

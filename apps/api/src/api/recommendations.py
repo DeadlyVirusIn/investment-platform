@@ -58,6 +58,7 @@ def _rec_payload(
     rec: Recommendation,
     symbol: str | None,
     evidences: list[RecommendationEvidence],
+    sector: str | None = None,
 ) -> dict[str, Any]:
     rationale = _parse_json(rec.rationale)
     policy = rationale.get("policy") or {}
@@ -65,6 +66,9 @@ def _rec_payload(
         "id": rec.id,
         "asset_id": rec.asset_id,
         "symbol": symbol,
+        # Coded sector (e.g. "consumer_disc"); the frontend humanizes it.
+        # Null when the asset has no sector. Never fabricated.
+        "sector": sector,
         "action": rec.action,
         "confidence": str(rec.conviction) if rec.conviction is not None else None,
         "confidence_label": rationale.get("confidence_label"),
@@ -132,19 +136,21 @@ def list_recommendations(
             reverse=(order == "desc"),
         )
 
-    # Resolve symbols in one query
+    # Resolve symbols + sectors in one query
     asset_ids = [r.asset_id for r in recs]
     symbol_map: dict[str, str] = {}
+    sector_map: dict[str, str | None] = {}
     if asset_ids:
-        for asset_id, symbol in session.execute(
-            select(Asset.id, Asset.symbol).where(Asset.id.in_(asset_ids))
+        for asset_id, symbol, sector in session.execute(
+            select(Asset.id, Asset.symbol, Asset.sector).where(Asset.id.in_(asset_ids))
         ).all():
             symbol_map[asset_id] = symbol
+            sector_map[asset_id] = sector
 
     ev_map = _attach_evidence(session, recs)
 
     payload = [
-        _rec_payload(r, symbol_map.get(r.asset_id), ev_map.get(r.id, []))
+        _rec_payload(r, symbol_map.get(r.asset_id), ev_map.get(r.id, []), sector_map.get(r.asset_id))
         for r in recs
     ]
     return {"recommendations": payload, "count": len(payload)}

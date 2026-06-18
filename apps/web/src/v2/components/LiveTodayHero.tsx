@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { plainThesis, ideaSignals } from '../lib/plainText';
+import { sectorLabel } from '../lib/companyMeta';
 import { PlanRows } from './PlanRows';
 import { type RecApi, effectiveAction } from '@/lib/operator/hooks';
 
@@ -49,6 +50,7 @@ export function LiveTodayHero({
   const support = sig.why.slice(0, 3);
   const keyRisk = sig.risks[0] ?? null;
   const confLabel = (rec.confidence_label ?? 'Medium').toLowerCase();
+  const sec = sectorLabel(rec.sector);
 
   return (
     <SurfaceCard variant="highlight" className="p-6 lg:p-7">
@@ -67,8 +69,9 @@ export function LiveTodayHero({
         <span className="ink-muted" style={{ fontSize: 14 }}>{action}</span>
       </div>
 
-      {/* Confidence level — plain word, no number. */}
+      {/* Sector + confidence (plain word, no number) + freshness. */}
       <div className="flex items-center gap-2 flex-wrap mt-2">
+        {sec && <Chip>{sec}</Chip>}
         <Chip>{confLabel} confidence</Chip>
         <Chip tone={fresh.tone}>{fresh.label}</Chip>
       </div>

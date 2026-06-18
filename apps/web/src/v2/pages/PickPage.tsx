@@ -4,14 +4,14 @@
 // arthosData static literals. Fields the backend lacks are omitted, never
 // fabricated. Honest not-found when the symbol has no live recommendation.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
-import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { plainThesis, ideaSignals } from '../lib/plainText';
+import { sectorLabel } from '../lib/companyMeta';
 import { PlanRows } from '../components/PlanRows';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
@@ -19,14 +19,6 @@ import {
   effectiveAction,
   type RecApi,
 } from '@/lib/operator/hooks';
-
-interface EvidenceItem {
-  factor_key?: string;
-  family?: string;
-  direction?: string;
-  score?: string | null;
-  narrative?: string;
-}
 
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   return (
@@ -47,14 +39,6 @@ function absTime(iso: string | null): string {
   return d.toLocaleString(undefined, {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
-}
-
-// Translate a raw factor direction into a plain-English cue (no scores).
-function dirMark(direction?: string): { glyph: string; color: string } {
-  const d = (direction ?? '').toLowerCase();
-  if (/up|bull|pos|support|long/.test(d)) return { glyph: '▲', color: 'var(--brand)' };
-  if (/down|bear|neg|risk|short/.test(d)) return { glyph: '▼', color: 'oklch(0.70 0.14 75)' };
-  return { glyph: '•', color: 'var(--muted-foreground)' };
 }
 
 // ArthOS recommendations are swing ideas (the engine's design horizon), so the
@@ -86,6 +70,28 @@ function isFresh(rec: RecApi): boolean {
   if (!rec.generated_at) return true;
   const h = (Date.now() - new Date(rec.generated_at).getTime()) / 3600_000;
   return !(Number.isFinite(h) && h > 30);
+}
+
+// One-time explainer: clarifies "paper" the first time a user reaches an
+// idea detail. Dismiss persists in localStorage so it shows only once.
+function PaperExplainer() {
+  const KEY = 'arthos_seen_paper_explainer';
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    try { if (!localStorage.getItem(KEY)) setShow(true); } catch { /* ignore */ }
+  }, []);
+  if (!show) return null;
+  return (
+    <div className="mt-3 rounded-xl px-3 py-2 flex items-start justify-between gap-3"
+      style={{ backgroundColor: 'color-mix(in oklch, var(--brand) 8%, transparent)', border: '1px solid var(--border)' }}>
+      <p className="ink-muted text-[12.5px] leading-relaxed">
+        Paper means practice money — no real money is used.
+      </p>
+      <button type="button"
+        onClick={() => { try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ } setShow(false); }}
+        className="text-[12px] ink-fainter hover:ink-muted shrink-0">Got it</button>
+    </div>
+  );
 }
 
 export function PickPage() {
@@ -154,9 +160,9 @@ export function PickPage() {
   const action = effectiveAction(rec) ?? 'Hold';
   const fresh = isFresh(rec);
   const watching = inWatchlist(rec.symbol ?? '');
-  const evidence = (rec.evidence ?? []) as EvidenceItem[];
   const sig = ideaSignals(rec.family_scores);
   const holding = HOLDING_PERIOD;
+  const sec = sectorLabel(rec.sector);
 
   return (
     <ArthosPage maxWidth="max-w-copy">
@@ -185,15 +191,17 @@ export function PickPage() {
             {rec.symbol} — {action}
           </h1>
           <div className="text-meta ink-muted tabular-nums">
+            {sec && <>{sec}{' · '}</>}
             {rec.confidence_label ?? 'Medium'} confidence
             {' · '}
             <span style={{ color: fresh ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
               {fresh ? 'updated today' : 'needs a refresh'}
             </span>
           </div>
-          {/* P1.3 — confidence doctrine (shared SSOT) */}
+          {/* Phase 4 — beginner-safe explanation of what "confidence" means. */}
           <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
-            {CONFIDENCE_DOCTRINE}
+            Confidence means how strongly Arth’s model supports this idea based on
+            available data. It is not a guarantee.
           </p>
           {/* MVP — add this idea to the paper book ($1,000). */}
           <button type="button" onClick={addToPaper} disabled={addIdea.isPending}
@@ -211,6 +219,7 @@ export function PickPage() {
               Couldn't add to your paper book. Try again.
             </p>
           )}
+          <PaperExplainer />
         </div>
       </FadeIn>
 
@@ -269,19 +278,13 @@ export function PickPage() {
               ))}
             </ul>
           ) : (
-            evidence.filter((s) => s.narrative).length > 0 && (
-              <ul className="space-y-3">
-                {evidence.filter((s) => s.narrative).map((s, i) => {
-                  const m = dirMark(s.direction);
-                  return (
-                    <li key={i} className="flex items-baseline gap-3 border-t border-hairline pt-3">
-                      <span aria-hidden style={{ color: m.color, fontSize: 12 }}>{m.glyph}</span>
-                      <span className="ink-primary text-[15px] leading-snug">{s.narrative}</span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )
+            // Phase 4 — beginner-safe fallback. Never expose raw engine
+            // narratives (SMA / RSI / ATR) when no plain signals are available.
+            <p className="ink-muted text-[14px] leading-relaxed">
+              Arth’s model rates this a {action.toLowerCase()} from current price and
+              market trend. The detailed signals aren’t available in plain language
+              for this name yet.
+            </p>
           )}
         </section>
       </FadeIn>

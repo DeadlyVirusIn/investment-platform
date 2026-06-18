@@ -21,6 +21,7 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis } from '../lib/plainText';
+import { sectorLabel } from '../lib/companyMeta';
 import { PlanRows } from '../components/PlanRows';
 import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
@@ -196,6 +197,7 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
         <span className="ink-muted" style={{ fontSize: 13 }}>{action}</span>
       </div>
       <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
+        {sectorLabel(rec.sector) && <SmallChip>{sectorLabel(rec.sector)}</SmallChip>}
         <SmallChip>{(rec.confidence_label ?? 'Medium').toLowerCase()} confidence</SmallChip>
         <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'updated today' : 'older'}</SmallChip>
       </div>
