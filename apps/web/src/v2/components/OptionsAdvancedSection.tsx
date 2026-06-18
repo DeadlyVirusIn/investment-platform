@@ -12,7 +12,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { useOptionsLanes } from '../lib/optionsLanes';
-import { rankSetups } from '../lib/optionsPresent';
+import { rankSetups, strategyPlain } from '../lib/optionsPresent';
 import { beginnerOption } from '../lib/optionPlain';
 import { optionDetailHref } from './OptionsSetupCard';
 import { CompanyTitle } from './CompanyTitle';
@@ -37,9 +37,18 @@ function BeginnerOptionCard({ opt }: { opt: PresentedOption }) {
   const b = beginnerOption(opt);
   return (
     <SurfaceCard variant="default" className="p-5">
-      <div className="flex items-baseline gap-3 flex-wrap mb-1">
+      <div className="mb-1">
         <CompanyTitle symbol={opt.underlying} className="ink-primary" style={{ fontSize: 15 }} />
-        <span className="ink-muted" style={{ fontSize: 13 }}>{opt.strategyName}</span>
+      </div>
+      <div className="mb-1 flex items-baseline gap-2 flex-wrap">
+        {/* Plain-English label primary; real strategy name kept as secondary
+            so beginners still learn the term. Detail page shows real name. */}
+        <span className="ink-primary" style={{ fontSize: 13.5, fontWeight: 600 }}>
+          {strategyPlain(opt.ruleId) ?? opt.strategyName}
+        </span>
+        {strategyPlain(opt.ruleId) && (
+          <span className="ink-muted" style={{ fontSize: 11.5 }}>{opt.strategyName}</span>
+        )}
       </div>
       <ul className="mt-2">
         <Row label="Time left" value={b.timeLeft} />
