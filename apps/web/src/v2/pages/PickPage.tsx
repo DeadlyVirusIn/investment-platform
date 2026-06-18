@@ -113,10 +113,9 @@ export function PickPage() {
   // Add this idea to the canonical paper book ($1,000), then go to My Portfolio.
   const addToPaper = () => {
     if (!rec?.symbol) return;
-    addIdea.mutate(
-      { symbol: rec.symbol },
-      { onSuccess: () => navigate('/v2/portfolio') },
-    );
+    // No auto-navigate — show an inline confirmation so the user chooses
+    // (View portfolio / Continue exploring) instead of being yanked away.
+    addIdea.mutate({ symbol: rec.symbol });
   };
 
   // Reset the one-shot guard when navigating between symbols (the router
@@ -221,6 +220,27 @@ export function PickPage() {
             <p className="mt-2 text-[12px]" style={{ color: 'var(--destructive)' }}>
               Couldn't add to your paper book. Try again.
             </p>
+          )}
+          {addIdea.isSuccess && (
+            <div className="mt-3 rounded-xl px-4 py-3 max-w-narrative" style={{
+              backgroundColor: 'color-mix(in oklch, var(--brand) 9%, transparent)',
+              border: '1px solid color-mix(in oklch, var(--brand) 26%, transparent)',
+            }}>
+              <p className="ink-primary text-[14px] font-semibold">✓ Added to your practice portfolio</p>
+              <p className="ink-muted text-[12.5px] leading-relaxed mt-1">
+                Track it using practice money before risking real money.
+              </p>
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
+                <Link to="/v2/portfolio" className="px-3 py-1.5 rounded-full"
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
+                  View portfolio
+                </Link>
+                <Link to="/v2/discover" className="text-[12.5px]"
+                  style={{ color: 'var(--brand)', fontWeight: 600 }}>
+                  Continue exploring ideas →
+                </Link>
+              </div>
+            </div>
           )}
           <PaperExplainer />
         </div>

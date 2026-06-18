@@ -87,11 +87,41 @@ export function PaperBook() {
       >
         <MetaLabel>Book value</MetaLabel>
         {nav == null ? (
-          <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
-            {isLoading
-              ? 'Loading the practice account…'
-              : 'Practice account is unavailable right now.'}
-          </p>
+          isLoading ? (
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
+              Loading the practice account…
+            </p>
+          ) : (book?.open_positions_count ?? 0) > 0 || positions.length > 0 ? (
+            // Positions exist but no NAV snapshot yet (status=no_live_snapshot).
+            // NEVER say "unavailable" here — the user's add succeeded.
+            <div className="mt-3 max-w-narrative">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-full font-semibold uppercase"
+                  style={{ fontSize: 10.5, letterSpacing: '0.1em',
+                    backgroundColor: 'color-mix(in oklch, var(--brand) 12%, transparent)',
+                    color: 'var(--brand)',
+                    border: '1px solid color-mix(in oklch, var(--brand) 26%, transparent)' }}>
+                  Practice money
+                </span>
+                <span className="ink-muted text-[13px]">
+                  {(book?.open_positions_count ?? positions.length)} open position
+                  {(book?.open_positions_count ?? positions.length) === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="font-serif text-subhead ink-primary leading-snug">
+                Your practice portfolio is being prepared
+              </p>
+              <p className="ink-muted leading-relaxed text-[15px] mt-2">
+                You've already added ideas to your practice account. Prices and
+                portfolio values update with the next market snapshot.
+              </p>
+            </div>
+          ) : (
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
+              No practice positions yet — add an idea from Discover to start your
+              practice book.
+            </p>
+          )
         ) : (
           <>
             <div className="font-serif text-headline ink-primary tabular-nums mt-3 mb-3">

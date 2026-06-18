@@ -28,6 +28,7 @@ import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
+  useCanonicalStockPortfolio,
   effectiveAction,
   confidenceNum,
   type RecApi,
@@ -36,6 +37,8 @@ import {
 export function Opportunities() {
   const { data, isLoading, isError } = useTodaysRecommendations();
   const { data: diag } = useRecommendationDiagnostics();
+  const { data: book } = useCanonicalStockPortfolio();
+  const paperCount = book?.open_positions_count ?? 0;
   const recs: RecApi[] = data?.recommendations ?? [];
 
   const byConf = (a: RecApi, b: RecApi) => confidenceNum(b) - confidenceNum(a);
@@ -59,9 +62,12 @@ export function Opportunities() {
 
       {tab === 'stocks' && (
         <>
+      {/* P0 onboarding — bridge single ideas → diversified portfolio once the
+          user has practiced 2+ individual positions. */}
+      {paperCount >= 2 && <PortfolioBridge />}
       {/* Sprint D order: portfolios under the hero, then themes, what's
           moving, social proof, then today's individual ideas. */}
-      <ModelPortfoliosSection />
+      <div id="model-portfolios"><ModelPortfoliosSection /></div>
       <TrendingThemes />
       <WhatsMovingStrip />
       <SocialProofStrip />
@@ -134,6 +140,27 @@ export function Opportunities() {
           + cards directly (the tab is the disclosure). Beginner language. */}
       {tab === 'options' && <OptionsAdvancedSection alwaysOpen />}
     </ArthosPage>
+  );
+}
+
+// P0 onboarding — nudge from single ideas to a diversified portfolio once the
+// user has 2+ practice positions. Scrolls to the model-portfolios section.
+function PortfolioBridge() {
+  return (
+    <SurfaceCard variant="highlight" className="p-5 mb-8">
+      <p className="font-display ink-primary" style={{
+        fontSize: 18, fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+      }}>Ready to diversify?</p>
+      <p className="ink-muted leading-relaxed mt-1" style={{ fontSize: 13.5 }}>
+        You've practiced individual ideas. Try a model portfolio built from
+        multiple investments.
+      </p>
+      <a href="#model-portfolios"
+        className="inline-flex items-center gap-1.5 mt-3 px-4 h-9 rounded-full"
+        style={{ fontSize: 12.5, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
+        Explore model portfolios →
+      </a>
+    </SurfaceCard>
   );
 }
 
