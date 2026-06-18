@@ -21,6 +21,7 @@ import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis } from '../lib/plainText';
 import { PlanRows } from '../components/PlanRows';
+import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
@@ -117,6 +118,10 @@ export function Opportunities() {
           )}
         </>
       )}
+
+      {/* Sprint M — options return to Discover, separate + behind disclosure,
+          never mixed into stock ideas. Beginner language only. */}
+      <OptionsAdvancedSection />
     </ArthosPage>
   );
 }
