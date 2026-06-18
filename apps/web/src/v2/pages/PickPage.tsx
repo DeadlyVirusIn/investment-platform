@@ -11,7 +11,7 @@ import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
-import { plainThesis } from '../lib/plainText';
+import { plainThesis, ideaSignals } from '../lib/plainText';
 import {
   useTodaysRecommendations,
   effectiveAction,
@@ -54,6 +54,11 @@ function dirMark(direction?: string): { glyph: string; color: string } {
   if (/down|bear|neg|risk|short/.test(d)) return { glyph: '▼', color: 'oklch(0.70 0.14 75)' };
   return { glyph: '•', color: 'var(--muted-foreground)' };
 }
+
+// ArthOS recommendations are swing ideas (the engine's design horizon), so the
+// expected holding period is a real property of the strategy — not per-name.
+const HOLDING_PERIOD =
+  'Medium-term — these are swing ideas, usually held a few weeks to a few months.';
 
 function isFresh(rec: RecApi): boolean {
   if (rec.stale_data) return false;
@@ -128,6 +133,8 @@ export function PickPage() {
   const fresh = isFresh(rec);
   const watching = inWatchlist(rec.symbol ?? '');
   const evidence = (rec.evidence ?? []) as EvidenceItem[];
+  const sig = ideaSignals(rec.family_scores);
+  const holding = HOLDING_PERIOD;
 
   return (
     <ArthosPage maxWidth="max-w-copy">
@@ -197,47 +204,68 @@ export function PickPage() {
         </div>
       </FadeIn>
 
+      {/* Sprint H — "Why this idea exists" in plain investor language, derived
+          from the engine's real signals (no scores/jargon). Falls back to the
+          plain evidence narratives if family signals aren't present. */}
       <FadeIn delay={0.06}>
-        <section className="mb-16 max-w-narrative">
+        <section className="mb-12 max-w-narrative">
           <MetaLabel>Why this idea exists</MetaLabel>
-          <p className="font-serif text-subhead ink-primary leading-snug mt-3">
+          <p className="font-serif text-subhead ink-primary leading-snug mt-3 mb-5">
             {plainThesis(rec.thesis)
-              ?? `ArthOS flagged ${rec.symbol} as a ${action.toLowerCase()} based on the signals below.`}
+              ?? `ArthOS flagged ${rec.symbol} as a ${action.toLowerCase()} based on what's working in its favor.`}
+          </p>
+          {sig.why.length > 0 ? (
+            <ul className="space-y-3">
+              {sig.why.map((w) => (
+                <li key={w} className="flex items-baseline gap-3 border-t border-hairline pt-3">
+                  <span aria-hidden style={{ color: 'var(--brand)', fontSize: 12 }}>▲</span>
+                  <span className="ink-primary text-[15px] leading-snug">{w}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            evidence.filter((s) => s.narrative).length > 0 && (
+              <ul className="space-y-3">
+                {evidence.filter((s) => s.narrative).map((s, i) => {
+                  const m = dirMark(s.direction);
+                  return (
+                    <li key={i} className="flex items-baseline gap-3 border-t border-hairline pt-3">
+                      <span aria-hidden style={{ color: m.color, fontSize: 12 }}>{m.glyph}</span>
+                      <span className="ink-primary text-[15px] leading-snug">{s.narrative}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )
+          )}
+        </section>
+      </FadeIn>
+
+      <FadeIn delay={0.12}>
+        <section className="mb-12 max-w-narrative">
+          <MetaLabel>Potential risks</MetaLabel>
+          {sig.risks.length > 0 && (
+            <ul className="mt-4 mb-3 space-y-3">
+              {sig.risks.map((r) => (
+                <li key={r} className="flex items-baseline gap-3 border-t border-hairline pt-3">
+                  <span aria-hidden style={{ color: 'oklch(0.70 0.14 75)', fontSize: 12 }}>▼</span>
+                  <span className="ink-primary text-[15px] leading-snug">{r}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="ink-muted text-[14px] leading-relaxed mt-2">
+            This is ArthOS's current read, not a promise. It weakens if the
+            signals above reverse or the company's story changes. Markets fall as
+            well as rise — practice first with money you're fine simulating.
           </p>
         </section>
       </FadeIn>
 
-      {evidence.filter((s) => s.narrative).length > 0 && (
-        <FadeIn delay={0.14}>
-          <section className="mb-16 max-w-narrative">
-            <MetaLabel>What the engine sees</MetaLabel>
-            <ul className="mt-6 space-y-4">
-              {evidence.filter((s) => s.narrative).map((s, i) => {
-                const m = dirMark(s.direction);
-                return (
-                  <li key={i} className="border-t border-hairline pt-4 flex items-baseline gap-3">
-                    <span aria-hidden style={{ color: m.color, fontSize: 12 }}>{m.glyph}</span>
-                    <span className="ink-primary text-[15px] leading-snug">{s.narrative}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        </FadeIn>
-      )}
-
-      {/* Sprint C — plain-English risk framing. Honest + general: ArthOS does
-          not fabricate a per-name risk number, so we frame what would weaken
-          the idea in language a beginner can act on. */}
-      <FadeIn delay={0.18}>
+      <FadeIn delay={0.16}>
         <section className="mb-16 max-w-narrative">
-          <MetaLabel>Key risks &amp; what would invalidate this</MetaLabel>
-          <p className="ink-muted text-[14px] leading-relaxed mt-3">
-            This is the engine's current read, not a promise. It weakens if the
-            supporting signals above reverse, if the company's story changes, or
-            if newer data moves the picture. Markets can fall as well as rise —
-            only practice with money you're comfortable simulating.
-          </p>
+          <MetaLabel>Expected holding period</MetaLabel>
+          <p className="ink-primary text-[15px] leading-snug mt-3">{holding}</p>
         </section>
       </FadeIn>
 
