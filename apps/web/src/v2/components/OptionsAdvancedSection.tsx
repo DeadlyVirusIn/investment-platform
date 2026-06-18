@@ -58,7 +58,7 @@ function BeginnerOptionCard({ opt }: { opt: PresentedOption }) {
   );
 }
 
-export function OptionsAdvancedSection() {
+export function OptionsAdvancedSection({ alwaysOpen = false }: { alwaysOpen?: boolean }) {
   const [open, setOpen] = useState(false);
   const lanes = useOptionsLanes();
 
@@ -67,6 +67,37 @@ export function OptionsAdvancedSection() {
   const setups = lanes.state === 'ready_engine' || lanes.state === 'engine_candidates_only'
     ? rankSetups(lanes.engine).slice(0, 4)
     : [];
+
+  const body = (
+    <div className={alwaysOpen ? 'space-y-4' : 'mt-4 space-y-4'}>
+      <div className="rounded-xl px-4 py-3" style={{
+        backgroundColor: `color-mix(in oklch, ${AMBER} 10%, transparent)`,
+        border: `1px solid color-mix(in oklch, ${AMBER} 28%, transparent)`,
+      }}>
+        <p style={{ fontSize: 12.5, fontWeight: 600, color: AMBER }}>
+          ⚠ Options are advanced. Practice only. Not recommended for beginners.
+        </p>
+      </div>
+
+      {setups.length === 0 ? (
+        <SurfaceCard variant="muted" className="p-5">
+          <p className="ink-muted" style={{ fontSize: 13 }}>
+            No options practice setups right now. Check back later.
+          </p>
+        </SurfaceCard>
+      ) : (
+        <div className="space-y-3">
+          {setups.map((opt) => (
+            <BeginnerOptionCard key={`${opt.observationId}-${opt.ruleId}`} opt={opt} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // Tab context (Discover) renders the warning + cards directly — the tab IS
+  // the disclosure. Inline context (/v2/today) keeps the collapsible button.
+  if (alwaysOpen) return <section className="mb-10">{body}</section>;
 
   return (
     <section className="mb-10">
@@ -92,32 +123,7 @@ export function OptionsAdvancedSection() {
         />
       </button>
 
-      {open && (
-        <div className="mt-4 space-y-4">
-          <div className="rounded-xl px-4 py-3" style={{
-            backgroundColor: `color-mix(in oklch, ${AMBER} 10%, transparent)`,
-            border: `1px solid color-mix(in oklch, ${AMBER} 28%, transparent)`,
-          }}>
-            <p style={{ fontSize: 12.5, fontWeight: 600, color: AMBER }}>
-              ⚠ Options are advanced. Practice only. Not recommended for beginners.
-            </p>
-          </div>
-
-          {setups.length === 0 ? (
-            <SurfaceCard variant="muted" className="p-5">
-              <p className="ink-muted" style={{ fontSize: 13 }}>
-                No options practice setups right now. Check back later.
-              </p>
-            </SurfaceCard>
-          ) : (
-            <div className="space-y-3">
-              {setups.map((opt) => (
-                <BeginnerOptionCard key={`${opt.observationId}-${opt.ruleId}`} opt={opt} />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {open && body}
     </section>
   );
 }

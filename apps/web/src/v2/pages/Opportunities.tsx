@@ -7,6 +7,7 @@
 //   03 Passed for now      — Trim (engine said reduce/avoid)
 // Empty-day variant derives from /recommendations/diagnostics.
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import {
@@ -42,6 +43,7 @@ export function Opportunities() {
   const alsoConsider = buys.slice(1);
   const dist = diag?.action_distribution ?? {};
   const evaluated = diag?.total ?? null;
+  const [tab, setTab] = useState<DiscoverTab>('stocks');
 
   return (
     <ArthosPage topBarEyebrow="Discover">
@@ -51,6 +53,10 @@ export function Opportunities() {
         description="Follow a ready-made portfolio, explore a theme, or add a single idea — each one explained in plain English and tracked in your free practice account."
       />
 
+      <DiscoverTabs tab={tab} onChange={setTab} />
+
+      {tab === 'stocks' && (
+        <>
       {/* Sprint D order: portfolios under the hero, then themes, what's
           moving, social proof, then today's individual ideas. */}
       <ModelPortfoliosSection />
@@ -118,11 +124,59 @@ export function Opportunities() {
           )}
         </>
       )}
+        </>
+      )}
 
-      {/* Sprint M — options return to Discover, separate + behind disclosure,
-          never mixed into stock ideas. Beginner language only. */}
-      <OptionsAdvancedSection />
+      {/* Options Practice tab — separate from stock ideas, never mixed into
+          Today's Top Idea / Also Worth a Look. alwaysOpen renders the warning
+          + cards directly (the tab is the disclosure). Beginner language. */}
+      {tab === 'options' && <OptionsAdvancedSection alwaysOpen />}
     </ArthosPage>
+  );
+}
+
+type DiscoverTab = 'stocks' | 'options';
+
+function DiscoverTabs({
+  tab, onChange,
+}: {
+  tab: DiscoverTab;
+  onChange: (t: DiscoverTab) => void;
+}) {
+  const items: { id: DiscoverTab; label: string; sub: string }[] = [
+    { id: 'stocks', label: 'Stock Ideas', sub: 'Plain-English ideas to follow' },
+    { id: 'options', label: 'Options Practice', sub: 'Advanced, paper-only ideas' },
+  ];
+  return (
+    <div
+      className="sticky top-14 lg:top-16 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 py-2.5 mb-6 backdrop-blur-md"
+      style={{ backgroundColor: 'color-mix(in oklch, var(--background) 86%, transparent)', borderBottom: '1px solid var(--border)' }}
+    >
+      <div role="tablist" aria-label="Discover sections"
+        className="grid grid-cols-2 gap-1.5 p-1 rounded-full"
+        style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+        {items.map((it) => {
+          const active = tab === it.id;
+          return (
+            <button
+              key={it.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(it.id)}
+              className="rounded-full px-4 py-2 text-center transition-colors"
+              style={{
+                backgroundColor: active ? 'var(--brand)' : 'transparent',
+                color: active ? 'var(--brand-foreground)' : 'var(--muted-foreground)',
+              }}
+            >
+              <span className="block font-semibold" style={{ fontSize: 13.5 }}>{it.label}</span>
+              <span className="block" style={{ fontSize: 10.5, opacity: 0.85 }}>{it.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
