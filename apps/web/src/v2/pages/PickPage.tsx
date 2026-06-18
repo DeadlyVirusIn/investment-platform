@@ -4,11 +4,13 @@
 // arthosData static literals. Fields the backend lacks are omitted, never
 // fabricated. Honest not-found when the symbol has no live recommendation.
 
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { CONFIDENCE_DOCTRINE } from '../lib/copy';
+import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import {
   useTodaysRecommendations,
   effectiveAction,
@@ -57,11 +59,32 @@ export function PickPage() {
   const navigate = useNavigate();
   const { inWatchlist, toggleWatchlist } = useUserPrefs();
   const { data, isLoading } = useTodaysRecommendations();
+  const [sp] = useSearchParams();
+  const addIdea = useAddIdeaToPaper();
+  const autoFired = useRef(false);
 
   const recs: RecApi[] = data?.recommendations ?? [];
   const rec = symbol
     ? recs.find((r) => (r.symbol ?? '').toUpperCase() === symbol.toUpperCase())
     : undefined;
+
+  // Add this idea to the canonical paper book ($1,000), then go to My Portfolio.
+  const addToPaper = () => {
+    if (!rec?.symbol) return;
+    addIdea.mutate(
+      { symbol: rec.symbol },
+      { onSuccess: () => navigate('/v2/portfolio') },
+    );
+  };
+
+  // ?add=1 from the Discover card "Add to paper" CTA auto-fires once.
+  useEffect(() => {
+    if (sp.get('add') === '1' && rec?.symbol && !autoFired.current && !addIdea.isPending) {
+      autoFired.current = true;
+      addToPaper();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp, rec?.symbol]);
 
   if (isLoading) {
     return (
@@ -134,6 +157,22 @@ export function PickPage() {
           <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
             {CONFIDENCE_DOCTRINE}
           </p>
+          {/* MVP — add this idea to the paper book ($1,000). */}
+          <button type="button" onClick={addToPaper} disabled={addIdea.isPending}
+            className="mt-4 px-4 py-2 rounded-full"
+            style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--background)',
+              backgroundColor: 'var(--brand)', border: 'none',
+              opacity: addIdea.isPending ? 0.6 : 1,
+              cursor: addIdea.isPending ? 'default' : 'pointer',
+            }}>
+            {addIdea.isPending ? 'Adding…' : 'Add to paper ($1,000)'}
+          </button>
+          {addIdea.isError && (
+            <p className="mt-2 text-[12px]" style={{ color: 'var(--destructive)' }}>
+              Couldn't add to your paper book. Try again.
+            </p>
+          )}
         </div>
       </FadeIn>
 
@@ -206,9 +245,15 @@ export function PickPage() {
             This is the live engine's read for {rec.symbol} as of {absTime(rec.generated_at)}.
             Data sufficiency: {rec.enough_data ? 'sufficient' : 'limited'}.
           </p>
-          <Link to="/v2/opportunities" className="text-meta ink-primary mt-4 inline-block" style={{ fontWeight: 600 }}>
-            Back to the live desk →
-          </Link>
+          <div className="mt-4 flex items-center gap-5">
+            <Link to="/v2/discover" className="text-meta ink-primary inline-block" style={{ fontWeight: 600 }}>
+              Back to ideas →
+            </Link>
+            {/* Embed a path to the glossary so unfamiliar terms are one tap away. */}
+            <Link to="/v2/learn/glossary" className="text-meta ink-muted inline-block">
+              New to these terms? Glossary →
+            </Link>
+          </div>
         </section>
       </FadeIn>
     </ArthosPage>

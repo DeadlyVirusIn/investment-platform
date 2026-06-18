@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from apps.api.src.config import settings
 from apps.api.src.db import get_session
 from apps.api.src.db.models import (
     Asset,
@@ -260,6 +261,41 @@ def follow_model_portfolio(
         "skipped": skipped,
         "starting_cash": float(capital),
     }
+
+
+# ---------------------------------------------------------------------------
+# Add a single idea to the canonical paper portfolio (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+class AddIdeaRequest(BaseModel):
+    usd_amount: Decimal = Decimal("1000")
+
+
+@router.post("/idea/{symbol}/add-to-paper")
+def add_idea_to_paper(
+    symbol: str,
+    body: AddIdeaRequest | None = None,
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Buy ``usd_amount`` of a single idea into the canonical practice book.
+    Reuses the paper engine; the idea detail's 'Add to paper' CTA calls this."""
+    asset = db.scalars(select(Asset).where(Asset.symbol == symbol.upper())).first()
+    if asset is None:
+        raise HTTPException(status_code=404, detail=f"unknown symbol: {symbol}")
+    usd = (body or AddIdeaRequest()).usd_amount
+    if usd <= 0:
+        raise HTTPException(status_code=400, detail="usd_amount must be positive")
+    pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+    try:
+        submit_trade(
+            db, portfolio_id=pid, asset_id=asset.id, side="buy",
+            usd_amount=usd, reason=f"idea:{symbol.upper()}", merge_positions=True,
+        )
+    except PaperTradeRejected as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    db.commit()
+    return {"portfolio_id": pid, "symbol": symbol.upper(), "usd_amount": float(usd)}
 
 
 # ---------------------------------------------------------------------------

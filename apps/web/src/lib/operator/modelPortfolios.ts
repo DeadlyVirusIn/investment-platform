@@ -71,3 +71,20 @@ export function useFollowModelPortfolio() {
     },
   });
 }
+
+// Add a single idea to the canonical paper portfolio (default $1,000).
+export function useAddIdeaToPaper() {
+  const qc = useQueryClient();
+  return useMutation<
+    { portfolio_id: string; symbol: string; usd_amount: number },
+    Error,
+    { symbol: string; usd?: number }
+  >({
+    mutationFn: ({ symbol, usd }) =>
+      apiPost(`/model-portfolios/idea/${symbol}/add-to-paper`, { usd_amount: usd ?? 1000 }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["paper"] });
+      qc.invalidateQueries({ queryKey: ["canonical-stock"] });
+    },
+  });
+}
