@@ -4,11 +4,89 @@
 
 import { Link } from 'react-router-dom';
 import { SurfaceCard } from './ui/SurfaceCard';
+import { useTape } from '@/lib/market/hooks';
 import {
   useModelPortfolios,
   useSocialProof,
   type ModelPortfolioSummary,
 } from '@/lib/operator/modelPortfolios';
+
+// Sprint D — Trending Themes: plain-English ways into the curated portfolios.
+// Only themes whose portfolio actually exists are shown (honest, no dead links).
+const THEMES: { label: string; slug: string }[] = [
+  { label: 'Dividend growth', slug: 'dividend-growers' },
+  { label: 'Big American companies', slug: 'american-megacaps' },
+  { label: 'Brands you use daily', slug: 'everyday-brands' },
+  { label: 'Steady compounders', slug: 'steady-compounders' },
+];
+
+export function TrendingThemes() {
+  const { data } = useModelPortfolios();
+  const slugs = new Set((data?.portfolios ?? []).map((p) => p.slug));
+  const themes = THEMES.filter((t) => slugs.has(t.slug));
+  if (themes.length === 0) return null;
+  return (
+    <section className="mb-10">
+      <div className="flex items-baseline gap-3 mb-4">
+        <span className="font-mono ink-muted" style={{ fontSize: 12 }}>#</span>
+        <h2 className="font-display ink-primary" style={{
+          fontSize: 22, lineHeight: 1.2,
+          fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+        }}>Trending Themes</h2>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {themes.map((t) => (
+          <Link key={t.slug} to={`/v2/portfolios/${t.slug}`}
+            className="px-3.5 py-1.5 rounded-full ink-primary"
+            style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+            {t.label}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const INDEX_LABELS: Record<string, string> = {
+  SPY: 'S&P 500', QQQ: 'Nasdaq 100', DIA: 'Dow Jones',
+};
+
+export function WhatsMovingStrip() {
+  const { data } = useTape('macro');
+  const quotes = (data && !data.stale ? data.quotes : []).filter((q) => q.change_pct != null);
+  if (quotes.length === 0) return null;   // hide when market data unavailable
+  return (
+    <section className="mb-10">
+      <div className="flex items-baseline gap-3 mb-4">
+        <span className="font-mono ink-muted" style={{ fontSize: 12 }}>~</span>
+        <h2 className="font-display ink-primary" style={{
+          fontSize: 22, lineHeight: 1.2,
+          fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+        }}>What's Moving Today</h2>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {quotes.map((q) => {
+          const up = (q.change_pct ?? 0) >= 0;
+          return (
+            <div key={q.symbol} className="px-3.5 py-2 rounded-xl"
+              style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+              <div className="ink-primary" style={{ fontSize: 13, fontWeight: 600 }}>
+                {INDEX_LABELS[q.symbol] ?? q.symbol}
+              </div>
+              <div className="tabular-nums" style={{
+                fontSize: 14, fontWeight: 700,
+                color: up ? 'var(--brand)' : 'oklch(0.70 0.14 75)',
+              }}>{up ? '+' : ''}{(q.change_pct ?? 0).toFixed(2)}%</div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="ink-fainter mt-2" style={{ fontSize: 11 }}>
+        Major US market indexes, about 15 minutes delayed.
+      </p>
+    </section>
+  );
+}
 
 // MVP Phase 7 — social proof strip: most-followed portfolio, trending,
 // most-added idea. Hidden entirely when there's no activity yet (honest).

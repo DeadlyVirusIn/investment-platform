@@ -7,16 +7,18 @@
 //   03 Passed for now      — Trim (engine said reduce/avoid)
 // Empty-day variant derives from /recommendations/diagnostics.
 
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
-import { ModelPortfoliosSection, SocialProofStrip } from '../components/ModelPortfolioCards';
-import { OpportunitiesOptionsSection } from '../components/OpportunitiesOptionsSection';
-import { useOptionsAvailability } from '../lib/optionsAvailability';
+import {
+  ModelPortfoliosSection,
+  SocialProofStrip,
+  TrendingThemes,
+  WhatsMovingStrip,
+} from '../components/ModelPortfolioCards';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
-import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
@@ -29,19 +31,6 @@ export function Opportunities() {
   const { data, isLoading, isError } = useTodaysRecommendations();
   const { data: diag } = useRecommendationDiagnostics();
   const recs: RecApi[] = data?.recommendations ?? [];
-  const avail = useOptionsAvailability();
-  // Tab is URL-driven so the Today CTA (/v2/opportunities?tab=options) lands
-  // directly on the options tab, and the view is shareable.
-  const [sp, setSp] = useSearchParams();
-  const tabParam = sp.get('tab');
-  const tab: 'all' | 'stocks' | 'options' =
-    tabParam === 'stocks' || tabParam === 'options' ? tabParam : 'all';
-  const setTab = (t: 'all' | 'stocks' | 'options') => {
-    const next = new URLSearchParams(sp);
-    if (t === 'all') next.delete('tab');
-    else next.set('tab', t);
-    setSp(next, { replace: true });
-  };
 
   const byConf = (a: RecApi, b: RecApi) => confidenceNum(b) - confidenceNum(a);
   const buys = recs.filter((r) => effectiveAction(r) === 'Buy').sort(byConf);
@@ -54,42 +43,29 @@ export function Opportunities() {
   return (
     <ArthosPage topBarEyebrow="Discover">
       <PageHeader
-        eyebrow="Today's Ideas"
+        eyebrow="Discover"
         title={<>Ideas you can<br />follow and prove.</>}
-        description="What the engine sees today — ranked, sourced live, each one explained. Add any idea to your paper portfolio and watch it become your track record."
+        description="Follow a ready-made portfolio, explore a theme, or add a single idea — each one explained in plain English and tracked in your free practice account."
       />
 
-      <div className="mb-6"><TrustBanner /></div>
-
-      {/* MVP Phase 7 — social proof strip (hidden until there's activity). */}
+      {/* Sprint D order: portfolios under the hero, then themes, what's
+          moving, social proof, then today's individual ideas. */}
+      <ModelPortfoliosSection />
+      <TrendingThemes />
+      <WhatsMovingStrip />
       <SocialProofStrip />
 
-      {/* MVP — follow-able model portfolios lead the Discover feed. */}
-      <ModelPortfoliosSection />
+      <div className="mb-8"><TrustBanner /></div>
 
-      {/* P1.3 — confidence doctrine (shared SSOT) */}
-      <p className="ink-fainter text-[12px] leading-relaxed mb-6 max-w-narrative">
-        {CONFIDENCE_DOCTRINE}
-      </p>
-
-      <OppSegment
-        tab={tab}
-        setTab={setTab}
-        stockCount={buys.length}
-        optionsCount={avail.compatible}
-      />
-
-      {tab !== 'options' && (
-      <>
       {isLoading && (
         <SurfaceCard variant="muted" className="p-6">
-          <p className="ink-muted" style={{ fontSize: 14 }}>Loading the desk…</p>
+          <p className="ink-muted" style={{ fontSize: 14 }}>Loading today's ideas…</p>
         </SurfaceCard>
       )}
       {isError && (
         <SurfaceCard variant="default" className="p-6">
           <p style={{ fontSize: 14, color: 'var(--destructive)', fontWeight: 600 }}>
-            Couldn't load recommendations right now.
+            Couldn't load ideas right now.
           </p>
         </SurfaceCard>
       )}
@@ -97,22 +73,22 @@ export function Opportunities() {
       {data && (
         <>
           {buys.length === 0 ? (
-            <Section number="01" title="Cash is the call today">
+            <Section number="01" title="No new ideas today">
               <SurfaceCard variant="highlight" className="p-7">
                 <ArthVoice mode="opening">
                   {evaluated != null
-                    ? `${evaluated} recommendations evaluated today; none cleared the Buy threshold (${dist['Hold'] ?? 0} Hold, ${dist['Trim'] ?? 0} Trim). I'd rather show you nothing than manufacture a trade.`
-                    : 'No actionable Buy recommendations right now.'}
+                    ? `ArthOS looked at ${evaluated} companies today and none stand out as a clear buy right now (${dist['Hold'] ?? 0} to hold, ${dist['Trim'] ?? 0} to trim). We'd rather show you nothing than push a weak idea.`
+                    : 'No standout ideas right now — check back tomorrow.'}
                 </ArthVoice>
               </SurfaceCard>
             </Section>
           ) : (
             <>
-              <Section number="01" title="Top opportunity">
+              <Section number="01" title="Today's top idea">
                 {hero && <RecCard rec={hero} featured />}
               </Section>
               {alsoConsider.length > 0 && (
-                <Section number="02" title="Also consider">
+                <Section number="02" title="Also worth a look">
                   <div className="space-y-3">
                     {alsoConsider.map((r) => <RecCard key={r.id} rec={r} />)}
                   </div>
@@ -121,41 +97,23 @@ export function Opportunities() {
             </>
           )}
 
-          <Section number="03" title="Passed for now">
-            {trims.length === 0 ? (
-              <ArthVoice mode="advisory">Nothing flagged to trim today.</ArthVoice>
-            ) : (
+          {trims.length > 0 && (
+            <Section number="03" title="Names ArthOS is cautious on">
               <SurfaceCard variant="default" className="p-5">
                 <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {trims.slice(0, 8).map((r) => (
-                    <li key={r.id} className="py-3 grid grid-cols-[90px_1fr_auto] items-baseline gap-3">
+                    <li key={r.id} className="py-3 grid grid-cols-[90px_1fr] items-baseline gap-3">
                       <Link to={`/v2/today/pick/${r.symbol}`} className="font-mono ink-primary" style={{ fontSize: 13 }}>
                         {r.symbol}
                       </Link>
-                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{r.thesis ?? 'Reduce / avoid.'}</span>
-                      <span className="ink-muted italic" style={{ fontSize: 12 }}>
-                        {r.confidence_label} {confidenceNum(r).toFixed(0)}
-                      </span>
+                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{r.thesis ?? 'Better to wait.'}</span>
                     </li>
                   ))}
                 </ul>
-                {trims.length > 8 && (
-                  <p className="ink-muted mt-3 text-right" style={{ fontSize: 12 }}>
-                    {trims.length - 8} more flagged to trim.
-                  </p>
-                )}
               </SurfaceCard>
-            )}
-          </Section>
+            </Section>
+          )}
         </>
-      )}
-      </>
-      )}
-
-      {tab !== 'stocks' && (
-        <Section number={tab === 'all' ? '04' : '01'} title="Options">
-          <OpportunitiesOptionsSection />
-        </Section>
       )}
     </ArthosPage>
   );
@@ -192,7 +150,7 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
         <span className="ink-muted" style={{ fontSize: 13 }}>{action}</span>
       </div>
       <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
-        <SmallChip>{rec.confidence_label ?? 'Medium'} · {confidenceNum(rec).toFixed(0)}</SmallChip>
+        <SmallChip>{(rec.confidence_label ?? 'Medium').toLowerCase()} confidence</SmallChip>
         <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'fresh' : 'stale'}</SmallChip>
       </div>
       {rec.thesis && (
@@ -238,55 +196,6 @@ function Section({ number, title, children }: {
       </div>
       {children}
     </section>
-  );
-}
-
-// All | Stocks | Options segment. View toggle only — NOT a trade control.
-// Lets ArthOS rank across both asset classes (All) once options is ready;
-// today Options shows honest read-only readiness.
-function OppSegment({ tab, setTab, stockCount, optionsCount }: {
-  tab: 'all' | 'stocks' | 'options';
-  setTab: (t: 'all' | 'stocks' | 'options') => void;
-  stockCount: number;
-  optionsCount: number;
-}) {
-  const items: Array<{ k: 'all' | 'stocks' | 'options'; label: string; badge?: number }> = [
-    { k: 'all', label: 'All' },
-    { k: 'stocks', label: 'Stocks', badge: stockCount },
-    { k: 'options', label: 'Options', badge: optionsCount },
-  ];
-  return (
-    <div
-      className="inline-flex rounded-full p-1 mb-6"
-      role="tablist"
-      aria-label="Asset class"
-      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
-    >
-      {items.map((it) => {
-        const active = tab === it.k;
-        return (
-          <button
-            key={it.k}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => setTab(it.k)}
-            className="px-3.5 py-1.5 rounded-full transition-colors"
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: active ? 'var(--background)' : 'var(--muted-foreground)',
-              backgroundColor: active ? 'var(--brand)' : 'transparent',
-            }}
-          >
-            {it.label}
-            {it.badge != null && (
-              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>{it.badge}</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 
