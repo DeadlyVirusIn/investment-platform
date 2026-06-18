@@ -86,8 +86,7 @@ export function LiveTodayHero({
       )}
 
       <p className="ink-fainter mt-3 tabular-nums" style={{ fontSize: 11.5 }}>
-        Generated {absTime(rec.generated_at)} · source: live engine
-        {rec.engine_version ? ` (${rec.engine_version})` : ''}
+        Generated {absTime(rec.generated_at)} from live market data
         {' · '}<span style={{ color: freshColor }}>{fresh.label.toLowerCase()}</span>
       </p>
 

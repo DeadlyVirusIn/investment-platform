@@ -86,6 +86,7 @@ import PortfolioIntelligencePage      from '@/pages/PortfolioIntelligencePage';
 // existing routes untouched. Remove this import + Route line to
 // fully revert.
 import V2App from '@/v2/V2App';
+import { OperatorGuard, EnableOperator } from '@/components/OperatorGuard';
 
 export default function App() {
   return (
@@ -94,12 +95,15 @@ export default function App() {
           operator/quant surface (overview, labs, options, legacy, …) is
           moved behind /advanced and carries NO product-nav entry. */}
       <Route path="/" element={<Navigate to="/v2" replace />} />
-      <Route path="/advanced" element={<Navigate to="/overview" replace />} />
+      {/* /advanced opts this browser into operator mode, then enters the
+          console. The operator surface below is gated by OperatorGuard so a
+          beginner can never reach /overview, labs, options, ops, or legacy. */}
+      <Route path="/advanced" element={<EnableOperator />} />
 
       {/* V2 surface — the product. Defaults to /v2/discover. */}
       <Route path="/v2/*" element={<V2App />} />
 
-
+      <Route element={<OperatorGuard />}>
       <Route element={<Shell />}>
         {/* --- NEW 5-area product --- */}
         <Route path="/overview"      element={<OverviewRouteSwitch />} />
@@ -168,6 +172,7 @@ export default function App() {
         <Route path="/legacy/jobs-health" element={<JobsHealth />} />
         <Route path="/legacy/settings" element={<Settings />} />
         <Route path="/legacy/asset/:symbol" element={<Asset />} />
+      </Route>
       </Route>
 
       <Route path="*" element={<NotFound />} />

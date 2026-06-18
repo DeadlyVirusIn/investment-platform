@@ -14,7 +14,6 @@ import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import {
   useTodaysRecommendations,
   effectiveAction,
-  confidenceNum,
   type RecApi,
 } from '@/lib/operator/hooks';
 
@@ -45,6 +44,14 @@ function absTime(iso: string | null): string {
   return d.toLocaleString(undefined, {
     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   });
+}
+
+// Translate a raw factor direction into a plain-English cue (no scores).
+function dirMark(direction?: string): { glyph: string; color: string } {
+  const d = (direction ?? '').toLowerCase();
+  if (/up|bull|pos|support|long/.test(d)) return { glyph: '▲', color: 'var(--brand)' };
+  if (/down|bear|neg|risk|short/.test(d)) return { glyph: '▼', color: 'oklch(0.70 0.14 75)' };
+  return { glyph: '•', color: 'var(--muted-foreground)' };
 }
 
 function isFresh(rec: RecApi): boolean {
@@ -113,11 +120,9 @@ export function PickPage() {
   }
 
   const action = effectiveAction(rec) ?? 'Hold';
-  const conf = confidenceNum(rec);
   const fresh = isFresh(rec);
   const watching = inWatchlist(rec.symbol ?? '');
   const evidence = (rec.evidence ?? []) as EvidenceItem[];
-  const families = rec.family_scores ?? {};
 
   return (
     <ArthosPage maxWidth="max-w-copy">
@@ -146,12 +151,11 @@ export function PickPage() {
             {rec.symbol} — {action}
           </h1>
           <div className="text-meta ink-muted tabular-nums">
-            {rec.confidence_label ?? 'Medium'} confidence · {conf.toFixed(0)}
+            {rec.confidence_label ?? 'Medium'} confidence
             {' · '}
             <span style={{ color: fresh ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
-              {fresh ? 'fresh' : 'stale'}
+              {fresh ? 'updated today' : 'needs a refresh'}
             </span>
-            {rec.composite_score != null && <> · composite {Number(rec.composite_score).toFixed(3)}</>}
           </div>
           {/* P1.3 — confidence doctrine (shared SSOT) */}
           <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
@@ -183,67 +187,61 @@ export function PickPage() {
             <span className="ink-primary text-[13px] tabular-nums">{absTime(rec.generated_at)}</span>
           </div>
           <p className="ink-fainter text-[12px] italic leading-relaxed">
-            Live engine{rec.engine_version ? ` · ${rec.engine_version}` : ''} · source: live
+            Generated live from current market data.
           </p>
         </div>
       </FadeIn>
 
       {rec.thesis && (
         <FadeIn delay={0.06}>
-          <p className="font-serif text-subhead ink-primary leading-snug mb-16 max-w-narrative">
-            {rec.thesis}
-          </p>
+          <section className="mb-16 max-w-narrative">
+            <MetaLabel>Why this idea exists</MetaLabel>
+            <p className="font-serif text-subhead ink-primary leading-snug mt-3">
+              {rec.thesis}
+            </p>
+          </section>
         </FadeIn>
       )}
 
-      {evidence.length > 0 && (
+      {evidence.filter((s) => s.narrative).length > 0 && (
         <FadeIn delay={0.14}>
-          <section className="mb-20">
-            <MetaLabel>What the engine is seeing</MetaLabel>
-            <ul className="mt-6 space-y-6 max-w-copy">
-              {evidence.map((s, i) => (
-                <li key={i} className="grid sm:grid-cols-[1fr_auto] gap-x-8 gap-y-1.5 items-baseline border-t border-hairline pt-6">
-                  <div className="min-w-0">
-                    <div className="ink-primary text-[15px] leading-snug mb-1">
-                      {s.narrative ?? s.factor_key ?? 'factor'}
-                    </div>
-                    <div className="ink-fainter text-[12px] leading-relaxed">
-                      {s.family ?? ''}{s.direction ? ` · ${s.direction}` : ''}
-                    </div>
-                  </div>
-                  <div className="ink-muted text-[13px] tabular-nums leading-snug sm:text-right">
-                    {s.score != null ? Number(s.score).toFixed(3) : '—'}
-                  </div>
-                </li>
-              ))}
+          <section className="mb-16 max-w-narrative">
+            <MetaLabel>What the engine sees</MetaLabel>
+            <ul className="mt-6 space-y-4">
+              {evidence.filter((s) => s.narrative).map((s, i) => {
+                const m = dirMark(s.direction);
+                return (
+                  <li key={i} className="border-t border-hairline pt-4 flex items-baseline gap-3">
+                    <span aria-hidden style={{ color: m.color, fontSize: 12 }}>{m.glyph}</span>
+                    <span className="ink-primary text-[15px] leading-snug">{s.narrative}</span>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         </FadeIn>
       )}
 
-      {Object.keys(families).length > 0 && (
-        <FadeIn delay={0.18}>
-          <section className="mb-20">
-            <MetaLabel>Family scores</MetaLabel>
-            <ul className="mt-6 grid sm:grid-cols-2 gap-x-10 gap-y-3 max-w-copy">
-              {Object.entries(families).map(([k, v]) => (
-                <li key={k} className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
-                  <span className="ink-primary text-[13.5px]">{k.replace(/_/g, ' ')}</span>
-                  <span className="ink-muted text-[13px] tabular-nums">
-                    {v != null ? Number(v).toFixed(3) : '—'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </FadeIn>
-      )}
+      {/* Sprint C — plain-English risk framing. Honest + general: ArthOS does
+          not fabricate a per-name risk number, so we frame what would weaken
+          the idea in language a beginner can act on. */}
+      <FadeIn delay={0.18}>
+        <section className="mb-16 max-w-narrative">
+          <MetaLabel>Key risks &amp; what would invalidate this</MetaLabel>
+          <p className="ink-muted text-[14px] leading-relaxed mt-3">
+            This is the engine's current read, not a promise. It weakens if the
+            supporting signals above reverse, if the company's story changes, or
+            if newer data moves the picture. Markets can fall as well as rise —
+            only practice with money you're comfortable simulating.
+          </p>
+        </section>
+      </FadeIn>
 
       <FadeIn delay={0.22}>
         <section className="border-t border-hairline pt-10 max-w-narrative">
           <p className="ink-muted text-[13px] leading-relaxed">
-            This is the live engine's read for {rec.symbol} as of {absTime(rec.generated_at)}.
-            Data sufficiency: {rec.enough_data ? 'sufficient' : 'limited'}.
+            ArthOS's read for {rec.symbol}, as of {absTime(rec.generated_at)}
+            {rec.enough_data ? '.' : ' — based on limited data, so treat it with extra caution.'}
           </p>
           <div className="mt-4 flex items-center gap-5">
             <Link to="/v2/discover" className="text-meta ink-primary inline-block" style={{ fontWeight: 600 }}>

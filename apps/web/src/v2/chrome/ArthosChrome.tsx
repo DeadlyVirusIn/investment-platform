@@ -216,29 +216,33 @@ export function SideNav() {
               </Link>
             );
           })}
-          <p
-            className="px-3 pt-4 pb-1 font-semibold uppercase tracking-[0.14em]"
-            style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}
-          >
-            Engine room
-          </p>
-          {NAV_ENGINE_ROOM.map(({ to, label }) => {
-            const active = location.pathname.startsWith(to);
-            return (
-              <Link
-                key={to}
-                to={to}
-                className="flex items-center px-3 h-9 rounded-lg font-medium transition-colors"
-                style={{
-                  fontSize: 13,
-                  backgroundColor: active ? 'var(--sage-light)' : 'transparent',
-                  color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
-                }}
+          {NAV_ENGINE_ROOM.length > 0 && (
+            <>
+              <p
+                className="px-3 pt-4 pb-1 font-semibold uppercase tracking-[0.14em]"
+                style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}
               >
-                {label}
-              </Link>
-            );
-          })}
+                Engine room
+              </p>
+              {NAV_ENGINE_ROOM.map(({ to, label }) => {
+                const active = location.pathname.startsWith(to);
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    className="flex items-center px-3 h-9 rounded-lg font-medium transition-colors"
+                    style={{
+                      fontSize: 13,
+                      backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                      color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+                    }}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </div>
       </nav>
 
@@ -484,12 +488,10 @@ const NAV_PRIMARY: NavItem[] = [
 // Explicit type keeps .map/.length valid on the empty array.
 const NAV_SECONDARY: { label: string; to: string }[] = [];
 
-// P1.2 — Engine room: diagnostics surfaces, deliberately separated from
-// the product nav so beginners never wander into cron matrices.
-const NAV_ENGINE_ROOM = [
-  { label: 'Options Diagnostics', to: '/v2/options' },
-  { label: 'System', to: '/v2/admin/observability' },
-];
+// Sprint C — operator/diagnostics surfaces are REMOVED from the beginner nav
+// entirely (Options Diagnostics, System). The routes still exist but are
+// reachable only behind the operator gate (/advanced), never linked here.
+const NAV_ENGINE_ROOM: { label: string; to: string }[] = [];
 
 function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation();
@@ -615,18 +617,22 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 );
               })}
 
-              {/* P1.2 — Engine room group (diagnostics, separated) */}
-              <div className="text-meta ink-fainter mt-6">Engine room</div>
-              {NAV_ENGINE_ROOM.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={onClose}
-                  className="font-serif text-[15px] ink-fainter hover:ink-primary inline-flex items-baseline gap-2 w-fit transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {/* Sprint C — engine-room group removed from beginner mobile nav. */}
+              {NAV_ENGINE_ROOM.length > 0 && (
+                <>
+                  <div className="text-meta ink-fainter mt-6">Engine room</div>
+                  {NAV_ENGINE_ROOM.map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={onClose}
+                      className="font-serif text-[15px] ink-fainter hover:ink-primary inline-flex items-baseline gap-2 w-fit transition-colors"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </>
+              )}
             </nav>
 
             {/* P1.2A — was a hardcoded fake edition/date; truthful copy only. */}
