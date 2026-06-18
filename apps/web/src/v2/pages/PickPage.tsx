@@ -11,6 +11,7 @@ import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
+import { plainThesis } from '../lib/plainText';
 import {
   useTodaysRecommendations,
   effectiveAction,
@@ -196,16 +197,15 @@ export function PickPage() {
         </div>
       </FadeIn>
 
-      {rec.thesis && (
-        <FadeIn delay={0.06}>
-          <section className="mb-16 max-w-narrative">
-            <MetaLabel>Why this idea exists</MetaLabel>
-            <p className="font-serif text-subhead ink-primary leading-snug mt-3">
-              {rec.thesis}
-            </p>
-          </section>
-        </FadeIn>
-      )}
+      <FadeIn delay={0.06}>
+        <section className="mb-16 max-w-narrative">
+          <MetaLabel>Why this idea exists</MetaLabel>
+          <p className="font-serif text-subhead ink-primary leading-snug mt-3">
+            {plainThesis(rec.thesis)
+              ?? `ArthOS flagged ${rec.symbol} as a ${action.toLowerCase()} based on the signals below.`}
+          </p>
+        </section>
+      </FadeIn>
 
       {evidence.filter((s) => s.narrative).length > 0 && (
         <FadeIn delay={0.14}>

@@ -17,6 +17,8 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, BookOpen, Sparkles, Layers, Hash } from 'lucide-react';
 import { LESSONS } from '../data/arthosData';
+import { useTheme } from './ThemeContext';
+import { plainThesis } from '../lib/plainText';
 import {
   useTodaysRecommendations,
   effectiveAction,
@@ -66,7 +68,7 @@ function useSearchIndex(): Result[] {
         id: `idea-${sym}`,
         category: 'Ideas',
         title: `${sym} — ${effectiveAction(r) ?? 'Hold'}`,
-        subtitle: r.thesis ?? 'See why ArthOS flagged it',
+        subtitle: plainThesis(r.thesis) ?? 'Tap to see the reasoning',
         to: `/v2/today/pick/${sym}`,
         icon: <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />,
       });
@@ -145,6 +147,7 @@ function PaletteModal({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
+  const { theme } = useTheme();
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -219,6 +222,11 @@ function PaletteModal({
   };
 
   return (
+    // Render inside a themed v2-root scope so light/dark CSS tokens resolve
+    // (the palette mounts above the routed pages, outside their .v2-root).
+    // display:contents → no box painted (won't overlay the app when closed),
+    // but the data-theme custom properties still cascade to the fixed children.
+    <div className="v2-root" data-theme={theme} style={{ display: 'contents' }}>
     <AnimatePresence>
       {isOpen && (
         <>
@@ -293,6 +301,7 @@ function PaletteModal({
         </>
       )}
     </AnimatePresence>
+    </div>
   );
 }
 

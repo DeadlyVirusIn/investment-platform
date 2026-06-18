@@ -19,6 +19,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
+import { plainThesis } from '../lib/plainText';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
@@ -106,7 +107,7 @@ export function Opportunities() {
                       <Link to={`/v2/today/pick/${r.symbol}`} className="font-mono ink-primary" style={{ fontSize: 13 }}>
                         {r.symbol}
                       </Link>
-                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{r.thesis ?? 'Better to wait.'}</span>
+                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{plainThesis(r.thesis) ?? 'Cautious for now.'}</span>
                     </li>
                   ))}
                 </ul>
@@ -138,8 +139,8 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
         <SmallChip>{(rec.confidence_label ?? 'Medium').toLowerCase()} confidence</SmallChip>
         <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'updated today' : 'older'}</SmallChip>
       </div>
-      {rec.thesis && (
-        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{rec.thesis}</p>
+      {plainThesis(rec.thesis) && (
+        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{plainThesis(rec.thesis)}</p>
       )}
       <div className="flex items-center gap-4 mt-4">
         <Link to={`/v2/today/pick/${rec.symbol}`}
