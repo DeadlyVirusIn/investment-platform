@@ -61,6 +61,25 @@ function dirMark(direction?: string): { glyph: string; color: string } {
 const HOLDING_PERIOD =
   'Medium-term — these are swing ideas, usually held a few weeks to a few months.';
 
+// Plain "what to do next" framing for the engine's action.
+function actionPlain(action: string): { verb: string; explain: string; tone: 'pos' | 'neg' | 'muted' } {
+  switch (action) {
+    case 'Buy':
+      return { verb: 'Consider buying', tone: 'pos',
+        explain: "ArthOS sees more working for this than against it right now." };
+    case 'Trim':
+      return { verb: 'Consider trimming', tone: 'neg',
+        explain: "ArthOS would lighten up here — the risks outweigh the upside." };
+    case 'Sell':
+    case 'Exit':
+      return { verb: 'Consider stepping aside', tone: 'neg',
+        explain: "ArthOS would not hold this right now." };
+    default:
+      return { verb: 'Hold — no action today', tone: 'muted',
+        explain: "Nothing compelling to do right now; owners can sit tight." };
+  }
+}
+
 function isFresh(rec: RecApi): boolean {
   if (rec.stale_data) return false;
   if (!rec.generated_at) return true;
@@ -192,6 +211,40 @@ export function PickPage() {
             </p>
           )}
         </div>
+      </FadeIn>
+
+      {/* Sprint J — "What do I do next?" — the decision, up front. ArthOS gives
+          a buy/hold/trim call, not fabricated price targets. */}
+      <FadeIn delay={0.03}>
+        <section className="mb-12 max-w-narrative">
+          <MetaLabel>What to do next</MetaLabel>
+          {(() => {
+            const act = actionPlain(action);
+            const color = act.tone === 'pos' ? 'var(--brand)'
+              : act.tone === 'neg' ? 'oklch(0.70 0.14 75)' : 'var(--foreground)';
+            return (
+              <>
+                <p className="font-serif leading-snug mt-3" style={{ fontSize: 24, color }}>{act.verb}</p>
+                <p className="ink-muted text-[14px] leading-relaxed mt-2">{act.explain}</p>
+              </>
+            );
+          })()}
+          <ul className="mt-5 space-y-2">
+            <li className="flex justify-between gap-4 border-t border-hairline pt-2">
+              <span className="ink-muted text-[13px]">Holding period</span>
+              <span className="ink-primary text-[13px] text-right">Weeks to months (swing)</span>
+            </li>
+            <li className="flex justify-between gap-4 border-t border-hairline pt-2">
+              <span className="ink-muted text-[13px]">Entry / target / stop</span>
+              <span className="ink-primary text-[13px] text-right">You set your own — see note</span>
+            </li>
+          </ul>
+          <p className="ink-fainter text-[12.5px] leading-relaxed mt-3">
+            ArthOS gives a decision (buy / hold / trim), not exact entry, target, or
+            stop prices — choose your own levels for now. Try it risk-free in your
+            paper portfolio first (button above).
+          </p>
+        </section>
       </FadeIn>
 
       <FadeIn delay={0.04}>
