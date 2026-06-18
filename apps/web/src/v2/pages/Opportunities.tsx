@@ -20,6 +20,7 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis } from '../lib/plainText';
+import { PlanRows } from '../components/PlanRows';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
@@ -142,6 +143,8 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       {plainThesis(rec.thesis) && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{plainThesis(rec.thesis)}</p>
       )}
+      {/* Plan — Entry / Target / Exit if wrong / Timeframe (Sprint K) */}
+      <div className="mt-3"><PlanRows rec={rec} compact /></div>
       <div className="flex items-center gap-4 mt-4">
         <Link to={`/v2/today/pick/${rec.symbol}`}
           style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>

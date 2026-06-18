@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { plainThesis, ideaSignals } from '../lib/plainText';
+import { PlanRows } from './PlanRows';
 import { type RecApi, effectiveAction } from '@/lib/operator/hooks';
 
 function ageHours(iso: string | null): number | null {
@@ -100,6 +101,12 @@ export function LiveTodayHero({
         <p className="ink-muted leading-relaxed mt-1" style={{ fontSize: 13.5 }}>
           {keyRisk ?? 'Markets can fall as well as rise — practice it in paper first.'}
         </p>
+      </div>
+
+      {/* Plan — Entry / Target / Exit if wrong / Timeframe (Sprint K) */}
+      <div className="mt-4 max-w-narrative">
+        <Label>Your plan</Label>
+        <div className="mt-1.5"><PlanRows rec={rec} /></div>
       </div>
 
       <p className="ink-fainter mt-4" style={{ fontSize: 11.5 }}>

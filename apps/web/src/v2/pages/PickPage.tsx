@@ -12,6 +12,7 @@ import { useUserPrefs } from '../state/UserPrefsContext';
 import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { plainThesis, ideaSignals } from '../lib/plainText';
+import { PlanRows } from '../components/PlanRows';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
   useTodaysRecommendations,
@@ -229,21 +230,10 @@ export function PickPage() {
               </>
             );
           })()}
-          <ul className="mt-5 space-y-2">
-            <li className="flex justify-between gap-4 border-t border-hairline pt-2">
-              <span className="ink-muted text-[13px]">Holding period</span>
-              <span className="ink-primary text-[13px] text-right">Weeks to months (swing)</span>
-            </li>
-            <li className="flex justify-between gap-4 border-t border-hairline pt-2">
-              <span className="ink-muted text-[13px]">Entry / target / stop</span>
-              <span className="ink-primary text-[13px] text-right">You set your own — see note</span>
-            </li>
-          </ul>
-          <p className="ink-fainter text-[12.5px] leading-relaxed mt-3">
-            ArthOS gives a decision (buy / hold / trim), not exact entry, target, or
-            stop prices — choose your own levels for now. Try it risk-free in your
-            paper portfolio first (button above).
-          </p>
+          {/* Plan — Entry / Target / Exit if wrong / Timeframe (Sprint K).
+              Real paper-planning zones when price + ATR are present, honest
+              placeholders otherwise. Never fabricated. */}
+          <div className="mt-5"><PlanRows rec={rec} /></div>
         </section>
       </FadeIn>
 
