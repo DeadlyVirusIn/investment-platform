@@ -11,17 +11,30 @@ Track record is computed from the source-priority total-return panel
 from __future__ import annotations
 
 import datetime as dt
+from decimal import Decimal
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
 from apps.api.src.db.models import (
+    Asset,
     ModelPortfolio,
     ModelPortfolioHolding,
     ModelPortfolioPerf,
+    PortfolioFollow,
+)
+from apps.api.src.domain.paper_trading.paper_execution import (
+    PaperTradeRejected,
+    submit_trade,
+)
+from apps.api.src.domain.paper_trading.paper_service import (
+    PortfolioCreate,
+    create_portfolio,
 )
 
 router = APIRouter(prefix="/model-portfolios", tags=["model-portfolios"])
@@ -165,6 +178,87 @@ def model_portfolio_detail(slug: str, db: Session = Depends(get_session)) -> dic
         ],
         **_summary(perf),
         "curve": [{"d": p.d.isoformat(), "nav": round(float(p.nav), 4)} for p in perf],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Follow → paper portfolio (Phase 4)
+# ---------------------------------------------------------------------------
+
+
+class FollowRequest(BaseModel):
+    starting_cash: Decimal = Decimal("10000")
+
+
+@router.post("/{slug}/follow")
+def follow_model_portfolio(
+    slug: str,
+    body: FollowRequest | None = None,
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Create a paper portfolio that mirrors the model portfolio's weights —
+    one BUY per holding, sized to weight × starting_cash. Reuses the existing
+    paper engine (create_portfolio + submit_trade). Idempotency is by design
+    loose: each follow makes a fresh paper book (a user may follow more than
+    once over time)."""
+    pf = db.scalars(select(ModelPortfolio).where(ModelPortfolio.slug == slug)).first()
+    if pf is None:
+        raise HTTPException(status_code=404, detail="model portfolio not found")
+    holdings = list(pf.holdings)
+    if not holdings:
+        raise HTTPException(status_code=400, detail="portfolio has no holdings")
+
+    capital = (body or FollowRequest()).starting_cash
+    if capital <= 0:
+        raise HTTPException(status_code=400, detail="starting_cash must be positive")
+
+    name = f"Follow: {pf.name} · {uuid4().hex[:6]}"
+    paper = create_portfolio(
+        db,
+        PortfolioCreate(
+            name=name,
+            starting_cash=capital,
+            max_open_positions=max(len(holdings), 20),
+        ),
+    )
+
+    opened: list[str] = []
+    skipped: dict[str, str] = {}
+    for h in holdings:
+        asset = db.scalars(select(Asset).where(Asset.symbol == h.symbol.upper())).first()
+        if asset is None:
+            skipped[h.symbol] = "no asset"
+            continue
+        usd = (Decimal(str(h.weight)) * capital).quantize(Decimal("0.01"))
+        if usd <= 0:
+            skipped[h.symbol] = "zero allocation"
+            continue
+        try:
+            submit_trade(
+                db,
+                portfolio_id=paper.id,
+                asset_id=asset.id,
+                side="buy",
+                usd_amount=usd,
+                reason=f"follow:{slug}",
+                merge_positions=False,
+            )
+            opened.append(h.symbol)
+        except PaperTradeRejected as exc:
+            skipped[h.symbol] = str(exc)
+
+    db.add(PortfolioFollow(
+        model_portfolio_id=pf.id, paper_portfolio_id=paper.id, user_id=None,
+    ))
+    db.commit()
+
+    return {
+        "paper_portfolio_id": paper.id,
+        "name": name,
+        "slug": slug,
+        "opened": opened,
+        "skipped": skipped,
+        "starting_cash": float(capital),
     }
 
 

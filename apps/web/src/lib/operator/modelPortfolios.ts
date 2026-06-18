@@ -1,7 +1,7 @@
 // MVP — model-portfolio data hooks. Reuse the shared apiGet + react-query.
 
-import { useQuery } from "@tanstack/react-query";
-import { apiGet } from "@/lib/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiGet, apiPost } from "@/lib/api";
 
 export interface ModelPortfolioSummary {
   slug: string;
@@ -43,5 +43,31 @@ export function useModelPortfolio(slug: string | undefined) {
     queryFn: () => apiGet<ModelPortfolioDetail>(`/model-portfolios/${slug}`),
     enabled: !!slug,
     staleTime: 300_000,
+  });
+}
+
+export interface FollowResult {
+  paper_portfolio_id: string;
+  name: string;
+  slug: string;
+  opened: string[];
+  skipped: Record<string, string>;
+  starting_cash: number;
+}
+
+// Follow → paper portfolio. Reuses the paper engine server-side; on success
+// the paper book / track-record queries are invalidated so the new positions
+// show immediately.
+export function useFollowModelPortfolio() {
+  const qc = useQueryClient();
+  return useMutation<FollowResult, Error, { slug: string; startingCash?: number }>({
+    mutationFn: ({ slug, startingCash }) =>
+      apiPost<FollowResult>(`/model-portfolios/${slug}/follow`, {
+        starting_cash: startingCash ?? 10000,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["paper"] });
+      qc.invalidateQueries({ queryKey: ["canonical-stock"] });
+    },
   });
 }

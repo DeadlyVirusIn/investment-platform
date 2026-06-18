@@ -1,11 +1,11 @@
 // MVP — model-portfolio detail: thesis, track record (equity curve + stats),
 // holdings, Follow CTA. Reuses ArthosPage + SurfaceCard + useModelPortfolio.
 
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
-import { useModelPortfolio } from '@/lib/operator/modelPortfolios';
+import { useModelPortfolio, useFollowModelPortfolio } from '@/lib/operator/modelPortfolios';
 
 function Curve({ navs }: { navs: number[] }) {
   if (navs.length < 2) return null;
@@ -32,7 +32,17 @@ function fmtPct(n: number | null): string {
 
 export function ModelPortfolioDetail() {
   const { slug } = useParams();
+  const navigate = useNavigate();
   const { data: pf, isLoading, isError } = useModelPortfolio(slug);
+  const follow = useFollowModelPortfolio();
+
+  const onFollow = () => {
+    if (!slug) return;
+    follow.mutate(
+      { slug, startingCash: 10000 },
+      { onSuccess: () => navigate('/v2/portfolio') },
+    );
+  };
 
   return (
     <ArthosPage topBarEyebrow="Discover">
@@ -89,15 +99,22 @@ export function ModelPortfolioDetail() {
             </ul>
           </SurfaceCard>
 
-          {/* Follow — Phase 4 wires the one-tap submit_trade seed. */}
-          <Link to={`/v2/portfolios/${pf.slug}?follow=1`}
-            className="inline-block px-5 py-2.5 rounded-full"
+          {/* Follow — one-tap: seeds a paper portfolio (weight × $10,000)
+              via the paper engine, then jumps to My Portfolio. */}
+          <button type="button" onClick={onFollow} disabled={follow.isPending}
+            className="px-5 py-2.5 rounded-full"
             style={{
               fontSize: 14, fontWeight: 600, color: 'var(--background)',
-              backgroundColor: 'var(--brand)',
+              backgroundColor: 'var(--brand)', opacity: follow.isPending ? 0.6 : 1,
+              cursor: follow.isPending ? 'default' : 'pointer', border: 'none',
             }}>
-            Follow → paper portfolio
-          </Link>
+            {follow.isPending ? 'Following…' : 'Follow → paper portfolio ($10,000)'}
+          </button>
+          {follow.isError && (
+            <p className="mt-2" style={{ fontSize: 12, color: 'var(--destructive)' }}>
+              Couldn't create the paper portfolio. Try again.
+            </p>
+          )}
         </>
       )}
     </ArthosPage>
