@@ -51,11 +51,11 @@ export function Opportunities() {
   const evaluated = diag?.total ?? null;
 
   return (
-    <ArthosPage topBarEyebrow="Opportunities">
+    <ArthosPage topBarEyebrow="Discover">
       <PageHeader
-        eyebrow="Opportunities"
-        title={<>The rest of<br />the desk.</>}
-        description="Everything the engine surfaced today — ranked by confidence, sourced live. The strongest also leads Today."
+        eyebrow="Today's Ideas"
+        title={<>Ideas you can<br />follow and prove.</>}
+        description="What the engine sees today — ranked, sourced live, each one explained. Add any idea to your paper portfolio and watch it become your track record."
       />
 
       <div className="mb-6"><TrustBanner /></div>
@@ -161,8 +161,23 @@ function fresh(rec: RecApi): boolean {
   return !(Number.isFinite(h) && h > 30);
 }
 
+// "What $1,000 would've done" — honest: only renders a figure when the
+// rec payload carries a since-recommended return; otherwise says so plainly.
+function whatThousandDid(rec: RecApi): { text: string; tone: 'pos' | 'neg' | 'muted' } {
+  const r = rec as unknown as Record<string, unknown>;
+  const pctRaw = r.return_since_pct ?? r.perf_since_pct ?? r.since_return_pct ?? r.return_since;
+  const pct = typeof pctRaw === 'number' ? pctRaw : Number(pctRaw);
+  if (Number.isFinite(pct)) {
+    const value = 1000 * (1 + pct / 100);
+    const tone = pct >= 0 ? 'pos' : 'neg';
+    return { text: `$1,000 → $${value.toFixed(0)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%) since flagged`, tone };
+  }
+  return { text: 'Tracking from today — follow it to build the record', tone: 'muted' };
+}
+
 function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
   const action = effectiveAction(rec) ?? 'Hold';
+  const perf = whatThousandDid(rec);
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
@@ -176,10 +191,28 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       {rec.thesis && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{rec.thesis}</p>
       )}
-      <Link to={`/v2/today/pick/${rec.symbol}`} className="inline-block mt-3"
-        style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
-        Full reasoning →
-      </Link>
+      {/* what $1,000 would've done */}
+      <p className="mt-3 mb-1 tabular-nums" style={{
+        fontSize: 12.5, fontWeight: 600,
+        color: perf.tone === 'pos' ? 'var(--brand)'
+          : perf.tone === 'neg' ? 'oklch(0.70 0.14 75)' : 'var(--muted-foreground)',
+      }}>{perf.text}</p>
+      <div className="flex items-center gap-4 mt-3">
+        <Link to={`/v2/today/pick/${rec.symbol}`}
+          style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
+          See why →
+        </Link>
+        {/* Add to paper — Phase 4 wires the one-tap submit_trade; routes to
+            the idea detail where the action lives until then. */}
+        <Link to={`/v2/today/pick/${rec.symbol}?add=1`}
+          className="px-3 py-1.5 rounded-full"
+          style={{
+            fontSize: 12, fontWeight: 600, color: 'var(--background)',
+            backgroundColor: 'var(--brand)',
+          }}>
+          Add to paper
+        </Link>
+      </div>
     </SurfaceCard>
   );
 }
