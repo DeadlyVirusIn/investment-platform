@@ -175,6 +175,8 @@ services:
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 2 — refresh_company_names (nightly) needs Polygon for names.
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
       # Phase 11W follow-up — run_engine_pipeline.py calls
       # backfill_macro_features which requires FRED_API_KEY. Without
       # this propagation the daily loop's macro_backfill stage exits
@@ -289,6 +291,8 @@ services:
       TZ: ${TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 2 — refresh_company_names (nightly) needs Polygon for names.
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
       # Phase 11W follow-up — run_engine_pipeline.py calls
       # backfill_macro_features which requires FRED_API_KEY. Without
       # this propagation the daily loop's macro_backfill stage exits
