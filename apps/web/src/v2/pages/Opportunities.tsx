@@ -126,23 +126,8 @@ function fresh(rec: RecApi): boolean {
   return !(Number.isFinite(h) && h > 30);
 }
 
-// "What $1,000 would've done" — honest: only renders a figure when the
-// rec payload carries a since-recommended return; otherwise says so plainly.
-function whatThousandDid(rec: RecApi): { text: string; tone: 'pos' | 'neg' | 'muted' } {
-  const r = rec as unknown as Record<string, unknown>;
-  const pctRaw = r.return_since_pct ?? r.perf_since_pct ?? r.since_return_pct ?? r.return_since;
-  const pct = typeof pctRaw === 'number' ? pctRaw : Number(pctRaw);
-  if (Number.isFinite(pct)) {
-    const value = 1000 * (1 + pct / 100);
-    const tone = pct >= 0 ? 'pos' : 'neg';
-    return { text: `$1,000 → $${value.toFixed(0)} (${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%) since flagged`, tone };
-  }
-  return { text: 'Tracking from today — follow it to build the record', tone: 'muted' };
-}
-
 function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
   const action = effectiveAction(rec) ?? 'Hold';
-  const perf = whatThousandDid(rec);
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
       <div className="flex items-baseline gap-3 flex-wrap mb-1">
@@ -151,18 +136,12 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       </div>
       <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
         <SmallChip>{(rec.confidence_label ?? 'Medium').toLowerCase()} confidence</SmallChip>
-        <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'fresh' : 'stale'}</SmallChip>
+        <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'updated today' : 'older'}</SmallChip>
       </div>
       {rec.thesis && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{rec.thesis}</p>
       )}
-      {/* what $1,000 would've done */}
-      <p className="mt-3 mb-1 tabular-nums" style={{
-        fontSize: 12.5, fontWeight: 600,
-        color: perf.tone === 'pos' ? 'var(--brand)'
-          : perf.tone === 'neg' ? 'oklch(0.70 0.14 75)' : 'var(--muted-foreground)',
-      }}>{perf.text}</p>
-      <div className="flex items-center gap-4 mt-3">
+      <div className="flex items-center gap-4 mt-4">
         <Link to={`/v2/today/pick/${rec.symbol}`}
           style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
           See why →

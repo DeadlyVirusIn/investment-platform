@@ -666,7 +666,7 @@ export function MobileBottomTab() {
         borderTop: '1px solid var(--border)',
       }}
     >
-      <div className="max-w-screen-md mx-auto px-1 grid grid-cols-5">
+      <div className="max-w-screen-md mx-auto px-1 grid grid-cols-4">
         {MOBILE_TABS.map(({ to, label, shortLabel, icon: Icon, match }) => {
           const active = match(location.pathname);
           const display = shortLabel ?? label;

@@ -84,6 +84,10 @@ export function PickPage() {
     );
   };
 
+  // Reset the one-shot guard when navigating between symbols (the router
+  // reuses this component instance on param change).
+  useEffect(() => { autoFired.current = false; }, [symbol]);
+
   // ?add=1 from the Discover card "Add to paper" CTA auto-fires once.
   useEffect(() => {
     if (sp.get('add') === '1' && rec?.symbol && !autoFired.current && !addIdea.isPending) {

@@ -1,7 +1,7 @@
 // MVP — model-portfolio detail: thesis, track record (equity curve + stats),
 // holdings, Follow CTA. Reuses ArthosPage + SurfaceCard + useModelPortfolio.
 
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
@@ -32,16 +32,12 @@ function fmtPct(n: number | null): string {
 
 export function ModelPortfolioDetail() {
   const { slug } = useParams();
-  const navigate = useNavigate();
   const { data: pf, isLoading, isError } = useModelPortfolio(slug);
   const follow = useFollowModelPortfolio();
 
   const onFollow = () => {
     if (!slug) return;
-    follow.mutate(
-      { slug, startingCash: 10000 },
-      { onSuccess: () => navigate('/v2/portfolio') },
-    );
+    follow.mutate({ slug, startingCash: 10000 });   // result surfaced below
   };
 
   return (
@@ -75,10 +71,11 @@ export function ModelPortfolioDetail() {
               <Stat label="Max drawdown" value={fmtPct(pf.max_drawdown_pct)} tone="neg" />
               <Stat label="Since" value={pf.since ?? '—'} />
             </div>
-            <Curve navs={pf.curve.map((c) => c.nav)} />
-            <p className="ink-fainter mt-2" style={{ fontSize: 11 }}>
-              Total-return track record (dividends reinvested), computed from
-              history. Survivorship-biased — past performance is not a promise.
+            <Curve navs={(pf.curve ?? []).map((c) => c.nav)} />
+            <p className="ink-muted mt-2" style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+              Total-return track record (dividends reinvested) from past prices.
+              It only includes companies that still exist today, which flatters
+              the past — <strong>past performance is not a promise.</strong>
             </p>
           </SurfaceCard>
 
@@ -88,7 +85,7 @@ export function ModelPortfolioDetail() {
               Holdings
             </h3>
             <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
-              {pf.holdings.map((h) => (
+              {(pf.holdings ?? []).map((h) => (
                 <li key={h.symbol} className="py-2 flex items-center justify-between">
                   <span className="font-mono ink-primary" style={{ fontSize: 13 }}>{h.symbol}</span>
                   <span className="ink-muted tabular-nums" style={{ fontSize: 13 }}>
@@ -99,20 +96,40 @@ export function ModelPortfolioDetail() {
             </ul>
           </SurfaceCard>
 
-          {/* Follow — one-tap: seeds a paper portfolio (weight × $10,000)
-              via the paper engine, then jumps to My Portfolio. */}
-          <button type="button" onClick={onFollow} disabled={follow.isPending}
-            className="px-5 py-2.5 rounded-full"
-            style={{
-              fontSize: 14, fontWeight: 600, color: 'var(--background)',
-              backgroundColor: 'var(--brand)', opacity: follow.isPending ? 0.6 : 1,
-              cursor: follow.isPending ? 'default' : 'pointer', border: 'none',
-            }}>
-            {follow.isPending ? 'Following…' : 'Follow → paper portfolio ($10,000)'}
-          </button>
+          {/* Follow — one-tap: seeds a paper portfolio mirroring the weights
+              ($10,000 of practice money). Result (incl. any skipped holdings)
+              is surfaced so a partial fill is never silent. */}
+          {follow.isSuccess ? (
+            <SurfaceCard variant="highlight" className="p-5">
+              <p className="ink-primary" style={{ fontSize: 14, fontWeight: 600 }}>
+                Added {follow.data?.opened.length ?? 0} holdings to your practice portfolio.
+              </p>
+              {follow.data && Object.keys(follow.data.skipped).length > 0 && (
+                <p className="ink-muted mt-1" style={{ fontSize: 12.5 }}>
+                  {Object.keys(follow.data.skipped).length} couldn't be added today
+                  ({Object.keys(follow.data.skipped).join(', ')}) — usually missing
+                  recent price data.
+                </p>
+              )}
+              <Link to="/v2/portfolio" className="inline-block mt-3"
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand)' }}>
+                View in My Portfolio →
+              </Link>
+            </SurfaceCard>
+          ) : (
+            <button type="button" onClick={onFollow} disabled={follow.isPending}
+              className="px-5 py-2.5 rounded-full"
+              style={{
+                fontSize: 14, fontWeight: 600, color: 'var(--background)',
+                backgroundColor: 'var(--brand)', opacity: follow.isPending ? 0.6 : 1,
+                cursor: follow.isPending ? 'default' : 'pointer', border: 'none',
+              }}>
+              {follow.isPending ? 'Following…' : 'Follow → practice portfolio ($10,000)'}
+            </button>
+          )}
           {follow.isError && (
             <p className="mt-2" style={{ fontSize: 12, color: 'var(--destructive)' }}>
-              Couldn't create the paper portfolio. Try again.
+              Couldn't create the practice portfolio. Try again.
             </p>
           )}
         </>

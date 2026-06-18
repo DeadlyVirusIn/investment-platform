@@ -69,9 +69,10 @@ export function PaperBook() {
           Practice portfolio.
         </h1>
         <p className="ink-muted leading-relaxed max-w-narrative">
-          A real practice account tracked on the backend — the same numbers
-          the briefing and homepage show. No real money. Follow the briefing,
-          and see what holds up over time.
+          This is your <strong>paper portfolio</strong> — practice money, nothing
+          real at risk. Every idea you follow or add is tracked here with live
+          prices, so you can see what actually holds up before you ever invest
+          real money.
         </p>
       </header>
 
