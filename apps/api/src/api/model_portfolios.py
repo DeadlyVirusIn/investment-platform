@@ -102,6 +102,22 @@ _PANEL_SQL = text(
 )
 
 
+def _fill_submitted_at(session: Session, asset_id: str) -> "dt.datetime | None":
+    """A ``submitted_at`` that makes the engine's strict next-bar rule
+    (``PriceBar.ts > submitted_at``) resolve to the LATEST available 1d bar.
+    Returns (latest_bar_ts - 1s) so a live 'follow/add now' fills at today's
+    close instead of a non-existent future bar. None if the asset has no bars."""
+    ts = session.execute(
+        text("SELECT max(ts) FROM price_bar WHERE asset_id=:a AND timeframe='1d'"),
+        {"a": asset_id},
+    ).scalar()
+    if ts is None:
+        return None
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=dt.timezone.utc)
+    return ts - dt.timedelta(seconds=1)
+
+
 def compute_and_store(session: Session, portfolio: ModelPortfolio) -> int:
     """(Re)compute the track record for one portfolio; upsert perf rows.
     Returns the number of perf days written. Safe to call repeatedly."""
@@ -272,6 +288,10 @@ def follow_model_portfolio(
         if usd <= 0:
             skipped[h.symbol] = "zero allocation"
             continue
+        sa = _fill_submitted_at(db, asset.id)
+        if sa is None:
+            skipped[h.symbol] = "no price data"
+            continue
         try:
             submit_trade(
                 db,
@@ -279,6 +299,7 @@ def follow_model_portfolio(
                 asset_id=asset.id,
                 side="buy",
                 usd_amount=usd,
+                submitted_at=sa,
                 reason=f"follow:{slug}",
                 merge_positions=False,
             )
@@ -325,10 +346,14 @@ def add_idea_to_paper(
     if usd <= 0:
         raise HTTPException(status_code=400, detail="usd_amount must be positive")
     pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+    sa = _fill_submitted_at(db, asset.id)
+    if sa is None:
+        raise HTTPException(status_code=409, detail=f"no price data for {symbol}")
     try:
         submit_trade(
             db, portfolio_id=pid, asset_id=asset.id, side="buy",
-            usd_amount=usd, reason=f"idea:{symbol.upper()}", merge_positions=True,
+            usd_amount=usd, submitted_at=sa, reason=f"idea:{symbol.upper()}",
+            merge_positions=True,
         )
     except PaperTradeRejected as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc

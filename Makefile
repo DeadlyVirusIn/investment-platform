@@ -128,6 +128,11 @@ seed:
 	$(COMPOSE) exec api alembic -c infra/alembic/alembic.ini upgrade head
 	$(COMPOSE) exec api python -m scripts.seed_symbols
 
+## MVP — seed curated model portfolios + compute track records (idempotent).
+## Run after `make migrate`/`make seed` so the model_portfolio tables exist.
+seed-model-portfolios:
+	$(COMPOSE) exec api python -m scripts.seed_model_portfolios
+
 ## Run Python linters (ruff + mypy)
 lint:
 	ruff check .
