@@ -35,19 +35,33 @@ export function ideaSignals(
   return { why, risks };
 }
 
+// A score number in the engine thesis: integer OR decimal (0.314, -0.45, 0).
+// CRITICAL: clause patterns must consume the WHOLE number. The earlier
+// `[^.]*` form stopped at the decimal point inside "0.314", leaving the
+// fraction digits ("314") orphaned — which is exactly how
+// "314 Buy. 716. 133. 000. Confidence: (High)." leaked onto the card.
+const NUM = '[-+]?\\d+(?:\\.\\d+)?';
+
 export function plainThesis(raw?: string | null): string | null {
   if (!raw) return null;
   let t = raw;
   t = t.replace(/^[A-Z.]{1,6}:\s*/, '');                       // leading "TICKER: "
-  t = t.replace(/composite score[^.]*\.?/gi, '');
-  t = t.replace(/trend\s*\/?\s*momentum score[^.]*\.?/gi, '');
-  t = t.replace(/momentum score[^.]*\.?/gi, '');
-  t = t.replace(/volatilit[^.]*\.?/gi, '');                    // volatility / volatilities
-  t = t.replace(/exposure score[^.]*\.?/gi, '');
-  t = t.replace(/[-+]?\d+\.\d+/g, '');                         // stray decimal scores
+  // "composite score 0.314 -> Buy." — eat the number, the arrow, the action word.
+  t = t.replace(new RegExp(`composite score\\s*${NUM}\\s*(?:->|→)?\\s*[A-Za-z]*\\.?`, 'gi'), '');
+  t = t.replace(new RegExp(`trend\\s*/?\\s*momentum score\\s*${NUM}\\.?`, 'gi'), '');
+  t = t.replace(new RegExp(`momentum score\\s*${NUM}\\.?`, 'gi'), '');
+  t = t.replace(new RegExp(`volatilit\\w*(?:\\s*/?\\s*risk)?\\s*score\\s*${NUM}\\.?`, 'gi'), '');
+  t = t.replace(new RegExp(`exposure score\\s*${NUM}\\.?`, 'gi'), '');
+  // "Confidence: 83.33 (High)." — drop the whole clause incl. the (Label).
+  t = t.replace(new RegExp(`confidence:\\s*${NUM}?\\s*(?:\\([^)]*\\))?\\.?`, 'gi'), '');
+  t = t.replace(new RegExp(NUM, 'g'), '');                     // any stray score number
   t = t.replace(/→|->/g, ' ');
+  t = t.replace(/\(\s*\)/g, '');                               // empty parens left behind
   t = t.replace(/\s*\.\s*(\.\s*)+/g, '. ');                    // collapse ". . ."
   t = t.replace(/\s{2,}/g, ' ').trim();
-  t = t.replace(/^[.\s,;:–—-]+/, '').trim();                   // leading punctuation
-  return t.length >= 12 ? t : null;
+  t = t.replace(/^[.\s,;:–—()-]+/, '').trim();                 // leading punctuation
+  // If only quant residue is left (no real sentence), bail so the caller
+  // falls back to plain language instead of showing punctuation soup.
+  const letters = (t.match(/[A-Za-z]/g) ?? []).length;
+  return letters >= 8 ? t : null;
 }
