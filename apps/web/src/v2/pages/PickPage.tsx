@@ -12,6 +12,7 @@ import { useUserPrefs } from '../state/UserPrefsContext';
 import { CONFIDENCE_DOCTRINE } from '../lib/copy';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { plainThesis, ideaSignals } from '../lib/plainText';
+import { useSymbolNews } from '@/lib/market/hooks';
 import {
   useTodaysRecommendations,
   effectiveAction,
@@ -72,6 +73,7 @@ export function PickPage() {
   const navigate = useNavigate();
   const { inWatchlist, toggleWatchlist } = useUserPrefs();
   const { data, isLoading } = useTodaysRecommendations();
+  const { data: news } = useSymbolNews(symbol);
   const [sp] = useSearchParams();
   const addIdea = useAddIdeaToPaper();
   const autoFired = useRef(false);
@@ -266,6 +268,53 @@ export function PickPage() {
         <section className="mb-16 max-w-narrative">
           <MetaLabel>Expected holding period</MetaLabel>
           <p className="ink-primary text-[15px] leading-snug mt-3">{holding}</p>
+        </section>
+      </FadeIn>
+
+      {/* Sprint I — Recent news & catalysts (real, from /news/symbol). */}
+      {news && news.items.length > 0 && (
+        <FadeIn delay={0.18}>
+          <section className="mb-12 max-w-narrative">
+            <MetaLabel>Recent news &amp; catalysts</MetaLabel>
+            <ul className="mt-4 space-y-4">
+              {news.items.slice(0, 5).map((n) => (
+                <li key={n.id} className="border-t border-hairline pt-4">
+                  {n.category && (
+                    <span className="inline-block mb-1 px-2 py-0.5 rounded-full"
+                      style={{ fontSize: 10.5, textTransform: 'capitalize',
+                        color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+                      {n.category}
+                    </span>
+                  )}
+                  {n.url ? (
+                    <a href={n.url} target="_blank" rel="noopener noreferrer"
+                      className="block ink-primary text-[14.5px] leading-snug hover:opacity-70">
+                      {n.title}
+                    </a>
+                  ) : (
+                    <span className="block ink-primary text-[14.5px] leading-snug">{n.title}</span>
+                  )}
+                  <span className="block ink-fainter text-[11.5px] mt-1">
+                    {n.source} · {absTime(n.published_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        </FadeIn>
+      )}
+
+      {/* Sprint I — Fundamentals: honest placeholder. ArthOS does not yet
+          ingest revenue/earnings/valuation, and will not show numbers it can't
+          verify. Surfaced when the data layer lands. */}
+      <FadeIn delay={0.2}>
+        <section className="mb-12 max-w-narrative">
+          <MetaLabel>Fundamentals</MetaLabel>
+          <p className="ink-muted text-[14px] leading-relaxed mt-3">
+            Company fundamentals — revenue growth, earnings, profitability and
+            valuation — are coming soon. ArthOS won't show numbers it can't
+            verify, so this stays empty until the data is wired in.
+          </p>
         </section>
       </FadeIn>
 

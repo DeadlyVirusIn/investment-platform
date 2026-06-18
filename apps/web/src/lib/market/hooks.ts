@@ -67,6 +67,42 @@ export function useMarketTape() {
 }
 
 
+// Per-symbol news + catalysts (Sprint I). Real data from /news/symbol/{symbol};
+// empty when none (no fabrication).
+export interface SymbolNewsItem {
+  id: string;
+  source: string;
+  url: string | null;
+  title: string;
+  summary: string | null;
+  published_at: string;
+  category: string | null;
+  sentiment: string | null;
+  impact_level: string | null;
+}
+
+export interface SymbolNews {
+  symbol: string;
+  count: number;
+  items: SymbolNewsItem[];
+  summary: {
+    article_count: number;
+    sentiment_label: string | null;
+    dominant_category: string | null;
+  } | null;
+}
+
+export function useSymbolNews(symbol: string | undefined) {
+  return useQuery<SymbolNews>({
+    queryKey: ["news", "symbol", symbol],
+    queryFn: () => apiGet<SymbolNews>(`/news/symbol/${symbol}?days=14&limit=6`),
+    enabled: !!symbol,
+    staleTime: 300_000,
+    retry: false,            // missing/empty news -> show nothing, don't spin
+  });
+}
+
+
 // ---------------------------------------------------------------------------
 // Legacy stub — kept exported as a no-op so any straggler import still
 // type-checks. The real surface is useMarketTape() above. Remove this
