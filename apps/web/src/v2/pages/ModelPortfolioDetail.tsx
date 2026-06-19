@@ -6,6 +6,7 @@ import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { CompanyTitle } from '../components/CompanyTitle';
+import { riskLevel, riskWho, riskWhy, HOLD_PERIOD } from '../lib/portfolioMeta';
 import { useModelPortfolio, useFollowModelPortfolio } from '@/lib/operator/modelPortfolios';
 
 function Curve({ navs }: { navs: number[] }) {
@@ -97,6 +98,33 @@ export function ModelPortfolioDetail() {
             </ul>
           </SurfaceCard>
 
+          {/* Build stage — Identity: who/why/how-long, plain language. */}
+          <SurfaceCard variant="default" className="p-5 mb-6">
+            <h3 className="ink-primary mb-3" style={{ fontSize: 14, fontWeight: 600 }}>Is this for me?</h3>
+            <IdRow label="Who it's for" value={riskWho(pf.risk_label)} />
+            <IdRow label="Why it exists" value={riskWhy(pf.risk_label)} />
+            <IdRow label="How long to hold" value={HOLD_PERIOD} />
+            <IdRow label="Risk level" value={riskLevel(pf.risk_label)} />
+          </SurfaceCard>
+
+          {/* Education — plain explanations of the concepts at play. */}
+          <SurfaceCard variant="default" className="p-5 mb-6">
+            <h3 className="ink-primary mb-3" style={{ fontSize: 14, fontWeight: 600 }}>Good to know</h3>
+            <IdRow label="Diversification" value="Holding several companies spreads your risk — one bad name hurts less than if you owned just one." />
+            <IdRow label="Concentration" value="This basket holds only a handful of names, so each one matters more — more punch, less cushion." />
+            <IdRow label="Volatility" value="Prices swing. 'Worst drop' shows how far it fell before recovering — expect bumps on the way up." />
+            <IdRow label="Rebalancing" value="The basket is occasionally trimmed back to its target shape. You don't have to do anything — it's handled." />
+          </SurfaceCard>
+
+          {/* Trust — how it's run + honest risks. */}
+          <SurfaceCard variant="default" className="p-5 mb-6">
+            <h3 className="ink-primary mb-3" style={{ fontSize: 14, fontWeight: 600 }}>How it works &amp; what could go wrong</h3>
+            <IdRow label="How holdings are picked" value="Chosen to fit the theme above and weighted across the basket — not stock-picked week to week." />
+            <IdRow label="How often they change" value="Rarely. These are long-hold baskets, not active trading." />
+            <IdRow label="What success looks like" value="Growing steadily over years and recovering from drops — not winning every single week." />
+            <IdRow label="What could go wrong" value="A market-wide downturn drags everything down together, and a concentrated basket falls harder. Practice it first." />
+          </SurfaceCard>
+
           {/* Follow — one-tap: seeds a paper portfolio mirroring the weights
               ($10,000 of practice money). Result (incl. any skipped holdings)
               is surfaced so a partial fill is never silent. */}
@@ -152,6 +180,18 @@ export function ModelPortfolioDetail() {
         </>
       )}
     </ArthosPage>
+  );
+}
+
+function IdRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-2 py-2 max-w-narrative"
+      style={{ gridTemplateColumns: '128px 1fr', borderTop: '1px solid var(--border)' }}>
+      <span className="font-semibold uppercase" style={{
+        fontSize: 10, letterSpacing: '0.06em', color: 'var(--muted-foreground)',
+      }}>{label}</span>
+      <span className="ink-primary leading-snug" style={{ fontSize: 13 }}>{value}</span>
+    </div>
   );
 }
 

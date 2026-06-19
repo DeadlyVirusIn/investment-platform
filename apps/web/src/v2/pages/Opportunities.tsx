@@ -26,6 +26,7 @@ import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { ContinuePathCard } from '../components/ContinuePathCard';
 import { ProgressSpine } from '../components/ProgressSpine';
+import { PortfolioComparison } from '../components/PortfolioComparison';
 import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
   useTodaysRecommendations,
@@ -77,6 +78,8 @@ export function Opportunities() {
       {/* Sprint D order: portfolios under the hero, then themes, what's
           moving, social proof, then today's individual ideas. */}
       <div id="model-portfolios"><ModelPortfoliosSection /></div>
+      {/* Build stage — compare the portfolios head-to-head. */}
+      <PortfolioComparison />
       <TrendingThemes />
       <WhatsMovingStrip />
       <SocialProofStrip />
