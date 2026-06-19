@@ -14,7 +14,6 @@ import datetime as dt
 import time
 from decimal import Decimal
 from typing import Any
-from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from loguru import logger
@@ -36,8 +35,6 @@ from apps.api.src.domain.paper_trading.paper_execution import (
     submit_trade,
 )
 from apps.api.src.domain.paper_trading.paper_service import (
-    PortfolioCreate,
-    create_portfolio,
     resolve_user_stock_portfolio,
 )
 
@@ -319,11 +316,12 @@ def follow_model_portfolio(
     db: Session = Depends(get_session),
     user_id: str = Depends(require_user_id),
 ) -> dict[str, Any]:
-    """Create a paper portfolio that mirrors the model portfolio's weights —
-    one BUY per holding, sized to weight × starting_cash. Reuses the existing
-    paper engine (create_portfolio + submit_trade). Idempotency is by design
-    loose: each follow makes a fresh paper book (a user may follow more than
-    once over time)."""
+    """Follow a model portfolio into the user's OWN practice book — one BUY per
+    holding, sized to weight × starting_cash, merged into the SAME canonical
+    `user:<id>:stock` book that single-idea adds use. This is what makes
+    "Watch it in My Portfolio" true: followed holdings land in My Portfolio
+    alongside the user's single ideas (Practice ↔ Build are one book).
+    Positions merge with any existing holding of the same name."""
     _rate_check(user_id, "follow")
     pf = db.scalars(select(ModelPortfolio).where(ModelPortfolio.slug == slug)).first()
     if pf is None:
@@ -336,15 +334,8 @@ def follow_model_portfolio(
     if capital <= 0:
         raise HTTPException(status_code=400, detail="starting_cash must be positive")
 
-    name = f"Follow:{user_id}:{pf.name} · {uuid4().hex[:6]}"
-    paper = create_portfolio(
-        db,
-        PortfolioCreate(
-            name=name,
-            starting_cash=capital,
-            max_open_positions=max(len(holdings), 20),
-        ),
-    )
+    # Same per-user canonical book as add-to-paper (get-or-create).
+    paper_id = resolve_user_stock_portfolio(db, user_id)
 
     opened: list[str] = []
     skipped: dict[str, str] = {}
@@ -364,26 +355,26 @@ def follow_model_portfolio(
         try:
             submit_trade(
                 db,
-                portfolio_id=paper.id,
+                portfolio_id=paper_id,
                 asset_id=asset.id,
                 side="buy",
                 usd_amount=usd,
                 submitted_at=sa,
                 reason=f"follow:{slug}",
-                merge_positions=False,
+                merge_positions=True,
             )
             opened.append(h.symbol)
         except PaperTradeRejected as exc:
             skipped[h.symbol] = str(exc)
 
     db.add(PortfolioFollow(
-        model_portfolio_id=pf.id, paper_portfolio_id=paper.id, user_id=user_id,
+        model_portfolio_id=pf.id, paper_portfolio_id=paper_id, user_id=user_id,
     ))
     db.commit()
 
     return {
-        "paper_portfolio_id": paper.id,
-        "name": name,
+        "paper_portfolio_id": paper_id,
+        "name": pf.name,
         "slug": slug,
         "opened": opened,
         "skipped": skipped,
