@@ -65,27 +65,9 @@ export function Opportunities() {
 
       {tab === 'stocks' && (
         <>
-      {/* Sprint E — persistent journey spine (Discover→…→Invest). Lightweight. */}
-      <ProgressSpine paperCount={paperCount} />
-      {/* P1 — persistent "what next?" path card (resume Day 1, then next action). */}
-      <ContinuePathCard paperCount={paperCount} />
-      {/* P0 onboarding — bridge single ideas → diversified portfolio once the
-          user has practiced 2+ individual positions. */}
-      {paperCount >= 2 && <PortfolioBridge />}
-      {/* P1 progression — 5+ practice positions unlock an Options Readiness
-          nudge (NOT options prominence; just an honest "you're ready to learn"). */}
-      {paperCount >= 5 && <OptionsReadinessCard onExplore={() => setTab('options')} />}
-      {/* Sprint D order: portfolios under the hero, then themes, what's
-          moving, social proof, then today's individual ideas. */}
-      <div id="model-portfolios"><ModelPortfoliosSection /></div>
-      {/* Build stage — compare the portfolios head-to-head. */}
-      <PortfolioComparison />
-      <TrendingThemes />
-      <WhatsMovingStrip />
-      <SocialProofStrip />
-
-      <div className="mb-8"><TrustBanner /></div>
-
+      {/* Hierarchy: ideas are the PRIMARY action — they lead, directly under
+          the hero. Progress cluster, portfolios, comparison and context follow.
+          (Reordered from the prior portfolios-first layout.) */}
       {isLoading && (
         <SurfaceCard variant="muted" className="p-6">
           <p className="ink-muted" style={{ fontSize: 14 }}>Loading today's ideas…</p>
@@ -144,6 +126,20 @@ export function Opportunities() {
           )}
         </>
       )}
+
+      {/* Progress cluster — after the ideas (the primary action). */}
+      <ProgressSpine paperCount={paperCount} />
+      <ContinuePathCard paperCount={paperCount} />
+      {paperCount >= 2 && <PortfolioBridge />}
+      {paperCount >= 5 && <OptionsReadinessCard onExplore={() => setTab('options')} />}
+      {/* Build — model portfolios, then the head-to-head comparison (collapsed). */}
+      <div id="model-portfolios"><ModelPortfoliosSection /></div>
+      <PortfolioComparison collapsed />
+      {/* Context — themes, market tape, social proof, Arth's record. */}
+      <TrendingThemes />
+      <WhatsMovingStrip />
+      <SocialProofStrip />
+      <div className="mb-8"><TrustBanner /></div>
         </>
       )}
 

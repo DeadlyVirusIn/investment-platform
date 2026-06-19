@@ -3,7 +3,9 @@
 // risk) sorted by return so the growth↔conservative spread is obvious. Each
 // row taps through to the detail. Real fields only; no fabrication.
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { useModelPortfolios } from '@/lib/operator/modelPortfolios';
 import { riskLevel } from '../lib/portfolioMeta';
@@ -21,7 +23,8 @@ function pct(v: number | string | null | undefined, sign = true): string {
   return `${sign && n >= 0 ? '+' : ''}${Math.round(n).toLocaleString()}%`;
 }
 
-export function PortfolioComparison() {
+export function PortfolioComparison({ collapsed = false }: { collapsed?: boolean }) {
+  const [open, setOpen] = useState(!collapsed);
   const { data, isLoading } = useModelPortfolios();
   const portfolios = ((data?.portfolios ?? []) as unknown as Row[]).slice();
   if (!isLoading && portfolios.length < 2) return null;
@@ -32,12 +35,24 @@ export function PortfolioComparison() {
 
   return (
     <section className="mb-10">
-      <div className="flex items-baseline gap-3 mb-2">
-        <h2 className="font-display ink-primary" style={{
-          fontSize: 22, lineHeight: 1.2,
-          fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
-        }}>Compare portfolios</h2>
-      </div>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 text-left mb-2"
+        aria-expanded={open}>
+        <span>
+          <span className="font-display ink-primary block" style={{
+            fontSize: 22, lineHeight: 1.2,
+            fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}>Compare portfolios</span>
+          {!open && (
+            <span className="ink-muted block mt-0.5" style={{ fontSize: 12.5 }}>
+              Return, worst drop &amp; risk, side by side. Tap to open.
+            </span>
+          )}
+        </span>
+        <ChevronDown className="size-5 shrink-0 transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', color: 'var(--muted-foreground)' }} aria-hidden />
+      </button>
+      {open && (<>
       <p className="ink-muted leading-relaxed max-w-narrative mb-4" style={{ fontSize: 13 }}>
         Same idea, different temperaments — more growth usually means bigger drops
         along the way. Pick the one whose trade-off fits you.
@@ -82,6 +97,7 @@ export function PortfolioComparison() {
         inception — <strong>past performance isn't a promise</strong>; "worst drop"
         is the deepest fall along the way.
       </p>
+      </>)}
     </section>
   );
 }
