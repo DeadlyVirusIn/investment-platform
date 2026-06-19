@@ -200,7 +200,9 @@ function PortfolioSummaryCard() {
       </p>
       {equity == null ? (
         <div className="ink-muted" style={{ fontSize: 12.5, lineHeight: 1.5 }}>
-          {isLoading ? 'Loading the practice account…' : 'Practice account is unavailable right now.'}
+          {isLoading
+            ? 'Loading the practice account…'
+            : 'Your practice account starts when you add or follow your first idea.'}
         </div>
       ) : (
         <>

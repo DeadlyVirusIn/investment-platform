@@ -45,7 +45,7 @@ export function TrustBanner() {
         {callCount == null
           ? (recsLoading
               ? "Loading Arth's published calls…"
-              : "Arth's record is unavailable right now.")
+              : "Arth's published calls will appear here shortly.")
           : callCount === 0
             ? 'No calls published yet.'
             : `${callCount} call${callCount === 1 ? '' : 's'} live · accuracy publishes at ${ACCURACY_THRESHOLD} closed outcomes (${Math.min(closedCount, ACCURACY_THRESHOLD)}/${ACCURACY_THRESHOLD} so far).`}

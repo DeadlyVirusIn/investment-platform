@@ -100,7 +100,10 @@ export function TrackRecord() {
         <section className="mb-14">
           <MetaLabel>Lifetime</MetaLabel>
           {book?.total_return_pct == null ? (
-            <p className="ink-muted text-[15px] mt-3">Practice account performance is unavailable right now.</p>
+            <p className="ink-muted text-[15px] leading-relaxed mt-3 max-w-narrative">
+              Your track record builds as your practice trades get marked each day.
+              Add or follow ideas to start it — your numbers will appear here.
+            </p>
           ) : (
             <>
               <div className="font-serif text-headline ink-primary mt-3 tabular-nums mb-2">

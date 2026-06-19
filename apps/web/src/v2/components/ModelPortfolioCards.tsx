@@ -203,6 +203,13 @@ export function ModelPortfoliosSection() {
           fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
         }}>Model Portfolios</h2>
       </div>
+      {/* P3 — discovery + comparison framing: portfolios as the natural step
+          after single ideas. */}
+      <p className="ink-muted leading-relaxed max-w-narrative mb-4" style={{ fontSize: 13 }}>
+        Ready-made baskets you can practice in one tap. Compare their returns and
+        risk, then follow the one that fits how you think — it's the natural next
+        step after practising single ideas.
+      </p>
       {isLoading ? (
         <SurfaceCard variant="muted" className="p-6">
           <p className="ink-muted" style={{ fontSize: 14 }}>Loading portfolios…</p>
