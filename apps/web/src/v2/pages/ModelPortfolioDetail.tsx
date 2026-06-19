@@ -102,19 +102,24 @@ export function ModelPortfolioDetail() {
               is surfaced so a partial fill is never silent. */}
           {follow.isSuccess ? (
             <SurfaceCard variant="highlight" className="p-5">
-              <p className="ink-primary" style={{ fontSize: 14, fontWeight: 600 }}>
-                Added {follow.data?.opened.length ?? 0} holdings to your practice portfolio.
+              <p className="ink-primary" style={{ fontSize: 15, fontWeight: 600 }}>
+                ✓ You're now practising {pf.name}.
+              </p>
+              <p className="ink-muted leading-relaxed mt-1.5" style={{ fontSize: 13 }}>
+                Added {follow.data?.opened.length ?? 0} holdings to your practice book.
+                They move together now — watch how a diversified set behaves
+                differently from a single idea.
               </p>
               {follow.data && Object.keys(follow.data.skipped).length > 0 && (
-                <p className="ink-muted mt-1" style={{ fontSize: 12.5 }}>
+                <p className="ink-muted mt-1.5" style={{ fontSize: 12.5 }}>
                   {Object.keys(follow.data.skipped).length} couldn't be added today
                   ({Object.keys(follow.data.skipped).join(', ')}) — usually missing
                   recent price data.
                 </p>
               )}
-              <Link to="/v2/portfolio" className="inline-block mt-3"
-                style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand)' }}>
-                View in My Portfolio →
+              <Link to="/v2/portfolio" className="inline-flex items-center mt-3 px-4 h-9 rounded-full"
+                style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
+                Watch it in My Portfolio →
               </Link>
             </SurfaceCard>
           ) : (

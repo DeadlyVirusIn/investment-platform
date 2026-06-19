@@ -25,6 +25,7 @@ import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { ContinuePathCard } from '../components/ContinuePathCard';
+import { ProgressSpine } from '../components/ProgressSpine';
 import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
   useTodaysRecommendations,
@@ -63,6 +64,8 @@ export function Opportunities() {
 
       {tab === 'stocks' && (
         <>
+      {/* Sprint E — persistent journey spine (Discover→…→Invest). Lightweight. */}
+      <ProgressSpine paperCount={paperCount} />
       {/* P1 — persistent "what next?" path card (resume Day 1, then next action). */}
       <ContinuePathCard paperCount={paperCount} />
       {/* P0 onboarding — bridge single ideas → diversified portfolio once the
