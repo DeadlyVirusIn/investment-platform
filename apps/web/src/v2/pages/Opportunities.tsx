@@ -67,6 +67,9 @@ export function Opportunities() {
 
       {tab === 'stocks' && (
         <>
+      {/* Market context — slim one-row strip directly under the tabs (compact;
+          shows "Markets closed · latest delayed snapshot" when all flat). */}
+      <WhatsMovingStrip compact />
       {/* Hierarchy: ideas are the PRIMARY action — they lead, directly under
           the hero. Progress cluster, portfolios, comparison and context follow.
           (Reordered from the prior portfolios-first layout.) */}
@@ -155,9 +158,9 @@ export function Opportunities() {
       {/* Build — model portfolios, then the head-to-head comparison (collapsed). */}
       <div id="model-portfolios"><ModelPortfoliosSection collapsed /></div>
       <PortfolioComparison collapsed />
-      {/* Context — themes, market tape, social proof, Arth's record. */}
+      {/* Context — themes, social proof, Arth's record. (Market tape moved to a
+          compact strip under the tabs above.) */}
       <TrendingThemes collapsed />
-      <WhatsMovingStrip />
       <SocialProofStrip />
       <div className="mb-8"><TrustBanner /></div>
         </>

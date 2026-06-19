@@ -62,10 +62,36 @@ const INDEX_LABELS: Record<string, string> = {
   SPY: 'S&P 500', QQQ: 'Nasdaq 100', DIA: 'Dow Jones',
 };
 
-export function WhatsMovingStrip() {
+export function WhatsMovingStrip({ compact = false }: { compact?: boolean }) {
   const { data } = useTape('macro');
   const quotes = (data && !data.stale ? data.quotes : []).filter((q) => q.change_pct != null);
   if (quotes.length === 0) return null;   // hide when market data unavailable
+
+  // Markets closed → every index reads 0.00% (price == prev_close).
+  const allFlat = quotes.every((q) => (q.change_pct ?? 0) === 0);
+
+  if (compact) {
+    // Slim one-row market-context strip for the top of Discover.
+    return (
+      <div className="mb-4 flex items-center gap-x-3 gap-y-1 flex-wrap" style={{ fontSize: 11.5 }}>
+        {allFlat && (
+          <span className="ink-fainter shrink-0">Markets closed · latest delayed snapshot</span>
+        )}
+        {quotes.map((q) => {
+          const up = (q.change_pct ?? 0) >= 0;
+          return (
+            <span key={q.symbol} className="shrink-0 inline-flex items-baseline gap-1">
+              <span className="ink-primary" style={{ fontWeight: 600 }}>{INDEX_LABELS[q.symbol] ?? q.symbol}</span>
+              <span className="tabular-nums" style={{
+                color: allFlat ? 'var(--muted-foreground)' : up ? 'var(--brand)' : 'oklch(0.70 0.14 75)',
+              }}>{up ? '+' : ''}{(q.change_pct ?? 0).toFixed(2)}%</span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <section className="mb-10">
       <div className="flex items-baseline gap-3 mb-4">
