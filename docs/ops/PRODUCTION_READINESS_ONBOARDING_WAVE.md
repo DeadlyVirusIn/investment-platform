@@ -93,6 +93,13 @@ Frontend is independent (names/sector degrade to ticker-only if the api lags).
      `Name (TICKER)` + sector chip.
 8. [ ] Existing users: spot-check one known device → its own book, positions
    intact (no regression).
+9. [ ] **Cache headers** — the edge/Caddy must serve `index.html` with
+   `Cache-Control: no-cache` (so browsers always revalidate the HTML and pick up
+   new asset references), while the hashed `/assets/*.js` / `*.css` bundles stay
+   long-cacheable (`Cache-Control: public, max-age=31536000, immutable`). Vite
+   content-hashes the bundles, so this prevents users seeing a stale layout from
+   an old cached HTML. No in-app version checking is used — this is purely an
+   edge cache-header policy.
 
 ## Known non-blockers
 - The read endpoint now writes (get-or-create + commit on GET) — idempotent,
