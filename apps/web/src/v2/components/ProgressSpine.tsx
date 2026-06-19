@@ -49,7 +49,7 @@ export function ProgressSpine({ paperCount }: { paperCount: number }) {
   const stages = computeStages(paperCount, lessons.length);
 
   return (
-    <div className="mb-6" aria-label="Your investing journey">
+    <div className="mb-3" aria-label="Your investing journey">
       <p className="font-semibold uppercase mb-1.5" style={{
         fontSize: 9.5, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
       }}>Your journey</p>

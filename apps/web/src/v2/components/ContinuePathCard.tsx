@@ -18,7 +18,7 @@ export function ContinuePathCard({
   const resuming = path.progress != null;
 
   return (
-    <SurfaceCard variant="highlight" className="p-5 mb-8">
+    <SurfaceCard variant="highlight" className="p-5 mb-4">
       <button type="button" onClick={() => setOpen((v) => !v)}
         className="w-full flex items-center justify-between gap-3 text-left"
         aria-expanded={open}>
