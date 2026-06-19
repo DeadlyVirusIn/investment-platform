@@ -14,7 +14,6 @@ import {
   ModelPortfoliosSection,
   SocialProofStrip,
   TrendingThemes,
-  WhatsMovingStrip,
 } from '../components/ModelPortfolioCards';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
@@ -67,9 +66,8 @@ export function Opportunities() {
 
       {tab === 'stocks' && (
         <>
-      {/* Market context — slim one-row strip directly under the tabs (compact;
-          shows "Markets closed · latest delayed snapshot" when all flat). */}
-      <WhatsMovingStrip compact />
+      {/* Market context now lives in the GLOBAL running ticker (ArthosChrome,
+          under the top bar on every page), so no per-page strip here. */}
       {/* Hierarchy: ideas are the PRIMARY action — they lead, directly under
           the hero. Progress cluster, portfolios, comparison and context follow.
           (Reordered from the prior portfolios-first layout.) */}

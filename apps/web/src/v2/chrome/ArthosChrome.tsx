@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { getTerm } from '../data/arthosData';
 import { useTheme } from './ThemeContext';
+import { GlobalTicker } from './GlobalTicker';
 import { useCommandPalette } from './CommandPalette';
 
 // Phase B visual-parity — nav item shape now carries an icon ref so
@@ -743,6 +744,8 @@ export function ArthosPage({
             health ticker) is removed from beginner mode. "What's moving today"
             now lives as a plain-English section inside Discover instead. */}
         <TopBar progress={topBarProgress} eyebrow={topBarEyebrow} />
+        {/* Global running market tape — visible near the top on every main page. */}
+        <GlobalTicker />
         <main
           className={`mx-auto w-full ${widthClass} px-5 lg:px-10 pt-6 lg:pt-10 pb-32 lg:pb-16`}
         >
