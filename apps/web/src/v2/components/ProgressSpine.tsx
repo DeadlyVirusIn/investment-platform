@@ -50,8 +50,13 @@ export function ProgressSpine({ paperCount }: { paperCount: number }) {
 
   return (
     <div className="mb-6" aria-label="Your investing journey">
-      <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-        {stages.map((s, i) => (
+      <p className="font-semibold uppercase mb-1.5" style={{
+        fontSize: 9.5, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+      }}>Your journey</p>
+      {/* No connectors — keeps all six stages on one line down to ~360px wide;
+          overflow-x-auto is the safety net on very narrow screens. */}
+      <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap overflow-x-auto">
+        {stages.map((s) => (
           <div key={s.key} className="flex items-center gap-1.5 shrink-0">
             <Dot state={s.state} />
             <span style={{
@@ -62,12 +67,6 @@ export function ProgressSpine({ paperCount }: { paperCount: number }) {
                 : 'var(--muted-foreground)',
               opacity: s.state === 'locked' ? 0.55 : 1,
             }}>{s.label}</span>
-            {i < stages.length - 1 && (
-              <span aria-hidden style={{
-                width: 14, height: 1,
-                backgroundColor: 'var(--border)', marginLeft: 2,
-              }} />
-            )}
           </div>
         ))}
       </div>
