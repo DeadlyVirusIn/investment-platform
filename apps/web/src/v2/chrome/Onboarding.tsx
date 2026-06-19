@@ -39,7 +39,7 @@ export function Onboarding() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[100] surface-base flex items-center justify-center px-5 py-10 overflow-y-auto"
+          className="fixed inset-0 z-[100] surface-base flex items-start justify-center px-5 pt-8 pb-10 overflow-y-auto"
           style={{ backgroundColor: 'var(--surface-base)' }}
         >
           <div className="w-full max-w-2xl">
@@ -52,26 +52,24 @@ export function Onboarding() {
             >
               Welcome
             </div>
-            <h2 className="font-serif text-masthead ink-primary leading-[1.05] mb-7 max-w-[20ch]">
+            <h2 className="font-serif text-masthead ink-primary leading-[1.05] mb-4 max-w-[20ch]">
               Your AI Investing Copilot.
             </h2>
 
-            <p className="ink-muted leading-relaxed text-[17px] mb-4 max-w-narrative">
+            <p className="ink-muted leading-relaxed text-[16px] mb-3 max-w-narrative">
               ArthOS walks you through one investing idea every day. We read
               the market, write the thesis, and explain the reasoning in
               plain English — so you build the investing instincts a great
               copilot needs.
             </p>
-            <p className="ink-muted leading-relaxed text-[17px] mb-10 max-w-narrative">
+            <p className="ink-muted leading-relaxed text-[16px] mb-6 max-w-narrative">
               Nothing real is at stake. We don't promise returns. We promise
               literacy — by Day 90, you'll understand how an investor thinks
               about risk, sizing, and the days when there's nothing to do.
             </p>
 
-            <div className="mb-12 max-w-narrative">
-              <PromiseLine variant="hero" />
-            </div>
-
+            {/* P1 — CTA above the value-prop atmosphere so "Begin Day 1" is
+                visible without scrolling on mobile. PromiseLine moves below. */}
             <button
               onClick={finish}
               className="h-12 px-7 rounded-full text-[15px] font-semibold tracking-tight transition-colors hover:opacity-92"
@@ -82,6 +80,10 @@ export function Onboarding() {
             >
               Begin Day 1 →
             </button>
+
+            <div className="mt-10 max-w-narrative">
+              <PromiseLine variant="hero" />
+            </div>
           </div>
         </motion.div>
       )}

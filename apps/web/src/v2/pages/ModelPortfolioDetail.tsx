@@ -118,15 +118,26 @@ export function ModelPortfolioDetail() {
               </Link>
             </SurfaceCard>
           ) : (
-            <button type="button" onClick={onFollow} disabled={follow.isPending}
-              className="px-5 py-2.5 rounded-full"
-              style={{
-                fontSize: 14, fontWeight: 600, color: 'var(--background)',
-                backgroundColor: 'var(--brand)', opacity: follow.isPending ? 0.6 : 1,
-                cursor: follow.isPending ? 'default' : 'pointer', border: 'none',
-              }}>
-              {follow.isPending ? 'Following…' : 'Follow → practice portfolio ($10,000)'}
-            </button>
+            <div>
+              {/* P1 — beginner explainer for what a model portfolio is. */}
+              <p className="ink-muted leading-relaxed max-w-narrative mb-3" style={{ fontSize: 13 }}>
+                A model portfolio is a collection of investments designed to work
+                together. Follow it to practice all of them at once with practice
+                money — no real money is used.
+              </p>
+              <button type="button" onClick={onFollow} disabled={follow.isPending}
+                className="px-5 py-2.5 rounded-full"
+                style={{
+                  fontSize: 14, fontWeight: 600, color: 'var(--brand-foreground)',
+                  backgroundColor: 'var(--brand)', opacity: follow.isPending ? 0.6 : 1,
+                  cursor: follow.isPending ? 'default' : 'pointer', border: 'none',
+                }}>
+                {follow.isPending ? 'Following…' : 'Follow Portfolio'}
+              </button>
+              <p className="ink-fainter mt-1.5" style={{ fontSize: 11.5 }}>
+                Adds the holdings to your practice account ($10,000 practice money).
+              </p>
+            </div>
           )}
           {follow.isError && (
             <p className="mt-2" style={{ fontSize: 12, color: 'var(--destructive)' }}>

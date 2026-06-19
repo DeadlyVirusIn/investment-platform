@@ -24,6 +24,7 @@ import { plainThesis } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
+import { ContinuePathCard } from '../components/ContinuePathCard';
 import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
   useTodaysRecommendations,
@@ -62,9 +63,14 @@ export function Opportunities() {
 
       {tab === 'stocks' && (
         <>
+      {/* P1 — persistent "what next?" path card (resume Day 1, then next action). */}
+      <ContinuePathCard paperCount={paperCount} />
       {/* P0 onboarding — bridge single ideas → diversified portfolio once the
           user has practiced 2+ individual positions. */}
       {paperCount >= 2 && <PortfolioBridge />}
+      {/* P1 progression — 5+ practice positions unlock an Options Readiness
+          nudge (NOT options prominence; just an honest "you're ready to learn"). */}
+      {paperCount >= 5 && <OptionsReadinessCard onExplore={() => setTab('options')} />}
       {/* Sprint D order: portfolios under the hero, then themes, what's
           moving, social proof, then today's individual ideas. */}
       <div id="model-portfolios"><ModelPortfoliosSection /></div>
@@ -160,6 +166,30 @@ function PortfolioBridge() {
         style={{ fontSize: 12.5, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
         Explore model portfolios →
       </a>
+    </SurfaceCard>
+  );
+}
+
+// P1 progression — shown once the user has 5+ practice positions. Acknowledges
+// readiness and points to Options Practice WITHOUT making options prominent.
+function OptionsReadinessCard({ onExplore }: { onExplore: () => void }) {
+  return (
+    <SurfaceCard variant="default" className="p-5 mb-8">
+      <p className="font-semibold uppercase" style={{
+        fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--muted-foreground)',
+      }}>You're building real practice</p>
+      <p className="font-display ink-primary mt-1" style={{
+        fontSize: 18, fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+      }}>Curious about options?</p>
+      <p className="ink-muted leading-relaxed mt-1" style={{ fontSize: 13 }}>
+        You've practiced 5+ ideas. Options are an advanced, capped-risk next step —
+        still practice-only, no rush. Take a look when you're ready.
+      </p>
+      <button type="button" onClick={onExplore}
+        className="inline-flex items-center mt-3 px-4 h-9 rounded-full"
+        style={{ fontSize: 12.5, fontWeight: 600, border: '1px solid var(--border)', color: 'var(--brand)' }}>
+        Open Options Practice
+      </button>
     </SurfaceCard>
   );
 }
