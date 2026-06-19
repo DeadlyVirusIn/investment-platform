@@ -2,23 +2,39 @@
 // While Day 1 is incomplete it resumes the current step (with a progress bar);
 // once complete it shows the next recommended action by practice-position count.
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ChevronDown } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { useOnboardingPath } from '../lib/onboardingPath';
 
-export function ContinuePathCard({ paperCount }: { paperCount: number }) {
+export function ContinuePathCard({
+  paperCount, collapsed = false,
+}: {
+  paperCount: number; collapsed?: boolean;
+}) {
+  const [open, setOpen] = useState(!collapsed);
   const path = useOnboardingPath(paperCount);
   const resuming = path.progress != null;
 
   return (
     <SurfaceCard variant="highlight" className="p-5 mb-8">
-      <p className="font-semibold uppercase" style={{
-        fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--muted-foreground)',
-      }}>{resuming ? 'Your path' : 'Next step'}</p>
-      <p className="font-display ink-primary mt-1" style={{
-        fontSize: 18, fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
-      }}>{path.title}</p>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 text-left"
+        aria-expanded={open}>
+        <span className="min-w-0">
+          <span className="font-semibold uppercase block" style={{
+            fontSize: 10.5, letterSpacing: '0.12em', color: 'var(--muted-foreground)',
+          }}>{resuming ? 'Your path' : 'Next step'}</span>
+          <span className="font-display ink-primary block mt-1" style={{
+            fontSize: 18, fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}>{path.title}</span>
+        </span>
+        <ChevronDown className="size-5 shrink-0 transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', color: 'var(--muted-foreground)' }} aria-hidden />
+      </button>
+
+      {open && (<>
       <p className="ink-muted leading-relaxed mt-1" style={{ fontSize: 13 }}>{path.blurb}</p>
 
       {path.progress && (
@@ -44,6 +60,7 @@ export function ContinuePathCard({ paperCount }: { paperCount: number }) {
         style={{ fontSize: 12.5, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
         {resuming ? 'Resume' : 'Continue'} <ArrowRight className="size-3.5" aria-hidden />
       </Link>
+      </>)}
     </SurfaceCard>
   );
 }

@@ -52,6 +52,8 @@ export function Opportunities() {
   const dist = diag?.action_distribution ?? {};
   const evaluated = diag?.total ?? null;
   const [tab, setTab] = useState<DiscoverTab>('stocks');
+  const [showAllAlso, setShowAllAlso] = useState(false);
+  const [showCautious, setShowCautious] = useState(false);
 
   return (
     <ArthosPage topBarEyebrow="Discover">
@@ -101,8 +103,19 @@ export function Opportunities() {
               {alsoConsider.length > 0 && (
                 <Section number="02" title="Also worth a look">
                   <div className="space-y-3">
-                    {alsoConsider.map((r) => <RecCard key={r.id} rec={r} />)}
+                    {(showAllAlso ? alsoConsider : alsoConsider.slice(0, 3)).map(
+                      (r) => <RecCard key={r.id} rec={r} />,
+                    )}
                   </div>
+                  {alsoConsider.length > 3 && (
+                    <button type="button" onClick={() => setShowAllAlso((v) => !v)}
+                      className="mt-3 inline-flex items-center gap-1.5"
+                      style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--brand)' }}>
+                      {showAllAlso
+                        ? 'Show fewer'
+                        : `See all ${alsoConsider.length} ideas`}
+                    </button>
+                  )}
                 </Section>
               )}
             </>
@@ -110,6 +123,12 @@ export function Opportunities() {
 
           {trims.length > 0 && (
             <Section number="03" title="Names ArthOS is cautious on">
+              <button type="button" onClick={() => setShowCautious((v) => !v)}
+                className="inline-flex items-center gap-1.5 mb-3"
+                style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--brand)' }}>
+                {showCautious ? 'Hide' : `Show ${Math.min(trims.length, 8)} names ArthOS would avoid`}
+              </button>
+              {showCautious && (
               <SurfaceCard variant="default" className="p-5">
                 <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {trims.slice(0, 8).map((r) => (
@@ -122,6 +141,7 @@ export function Opportunities() {
                   ))}
                 </ul>
               </SurfaceCard>
+              )}
             </Section>
           )}
         </>
@@ -129,14 +149,14 @@ export function Opportunities() {
 
       {/* Progress cluster — after the ideas (the primary action). */}
       <ProgressSpine paperCount={paperCount} />
-      <ContinuePathCard paperCount={paperCount} />
+      <ContinuePathCard paperCount={paperCount} collapsed />
       {paperCount >= 2 && <PortfolioBridge />}
       {paperCount >= 5 && <OptionsReadinessCard onExplore={() => setTab('options')} />}
       {/* Build — model portfolios, then the head-to-head comparison (collapsed). */}
-      <div id="model-portfolios"><ModelPortfoliosSection /></div>
+      <div id="model-portfolios"><ModelPortfoliosSection collapsed /></div>
       <PortfolioComparison collapsed />
       {/* Context — themes, market tape, social proof, Arth's record. */}
-      <TrendingThemes />
+      <TrendingThemes collapsed />
       <WhatsMovingStrip />
       <SocialProofStrip />
       <div className="mb-8"><TrustBanner /></div>
@@ -265,8 +285,10 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       {plainThesis(rec.thesis) && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{plainThesis(rec.thesis)}</p>
       )}
-      {/* Plan — Entry / Target / Exit if wrong / Timeframe (Sprint K) */}
-      <div className="mt-3"><PlanRows rec={rec} compact /></div>
+      {/* Plan — full Entry/Target/Exit/Timeframe on the FEATURED hero only; the
+          also-worth list stays scannable (full plan is one tap away on the idea
+          detail). Compression: keeps content, cuts height. */}
+      {featured && <div className="mt-3"><PlanRows rec={rec} compact /></div>}
       <div className="flex items-center gap-4 mt-4">
         <Link to={`/v2/today/pick/${rec.symbol}`}
           style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>

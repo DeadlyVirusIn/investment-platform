@@ -2,7 +2,9 @@
 // Reuses SurfaceCard + the shared useModelPortfolios hook. Sparkline is a
 // dependency-free inline SVG.
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ChevronDown } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { useTape } from '@/lib/market/hooks';
 import {
@@ -20,29 +22,38 @@ const THEMES: { label: string; slug: string }[] = [
   { label: 'Steady compounders', slug: 'steady-compounders' },
 ];
 
-export function TrendingThemes() {
+export function TrendingThemes({ collapsed = false }: { collapsed?: boolean }) {
+  const [open, setOpen] = useState(!collapsed);
   const { data } = useModelPortfolios();
   const slugs = new Set((data?.portfolios ?? []).map((p) => p.slug));
   const themes = THEMES.filter((t) => slugs.has(t.slug));
   if (themes.length === 0) return null;
   return (
     <section className="mb-10">
-      <div className="flex items-baseline gap-3 mb-4">
-        <span className="font-mono ink-muted" style={{ fontSize: 12 }}>#</span>
-        <h2 className="font-display ink-primary" style={{
-          fontSize: 22, lineHeight: 1.2,
-          fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
-        }}>Trending Themes</h2>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {themes.map((t) => (
-          <Link key={t.slug} to={`/v2/portfolios/${t.slug}`}
-            className="px-3.5 py-1.5 rounded-full ink-primary"
-            style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
-            {t.label}
-          </Link>
-        ))}
-      </div>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 text-left mb-4"
+        aria-expanded={open}>
+        <span className="flex items-baseline gap-3">
+          <span className="font-mono ink-muted" style={{ fontSize: 12 }}>#</span>
+          <span className="font-display ink-primary" style={{
+            fontSize: 22, lineHeight: 1.2,
+            fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}>Trending Themes</span>
+        </span>
+        <ChevronDown className="size-5 shrink-0 transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', color: 'var(--muted-foreground)' }} aria-hidden />
+      </button>
+      {open && (
+        <div className="flex flex-wrap gap-2">
+          {themes.map((t) => (
+            <Link key={t.slug} to={`/v2/portfolios/${t.slug}`}
+              className="px-3.5 py-1.5 rounded-full ink-primary"
+              style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+              {t.label}
+            </Link>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -190,35 +201,50 @@ export function ModelPortfolioCard({ pf }: { pf: ModelPortfolioSummary }) {
   );
 }
 
-export function ModelPortfoliosSection() {
+export function ModelPortfoliosSection({ collapsed = false }: { collapsed?: boolean }) {
+  const [open, setOpen] = useState(!collapsed);
   const { data, isLoading } = useModelPortfolios();
   const pfs = data?.portfolios ?? [];
   if (!isLoading && pfs.length === 0) return null;   // honest: hide if none
   return (
     <section className="mb-10">
-      <div className="flex items-baseline gap-3 mb-4">
-        <span className="font-mono ink-muted" style={{ fontSize: 12 }}>★</span>
-        <h2 className="font-display ink-primary" style={{
-          fontSize: 22, lineHeight: 1.2,
-          fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
-        }}>Model Portfolios</h2>
-      </div>
-      {/* P3 — discovery + comparison framing: portfolios as the natural step
-          after single ideas. */}
-      <p className="ink-muted leading-relaxed max-w-narrative mb-4" style={{ fontSize: 13 }}>
-        Ready-made baskets you can practice in one tap. Compare their returns and
-        risk, then follow the one that fits how you think — it's the natural next
-        step after practising single ideas.
-      </p>
-      {isLoading ? (
-        <SurfaceCard variant="muted" className="p-6">
-          <p className="ink-muted" style={{ fontSize: 14 }}>Loading portfolios…</p>
-        </SurfaceCard>
-      ) : (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))' }}>
-          {pfs.map((pf) => <ModelPortfolioCard key={pf.slug} pf={pf} />)}
-        </div>
-      )}
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 text-left mb-4"
+        aria-expanded={open}>
+        <span className="flex items-baseline gap-3 min-w-0">
+          <span className="font-mono ink-muted" style={{ fontSize: 12 }}>★</span>
+          <span>
+            <span className="font-display ink-primary block" style={{
+              fontSize: 22, lineHeight: 1.2,
+              fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+            }}>Model Portfolios</span>
+            {!open && (
+              <span className="ink-muted block mt-0.5" style={{ fontSize: 12.5 }}>
+                {pfs.length} ready-made baskets to follow in one tap. Tap to open.
+              </span>
+            )}
+          </span>
+        </span>
+        <ChevronDown className="size-5 shrink-0 transition-transform"
+          style={{ transform: open ? 'rotate(180deg)' : 'none', color: 'var(--muted-foreground)' }} aria-hidden />
+      </button>
+      {open && (<>
+        {/* P3 — discovery + comparison framing. */}
+        <p className="ink-muted leading-relaxed max-w-narrative mb-4" style={{ fontSize: 13 }}>
+          Ready-made baskets you can practice in one tap. Compare their returns and
+          risk, then follow the one that fits how you think — it's the natural next
+          step after practising single ideas.
+        </p>
+        {isLoading ? (
+          <SurfaceCard variant="muted" className="p-6">
+            <p className="ink-muted" style={{ fontSize: 14 }}>Loading portfolios…</p>
+          </SurfaceCard>
+        ) : (
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 240px), 1fr))' }}>
+            {pfs.map((pf) => <ModelPortfolioCard key={pf.slug} pf={pf} />)}
+          </div>
+        )}
+      </>)}
     </section>
   );
 }
