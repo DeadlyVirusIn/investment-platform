@@ -14,7 +14,7 @@ import datetime as dt
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header
-from sqlalchemy import select, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
@@ -50,15 +50,20 @@ def canonical_stock(
     """Canonical stock practice book. Per-user when an X-Auth-User-Id is sent
     (resolves the caller's own ``user:<id>:stock`` book — Sprint B isolation);
     falls back to the shared demo portfolio for anonymous/legacy callers."""
-    from apps.api.src.db.models import PaperPortfolio
-    pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+    from apps.api.src.domain.paper_trading.paper_service import (
+        resolve_user_stock_portfolio,
+    )
     uid = (x_auth_user_id or "").strip()
     if uid:
-        upf = db.scalars(
-            select(PaperPortfolio).where(PaperPortfolio.name == f"user:{uid[:64]}:stock")
-        ).first()
-        if upf is not None:
-            pid = upf.id
+        # Per-user isolation: get-or-create THIS device's OWN book via the
+        # single shared resolver. A cold device gets a fresh EMPTY book — it
+        # must NEVER fall back to the shared demo/Replay-Recovery portfolio.
+        # Commit so the identity persists and matches the write endpoints.
+        pid = resolve_user_stock_portfolio(db, uid[:64])
+        db.commit()
+    else:
+        # Anonymous/legacy callers only → shared demo portfolio.
+        pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
     now = _now_utc()
 
     portfolio = db.execute(

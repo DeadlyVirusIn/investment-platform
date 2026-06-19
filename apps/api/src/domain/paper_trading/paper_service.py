@@ -87,6 +87,49 @@ def create_portfolio(session: Session, payload: PortfolioCreate) -> PaperPortfol
     return portfolio
 
 
+USER_STOCK_STARTING_CASH = Decimal("100000")
+
+
+def user_stock_portfolio_name(user_id: str) -> str:
+    """Canonical name of a user's own stock paper book."""
+    return f"user:{user_id[:64]}:stock"
+
+
+def resolve_user_stock_portfolio(session: Session, user_id: str) -> str:
+    """Get-or-create the caller's OWN stock paper book (``user:<id>:stock``).
+
+    SINGLE source of per-user portfolio resolution — used by BOTH the read
+    endpoint (/paper/canonical/stock) and the write endpoints (add-to-paper,
+    follow). They therefore can never diverge, and a cold device gets a fresh
+    EMPTY personal book, never the shared demo/Replay-Recovery portfolio.
+    Race-safe: a lost create (unique-name collision) re-selects.
+    """
+    name = user_stock_portfolio_name(user_id)
+    pf = session.scalars(
+        select(PaperPortfolio).where(PaperPortfolio.name == name)
+    ).first()
+    if pf is not None:
+        return pf.id
+    try:
+        created = create_portfolio(
+            session,
+            PortfolioCreate(
+                name=name,
+                starting_cash=USER_STOCK_STARTING_CASH,
+                max_open_positions=100,
+            ),
+        )
+        return created.id
+    except ValueError:
+        # Lost a create race against a concurrent request — re-select.
+        again = session.scalars(
+            select(PaperPortfolio).where(PaperPortfolio.name == name)
+        ).first()
+        if again is None:
+            raise
+        return again.id
+
+
 def list_portfolios(session: Session) -> list[PaperPortfolio]:
     stmt = select(PaperPortfolio).order_by(
         PaperPortfolio.created_at.asc(), PaperPortfolio.id.asc()

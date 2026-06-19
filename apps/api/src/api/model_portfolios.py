@@ -38,6 +38,7 @@ from apps.api.src.domain.paper_trading.paper_execution import (
 from apps.api.src.domain.paper_trading.paper_service import (
     PortfolioCreate,
     create_portfolio,
+    resolve_user_stock_portfolio,
 )
 
 router = APIRouter(prefix="/model-portfolios", tags=["model-portfolios"])
@@ -62,17 +63,10 @@ def require_user_id(
 
 
 def _resolve_user_portfolio(db: Session, user_id: str) -> str:
-    """Get-or-create the user's OWN stock paper book — the per-user replacement
-    for the old shared canonical portfolio. Returns its id."""
-    name = f"user:{user_id}:stock"
-    pf = db.scalars(select(PaperPortfolio).where(PaperPortfolio.name == name)).first()
-    if pf is None:
-        pf = create_portfolio(
-            db,
-            PortfolioCreate(name=name, starting_cash=Decimal("100000"),
-                            max_open_positions=100),
-        )
-    return pf.id
+    """Get-or-create the user's OWN stock paper book. Delegates to the single
+    shared resolver so the read endpoint and the write endpoints can never
+    resolve different portfolios."""
+    return resolve_user_stock_portfolio(db, user_id)
 
 
 # Lightweight per-user, in-process rate limit on the write endpoints. Caps
