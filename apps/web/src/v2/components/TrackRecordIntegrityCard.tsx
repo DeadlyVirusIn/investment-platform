@@ -16,6 +16,8 @@ import {
 } from '@/lib/operator/hooks';
 
 const MIN_CLOSES = 10;
+const POS = 'var(--brand)';
+const NEG = 'oklch(0.70 0.14 75)';
 
 function fmtUsd(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—';
@@ -27,12 +29,12 @@ function fmtPct(n: number | null | undefined, dp = 2): string {
   return `${n >= 0 ? '+' : ''}${n.toFixed(dp)}%`;
 }
 
-function Tile({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'pos' | 'neg' }) {
-  const color = tone === 'pos' ? 'var(--brand)' : tone === 'neg' ? 'oklch(0.70 0.14 75)' : undefined;
+function Tile({ label, value, sub, tone, big }: { label: string; value: string; sub?: string; tone?: 'pos' | 'neg'; big?: boolean }) {
+  const color = tone === 'pos' ? POS : tone === 'neg' ? NEG : undefined;
   return (
     <div className="border-t border-hairline pt-3">
       <div className="text-meta ink-fainter mb-1">{label}</div>
-      <div className="font-serif text-[22px] leading-none tabular-nums" style={color ? { color } : undefined}>{value}</div>
+      <div className={`font-serif leading-none tabular-nums ${big ? 'text-[28px]' : 'text-[20px]'}`} style={color ? { color } : undefined}>{value}</div>
       {sub && <div className="ink-fainter text-[12px] mt-1">{sub}</div>}
     </div>
   );
@@ -79,37 +81,44 @@ export function TrackRecordIntegrityCard() {
 
   const realizedTone = (book?.realized_pnl ?? 0) > 0 ? 'pos' : (book?.realized_pnl ?? 0) < 0 ? 'neg' : undefined;
   const freshness = book?.freshness ?? 'unknown';
+  const fresh = freshness === 'fresh';
   const closedCount = (closedPos?.positions ?? []).filter((p) => !p.is_open).length;
 
   return (
     <section className="mb-12">
-      <div className="flex items-baseline justify-between">
-        <MetaLabel>Track record integrity</MetaLabel>
-        <span className="ink-fainter text-[12px] capitalize">{freshness} · {book?.source ?? 'live'}</span>
-      </div>
-      <p className="ink-muted text-[14px] leading-relaxed mt-2 mb-5 max-w-narrative">
-        Every number below is computed from real paper trades and live snapshots — nothing is hand-entered.
+      <MetaLabel>Track record integrity</MetaLabel>
+      <p className="ink-muted text-[14px] leading-relaxed mt-2 mb-4 max-w-narrative">
+        Every number is computed from real paper trades and live snapshots — nothing hand-entered.
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
-        <Tile label="Realized return" value={fmtPct(book?.total_return_pct)} sub={`NAV ${fmtUsd(book?.nav)}`} tone={realizedTone} />
-        <Tile label="Realized P/L" value={fmtUsd(book?.realized_pnl)} tone={realizedTone} />
-        <Tile label="Open positions" value={String(book?.open_positions_count ?? '—')} />
-        <Tile label="Closed (paper)" value={String(closedCount || closedSells.length || '—')} sub={`${closedSells.length} resolved trades`} />
-        <Tile
-          label="Win rate"
-          value={enoughCloses ? fmtPct(winRate, 0).replace('+', '') : 'Hidden'}
-          sub={enoughCloses ? `${wins}/${closedSells.length} resolved` : `needs ${MIN_CLOSES}, have ${closedSells.length}`}
-        />
-        <Tile label="Avg hold time" value={avgHoldDays == null ? '—' : `${Math.round(avgHoldDays)}d`} />
-        <Tile label="Max drawdown" value={maxDrawdown == null ? '—' : `${maxDrawdown.toFixed(1)}%`} tone={maxDrawdown == null ? undefined : 'neg'} />
-        <Tile label="Data freshness" value={freshness === 'fresh' ? 'Fresh' : freshness.charAt(0).toUpperCase() + freshness.slice(1)} sub={`source: ${book?.source ?? 'live'}`} />
-      </div>
+      <div className="rounded-xl border border-hairline overflow-hidden">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3 border-b border-hairline">
+          <span className="text-[12px] font-semibold uppercase tracking-wide ink-muted">Live performance</span>
+          <span className="flex items-center gap-1.5 text-[12px] ink-muted capitalize">
+            <span className="rounded-full" style={{ width: 7, height: 7, background: fresh ? POS : NEG }} />
+            {freshness} · {book?.source ?? 'live'}
+          </span>
+        </div>
 
-      <p className="ink-fainter text-[12px] leading-relaxed mt-5 max-w-narrative">
-        Win-rate stays hidden until at least {MIN_CLOSES} ideas resolve — we won't publish a rate we can't back.
-        Confidence calibration is tracked internally and surfaces here as more ideas close.
-      </p>
+        <div className="p-5 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
+          <Tile label="Realized return" value={fmtPct(book?.total_return_pct)} sub={`NAV ${fmtUsd(book?.nav)}`} tone={realizedTone} big />
+          <Tile label="Realized P/L" value={fmtUsd(book?.realized_pnl)} tone={realizedTone} big />
+          <Tile label="Max drawdown" value={maxDrawdown == null ? '—' : `${maxDrawdown.toFixed(1)}%`} tone={maxDrawdown == null ? undefined : 'neg'} big />
+          <Tile label="Open positions" value={String(book?.open_positions_count ?? '—')} />
+          <Tile label="Closed ideas" value={String(closedCount || closedSells.length || '—')} sub={`${closedSells.length} resolved trades`} />
+          <Tile
+            label="Win rate"
+            value={enoughCloses ? fmtPct(winRate, 0).replace('+', '') : 'Hidden'}
+            sub={enoughCloses ? `${wins}/${closedSells.length} resolved` : `needs ${MIN_CLOSES}, have ${closedSells.length}`}
+          />
+          <Tile label="Avg hold time" value={avgHoldDays == null ? '—' : `${Math.round(avgHoldDays)} days`} />
+        </div>
+
+        <p className="ink-fainter text-[12px] leading-relaxed px-5 sm:px-6 py-3 border-t border-hairline">
+          Win-rate stays hidden until at least {MIN_CLOSES} ideas resolve — we won't publish a rate we can't back.
+          Confidence calibration is tracked internally and surfaces here as more ideas close.
+        </p>
+      </div>
     </section>
   );
 }
