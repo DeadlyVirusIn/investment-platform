@@ -380,19 +380,9 @@ export function PickPage() {
         </FadeIn>
       )}
 
-      {/* Sprint I — Fundamentals: honest placeholder. ArthOS does not yet
-          ingest revenue/earnings/valuation, and will not show numbers it can't
-          verify. Surfaced when the data layer lands. */}
-      <FadeIn delay={0.2}>
-        <section className="mb-12 max-w-narrative">
-          <MetaLabel>Fundamentals</MetaLabel>
-          <p className="ink-muted text-[14px] leading-relaxed mt-3">
-            Company fundamentals — revenue growth, earnings, profitability and
-            valuation — are coming soon. ArthOS won't show numbers it can't
-            verify, so this stays empty until the data is wired in.
-          </p>
-        </section>
-      </FadeIn>
+      {/* Fundamentals section removed for investor demo — it rendered an empty
+          "coming soon" placeholder on every idea detail. Restore when the
+          fundamentals data layer lands (see INVESTOR_DEMO_EXPERIENCE_AUDIT P2). */}
 
       <FadeIn delay={0.22}>
         <section className="border-t border-hairline pt-10 max-w-narrative">
