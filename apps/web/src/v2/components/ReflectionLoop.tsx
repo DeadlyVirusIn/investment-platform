@@ -7,6 +7,7 @@
 // no fabricated commentary.
 
 import { MetaLabel } from '../chrome/ArthosChrome';
+import { Skeleton } from './ui/Skeleton';
 import {
   useCanonicalStockPortfolio,
   useClosedRecommendations,
@@ -69,9 +70,40 @@ function Block({ label, text, accent }: { label: string; text: string; accent?: 
 }
 
 export function ReflectionLoop() {
-  const { data: book } = useCanonicalStockPortfolio();
-  const { data } = useClosedRecommendations(book?.portfolio_id);
+  const { data: book, isLoading: bookLoading } = useCanonicalStockPortfolio();
+  const { data, isLoading: refLoading } = useClosedRecommendations(book?.portfolio_id);
   const items = data?.items ?? [];
+
+  // P1-A/B: reserve a framed skeleton while resolving, so the section never
+  // pops in / shifts layout. Only render nothing once we KNOW it's empty.
+  const loading = bookLoading || (!!book?.portfolio_id && refLoading);
+  if (loading) {
+    return (
+      <section className="mb-12">
+        <MetaLabel>Reflections</MetaLabel>
+        <Skeleton w={320} h={14} className="mt-2 mb-5" />
+        <div className="space-y-4">
+          {[0, 1].map((i) => (
+            <div key={i} className="rounded-xl border border-hairline p-5 sm:p-6">
+              <div className="flex items-baseline justify-between mb-4">
+                <Skeleton w={160} h={18} />
+                <Skeleton w={56} h={18} radius={999} />
+              </div>
+              <div className="grid sm:grid-cols-3 gap-x-6 gap-y-4">
+                {[0, 1, 2].map((j) => (
+                  <div key={j}>
+                    <Skeleton w={90} h={10} className="mb-2" />
+                    <Skeleton w="100%" h={12} className="mb-1.5" />
+                    <Skeleton w="80%" h={12} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
   if (items.length === 0) return null;
 
   return (

@@ -8,6 +8,7 @@
 
 import { useMemo } from 'react';
 import { MetaLabel } from '../chrome/ArthosChrome';
+import { Skeleton } from './ui/Skeleton';
 import {
   useCanonicalStockPortfolio,
   useExecutedTrades,
@@ -29,19 +30,23 @@ function fmtPct(n: number | null | undefined, dp = 2): string {
   return `${n >= 0 ? '+' : ''}${n.toFixed(dp)}%`;
 }
 
-function Tile({ label, value, sub, tone, big }: { label: string; value: string; sub?: string; tone?: 'pos' | 'neg'; big?: boolean }) {
+function Tile({ label, value, sub, tone, big, loading }: { label: string; value: string; sub?: string; tone?: 'pos' | 'neg'; big?: boolean; loading?: boolean }) {
   const color = tone === 'pos' ? POS : tone === 'neg' ? NEG : undefined;
   return (
     <div className="border-t border-hairline pt-3">
       <div className="text-meta ink-fainter mb-1">{label}</div>
-      <div className={`font-serif leading-none tabular-nums ${big ? 'text-[28px]' : 'text-[20px]'}`} style={color ? { color } : undefined}>{value}</div>
-      {sub && <div className="ink-fainter text-[12px] mt-1">{sub}</div>}
+      {loading ? (
+        <Skeleton w={big ? 96 : 64} h={big ? 26 : 20} className="mt-0.5" />
+      ) : (
+        <div className={`font-serif leading-none tabular-nums ${big ? 'text-[28px]' : 'text-[20px]'}`} style={color ? { color } : undefined}>{value}</div>
+      )}
+      {loading ? <Skeleton w={72} h={10} className="mt-2" /> : (sub && <div className="ink-fainter text-[12px] mt-1">{sub}</div>)}
     </div>
   );
 }
 
 export function TrackRecordIntegrityCard() {
-  const { data: book } = useCanonicalStockPortfolio();
+  const { data: book, isLoading: bookLoading } = useCanonicalStockPortfolio();
   const pid = book?.portfolio_id;
   const { data: tradesData } = useExecutedTrades(false, pid, { enabled: !!pid });
   const { data: closedPos } = useExecutedPositions(false, false, pid, { enabled: !!pid });
@@ -80,9 +85,19 @@ export function TrackRecordIntegrityCard() {
   }, [equity]);
 
   const realizedTone = (book?.realized_pnl ?? 0) > 0 ? 'pos' : (book?.realized_pnl ?? 0) < 0 ? 'neg' : undefined;
-  const freshness = book?.freshness ?? 'unknown';
-  const fresh = freshness === 'fresh';
   const closedCount = (closedPos?.positions ?? []).filter((p) => !p.is_open).length;
+
+  // P0-A honesty fix: the indicator reflects the DATA date (as_of /
+  // snapshot_date), not the pipeline write-time. Show the real as-of date and
+  // only show green when the underlying equity is actually recent — never
+  // claim "fresh" while the data the user is looking at is days old.
+  const asOf = book?.as_of ? new Date(book.as_of) : null;
+  const asOfLabel = asOf && !Number.isNaN(asOf.getTime())
+    ? asOf.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+  const dataAgeHrs = asOf ? (Date.now() - asOf.getTime()) / 3_600_000 : Infinity;
+  const dataFresh = dataAgeHrs <= 72; // weekend tolerance; data-recency, not heartbeat
+  const loading = bookLoading || !book;
 
   return (
     <section className="mb-12">
@@ -94,24 +109,29 @@ export function TrackRecordIntegrityCard() {
       <div className="rounded-xl border border-hairline overflow-hidden">
         <div className="flex items-center justify-between px-5 sm:px-6 py-3 border-b border-hairline">
           <span className="text-[12px] font-semibold uppercase tracking-wide ink-muted">Live performance</span>
-          <span className="flex items-center gap-1.5 text-[12px] ink-muted capitalize">
-            <span className="rounded-full" style={{ width: 7, height: 7, background: fresh ? POS : NEG }} />
-            {freshness} · {book?.source ?? 'live'}
-          </span>
+          {loading ? (
+            <Skeleton w={120} h={12} />
+          ) : (
+            <span className="flex items-center gap-1.5 text-[12px] ink-muted">
+              <span className="rounded-full" style={{ width: 7, height: 7, background: dataFresh ? POS : NEG }} />
+              {asOfLabel ? `As of ${asOfLabel}` : 'As of —'} · {book?.source ?? 'live'}
+            </span>
+          )}
         </div>
 
         <div className="p-5 sm:p-6 grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-5">
-          <Tile label="Realized return" value={fmtPct(book?.total_return_pct)} sub={`NAV ${fmtUsd(book?.nav)}`} tone={realizedTone} big />
-          <Tile label="Realized P/L" value={fmtUsd(book?.realized_pnl)} tone={realizedTone} big />
-          <Tile label="Max drawdown" value={maxDrawdown == null ? '—' : `${maxDrawdown.toFixed(1)}%`} tone={maxDrawdown == null ? undefined : 'neg'} big />
-          <Tile label="Open positions" value={String(book?.open_positions_count ?? '—')} />
-          <Tile label="Closed ideas" value={String(closedCount || closedSells.length || '—')} sub={`${closedSells.length} resolved trades`} />
+          <Tile label="Realized return" value={fmtPct(book?.total_return_pct)} sub={`NAV ${fmtUsd(book?.nav)}`} tone={realizedTone} big loading={loading} />
+          <Tile label="Realized P/L" value={fmtUsd(book?.realized_pnl)} tone={realizedTone} big loading={loading} />
+          <Tile label="Max drawdown" value={maxDrawdown == null ? '—' : `${maxDrawdown.toFixed(1)}%`} tone={maxDrawdown == null ? undefined : 'neg'} big loading={loading} />
+          <Tile label="Open positions" value={String(book?.open_positions_count ?? '—')} loading={loading} />
+          <Tile label="Closed ideas" value={String(closedCount || closedSells.length || '—')} sub={`${closedSells.length} resolved trades`} loading={loading} />
           <Tile
             label="Win rate"
             value={enoughCloses ? fmtPct(winRate, 0).replace('+', '') : 'Hidden'}
             sub={enoughCloses ? `${wins}/${closedSells.length} resolved` : `needs ${MIN_CLOSES}, have ${closedSells.length}`}
+            loading={loading}
           />
-          <Tile label="Avg hold time" value={avgHoldDays == null ? '—' : `${Math.round(avgHoldDays)} days`} />
+          <Tile label="Avg hold time" value={avgHoldDays == null ? '—' : `${Math.round(avgHoldDays)} days`} loading={loading} />
         </div>
 
         <p className="ink-fainter text-[12px] leading-relaxed px-5 sm:px-6 py-3 border-t border-hairline">
