@@ -59,10 +59,10 @@ function learned(it: ClosedRecommendation): string {
   return 'It underperformed. The outcome is logged so the engine can learn which setups to trust less next time.';
 }
 
-function Block({ label, text }: { label: string; text: string }) {
+function Block({ label, text, accent }: { label: string; text: string; accent?: boolean }) {
   return (
-    <div>
-      <div className="text-meta ink-fainter mb-1">{label}</div>
+    <div className={accent ? 'sm:pl-4 sm:border-l-2' : undefined} style={accent ? { borderColor: POS } : undefined}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide ink-fainter mb-1.5">{label}</div>
       <p className="ink-primary text-[14px] leading-snug">{text}</p>
     </div>
   );
@@ -82,23 +82,26 @@ export function ReflectionLoop() {
         from the real recorded outcome, not after-the-fact commentary.
       </p>
 
-      <div className="space-y-7">
+      <div className="space-y-4">
         {items.map((it) => {
           const win = (it.realized_pnl ?? 0) >= 0;
           return (
-            <div key={it.rec_id} className="border-t border-hairline pt-4">
-              <div className="flex items-baseline justify-between mb-3">
-                <span className="font-serif ink-primary text-[17px]">
-                  {it.symbol}{it.name ? ` · ${it.name}` : ''}
+            <div key={it.rec_id} className="rounded-xl border border-hairline p-5 sm:p-6">
+              <div className="flex items-baseline justify-between mb-4">
+                <span className="font-serif ink-primary text-[18px]">
+                  {it.symbol}{it.name ? <span className="ink-muted text-[14px]"> · {it.name}</span> : null}
                 </span>
-                <span className="tabular-nums text-[14px] font-medium" style={{ color: win ? POS : NEG }}>
+                <span
+                  className="tabular-nums text-[13px] font-semibold px-2 py-0.5 rounded-full"
+                  style={{ color: win ? POS : NEG, background: 'color-mix(in oklab, currentColor 12%, transparent)' }}
+                >
                   {usd(it.realized_pnl)}
                 </span>
               </div>
               <div className="grid sm:grid-cols-3 gap-x-6 gap-y-4">
                 <Block label="What we expected" text={expected(it)} />
                 <Block label="What happened" text={happened(it)} />
-                <Block label="What we learned" text={learned(it)} />
+                <Block label="What we learned" text={learned(it)} accent />
               </div>
             </div>
           );
