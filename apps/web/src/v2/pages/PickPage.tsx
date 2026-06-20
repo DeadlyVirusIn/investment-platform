@@ -16,6 +16,7 @@ import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { BothSidesCard } from '../components/BothSidesCard';
 import { RecommendationTrace } from '../components/RecommendationTrace';
+import { whyNow } from '../lib/whyNow';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
   useTodaysRecommendations,
@@ -282,6 +283,33 @@ export function PickPage() {
           </p>
         </div>
       </FadeIn>
+
+      {/* Task 1 — "Why now?" timeliness line, from the rec's own driver +
+          freshness + any recent news catalyst (all data already on the page). */}
+      {(() => {
+        const wn = whyNow(rec, news?.items);
+        if (!wn) return null;
+        return (
+          <FadeIn delay={0.05}>
+            <section className="mb-12 max-w-narrative">
+              <div className="rounded-xl border border-hairline p-5 sm:p-6" style={{ borderLeft: '3px solid var(--brand)' }}>
+                <div className="text-[12px] font-semibold uppercase tracking-wide ink-fainter mb-2">{wn.label}</div>
+                <p className="ink-primary text-[15px] leading-relaxed">{wn.line}</p>
+                {wn.catalyst && (
+                  <a
+                    href={wn.catalyst.url ?? undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-block ink-muted text-[13px] leading-snug hover:ink-primary transition-colors"
+                  >
+                    “{wn.catalyst.title}” — {wn.catalyst.source} ↗
+                  </a>
+                )}
+              </div>
+            </section>
+          </FadeIn>
+        );
+      })()}
 
       {/* Sprint H — "Why this idea exists" in plain investor language, derived
           from the engine's real signals (no scores/jargon). Falls back to the
