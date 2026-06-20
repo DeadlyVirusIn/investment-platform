@@ -321,20 +321,12 @@ export function PickPage() {
         <BothSidesCard rec={rec} />
       </FadeIn>
 
+      {/* Risks now live in the Bulls-vs-Bears card above; keep only the
+          honest caveat here to avoid a duplicate risk list. */}
       <FadeIn delay={0.12}>
         <section className="mb-12 max-w-narrative">
-          <MetaLabel>Potential risks</MetaLabel>
-          {sig.risks.length > 0 && (
-            <ul className="mt-4 mb-3 space-y-3">
-              {sig.risks.map((r) => (
-                <li key={r} className="flex items-baseline gap-3 border-t border-hairline pt-3">
-                  <span aria-hidden style={{ color: 'oklch(0.70 0.14 75)', fontSize: 12 }}>▼</span>
-                  <span className="ink-primary text-[15px] leading-snug">{r}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="ink-muted text-[14px] leading-relaxed mt-2">
+          <MetaLabel>Before you act</MetaLabel>
+          <p className="ink-muted text-[14px] leading-relaxed mt-3">
             This is ArthOS's current read, not a promise. It weakens if the
             signals above reverse or the company's story changes. Markets fall as
             well as rise — practice first with money you're fine simulating.

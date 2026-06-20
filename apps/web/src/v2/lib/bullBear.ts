@@ -107,18 +107,26 @@ function titleAction(a: string | null): string {
   return a.charAt(0).toUpperCase() + a.slice(1).toLowerCase();
 }
 
-// Read post-policy dampers defensively from rec.policy.adjustments.
+// Post-policy dampers → SHORT plain labels (never raw rule/reason debug text).
+const DAMPER_LABELS: { match: RegExp; label: string }[] = [
+  { match: /volatil/i, label: 'high volatility' },
+  { match: /invers|confidence/i, label: 'recent misses' },
+  { match: /drawdown/i, label: 'recent drawdown' },
+  { match: /exposure|concentrat/i, label: 'position size' },
+  { match: /stale|fresh/i, label: 'data freshness' },
+];
+
 function readDampers(policy: unknown): string[] {
   const out: string[] = [];
   const adj = (policy as { adjustments?: unknown })?.adjustments;
   if (!Array.isArray(adj)) return out;
   for (const a of adj) {
-    const rule = (a as { rule?: string })?.rule;
-    const reason = (a as { reason?: string })?.reason;
-    if (typeof reason === 'string' && reason.trim()) { out.push(reason.trim()); continue; }
-    if (typeof rule === 'string' && rule.trim()) {
-      out.push(rule.replace(/_/g, ' '));
-    }
+    const rule = (a as { rule?: string })?.rule ?? '';
+    const reason = (a as { reason?: string })?.reason ?? '';
+    const hay = `${rule} ${reason}`;
+    const m = DAMPER_LABELS.find((d) => d.match.test(hay));
+    const label = m ? m.label : (rule ? rule.replace(/_/g, ' ').replace(/damping|cap/gi, '').trim() : '');
+    if (label && !out.includes(label)) out.push(label);
   }
   return out.slice(0, 2);
 }
@@ -169,10 +177,6 @@ export function bullBear(rec: RecApi): BullBear {
     verdictLabel = 'Where ArthOS lands';
     verdict = `The bullish and bearish signals roughly balance, so ArthOS keeps this a ${action} rather than a buy${conf ? ` (${conf.toLowerCase()} confidence)` : ''}.`;
   }
-  if (dampers.length > 0) {
-    verdict += ` The call was deliberately trimmed (${dampers.join('; ')}) rather than taken at face value.`;
-  }
-
   return {
     bull, bear,
     bullCount: bull.length, bearCount: bear.length,
