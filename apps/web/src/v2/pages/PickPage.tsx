@@ -14,6 +14,7 @@ import { plainThesis, ideaSignals } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
+import { BothSidesCard } from '../components/BothSidesCard';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
   useTodaysRecommendations,
@@ -310,6 +311,13 @@ export function PickPage() {
             </p>
           )}
         </section>
+      </FadeIn>
+
+      {/* P0-1 — Bull vs Bear: both sides + ArthOS's verdict, from real
+          stored evidence. Beginner-legible; raw factor detail stays in the
+          Layer-3 trace. */}
+      <FadeIn delay={0.09}>
+        <BothSidesCard rec={rec} />
       </FadeIn>
 
       <FadeIn delay={0.12}>

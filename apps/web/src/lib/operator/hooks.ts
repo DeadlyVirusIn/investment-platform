@@ -122,6 +122,22 @@ export function useRecommendations() {
 // action = adjusted_action ?? action (policy may damp Buy->Hold).
 // NO static TODAYS_DESK / arthosData literals anywhere downstream.
 // ---------------------------------------------------------------
+// One engine factor behind a recommendation (already returned by
+// GET /recommendations). `direction` is bullish/bearish/neutral and
+// `score` is the signed contribution; `narrative` is the raw quant
+// string (e.g. "ATR(14)/price = 3.15%") — keep raw narratives to the
+// Layer-3 trace, never the beginner default surface.
+export interface RecEvidence {
+  factor_key: string;
+  family: string | null;
+  weight: string | null;
+  value: string | null;
+  threshold: string | null;
+  direction: string | null;   // "bullish" | "bearish" | "neutral"
+  score: string | null;       // signed numeric string
+  narrative: string | null;
+}
+
 export interface RecApi {
   id: string;
   asset_id: string;
@@ -140,7 +156,7 @@ export interface RecApi {
   enough_data: boolean | null;
   engine_version: string | null;
   tags: string[] | null;
-  evidence: unknown[] | null;
+  evidence: RecEvidence[] | null;
   family_scores: Record<string, string | null> | null;
   policy: unknown;
   policy_adjustments: unknown[] | null;
