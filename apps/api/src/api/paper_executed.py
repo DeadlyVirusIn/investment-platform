@@ -347,6 +347,73 @@ def executed_positions(
 _ALLOWED_TYPES = {"paper_trade", "paper_position"}
 
 
+@router.get("/paper/closed-recommendations")
+def closed_recommendations(
+    db: Session = Depends(get_session),
+    portfolio_id: str | None = Query(None),
+    include_replay: bool = Query(False),
+    limit: int = Query(50, ge=1, le=200),
+) -> dict[str, Any]:
+    """Closed paper positions joined back to the recommendation that opened
+    them — the substrate for the Reflection Loop (expected vs happened).
+
+    Read-only. Returns only closed positions whose opening recommendation
+    still exists; every field is real stored data (no fabricated commentary).
+    GET-only, no writes.
+    """
+    excl = _exclusion_clause(include_replay, "paper_position", "p")
+    where_pid = " AND p.portfolio_id = :pid" if portfolio_id else ""
+    params: dict[str, Any] = {"lim": limit}
+    if portfolio_id:
+        params["pid"] = portfolio_id
+
+    rows = db.execute(
+        text(
+            f"""
+            SELECT r.id AS rec_id, a.symbol AS symbol, a.name AS name,
+                   r.action AS action, r.conviction AS confidence,
+                   p.opened_at AS opened_at, p.closed_at AS closed_at,
+                   (p.closed_at::date - p.opened_at::date) AS hold_days,
+                   p.realized_pnl AS realized_pnl,
+                   ct.reason AS exit_reason
+            FROM paper_position p
+            JOIN recommendation r ON r.id = p.opened_by_recommendation_id
+            JOIN asset a ON a.id = p.asset_id
+            LEFT JOIN paper_trade ct ON ct.id = p.closed_by_trade_id
+            WHERE p.is_open = false
+              AND p.opened_by_recommendation_id IS NOT NULL
+              {where_pid}{excl}
+            ORDER BY p.closed_at DESC NULLS LAST
+            LIMIT :lim
+            """
+        ),
+        params,
+    ).mappings().all()
+
+    def _f(v: Any) -> float | None:
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    items = [
+        {
+            "rec_id": row["rec_id"],
+            "symbol": row["symbol"],
+            "name": row["name"],
+            "action": row["action"],
+            "confidence": _f(row["confidence"]),
+            "opened_at": row["opened_at"].isoformat() if row["opened_at"] else None,
+            "closed_at": row["closed_at"].isoformat() if row["closed_at"] else None,
+            "hold_days": int(row["hold_days"]) if row["hold_days"] is not None else None,
+            "realized_pnl": _f(row["realized_pnl"]),
+            "exit_reason": row["exit_reason"],
+        }
+        for row in rows
+    ]
+    return {"count": len(items), "items": items}
+
+
 def _exclusion_clause(include_replay: bool, entity_type: str, alias: str) -> str:
     """SQL fragment that NOT-EXISTS-excludes replay rows when
     include_replay=False. Returns empty string when caller opts in.

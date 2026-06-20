@@ -12,6 +12,7 @@ import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrom
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
 import { TrackRecordIntegrityCard } from '../components/TrackRecordIntegrityCard';
+import { ReflectionLoop } from '../components/ReflectionLoop';
 import {
   useCanonicalStockPortfolio,
   usePaperEquity,
@@ -100,6 +101,12 @@ export function TrackRecord() {
       {/* P0-3 — canonical Track Record Integrity Card (honest, real-data). */}
       <FadeIn delay={0.02}>
         <TrackRecordIntegrityCard />
+      </FadeIn>
+
+      {/* P0-4 — Reflection Loop: expected / happened / learned per closed
+          recommendation, templated from real stored outcomes. */}
+      <FadeIn delay={0.03}>
+        <ReflectionLoop />
       </FadeIn>
 
       <FadeIn delay={0.04}>

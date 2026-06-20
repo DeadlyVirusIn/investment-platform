@@ -358,6 +358,32 @@ export function useExecutedPositions(
   });
 }
 
+// Closed paper positions joined to the recommendation that opened them —
+// substrate for the Reflection Loop (expected vs happened). Real stored
+// data only; no fabricated commentary. (GET /paper/closed-recommendations)
+export interface ClosedRecommendation {
+  rec_id: string;
+  symbol: string;
+  name: string | null;
+  action: string | null;
+  confidence: number | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  hold_days: number | null;
+  realized_pnl: number | null;
+  exit_reason: string | null;
+}
+
+export function useClosedRecommendations(portfolioId?: string | null) {
+  const qs = portfolioId ? `?portfolio_id=${encodeURIComponent(portfolioId)}` : "";
+  return useQuery<{ count: number; items: ClosedRecommendation[] }>({
+    queryKey: ["paper", "closed-recommendations", portfolioId ?? null],
+    queryFn: () => apiGet(`/paper/closed-recommendations${qs}`),
+    enabled: !!portfolioId,
+    staleTime: 60_000,
+  });
+}
+
 export function useDecision(asOfDate: string | null) {
   return useQuery<DecisionRow>({
     queryKey: KEYS.decision(asOfDate ?? ""),
