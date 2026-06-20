@@ -284,6 +284,13 @@ for _router in (
 
 
 # ---------------------------------------------------------------------------
+# M1 accounts — real auth endpoints (signup/login/logout). Always mounted.
+# ---------------------------------------------------------------------------
+from apps.api.src.api.auth_session import router as auth_session_router  # noqa: E402
+app.include_router(auth_session_router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
 # Phase 11W (Phase B) — Research Intelligence read-only router.
 # Mounted ONLY when RESEARCH_RO_ENABLED is True. When False (production
 # default), every /api/research/* path 404s. GET-only by design.

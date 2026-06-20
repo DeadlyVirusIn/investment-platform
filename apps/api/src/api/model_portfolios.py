@@ -15,7 +15,7 @@ import time
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from sqlalchemy import select, text
@@ -47,16 +47,20 @@ router = APIRouter(prefix="/model-portfolios", tags=["model-portfolios"])
 
 
 def require_user_id(
-    x_auth_user_id: str | None = Header(default=None, alias="X-Auth-User-Id"),
+    request: Request,
+    db: Session = Depends(get_session),
 ) -> str:
-    """MVP auth: the edge/frontend supplies a stable per-user identity via the
-    ``X-Auth-User-Id`` header (a device id today; swap for the IdP subject when
-    a full auth provider lands). Write endpoints REQUIRE it so every paper book
-    is per-user and no two users ever share state."""
-    uid = (x_auth_user_id or "").strip()
+    """M1 auth: identity resolves from the session cookie (authenticated user)
+    or, only in demo/dev mode, the X-Auth-User-Id device header. Write
+    endpoints REQUIRE a resolved identity — a missing/anonymous identity
+    (including a spoofed device header outside demo mode) is rejected 401, so no
+    two users ever share state and no write path trusts an unauthenticated
+    header."""
+    from apps.api.src.auth.identity import resolve_identity
+    uid = resolve_identity(request, db)
     if not uid:
         raise HTTPException(status_code=401, detail="authentication required")
-    return uid[:64]
+    return uid
 
 
 def _resolve_user_portfolio(db: Session, user_id: str) -> str:

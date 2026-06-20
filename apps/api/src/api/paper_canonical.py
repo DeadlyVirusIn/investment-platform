@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -44,25 +44,28 @@ def _iso(ts: dt.datetime | dt.date | None) -> str | None:
 
 @router.get("/stock")
 def canonical_stock(
+    request: Request,
     db: Session = Depends(get_session),
-    x_auth_user_id: str | None = Header(default=None, alias="X-Auth-User-Id"),
 ) -> dict[str, Any]:
-    """Canonical stock practice book. Per-user when an X-Auth-User-Id is sent
-    (resolves the caller's own ``user:<id>:stock`` book — Sprint B isolation);
-    falls back to the shared demo portfolio for anonymous/legacy callers."""
+    """Canonical stock practice book. M1: identity resolves from the session
+    cookie (authenticated user) or, only in demo/dev mode, the X-Auth-User-Id
+    device header. Resolved identity -> the caller's own ``user:<id>:stock``
+    book; truly anonymous callers fall back to the shared demo portfolio. A
+    spoofed device header outside demo mode yields anonymous, never a targeted
+    user's book."""
+    from apps.api.src.auth.identity import resolve_identity
     from apps.api.src.domain.paper_trading.paper_service import (
         resolve_user_stock_portfolio,
     )
-    uid = (x_auth_user_id or "").strip()
+    uid = resolve_identity(request, db)
     if uid:
-        # Per-user isolation: get-or-create THIS device's OWN book via the
-        # single shared resolver. A cold device gets a fresh EMPTY book — it
-        # must NEVER fall back to the shared demo/Replay-Recovery portfolio.
-        # Commit so the identity persists and matches the write endpoints.
-        pid = resolve_user_stock_portfolio(db, uid[:64])
+        # Per-user isolation: get-or-create THIS user's OWN book via the single
+        # shared resolver. A cold user gets a fresh EMPTY book — it must NEVER
+        # fall back to the shared demo/Replay-Recovery portfolio.
+        pid = resolve_user_stock_portfolio(db, uid)
         db.commit()
     else:
-        # Anonymous/legacy callers only → shared demo portfolio.
+        # Truly anonymous callers only → shared demo portfolio.
         pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
     now = _now_utc()
 

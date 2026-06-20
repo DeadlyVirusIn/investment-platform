@@ -646,6 +646,12 @@ class Settings(BaseSettings):
     # and tier resolution honors the legacy `RESEARCH_PREMIUM_TIER`
     # env. NEVER set true in production.
     AUTH_DISABLED_LOCAL: bool = False
+    # M1 accounts: when True, the X-Auth-User-Id device header is honored as an
+    # identity fallback (demo/dev ONLY). MUST stay False in production — public
+    # auth resolves identity from the session cookie, never a client header.
+    DEMO_DEVICE_MODE: bool = False
+    # Session cookie Secure flag. False for local HTTP dev; True in prod (HTTPS).
+    SESSION_COOKIE_SECURE: bool = False
     # When True, expired/past_due/canceled subscriptions still grant
     # the prior tier for `RESEARCH_GRACE_HOURS` hours after the
     # period end. Disabled by default — strict downgrade.
