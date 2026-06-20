@@ -262,9 +262,6 @@ function PatternCard({ pattern }: { pattern: PatternObservation }) {
             </ChipBtn>
           </>
         )}
-        <span className="ink-fainter ml-auto" style={{ fontSize: 11 }}>
-          ID: {pattern.rule_key}
-        </span>
       </div>
     </SurfaceCard>
   );
