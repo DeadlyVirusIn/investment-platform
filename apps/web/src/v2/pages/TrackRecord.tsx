@@ -11,6 +11,7 @@ import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
+import { TrackRecordIntegrityCard } from '../components/TrackRecordIntegrityCard';
 import {
   useCanonicalStockPortfolio,
   usePaperEquity,
@@ -95,6 +96,11 @@ export function TrackRecord() {
       </header>
 
       <PracticeTabs />
+
+      {/* P0-3 — canonical Track Record Integrity Card (honest, real-data). */}
+      <FadeIn delay={0.02}>
+        <TrackRecordIntegrityCard />
+      </FadeIn>
 
       <FadeIn delay={0.04}>
         <section className="mb-14">
