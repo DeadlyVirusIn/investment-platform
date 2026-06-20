@@ -64,3 +64,37 @@ def test_distinct_devices_get_distinct_books(pg_session: Session) -> None:
     b = resolve_user_stock_portfolio(pg_session, "device-b")
     pg_session.commit()
     assert a != b
+
+
+def test_known_device_resolution_is_stable_and_never_shared_fallback(
+    pg_session: Session,
+) -> None:
+    """Guardrail (2026-06-19 demo-clone repair).
+
+    Regression protection for the trust incident where the owner/demo device's
+    visible portfolio silently changed. The invariant: once a device owns a
+    per-device book, the resolver must keep returning THAT book. A future change
+    to the resolver must NOT silently repoint a known device to the shared
+    Replay-Recovery fallback (``CANONICAL_STOCK_PORTFOLIO_ID``), to a fresh
+    empty book, or to anything else.
+    """
+    device = "305fcf0b-bc89-4d9d-ba47-b6de6810dfd6"  # owner/demo device
+
+    # The per-device name formula is load-bearing: it is what maps a device to
+    # its portfolio. Changing it silently changes which book the device sees.
+    assert user_stock_portfolio_name(device) == f"user:{device}:stock"
+
+    # First resolution materialises the device's own book...
+    pid_first = resolve_user_stock_portfolio(pg_session, device)
+    pg_session.commit()
+
+    # ...which is the per-device book, never the shared demo fallback.
+    assert pid_first != settings.CANONICAL_STOCK_PORTFOLIO_ID
+    pf = pg_session.get(PaperPortfolio, pid_first)
+    assert pf is not None
+    assert pf.name == user_stock_portfolio_name(device)
+
+    # Re-resolving the SAME known device is stable — no silent swap.
+    pid_again = resolve_user_stock_portfolio(pg_session, device)
+    pg_session.commit()
+    assert pid_again == pid_first
