@@ -39,7 +39,7 @@ export function Onboarding() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3 }}
-          className="fixed inset-0 z-[100] surface-base flex items-start justify-center px-5 pt-8 pb-10 overflow-y-auto"
+          className="fixed inset-0 z-[100] surface-base flex items-start sm:items-center justify-center px-5 pt-8 pb-10 overflow-y-auto"
           style={{ backgroundColor: 'var(--surface-base)' }}
         >
           <div className="w-full max-w-2xl">
@@ -83,6 +83,21 @@ export function Onboarding() {
 
             <div className="mt-10 max-w-narrative">
               <PromiseLine variant="hero" />
+            </div>
+
+            {/* Trust strip — anchors the page and states the three promises
+                up front (presentation only; all from existing messaging). */}
+            <div className="mt-12 pt-6 border-t border-hairline grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-2xl">
+              {[
+                { k: 'Plain English', v: 'Every idea — the thesis, both sides, and the risks — explained without jargon.' },
+                { k: 'Paper-only', v: 'Practice money, nothing real at stake. We never promise returns.' },
+                { k: 'Your own proof', v: 'A real, auditable track record that grows as your ideas resolve.' },
+              ].map((f) => (
+                <div key={f.k}>
+                  <div className="text-[12px] font-semibold uppercase tracking-wide ink-primary mb-1.5">{f.k}</div>
+                  <p className="ink-muted text-[13.5px] leading-snug">{f.v}</p>
+                </div>
+              ))}
             </div>
           </div>
         </motion.div>
