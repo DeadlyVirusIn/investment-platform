@@ -47,7 +47,7 @@ export function TrackRecord() {
   const { data: book } = useCanonicalStockPortfolio();
   const pid = book?.portfolio_id;
   const { data: equity } = usePaperEquity(undefined, undefined, pid);
-  const { data: tradesData } = useExecutedTrades(false, pid);
+  const { data: tradesData } = useExecutedTrades(false, pid, { enabled: !!pid });
 
   const points = equity ?? [];
   // Real closed trades = sells with a realized P&L.

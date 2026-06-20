@@ -43,8 +43,8 @@ function Tile({ label, value, sub, tone, big }: { label: string; value: string; 
 export function TrackRecordIntegrityCard() {
   const { data: book } = useCanonicalStockPortfolio();
   const pid = book?.portfolio_id;
-  const { data: tradesData } = useExecutedTrades(false, pid);
-  const { data: closedPos } = useExecutedPositions(false, false, pid);
+  const { data: tradesData } = useExecutedTrades(false, pid, { enabled: !!pid });
+  const { data: closedPos } = useExecutedPositions(false, false, pid, { enabled: !!pid });
   const { data: equity } = usePaperEquity(undefined, undefined, pid);
 
   const closedSells = useMemo(

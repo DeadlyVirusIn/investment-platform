@@ -52,7 +52,7 @@ export function PaperBook() {
   const portfolioId = book?.portfolio_id;
   const {
     data: posData, isLoading: posLoading, isError: posError,
-  } = useExecutedPositions(false, true, portfolioId);
+  } = useExecutedPositions(false, true, portfolioId, { enabled: !!portfolioId });
   const positions = posData?.positions ?? [];
 
   const nav = book?.nav ?? null;

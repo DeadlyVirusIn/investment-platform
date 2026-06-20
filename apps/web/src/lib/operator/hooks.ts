@@ -328,8 +328,15 @@ export function useExecutedSummary(includeReplay = false) {
   });
 }
 
+// `opts.enabled` defaults to true so existing GLOBAL callers (operator /
+// admin dashboards that intentionally omit portfolioId) are unchanged.
+// Per-user/investor surfaces MUST pass `{ enabled: !!portfolioId }` so the
+// hook does NOT fire an unscoped (all-portfolios) request while the canonical
+// portfolio id is still resolving — otherwise it would briefly render global
+// aggregates. See INVESTOR_DUE_DILIGENCE_AUDIT P0-1.
 export function useExecutedTrades(
   includeReplay = false, portfolioId?: string | null,
+  opts?: { enabled?: boolean },
 ) {
   const params = new URLSearchParams();
   if (includeReplay) params.set("include_replay", "true");
@@ -339,12 +346,14 @@ export function useExecutedTrades(
     queryKey: ["paper", "executed", "trades", includeReplay, portfolioId ?? null],
     queryFn: () => apiGet(`/paper/executed/trades${qs}`),
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
   });
 }
 
 export function useExecutedPositions(
   includeReplay = false, isOpen?: boolean,
   portfolioId?: string | null,
+  opts?: { enabled?: boolean },
 ) {
   const params = new URLSearchParams();
   if (includeReplay) params.set("include_replay", "true");
@@ -355,6 +364,7 @@ export function useExecutedPositions(
     queryKey: ["paper", "executed", "positions", includeReplay, isOpen, portfolioId ?? null],
     queryFn: () => apiGet(`/paper/executed/positions${qs}`),
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
   });
 }
 

@@ -24,7 +24,7 @@ export function TrustBanner() {
   const { data: book } = useCanonicalStockPortfolio();
   // P1.3 — closed outcomes = sells with realized P&L (Track Record's
   // exact definition). Drives the honest accuracy-publish meter.
-  const { data: tradesData } = useExecutedTrades(false, book?.portfolio_id);
+  const { data: tradesData } = useExecutedTrades(false, book?.portfolio_id, { enabled: !!book?.portfolio_id });
 
   const callCount = recs?.recommendations?.length ?? null;
   const totalRet = book?.total_return_pct ?? null;
