@@ -15,6 +15,7 @@ import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { BothSidesCard } from '../components/BothSidesCard';
+import { RecommendationTrace } from '../components/RecommendationTrace';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
   useTodaysRecommendations,
@@ -346,6 +347,12 @@ export function PickPage() {
           <MetaLabel>Expected holding period</MetaLabel>
           <p className="ink-primary text-[15px] leading-snug mt-3">{holding}</p>
         </section>
+      </FadeIn>
+
+      {/* P0-2 — See the working: investor-grade audit trail (Layer-3),
+          from the same real stored evidence + policy. */}
+      <FadeIn delay={0.18}>
+        <RecommendationTrace rec={rec} />
       </FadeIn>
 
       {/* Sprint I — Recent news & catalysts (real, from /news/symbol). */}
