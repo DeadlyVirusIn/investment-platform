@@ -15,6 +15,7 @@ import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
 import { useOptionsLanes } from '../lib/optionsLanes';
 import { PersonalizationLens } from '../components/PersonalizationLens';
+import { FeedbackWidget } from '../components/FeedbackWidget';
 import type { RecMeta } from '../lib/personalization';
 import { presentOption } from '../lib/optionsPresent';
 import { OPTIONS_TAB_HREF, ActionPill } from '../components/OptionsSetupCard';
@@ -358,6 +359,11 @@ export function OptionsSetupDetail() {
             Back to options in Opportunities →
           </Link>
         </section>
+      </FadeIn>
+
+      {/* M5 — demand-validation feedback (collect-only; non-blocking). */}
+      <FadeIn delay={0.2}>
+        <FeedbackWidget surface="options_detail" />
       </FadeIn>
     </ArthosPage>
   );

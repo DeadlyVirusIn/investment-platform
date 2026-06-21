@@ -8,6 +8,7 @@ import { ArthosPage } from '../chrome/ArthosChrome';
 import { useSession } from '../state/SessionContext';
 import { login as apiLogin, signup as apiSignup } from '../../lib/auth';
 import { getProfile } from '../../lib/profile';
+import { sendSignal } from '../../lib/feedback';
 
 const MIN_PASSWORD = 8; // matches backend hash_password minimum
 
@@ -24,6 +25,7 @@ export function AccountPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
+  const [betaSent, setBetaSent] = useState(false);
 
   useEffect(() => {
     if (!authenticated) { setProfileComplete(null); return; }
@@ -105,6 +107,23 @@ export function AccountPage() {
             >
               Log out
             </button>
+          </div>
+          {/* M5 — lightweight beta-interest signal (collect-only; non-blocking). */}
+          <div className="mt-8 pt-5" style={{ borderTop: '1px solid var(--border)' }}>
+            {betaSent ? (
+              <p className="ink-muted" style={{ fontSize: 13 }}>Thanks — we'll keep you posted on beta access.</p>
+            ) : (
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="ink-muted" style={{ fontSize: 13 }}>Interested in early beta access?</p>
+                <button
+                  onClick={() => { setBetaSent(true); sendSignal('account', 'beta_interest', 'yes').catch(() => {}); }}
+                  className="rounded-lg px-4 h-9 font-medium"
+                  style={{ border: '1px solid var(--border)', color: 'var(--foreground)', fontSize: 13 }}
+                >
+                  I'm interested
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </ArthosPage>

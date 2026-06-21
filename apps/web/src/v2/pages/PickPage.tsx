@@ -17,6 +17,7 @@ import { PlanRows } from '../components/PlanRows';
 import { BothSidesCard } from '../components/BothSidesCard';
 import { RecommendationTrace } from '../components/RecommendationTrace';
 import { PersonalizationLens } from '../components/PersonalizationLens';
+import { FeedbackWidget } from '../components/FeedbackWidget';
 import type { RecMeta } from '../lib/personalization';
 import { whyNow } from '../lib/whyNow';
 import { useSymbolNews } from '@/lib/market/hooks';
@@ -390,6 +391,11 @@ export function PickPage() {
           from the same real stored evidence + policy. */}
       <FadeIn delay={0.18}>
         <RecommendationTrace rec={rec} />
+      </FadeIn>
+
+      {/* M5 — demand-validation feedback (collect-only; non-blocking). */}
+      <FadeIn delay={0.2}>
+        <FeedbackWidget surface="pick_detail" />
       </FadeIn>
 
       {/* Sprint I — Recent news & catalysts (real, from /news/symbol). */}

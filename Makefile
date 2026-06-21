@@ -156,6 +156,7 @@ test-auth:
 	    apps/api/tests/integration/test_login_rate_limit_pg.py \
 	    apps/api/tests/integration/test_auth_ops_m1c_pg.py \
 	    apps/api/tests/integration/test_profile_pg.py \
+	    apps/api/tests/integration/test_feedback_pg.py \
 	    apps/api/tests/integration/test_paper_user_portfolio_pg.py --no-header -q
 
 .PHONY: prune-login-attempts
