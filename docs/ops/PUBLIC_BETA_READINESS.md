@@ -101,7 +101,12 @@ the PTCGPB bot) but **not yet prepared** for the dockerized deploy:
 ## Newly-confirmed blockers (M6B)
 
 7. **Caddy `:80` only** (`infra/caddy/Caddyfile`) — no domain/HTTPS block, despite the prod-compose TODO claiming "Caddyfile already configured for HTTPS" (stale). Add a `your-domain { … }` block for Caddy ACME auto-HTTPS, **or** terminate TLS at Cloudflare (Caddy stays `:80` behind it). Required for `SESSION_COOKIE_SECURE=true`.
-8. **Prod overlay worker name drift:** `docker-compose.prod.yml` overrides a service named `worker`, but the base compose defines `worker-tickloop` + `worker-cron`. The `restart: always` / supercronic daily-loop wiring won't apply to a non-matching name — reconcile the overlay to the real worker service names before deploy so the 03:30-ET cron loop runs.
+8. ~~Prod overlay worker name drift.~~ **RESOLVED (M6C):** `docker-compose.prod.yml` now overrides `worker-tickloop` + `worker-cron` (both `restart: always`) — the real base-compose service names; the orphan `worker:` is gone. Verified with `docker compose -f base -f prod config` (parses; both workers present; no orphan).
+
+   **Worker roles + verification:**
+   - `worker-tickloop` — the tick-loop scheduler (`apps.worker.src.main`); claims due jobs from `job_schedule` every ~60s. Liveness = `WORKER_HEARTBEAT_FILE` mtime < 180s.
+   - `worker-cron` — supercronic fires `scripts/run_daily_loop.sh` at 03:30 ET (Tue–Sat); writes `/tmp/last_daily_loop_success|failure` markers.
+   - Verify after deploy: `docker compose ps` (both healthy), `GET /api/scheduler/health` (schedules + last runs), and the daily-loop marker file age the morning after the first 03:30-ET fire.
 9. **Docker absent on the host** — install before any deploy (host-prep step 1).
 
 ## Post-deploy smoke checklist

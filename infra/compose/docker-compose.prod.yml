@@ -16,7 +16,12 @@ services:
     ports: []          # not exposed directly; Caddy proxies internally
     restart: always
 
-  worker:
+  # Base compose defines TWO worker services — override both by their real
+  # names (an orphan `worker:` here would not match either and the daily-loop /
+  # restart wiring would never apply).
+  worker-tickloop:   # tick-loop scheduler (apps.worker.src.main)
+    restart: always
+  worker-cron:       # supercronic → scripts/run_daily_loop.sh (03:30 ET, Tue–Sat)
     restart: always
 
   db:
