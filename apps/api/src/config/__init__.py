@@ -658,6 +658,16 @@ class Settings(BaseSettings):
     AUTH_LOGIN_MAX_ATTEMPTS: int = 5
     AUTH_LOGIN_WINDOW_SECONDS: int = 900
     AUTH_LOGIN_LOCKOUT_SECONDS: int = 900
+    # M1C trusted-proxy IP extraction. When False (default) the rate-limiter uses
+    # the direct peer IP. When True AND the direct peer is inside one of the
+    # trusted CIDRs, the first forwarded client IP (CF-Connecting-IP or the first
+    # X-Forwarded-For entry) is used. Never trust forwarded headers from an
+    # untrusted direct peer.
+    AUTH_TRUST_PROXY_HEADERS: bool = False
+    AUTH_TRUSTED_PROXY_CIDRS: str = ""   # CSV, e.g. "127.0.0.1/32,10.0.0.0/8"
+    # M1C login_attempt retention (days) for the prune job. Must exceed the
+    # window+lockout horizon; the prune helper also enforces a hard min-keep.
+    AUTH_LOGIN_ATTEMPT_RETENTION_DAYS: int = 7
     # When True, expired/past_due/canceled subscriptions still grant
     # the prior tier for `RESEARCH_GRACE_HOURS` hours after the
     # period end. Disabled by default — strict downgrade.

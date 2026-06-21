@@ -99,6 +99,41 @@ done   # -> 401 x6, identical body
 
 Note: client IP is taken from `request.client.host`. Behind a reverse proxy, ensure the proxy sets a trusted forwarded-for and the app reads it before public beta (M1B uses the direct peer IP).
 
+## M1C — auth ops (trusted proxy IP + login_attempt pruning)
+
+### Trusted client-IP for rate limiting
+
+The login rate-limiter keys on the client IP. By default it uses the **direct peer IP** (`request.client.host`). Behind a proxy (Caddy/Cloudflare) the direct peer is the proxy, so enable trusted-proxy mode to key on the real client.
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `AUTH_TRUST_PROXY_HEADERS` | False | When True, honor forwarded client IP **only** if the direct peer is a trusted proxy. |
+| `AUTH_TRUSTED_PROXY_CIDRS` | "" | CSV of CIDRs that are trusted proxies (e.g. the Caddy/ingress subnet, or Cloudflare ranges). |
+
+Resolution: if trust is disabled **or** the direct peer is not in `AUTH_TRUSTED_PROXY_CIDRS`, the direct peer IP is used and any `X-Forwarded-For` / `CF-Connecting-IP` is **ignored** (a public client cannot spoof its IP). If the direct peer is a trusted proxy, the resolver prefers `CF-Connecting-IP`, else the **first** `X-Forwarded-For` entry (the original client). Malformed/empty forwarded values fall back to the direct peer.
+
+- **Caddy:** set `AUTH_TRUSTED_PROXY_CIDRS` to the Docker/ingress subnet Caddy connects from; ensure Caddy sets `X-Forwarded-For`.
+- **Cloudflare:** put Cloudflare's egress ranges in `AUTH_TRUSTED_PROXY_CIDRS`; `CF-Connecting-IP` is then used as the real client IP.
+- Do **not** set `AUTH_TRUST_PROXY_HEADERS=True` without populating `AUTH_TRUSTED_PROXY_CIDRS` — with an empty CIDR list no peer is trusted, so it safely falls back to the direct IP.
+
+### login_attempt pruning
+
+`login_attempt` grows with traffic. Prune periodically:
+
+```sh
+make prune-login-attempts          # honors AUTH_LOGIN_ATTEMPT_RETENTION_DAYS (default 7)
+```
+
+The prune helper enforces a hard min-keep floor of `WINDOW + LOCKOUT` seconds, so rows needed for active lockout/rate-limit math are **never** deleted even if retention is misconfigured low. No scheduler is added — run it from cron/ops on whatever cadence fits (daily is ample at beta scale).
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `AUTH_LOGIN_ATTEMPT_RETENTION_DAYS` | 7 | Delete login_attempt rows older than this (floored by window+lockout). |
+
+### Reminder (public env) — unchanged across M1/M1A/M1B/M1C
+
+`AUTH_DISABLED_LOCAL=False`, `DEMO_DEVICE_MODE=False`, `SESSION_COOKIE_SECURE=True` (behind HTTPS).
+
 ## Reminder
 
 `X-Auth-User-Id` is a **dev/demo convenience header only**. In production it must never authenticate a user. The only real identity is the `arthos_session` cookie backed by `user_session`. Keep `DEMO_DEVICE_MODE` and `AUTH_DISABLED_LOCAL` False in every public environment.

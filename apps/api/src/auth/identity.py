@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import ipaddress
 import secrets
 import uuid
 
@@ -194,6 +195,77 @@ def clear_login_failures(db: Session, *, email: str) -> None:
     db.execute(
         text("DELETE FROM login_attempt WHERE email = :e AND succeeded = false"),
         {"e": _norm_email(email)},
+    )
+
+
+def prune_login_attempts(db: Session, *, retention_days: float, min_keep_seconds: float = 0.0) -> int:
+    """Delete login_attempt rows older than retention. `min_keep_seconds` is a
+    hard floor (pass window+lockout) so lockout/window-relevant rows are NEVER
+    pruned even if retention is misconfigured low. Returns rows deleted."""
+    keep_secs = max(float(retention_days) * 86400.0, float(min_keep_seconds))
+    res = db.execute(
+        text("DELETE FROM login_attempt WHERE created_at < now() - make_interval(secs => :s)"),
+        {"s": keep_secs},
+    )
+    return res.rowcount or 0
+
+
+# --------------------------------------------------------------------------
+# Trusted client-IP extraction (M1C)
+# --------------------------------------------------------------------------
+def _valid_ip(s: str) -> bool:
+    try:
+        ipaddress.ip_address(s.strip())
+        return True
+    except ValueError:
+        return False
+
+
+def _ip_in_cidrs(ip: str, cidrs_csv: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip.strip())
+    except ValueError:
+        return False
+    for part in (cidrs_csv or "").split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            if addr in ipaddress.ip_network(part, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def resolve_client_ip(
+    *, direct_ip: str | None, trust_enabled: bool, trusted_cidrs: str,
+    forwarded_for: str | None, cf_connecting_ip: str | None,
+) -> str:
+    """Pure resolver. Returns the direct peer IP unless proxy-header trust is
+    enabled AND the direct peer is itself a trusted proxy — then the first valid
+    forwarded client IP (CF-Connecting-IP, else the first X-Forwarded-For entry).
+    A spoofed forwarded header from an untrusted direct peer is ignored."""
+    direct = (direct_ip or "").strip()
+    if not trust_enabled or not _ip_in_cidrs(direct, trusted_cidrs):
+        return direct
+    cf = (cf_connecting_ip or "").strip()
+    if cf and _valid_ip(cf):
+        return cf
+    for part in (forwarded_for or "").split(","):
+        cand = part.strip()
+        if cand and _valid_ip(cand):
+            return cand  # first valid = original client (XFF: client, proxy1, ...)
+    return direct
+
+
+def client_ip(request: Request) -> str:
+    return resolve_client_ip(
+        direct_ip=request.client.host if request.client else "",
+        trust_enabled=bool(settings.AUTH_TRUST_PROXY_HEADERS),
+        trusted_cidrs=settings.AUTH_TRUSTED_PROXY_CIDRS,
+        forwarded_for=request.headers.get("X-Forwarded-For"),
+        cf_connecting_ip=request.headers.get("CF-Connecting-IP"),
     )
 
 

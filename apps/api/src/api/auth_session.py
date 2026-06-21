@@ -73,7 +73,7 @@ def signup(body: SignupBody, response: Response, db: Session = Depends(get_sessi
 
 @router.post("/login")
 def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_session)) -> dict[str, Any]:
-    ip = request.client.host if request.client else ""
+    ip = ident.client_ip(request)
     if ident.login_locked(
         db, email=body.email, ip=ip,
         max_attempts=settings.AUTH_LOGIN_MAX_ATTEMPTS,

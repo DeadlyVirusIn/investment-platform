@@ -154,7 +154,14 @@ test-auth:
 	  -e INTEGRATION_DB_ALLOW_UNSAFE=1 arthos-api-test \
 	  python -m pytest apps/api/tests/integration/test_accounts_m1_pg.py \
 	    apps/api/tests/integration/test_login_rate_limit_pg.py \
+	    apps/api/tests/integration/test_auth_ops_m1c_pg.py \
 	    apps/api/tests/integration/test_paper_user_portfolio_pg.py --no-header -q
+
+.PHONY: prune-login-attempts
+## M1C — delete old login_attempt rows (honors AUTH_LOGIN_ATTEMPT_RETENTION_DAYS;
+## never prunes rows within the active window+lockout horizon). Manual/admin run.
+prune-login-attempts:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/prune_login_attempts.py"
 
 ## Start Vite dev server (frontend only — backend must already be up)
 web-dev:
