@@ -176,6 +176,13 @@ feedback-report-json:
 feedback-report-7d:
 	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py --days 7"
 
+.PHONY: public-beta-preflight public-beta-preflight-prod
+## M6 — read-only deploy preflight. dev never blocks; prod exits 1 on any error.
+public-beta-preflight:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/preflight_public_beta.py --mode dev"
+public-beta-preflight-prod:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/preflight_public_beta.py --mode prod"
+
 ## Start Vite dev server (frontend only — backend must already be up)
 web-dev:
 	cd apps/web && npm run dev
