@@ -13,6 +13,7 @@ import { UserPrefsProvider } from './state/UserPrefsContext';
 import { PaperBookProvider } from './state/PaperBook';
 import { SessionProvider } from './state/SessionContext';
 import { AccountPage } from './pages/AccountPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { CommandPaletteProvider } from './chrome/CommandPalette';
 import { Onboarding } from './chrome/Onboarding';
 
@@ -110,6 +111,8 @@ function V2Surface() {
         <Route path="track-record" element={<TrackRecord />} />
         {/* M2 — minimal account surface (sign in / sign up / logout). */}
         <Route path="account" element={<AccountPage />} />
+        {/* M3 — collect-only profile onboarding. */}
+        <Route path="profile" element={<ProfilePage />} />
         {/* Admin — read-only system observability. */}
         <Route path="admin/observability" element={<Observability />} />
         {/* Options — read-only V2-native options subsystem visibility. */}

@@ -2,11 +2,12 @@
 // Reuses the existing design tokens + ArthosPage shell. No onboarding,
 // no profile, no personalization — just authentication.
 
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { useSession } from '../state/SessionContext';
 import { login as apiLogin, signup as apiSignup } from '../../lib/auth';
+import { getProfile } from '../../lib/profile';
 
 const MIN_PASSWORD = 8; // matches backend hash_password minimum
 
@@ -22,6 +23,14 @@ export function AccountPage() {
   const [displayName, setDisplayName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!authenticated) { setProfileComplete(null); return; }
+    let alive = true;
+    getProfile().then((r) => { if (alive) setProfileComplete(r.complete); }).catch(() => {});
+    return () => { alive = false; };
+  }, [authenticated]);
 
   const emailValid = /\S+@\S+/.test(email.trim());
   const passwordValid = password.length >= MIN_PASSWORD;
@@ -38,7 +47,8 @@ export function AccountPage() {
         await apiLogin(email.trim(), password);
       }
       await refresh();
-      navigate('/v2/portfolio');
+      // New users go to onboarding; returning users back to their portfolio.
+      navigate(mode === 'signup' ? '/v2/profile' : '/v2/portfolio');
     } catch {
       // Generic error — never reveal whether the email exists or is locked out.
       setError(
@@ -63,6 +73,23 @@ export function AccountPage() {
             Signed in as <span className="ink-primary font-medium">{user.email ?? user.display_name ?? 'you'}</span>.
             Your practice portfolio is private to this account.
           </p>
+          {profileComplete === false && (
+            <Link
+              to="/v2/profile"
+              className="block mt-5 rounded-xl p-4"
+              style={{ border: '1px solid var(--border)', backgroundColor: 'color-mix(in oklch, var(--brand) 6%, transparent)' }}
+            >
+              <p className="font-medium ink-primary" style={{ fontSize: 14 }}>Complete your profile →</p>
+              <p className="ink-muted mt-1" style={{ fontSize: 12.5 }}>
+                A few quick questions so ArthOS can tailor what it shows you. Optional.
+              </p>
+            </Link>
+          )}
+          {profileComplete === true && (
+            <p className="ink-muted mt-4" style={{ fontSize: 13 }}>
+              Profile complete. <Link to="/v2/profile" className="ink-primary underline">Edit</Link>
+            </p>
+          )}
           <div className="mt-6 flex items-center gap-3">
             <button
               onClick={() => navigate('/v2/portfolio')}

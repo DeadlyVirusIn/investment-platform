@@ -288,6 +288,9 @@ for _router in (
 # ---------------------------------------------------------------------------
 from apps.api.src.api.auth_session import router as auth_session_router  # noqa: E402
 app.include_router(auth_session_router, prefix="/api")
+# M3 — collect-only user profile endpoints.
+from apps.api.src.api.profile import router as profile_router  # noqa: E402
+app.include_router(profile_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------
