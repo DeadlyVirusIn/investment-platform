@@ -157,6 +157,8 @@ test-auth:
 	    apps/api/tests/integration/test_auth_ops_m1c_pg.py \
 	    apps/api/tests/integration/test_profile_pg.py \
 	    apps/api/tests/integration/test_feedback_pg.py \
+	    apps/api/tests/integration/test_feedback_report_pg.py \
+	    apps/api/tests/unit/test_feedback_report.py \
 	    apps/api/tests/integration/test_paper_user_portfolio_pg.py --no-header -q
 
 .PHONY: prune-login-attempts
@@ -164,6 +166,15 @@ test-auth:
 ## never prunes rows within the active window+lockout horizon). Manual/admin run.
 prune-login-attempts:
 	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/prune_login_attempts.py"
+
+.PHONY: feedback-report feedback-report-json feedback-report-7d
+## M5A — anonymized demand-validation report from user_feedback_signal.
+feedback-report:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py"
+feedback-report-json:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py --json"
+feedback-report-7d:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py --days 7"
 
 ## Start Vite dev server (frontend only — backend must already be up)
 web-dev:
