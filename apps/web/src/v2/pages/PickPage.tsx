@@ -16,6 +16,8 @@ import { CompanyTitle } from '../components/CompanyTitle';
 import { PlanRows } from '../components/PlanRows';
 import { BothSidesCard } from '../components/BothSidesCard';
 import { RecommendationTrace } from '../components/RecommendationTrace';
+import { PersonalizationLens } from '../components/PersonalizationLens';
+import type { RecMeta } from '../lib/personalization';
 import { whyNow } from '../lib/whyNow';
 import { useSymbolNews } from '@/lib/market/hooks';
 import {
@@ -270,6 +272,21 @@ export function PickPage() {
               placeholders otherwise. Never fabricated. */}
           <div className="mt-5"><PlanRows rec={rec} /></div>
         </section>
+      </FadeIn>
+
+      {/* M4 — honest personalization lens (explanation only; never changes the
+          recommendation). Hidden for anonymous/demo users. Swing ideas carry a
+          medium typical hold, so the lens reads horizon='medium'. */}
+      <FadeIn delay={0.035}>
+        <PersonalizationLens
+          meta={{
+            isOption: false,
+            action,
+            confidenceLabel: rec.confidence_label,
+            tags: rec.tags ?? [],
+            horizon: 'medium',
+          } as RecMeta}
+        />
       </FadeIn>
 
       <FadeIn delay={0.04}>
