@@ -12,7 +12,7 @@
 // is not yet ported.
 
 import { useEffect, useState, type ReactNode, type ComponentType } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sun,
@@ -22,12 +22,14 @@ import {
   Compass,
   Sparkles,
   User,
+  LogOut,
   type LucideProps,
 } from 'lucide-react';
 import { getTerm } from '../data/arthosData';
 import { useTheme } from './ThemeContext';
 import { GlobalTicker } from './GlobalTicker';
 import { useCommandPalette } from './CommandPalette';
+import { useSession } from '../state/SessionContext';
 
 // Phase B visual-parity — nav item shape now carries an icon ref so
 // the new SideNav + restyled MobileBottomTab can render icon+label
@@ -66,6 +68,110 @@ function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' }) {
     >
       A
     </span>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
+// AccountTile (M2) — session-aware footer control in the SideNav.
+// Logged out → "Sign in" link. Logged in → email + log-out button.
+// ──────────────────────────────────────────────────────────────
+function AccountTile() {
+  const { user, authenticated, signOut } = useSession();
+  const navigate = useNavigate();
+
+  if (!authenticated || !user) {
+    return (
+      <Link
+        to="/v2/account"
+        className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md"
+        aria-label="Sign in"
+      >
+        <div
+          className="rounded-full flex items-center justify-center"
+          style={{
+            width: 32, height: 32,
+            backgroundColor: 'color-mix(in oklch, var(--brand) 15%, transparent)',
+            color: 'var(--brand)',
+          }}
+        >
+          <User className="w-4 h-4" strokeWidth={1.7} aria-hidden />
+        </div>
+        <div className="leading-tight">
+          <p className="font-semibold ink-primary" style={{ fontSize: 12.5 }}>Sign in</p>
+          <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>Save your portfolio</p>
+        </div>
+      </Link>
+    );
+  }
+
+  const label = user.email ?? user.display_name ?? 'You';
+  const initial = (label.trim()[0] ?? 'U').toUpperCase();
+  return (
+    <div className="flex items-center gap-1 min-w-0">
+      <Link
+        to="/v2/account"
+        className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md min-w-0"
+        aria-label="Your account"
+      >
+        <div
+          className="rounded-full font-serif italic flex items-center justify-center"
+          style={{
+            width: 32, height: 32, fontSize: 14,
+            backgroundColor: 'color-mix(in oklch, var(--brand) 15%, transparent)',
+            color: 'var(--brand)',
+            fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}
+        >
+          {initial}
+        </div>
+        <div className="leading-tight min-w-0">
+          <p className="font-semibold ink-primary truncate" style={{ fontSize: 12.5, maxWidth: 120 }}>
+            {label}
+          </p>
+          <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>Signed in</p>
+        </div>
+      </Link>
+      <button
+        onClick={async () => { await signOut(); navigate('/v2/discover'); }}
+        aria-label="Log out"
+        className="p-1.5 rounded-md transition-colors"
+        style={{ color: 'var(--muted-foreground)' }}
+      >
+        <LogOut className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+// AccountTopBarButton (M2) — compact account entry in the sticky TopBar so
+// mobile (no SideNav) users can reach sign in / their account.
+function AccountTopBarButton() {
+  const { user, authenticated } = useSession();
+  const label = authenticated && user ? (user.email ?? 'Account') : 'Sign in';
+  const initial = authenticated && user ? ((user.email ?? user.display_name ?? 'U').trim()[0] ?? 'U').toUpperCase() : null;
+  return (
+    <Link
+      to="/v2/account"
+      aria-label={authenticated ? 'Your account' : 'Sign in'}
+      className="inline-flex items-center gap-1.5 ink-muted hover:ink-primary transition-colors p-1.5"
+    >
+      {initial ? (
+        <span
+          className="rounded-full font-serif italic flex items-center justify-center"
+          style={{
+            width: 24, height: 24, fontSize: 12,
+            backgroundColor: 'color-mix(in oklch, var(--brand) 15%, transparent)',
+            color: 'var(--brand)',
+            fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}
+        >
+          {initial}
+        </span>
+      ) : (
+        <User className="w-4 h-4" strokeWidth={1.5} aria-hidden />
+      )}
+      <span className="hidden sm:inline font-medium" style={{ fontSize: 12 }}>{label}</span>
+    </Link>
   );
 }
 
@@ -250,37 +356,7 @@ export function SideNav() {
         className="px-3 py-4 flex items-center justify-between"
         style={{ borderTop: '1px solid var(--border)' }}
       >
-        <Link
-          to="/v2/me"
-          className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md"
-          aria-label="Your ArthOS"
-        >
-          <div
-            className="rounded-full font-serif italic flex items-center justify-center"
-            style={{
-              width: 32,
-              height: 32,
-              fontSize: 14,
-              backgroundColor:
-                'color-mix(in oklch, var(--brand) 15%, transparent)',
-              color: 'var(--brand)',
-              fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
-            }}
-          >
-            U
-          </div>
-          <div className="leading-tight">
-            <p
-              className="font-semibold ink-primary"
-              style={{ fontSize: 12.5 }}
-            >
-              You
-            </p>
-            <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>
-              Beginner track
-            </p>
-          </div>
-        </Link>
+        <AccountTile />
         <button
           onClick={toggle}
           aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
@@ -388,6 +464,7 @@ export function TopBar({
                 </span>
               </div>
             )}
+            <AccountTopBarButton />
             <button
               onClick={openPalette}
               aria-label="Search"

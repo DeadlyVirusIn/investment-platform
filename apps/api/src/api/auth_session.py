@@ -94,6 +94,16 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     return {"ok": True, "user": _safe_user(db, uid)}
 
 
+@router.get("/session")
+def session_status(request: Request, db: Session = Depends(get_session)) -> dict[str, Any]:
+    """Session-aware status for the UI: reads the arthos_session cookie and
+    reports whether the caller is authenticated (never the device header)."""
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    if not uid:
+        return {"authenticated": False, "user": None}
+    return {"authenticated": True, "user": _safe_user(db, uid)}
+
+
 @router.post("/logout")
 def logout(request: Request, response: Response, db: Session = Depends(get_session)) -> dict[str, Any]:
     ident.revoke_session(db, request.cookies.get(ident.SESSION_COOKIE))

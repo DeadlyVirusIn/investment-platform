@@ -11,6 +11,8 @@ import './styles/v2-tokens.css';
 import { ThemeProvider, useTheme } from './chrome/ThemeContext';
 import { UserPrefsProvider } from './state/UserPrefsContext';
 import { PaperBookProvider } from './state/PaperBook';
+import { SessionProvider } from './state/SessionContext';
+import { AccountPage } from './pages/AccountPage';
 import { CommandPaletteProvider } from './chrome/CommandPalette';
 import { Onboarding } from './chrome/Onboarding';
 
@@ -106,6 +108,8 @@ function V2Surface() {
         <Route path="watchlist" element={<Watchlist />} />
         <Route path="portfolio" element={<PaperBook />} />
         <Route path="track-record" element={<TrackRecord />} />
+        {/* M2 — minimal account surface (sign in / sign up / logout). */}
+        <Route path="account" element={<AccountPage />} />
         {/* Admin — read-only system observability. */}
         <Route path="admin/observability" element={<Observability />} />
         {/* Options — read-only V2-native options subsystem visibility. */}
@@ -123,13 +127,15 @@ export default function V2App() {
   return (
     <MotionConfig reducedMotion={skipMotion ? 'always' : 'never'}>
       <ThemeProvider>
-        <UserPrefsProvider>
-          <PaperBookProvider>
-            <CommandPaletteProvider>
-              <V2Surface />
-            </CommandPaletteProvider>
-          </PaperBookProvider>
-        </UserPrefsProvider>
+        <SessionProvider>
+          <UserPrefsProvider>
+            <PaperBookProvider>
+              <CommandPaletteProvider>
+                <V2Surface />
+              </CommandPaletteProvider>
+            </PaperBookProvider>
+          </UserPrefsProvider>
+        </SessionProvider>
       </ThemeProvider>
     </MotionConfig>
   );
