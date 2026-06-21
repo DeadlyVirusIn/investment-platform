@@ -84,8 +84,16 @@ Core paper-trading needs Tiingo (+ FRED for macro). Everything else degrades gra
 Read-only host check (2026-06-21): host is `ptcgp-server` (correct VM, shared with
 the PTCGPB bot) but **not yet prepared** for the dockerized deploy:
 - Docker / docker-compose: **NOT installed** (the bot runs via systemd/venv).
+- **git: NOT installed** either (M6C) — so the repo clone cannot run on the host yet.
 - `~/investment-platform` repo: **absent**. Prod `.env`: **absent**.
 - Ports 80/443: free. Disk: ~17 GB free (46% used). No invest containers/volumes.
+
+**M6C progress (bot-safe only, per operator choice — no daemon/network change):**
+created `~/investment-platform/` + `~/investment-platform/.backups/` (bot +
+cloudflared confirmed active before and after). Still required on the host:
+install `git` + Docker + compose plugin; the repo is **private**
+(`DeadlyVirusIn/investment-platform`) so the clone needs a VM deploy token or
+read-only SSH deploy key.
 
 **Exact host prep commands** (run on the VM as `opc`; none were performed by this audit):
 1. Install Docker + compose plugin (Oracle Linux): `sudo dnf install -y docker-ce docker-compose-plugin && sudo systemctl enable --now docker && sudo usermod -aG docker opc` (then re-login).
