@@ -150,6 +150,54 @@ def revoke_session(db: Session, token: str | None) -> None:
 
 
 # --------------------------------------------------------------------------
+# Login rate-limit / lockout (M1B brute-force protection)
+# --------------------------------------------------------------------------
+def record_login_attempt(db: Session, *, email: str, ip: str | None, succeeded: bool) -> None:
+    db.execute(
+        text("INSERT INTO login_attempt (email, ip, succeeded) VALUES (:e, :ip, :s)"),
+        {"e": _norm_email(email), "ip": ip or "", "s": succeeded},
+    )
+
+
+def login_locked(
+    db: Session, *, email: str, ip: str | None,
+    max_attempts: int, window_seconds: int, lockout_seconds: int,
+) -> bool:
+    """True if (email OR non-empty ip) accumulated >= max_attempts FAILED logins
+    within window_seconds AND the most recent failure is within lockout_seconds.
+    Caller treats locked the same as a bad password (generic error)."""
+    em = _norm_email(email)
+    ipv = ip or ""
+    row = db.execute(
+        text(
+            """
+            SELECT count(*) AS n, max(created_at) AS last
+            FROM login_attempt
+            WHERE succeeded = false
+              AND created_at > now() - make_interval(secs => :win)
+              AND (email = :e OR (ip = :ip AND :ip <> ''))
+            """
+        ),
+        {"win": float(window_seconds), "e": em, "ip": ipv},
+    ).mappings().first()
+    if not row or (row["n"] or 0) < max_attempts or row["last"] is None:
+        return False
+    locked = db.execute(
+        text("SELECT (:last > now() - make_interval(secs => :lock)) AS locked"),
+        {"last": row["last"], "lock": float(lockout_seconds)},
+    ).scalar()
+    return bool(locked)
+
+
+def clear_login_failures(db: Session, *, email: str) -> None:
+    """Reset the email's failed-attempt counter after a successful login."""
+    db.execute(
+        text("DELETE FROM login_attempt WHERE email = :e AND succeeded = false"),
+        {"e": _norm_email(email)},
+    )
+
+
+# --------------------------------------------------------------------------
 # Identity resolution
 # --------------------------------------------------------------------------
 def _demo_mode() -> bool:

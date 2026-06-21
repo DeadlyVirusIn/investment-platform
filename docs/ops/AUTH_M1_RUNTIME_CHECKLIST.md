@@ -67,6 +67,38 @@ curl -s -H "X-Auth-User-Id: 305fcf0b-bc89-4d9d-ba47-b6de6810dfd6" \
 
 This works **only** when `DEMO_DEVICE_MODE=True` (or `AUTH_DISABLED_LOCAL=True`). With both False the same call returns the shared demo book, not bc207e65 (the header is ignored).
 
+## M1B — login rate-limit / lockout
+
+Brute-force protection on `POST /api/login`, DB-backed (`login_attempt` table, migration `105_login_attempt`).
+
+**Config (settings, safe dev defaults):**
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `AUTH_LOGIN_MAX_ATTEMPTS` | 5 | Failed attempts (by email OR IP) before lockout. |
+| `AUTH_LOGIN_WINDOW_SECONDS` | 900 | Counting window for failures. |
+| `AUTH_LOGIN_LOCKOUT_SECONDS` | 900 | Lockout duration measured from the last failure. |
+
+**Expected lockout behavior:** after `MAX` failed logins for an email (or IP) within `WINDOW`, further attempts are rejected for `LOCKOUT` seconds. A successful login clears that email's failure counter; failures also age out of the window automatically.
+
+**Generic error requirement:** a locked-out attempt returns the **same** `401 "invalid email or password"` as a bad password or unknown email — lockout state and account existence are never disclosed.
+
+**Production env values (unchanged from M1/M1A):** `AUTH_DISABLED_LOCAL=False`, `DEMO_DEVICE_MODE=False`, `SESSION_COOKIE_SECURE=True` (behind HTTPS).
+
+**Verification (curl, prod config):**
+```sh
+# N=AUTH_LOGIN_MAX_ATTEMPTS bad passwords, then one more -> all 401 generic;
+# the post-limit attempt is rejected BEFORE password check (locked).
+for i in $(seq 1 6); do
+  curl -s -o /dev/null -w '%{http_code}\n' -X POST $B/api/login \
+    -H 'Content-Type: application/json' -d '{"email":"a@x.com","password":"wrong"}'
+done   # -> 401 x6, identical body
+# Correct password while locked -> still 401 (locked). After LOCKOUT expiry
+# (or a successful prior reset) -> 200.
+```
+
+Note: client IP is taken from `request.client.host`. Behind a reverse proxy, ensure the proxy sets a trusted forwarded-for and the app reads it before public beta (M1B uses the direct peer IP).
+
 ## Reminder
 
 `X-Auth-User-Id` is a **dev/demo convenience header only**. In production it must never authenticate a user. The only real identity is the `arthos_session` cookie backed by `user_session`. Keep `DEMO_DEVICE_MODE` and `AUTH_DISABLED_LOCAL` False in every public environment.

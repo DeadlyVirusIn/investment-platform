@@ -142,6 +142,20 @@ lint:
 test:
 	pytest --tb=short -q
 
+.PHONY: test-auth
+## M1/M1B auth coverage — build the test image (INSTALL_TEST_DEPS=true brings in
+## pytest) and run the auth + isolation suite against the ISOLATED test DB.
+## Run before merging ANY public-auth change so M1/M1A/M1B coverage can't be
+## skipped accidentally. Requires the dev `db` service + investment_platform_test.
+test-auth:
+	docker build -f infra/docker/api.Dockerfile --build-arg INSTALL_TEST_DEPS=true -t arthos-api-test .
+	docker run --rm --network compose_backend \
+	  -e TEST_DATABASE_URL=postgresql+psycopg://invest:dev_only_password@db:5432/investment_platform_test \
+	  -e INTEGRATION_DB_ALLOW_UNSAFE=1 arthos-api-test \
+	  python -m pytest apps/api/tests/integration/test_accounts_m1_pg.py \
+	    apps/api/tests/integration/test_login_rate_limit_pg.py \
+	    apps/api/tests/integration/test_paper_user_portfolio_pg.py --no-header -q
+
 ## Start Vite dev server (frontend only — backend must already be up)
 web-dev:
 	cd apps/web && npm run dev

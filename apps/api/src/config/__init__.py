@@ -652,6 +652,12 @@ class Settings(BaseSettings):
     DEMO_DEVICE_MODE: bool = False
     # Session cookie Secure flag. False for local HTTP dev; True in prod (HTTPS).
     SESSION_COOKIE_SECURE: bool = False
+    # M1B login rate-limit / lockout (brute-force protection on POST /api/login).
+    # After MAX failed attempts (by email or IP) within WINDOW seconds, further
+    # attempts are rejected with the SAME generic error for LOCKOUT seconds.
+    AUTH_LOGIN_MAX_ATTEMPTS: int = 5
+    AUTH_LOGIN_WINDOW_SECONDS: int = 900
+    AUTH_LOGIN_LOCKOUT_SECONDS: int = 900
     # When True, expired/past_due/canceled subscriptions still grant
     # the prior tier for `RESEARCH_GRACE_HOURS` hours after the
     # period end. Disabled by default — strict downgrade.

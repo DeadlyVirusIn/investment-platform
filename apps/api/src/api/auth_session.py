@@ -72,10 +72,22 @@ def signup(body: SignupBody, response: Response, db: Session = Depends(get_sessi
 
 
 @router.post("/login")
-def login(body: LoginBody, response: Response, db: Session = Depends(get_session)) -> dict[str, Any]:
+def login(body: LoginBody, request: Request, response: Response, db: Session = Depends(get_session)) -> dict[str, Any]:
+    ip = request.client.host if request.client else ""
+    if ident.login_locked(
+        db, email=body.email, ip=ip,
+        max_attempts=settings.AUTH_LOGIN_MAX_ATTEMPTS,
+        window_seconds=settings.AUTH_LOGIN_WINDOW_SECONDS,
+        lockout_seconds=settings.AUTH_LOGIN_LOCKOUT_SECONDS,
+    ):
+        # Locked out → SAME generic error as a bad password (no lockout/enum disclosure).
+        raise HTTPException(status_code=401, detail="invalid email or password")
     uid = ident.authenticate_user(db, email=body.email, password=body.password)
     if not uid:
+        ident.record_login_attempt(db, email=body.email, ip=ip, succeeded=False)
+        db.commit()
         raise HTTPException(status_code=401, detail="invalid email or password")
+    ident.clear_login_failures(db, email=body.email)  # reset on success
     token = ident.create_session(db, uid)
     db.commit()
     _set_session_cookie(response, token)
