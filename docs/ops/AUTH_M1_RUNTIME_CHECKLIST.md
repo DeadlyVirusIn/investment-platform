@@ -1,0 +1,72 @@
+# Auth M1 — Runtime / Production Checklist
+
+**Scope:** operating the M1 account/session auth (commit `2122a48` + M1A hardening). Read before any public/Oracle deploy.
+
+## Required production config
+
+| Setting | Prod value | Why |
+|---|---|---|
+| `AUTH_DISABLED_LOCAL` | **False** | True falls back to a synthetic dev user + honors the device header — never in prod. |
+| `DEMO_DEVICE_MODE` | **False** | True honors the `X-Auth-User-Id` device header as identity — demo/dev only. |
+| `SESSION_COOKIE_SECURE` | **True** (behind HTTPS) | Marks the `arthos_session` cookie Secure so it is never sent over plain HTTP. |
+
+**Hard rule:** with both demo flags False, `X-Auth-User-Id` **must never authenticate a public user.** Identity comes only from a valid `arthos_session` cookie; a spoofed header resolves to anonymous (shared demo book for reads, 401 for writes), never a targeted user's private book.
+
+## Required verification before public beta
+
+1. Confirm the three settings above on the running API.
+2. Run the spoof-block curl checklist (below) against the prod-config API — all must pass.
+3. Confirm `SESSION_COOKIE_SECURE=True` and that login sets a `Secure; HttpOnly; SameSite=Lax` cookie.
+4. Add rate-limiting / lockout on `/api/login` (M1A leaves this open — required before public exposure).
+5. Confirm the demo device path is **off** (DEMO_DEVICE_MODE=False) in prod; demo verification is dev-only.
+
+## Curl checklist — core session flow (AUTH_DISABLED_LOCAL=False, DEMO_DEVICE_MODE=False)
+
+```sh
+B=https://<host>; JA=jarA; JB=jarB
+# signup A -> 200 + Set-Cookie arthos_session; body has user (no hash)
+curl -s -c $JA -X POST $B/api/signup -H 'Content-Type: application/json' \
+  -d '{"email":"a@x.com","password":"password123"}'
+# A's own book
+curl -s -b $JA $B/api/paper/canonical/stock      # portfolio_id = A's user:<id>:stock
+# logout revokes session + clears cookie
+curl -s -b $JA -c $JA -X POST $B/api/logout
+# login A again -> SAME book (persists)
+curl -s -c $JA -X POST $B/api/login -H 'Content-Type: application/json' \
+  -d '{"email":"a@x.com","password":"password123"}'
+curl -s -b $JA $B/api/paper/canonical/stock      # same portfolio_id as before
+# bad password -> 401 generic ("invalid email or password")
+curl -s -o /dev/null -w '%{http_code}' -X POST $B/api/login \
+  -H 'Content-Type: application/json' -d '{"email":"a@x.com","password":"wrong"}'
+```
+
+## Spoofed-header negative test (MUST fail to authenticate)
+
+With `DEMO_DEVICE_MODE=False` + `AUTH_DISABLED_LOCAL=False`:
+
+```sh
+# Spoof A's id in the device header, NO session cookie:
+curl -s -H "X-Auth-User-Id: <A-user-id>" $B/api/paper/canonical/stock
+#   -> shared demo book (CANONICAL_STOCK_PORTFOLIO_ID), NEVER A's private book.
+# Unauthenticated write -> 401 (no session, header ignored):
+curl -s -o /dev/null -w '%{http_code}' -H "X-Auth-User-Id: <A-user-id>" \
+  -X POST $B/api/portfolios/<slug>/follow -H 'Content-Type: application/json' -d '{}'
+#   -> 401 (require_user_id rejects: no resolved identity).
+# User B's cookie cannot read/mutate A's book (B resolves to B's own portfolio_id only).
+```
+
+## Demo-mode-only verification (dev/demo: DEMO_DEVICE_MODE=True)
+
+The seeded demo device must still resolve to the seeded book:
+
+```sh
+# device 305fcf0b-... -> book bc207e65-... ; NAV ~$105,211 ; realized ~+$5,952 ; 30 open
+curl -s -H "X-Auth-User-Id: 305fcf0b-bc89-4d9d-ba47-b6de6810dfd6" \
+  $B/api/paper/canonical/stock
+```
+
+This works **only** when `DEMO_DEVICE_MODE=True` (or `AUTH_DISABLED_LOCAL=True`). With both False the same call returns the shared demo book, not bc207e65 (the header is ignored).
+
+## Reminder
+
+`X-Auth-User-Id` is a **dev/demo convenience header only**. In production it must never authenticate a user. The only real identity is the `arthos_session` cookie backed by `user_session`. Keep `DEMO_DEVICE_MODE` and `AUTH_DISABLED_LOCAL` False in every public environment.

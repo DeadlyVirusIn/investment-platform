@@ -15,6 +15,14 @@ COPY infra/alembic/ infra/alembic/
 # Install production dependencies with uv (no dev extras)
 RUN uv pip install --system --no-cache .
 
+# Test deps for CI / test images ONLY. Default false -> the production runtime
+# image never includes pytest. Build the test image with
+# `--build-arg INSTALL_TEST_DEPS=true` to run the integration suite reliably.
+ARG INSTALL_TEST_DEPS=false
+RUN if [ "$INSTALL_TEST_DEPS" = "true" ]; then \
+        uv pip install --system --no-cache pytest pytest-asyncio; \
+    fi
+
 # P0-4 — build provenance (after the dep layer: cache-safe).
 # Supplied by compose build args / Makefile; defaults flag as unknown_sha.
 ARG GIT_SHA=unknown
