@@ -79,4 +79,30 @@ describe('computeLens', () => {
   it('always states it did not change the recommendation', () => {
     expect(computeLens(base, stockMeta).limitations).toMatch(/has not changed this recommendation/i);
   });
+
+  // M4A — options coverage
+  it('options idea always includes limitations (explanation-only)', () => {
+    expect(computeLens(base, optionMeta).limitations).toMatch(/has not changed this recommendation/i);
+  });
+
+  it('does not mutate OPTION metadata', () => {
+    const meta: RecMeta = { isOption: true, action: null, confidenceLabel: 'Medium', tags: [], horizon: 'short' };
+    const snap = JSON.stringify(meta);
+    computeLens({ ...base, options_experience: 'none' }, meta);
+    expect(JSON.stringify(meta)).toBe(snap);
+  });
+
+  it('low/no options experience on an option idea → Caution label + options caution reason', () => {
+    for (const oe of ['none', 'learning'] as const) {
+      const r = computeLens({ ...base, options_experience: oe }, optionMeta);
+      expect(r.fit_label).toBe('Caution');
+      expect(r.caution_reasons.some((c) => /options/i.test(c))).toBe(true);
+    }
+  });
+
+  it('stock lens is unaffected by the options rules (regression)', () => {
+    const r = computeLens(base, stockMeta);
+    expect(r.caution_reasons.some((c) => /options/i.test(c))).toBe(false);
+    expect(r.fit_label).toBe('Strong fit');
+  });
 });
