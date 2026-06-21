@@ -22,6 +22,15 @@ REQUIRED_TABLES = (
 )
 
 
+def parse_cors_origins(raw: str | None) -> list[str]:
+    """Comma-separated origins -> trimmed list (empties dropped)."""
+    return [o.strip() for o in (raw or "").split(",") if o.strip()]
+
+
+def _is_localhost(o: str) -> bool:
+    return "localhost" in o or "127.0.0.1" in o
+
+
 @dataclass(frozen=True)
 class Issue:
     level: str   # "error" | "warn"
@@ -51,13 +60,24 @@ def evaluate_config(
     if not session_cookie_secure:
         issues.append(Issue(lvl, "SESSION_COOKIE_SECURE", "must be True behind HTTPS in production"))
 
+    # Wildcard '*' is invalid with allow_credentials=True (browsers reject it) —
+    # always an error.
+    if "*" in cors_origins:
+        issues.append(Issue("error", "CORS", "wildcard '*' is invalid with allow_credentials=True"))
     if prod:
-        if not cors_origins:
+        non_wild = [o for o in cors_origins if o != "*"]
+        if not non_wild:
             issues.append(Issue("error", "CORS", "no allowed origins configured"))
         else:
-            local = [o for o in cors_origins if "localhost" in o or "127.0.0.1" in o]
-            if local:
-                issues.append(Issue("warn", "CORS", f"localhost origins present (replace with the prod origin): {local}"))
+            local = [o for o in non_wild if _is_localhost(o)]
+            non_local = [o for o in non_wild if not _is_localhost(o)]
+            if local and not non_local:
+                issues.append(Issue("error", "CORS", f"localhost-only origins in prod (set the SPA domain): {local}"))
+            elif local:
+                issues.append(Issue("warn", "CORS", f"localhost origins present (remove for prod): {local}"))
+            malformed = [o for o in non_local if not (o.startswith("http://") or o.startswith("https://"))]
+            if malformed:
+                issues.append(Issue("warn", "CORS", f"origins are not http(s) URLs: {malformed}"))
 
     for k in REQUIRED_PROD_ENV:
         if not env.get(k):

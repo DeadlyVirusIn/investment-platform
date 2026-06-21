@@ -668,6 +668,11 @@ class Settings(BaseSettings):
     # M1C login_attempt retention (days) for the prune job. Must exceed the
     # window+lockout horizon; the prune helper also enforces a hard min-keep.
     AUTH_LOGIN_ATTEMPT_RETENTION_DAYS: int = 7
+    # M6A — CORS allowed origins (comma-separated). Dev default preserves the
+    # Vite origin. In prod, set the SPA domain(s); never use '*' with credentials
+    # (the auth cookie flow requires allow_credentials=True). The deploy preflight
+    # rejects '*' and localhost-only origins in prod.
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:5173"
     # When True, expired/past_due/canceled subscriptions still grant
     # the prior tier for `RESEARCH_GRACE_HOURS` hours after the
     # period end. Disabled by default — strict downgrade.

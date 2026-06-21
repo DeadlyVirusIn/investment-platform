@@ -34,7 +34,7 @@ Placeholders are documented in `.env.example` (M6 section). Never commit real se
 
 ## Known pre-deploy blockers (must fix before public traffic)
 
-1. **CORS is hardcoded** to `http://localhost:5173` (`apps/api/src/main.py:185-191`). For prod the allowed origin must become the SPA domain (make it env-driven from `CORS_ALLOWED_ORIGINS`). The prod preflight flags a localhost origin. **Deferred to the deploy sprint (app-behavior change + needs a rebuild/test); not changed in this audit.**
+1. ~~CORS is hardcoded to localhost.~~ **RESOLVED (M6A):** CORS is now env-driven via `CORS_ALLOWED_ORIGINS` (comma-separated; `apps/api/src/main.py`). Dev default `http://localhost:5173`; in prod set the SPA domain (the origin Caddy/Cloudflare serves from), e.g. `CORS_ALLOWED_ORIGINS=https://app.your-domain.example`. **Never `*`** — `allow_credentials=True` for the auth cookie, and the prod preflight errors on `*` and on localhost-only origins.
 2. **`SESSION_COOKIE_SECURE` absent from `.env`** → defaults false. Add `=true` in prod.
 3. **`AUTH_DISABLED_LOCAL=true`** in the dev `.env` — must be false in prod.
 4. **Rotate the Finnhub key** (prior value was exposed) and any other key before prod; the dev `FERNET_KEY`/DB password must not be reused.

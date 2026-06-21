@@ -182,9 +182,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# M6A — CORS origins are env-driven (CORS_ALLOWED_ORIGINS, comma-separated).
+# Dev default = http://localhost:5173. allow_credentials stays True for the auth
+# cookie flow; never use '*' here (the deploy preflight rejects it).
+from apps.api.src.api.preflight import parse_cors_origins  # noqa: E402
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=parse_cors_origins(settings.CORS_ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

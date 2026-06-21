@@ -30,16 +30,16 @@ from apps.api.src.api.preflight import (
     config_ok,
     evaluate_config,
     migration_version,
+    parse_cors_origins,
 )
 from apps.api.src.config import settings
 from apps.api.src.db import SessionLocal
 
 
 def _cors_origins() -> list[str]:
-    raw = os.environ.get("CORS_ALLOWED_ORIGINS", "").strip()
-    if raw:
-        return [o.strip() for o in raw.split(",") if o.strip()]
-    return ["http://localhost:5173"]  # current hardcoded default in main.py
+    # Env-driven via settings (pydantic reads CORS_ALLOWED_ORIGINS from env);
+    # dev default is http://localhost:5173.
+    return parse_cors_origins(settings.CORS_ALLOWED_ORIGINS)
 
 
 def main() -> None:
