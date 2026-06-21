@@ -79,6 +79,31 @@ Core paper-trading needs Tiingo (+ FRED for macro). Everything else degrades gra
 - App: redeploy the previous image tag (images are provenance-stamped with `GIT_SHA`); compose `up -d` the prior tag.
 - Flags: any unsafe behavior can be reverted by env (`AUTH_DISABLED_LOCAL`/`DEMO_DEVICE_MODE`/`OPTIONS_ENABLED`) + restart — no code change needed.
 
+## Host preparation status (M6B — Oracle VM 150.136.38.189)
+
+Read-only host check (2026-06-21): host is `ptcgp-server` (correct VM, shared with
+the PTCGPB bot) but **not yet prepared** for the dockerized deploy:
+- Docker / docker-compose: **NOT installed** (the bot runs via systemd/venv).
+- `~/investment-platform` repo: **absent**. Prod `.env`: **absent**.
+- Ports 80/443: free. Disk: ~17 GB free (46% used). No invest containers/volumes.
+
+**Exact host prep commands** (run on the VM as `opc`; none were performed by this audit):
+1. Install Docker + compose plugin (Oracle Linux): `sudo dnf install -y docker-ce docker-compose-plugin && sudo systemctl enable --now docker && sudo usermod -aG docker opc` (then re-login).
+2. Clone + pin: `git clone <repo> ~/investment-platform && cd ~/investment-platform && git checkout <release-sha>`.
+3. Create prod `.env` from `docs/ops/PROD_ENV_TEMPLATE.md` (host-only, `chmod 600`); fill rotated secrets.
+4. HTTPS: add a Caddy domain block OR front with Cloudflare (see blocker 7).
+5. Build the web static image + populate the `web_dist` volume (`docker build -f infra/docker/web.Dockerfile -t invest-web .`).
+6. `mkdir -p ~/investment-platform/.backups`.
+7. Backup-then-migrate: `make db-backup` → `docker compose --env-file .env -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.prod.yml run --rm api alembic -c infra/alembic/alembic.ini upgrade head` (→ head `107`).
+8. `make public-beta-preflight-prod` → must be OK / exit 0.
+9. Up: `docker compose --env-file .env -f infra/compose/docker-compose.yml -f infra/compose/docker-compose.prod.yml up -d`.
+
+## Newly-confirmed blockers (M6B)
+
+7. **Caddy `:80` only** (`infra/caddy/Caddyfile`) — no domain/HTTPS block, despite the prod-compose TODO claiming "Caddyfile already configured for HTTPS" (stale). Add a `your-domain { … }` block for Caddy ACME auto-HTTPS, **or** terminate TLS at Cloudflare (Caddy stays `:80` behind it). Required for `SESSION_COOKIE_SECURE=true`.
+8. **Prod overlay worker name drift:** `docker-compose.prod.yml` overrides a service named `worker`, but the base compose defines `worker-tickloop` + `worker-cron`. The `restart: always` / supercronic daily-loop wiring won't apply to a non-matching name — reconcile the overlay to the real worker service names before deploy so the 03:30-ET cron loop runs.
+9. **Docker absent on the host** — install before any deploy (host-prep step 1).
+
 ## Post-deploy smoke checklist
 
 1. `GET /api/health` → 200; `GET /api/scheduler/health` → schedules present.
