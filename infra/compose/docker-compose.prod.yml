@@ -39,6 +39,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      # Tunnel origin — loopback only. Cloudflare Tunnel (cloudflared-arthos)
+      # connects to 127.0.0.1:8081 -> Caddy ":8081" plain-HTTP site. Not public.
+      - "127.0.0.1:8081:8081"
       # HTTP/3 (443/udp) publish removed: dual TCP+UDP publish on the same port
       # with Docker's userland-proxy caused external TCP-443 SYNs to be RST while
       # 80 worked. TCP-only matches 80; HTTP/2 over TCP is unaffected.

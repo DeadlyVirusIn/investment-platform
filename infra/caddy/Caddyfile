@@ -34,3 +34,25 @@
         -Server
     }
 }
+
+# Tunnel origin — Cloudflare Tunnel (arthos-tunnel) connects here over plain HTTP.
+# Bare ":8081" = HTTP only, NO auto-HTTPS and NO http->https redirect (Cloudflare
+# terminates TLS at the edge; an internal redirect would loop). Published to the
+# host loopback only (127.0.0.1:8081) in docker-compose.prod.yml.
+:8081 {
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+    encode gzip zstd
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+}
