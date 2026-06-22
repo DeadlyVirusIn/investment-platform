@@ -11,6 +11,7 @@ COPY apps/ apps/
 COPY scripts/ scripts/
 COPY packages/ packages/
 COPY infra/alembic/ infra/alembic/
+COPY config/ config/
 
 # Install production dependencies with uv (no dev extras)
 RUN uv pip install --system --no-cache .
