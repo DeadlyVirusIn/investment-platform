@@ -22,6 +22,7 @@ import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
+import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
 import { PlanRows } from '../components/PlanRows';
 import { ContinuePathCard } from '../components/ContinuePathCard';
 import { ProgressSpine } from '../components/ProgressSpine';
@@ -259,34 +260,52 @@ function DiscoverTabs({
   );
 }
 
-function fresh(rec: RecApi): boolean {
-  if (rec.stale_data) return false;
-  if (!rec.generated_at) return true;
-  const h = (Date.now() - new Date(rec.generated_at).getTime()) / 3600_000;
-  return !(Number.isFinite(h) && h > 30);
+// Colored action pill — keeps the call (Buy / Hold / Trim…) unmistakable.
+function ActionPill({ action }: { action: string }) {
+  const a = action.toLowerCase();
+  const tone =
+    a === 'buy' ? 'var(--brand)'
+      : a === 'trim' || a === 'sell' || a === 'avoid' ? 'oklch(0.58 0.15 28)'
+        : 'var(--muted-foreground)';
+  return (
+    <span className="inline-flex items-center rounded-full font-semibold uppercase shrink-0"
+      style={{
+        fontSize: 11, letterSpacing: '0.05em', padding: '3px 11px', lineHeight: 1.3,
+        color: tone,
+        backgroundColor: `color-mix(in oklch, ${tone} 13%, transparent)`,
+        border: `1px solid color-mix(in oklch, ${tone} 28%, transparent)`,
+      }}>
+      {action}
+    </span>
+  );
 }
 
 function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
   const action = effectiveAction(rec) ?? 'Hold';
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
-      <div className="flex items-baseline gap-3 flex-wrap mb-1">
-        <CompanyTitle symbol={rec.symbol} name={rec.name}
-          className="ink-primary" style={{ fontSize: 15 }} />
-        <span className="ink-muted" style={{ fontSize: 13 }}>{action}</span>
+      {/* Identity — ticker badge top-left + the action call; company name on its
+          own line below so the symbol is unmistakable (not buried in parens). */}
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <TickerBadge symbol={rec.symbol} size={featured ? 'lg' : 'md'} />
+        <ActionPill action={action} />
       </div>
-      <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
+      <Link to={`/v2/today/pick/${rec.symbol}`} className="block">
+        <CompanyTitle symbol={rec.symbol} name={rec.name} showTickerWhenNamed={false}
+          className="ink-primary font-display"
+          style={{ fontSize: featured ? 18 : 15.5, lineHeight: 1.25 }} />
+      </Link>
+      <div className="flex items-center gap-2 mt-2 mb-2.5 flex-wrap">
         {sectorLabel(rec.sector) && <SmallChip>{sectorLabel(rec.sector)}</SmallChip>}
         <SmallChip>{(rec.confidence_label ?? 'Medium').toLowerCase()} confidence</SmallChip>
-        <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'updated today' : 'older'}</SmallChip>
       </div>
       {plainThesis(rec.thesis) && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{plainThesis(rec.thesis)}</p>
       )}
-      {/* Plan — full Entry/Target/Exit/Timeframe on the FEATURED hero only; the
-          also-worth list stays scannable (full plan is one tap away on the idea
-          detail). Compression: keeps content, cuts height. */}
-      {featured && <div className="mt-3"><PlanRows rec={rec} compact /></div>}
+      {/* Pricing — Last close / Entry / Target / Exit-if-wrong on every stock
+          idea card (featured shows it full, the list compact). */}
+      <div className="mt-3"><PlanRows rec={rec} compact={!featured} /></div>
+      <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-3" />
       <div className="flex items-center gap-4 mt-4">
         <Link to={`/v2/today/pick/${rec.symbol}`}
           style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>

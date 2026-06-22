@@ -26,6 +26,19 @@ export function PlanRows({
   return (
     <div>
       <ul className="space-y-0">
+        {plan.lastClose && (
+          <li
+            className="grid grid-cols-[88px_1fr] gap-3 items-baseline py-2"
+            style={{ borderTop: '1px solid var(--border)' }}>
+            <span className="font-semibold uppercase"
+              style={{ fontSize: labelSize, letterSpacing: '0.08em', color: 'var(--muted-foreground)' }}>
+              Last close
+            </span>
+            <span className="ink-primary tabular-nums" style={{ fontSize: valueSize, lineHeight: 1.5 }}>
+              {plan.lastClose}
+            </span>
+          </li>
+        )}
         {ROWS.map(({ key, label }) => (
           <li key={key}
             className="grid grid-cols-[88px_1fr] gap-3 items-baseline py-2"

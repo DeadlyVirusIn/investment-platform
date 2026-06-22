@@ -13,6 +13,7 @@ import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { plainThesis, ideaSignals } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
+import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
 import { PlanRows } from '../components/PlanRows';
 import { BothSidesCard } from '../components/BothSidesCard';
 import { RecommendationTrace } from '../components/RecommendationTrace';
@@ -181,8 +182,17 @@ export function PickPage() {
 
       <FadeIn>
         <div className="mb-10">
-          <div className="flex items-center justify-between gap-4 mb-2">
-            <div className="font-mono text-meta ink-fainter">{rec.symbol}</div>
+          <div className="flex items-center justify-between gap-4 mb-3">
+            {/* Ticker as a clear standalone badge + the action call — the symbol
+                leads, not buried inside the company-name parentheses. */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <TickerBadge symbol={rec.symbol} size="lg" />
+              <span className="font-semibold uppercase shrink-0"
+                style={{ fontSize: 12, letterSpacing: '0.05em',
+                  color: action.toLowerCase() === 'buy' ? 'var(--brand)' : 'var(--muted-foreground)' }}>
+                {action}
+              </span>
+            </div>
             <button
               onClick={() => rec.symbol && toggleWatchlist(rec.symbol)}
               className={`text-meta inline-flex items-center gap-1.5 transition-colors ${
@@ -194,9 +204,7 @@ export function PickPage() {
             </button>
           </div>
           <h1 className="font-serif text-headline ink-primary mb-3">
-            <CompanyTitle symbol={rec.symbol} name={rec.name}
-              tickerClassName="font-mono ink-muted" tickerStyle={{ fontSize: '0.6em' }} />
-            {' — '}{action}
+            <CompanyTitle symbol={rec.symbol} name={rec.name} showTickerWhenNamed={false} />
           </h1>
           <div className="text-meta ink-muted tabular-nums">
             {sec && <>{sec}{' · '}</>}
@@ -206,6 +214,7 @@ export function PickPage() {
               {fresh ? 'updated today' : 'needs a refresh'}
             </span>
           </div>
+          <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-2" />
           {/* Phase 4 — beginner-safe explanation of what "confidence" means. */}
           <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
             Confidence means how strongly Arth’s model supports this idea based on

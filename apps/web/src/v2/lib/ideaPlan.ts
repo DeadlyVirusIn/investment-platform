@@ -27,6 +27,8 @@ export interface IdeaPlan {
   target: string;
   exit: string;       // "Exit if wrong"
   timeframe: string;
+  /** Last close used as the planning anchor, e.g. "$271.22" (null when unknown). */
+  lastClose: string | null;
   /** true = computed paper-planning estimate; false = honest placeholder */
   estimate: boolean;
 }
@@ -40,6 +42,7 @@ const PLACEHOLDER: IdeaPlan = {
   target: 'No fixed target yet — track in paper first.',
   exit: 'Exit paper trade if the thesis weakens or price breaks below recent support.',
   timeframe: TIMEFRAME,
+  lastClose: null,
   estimate: false,
 };
 
@@ -86,6 +89,7 @@ export function ideaPlan(rec: RecApi): IdeaPlan {
     target: `${money(target)} (paper planning estimate).`,
     exit: exitLine,
     timeframe: TIMEFRAME,
+    lastClose: money(price),
     estimate: true,
   };
 }
