@@ -31,6 +31,11 @@ services:
   caddy:
     image: caddy:2-alpine
     restart: always
+    # Site address for the Caddyfile. Set ARTHOS_DOMAIN in the host .env to your
+    # real domain (Option A: Caddy ACME HTTPS) or ":80" (Option B: behind
+    # Cloudflare TLS). Defaults to ":80" so Caddy never fails on an unset var.
+    environment:
+      ARTHOS_DOMAIN: ${ARTHOS_DOMAIN:-:80}
     ports:
       - "80:80"
       - "443:443"

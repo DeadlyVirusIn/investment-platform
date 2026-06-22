@@ -108,7 +108,7 @@ read-only SSH deploy key.
 
 ## Newly-confirmed blockers (M6B)
 
-7. **Caddy `:80` only** (`infra/caddy/Caddyfile`) — no domain/HTTPS block, despite the prod-compose TODO claiming "Caddyfile already configured for HTTPS" (stale). Add a `your-domain { … }` block for Caddy ACME auto-HTTPS, **or** terminate TLS at Cloudflare (Caddy stays `:80` behind it). Required for `SESSION_COOKIE_SECURE=true`.
+7. ~~Caddy `:80` only / no HTTPS block.~~ **RESOLVED (M6F):** the Caddyfile site address is now env-driven — `{$ARTHOS_DOMAIN::80}` — and the caddy service reads `ARTHOS_DOMAIN` from the host `.env`. Set `ARTHOS_DOMAIN=arthos.your-domain.com` for **Option A** (Caddy ACME auto-HTTPS on :443 — requires the domain's DNS A-record already pointing at the VM IP `150.136.38.189` before ACME can issue), or leave it `:80` for **Option B** (behind Cloudflare TLS + `AUTH_TRUST_PROXY_HEADERS=true` + CF CIDRs). Secure-cookie (`SESSION_COOKIE_SECURE=true`) verification happens over the live HTTPS origin at launch smoke.
 8. ~~Prod overlay worker name drift.~~ **RESOLVED (M6C):** `docker-compose.prod.yml` now overrides `worker-tickloop` + `worker-cron` (both `restart: always`) — the real base-compose service names; the orphan `worker:` is gone. Verified with `docker compose -f base -f prod config` (parses; both workers present; no orphan).
 
    **Worker roles + verification:**
