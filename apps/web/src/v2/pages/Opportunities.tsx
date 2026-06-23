@@ -24,6 +24,7 @@ import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
 import { ProofPulse } from '../components/ProofPulse';
+import { ReviewerProof } from '../components/ReviewerProof';
 import { PlanRows } from '../components/PlanRows';
 import { ContinuePathCard } from '../components/ContinuePathCard';
 import { ProgressSpine } from '../components/ProgressSpine';
@@ -103,8 +104,10 @@ export function Opportunities() {
               <Section number="01" title="Today's top idea">
                 {hero && <RecCard rec={hero} featured />}
               </Section>
-              {/* Proof & Pulse — honest paper record + 1-tap beta feedback,
-                  surfaced right under the top idea (visible, zero clicks). */}
+              {/* Proof surfaces — ReviewerProof (signed-out reviewers: demo
+                  record + how-to-read + CTAs) / ProofPulse (signed-in testers:
+                  own book + beta pulse). Each self-gates by auth; one shows. */}
+              <ReviewerProof />
               <ProofPulse />
               {alsoConsider.length > 0 && (
                 <Section number="02" title="Also worth a look">

@@ -16,6 +16,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SurfaceCard } from './ui/SurfaceCard';
+import { useSession } from '../state/SessionContext';
 import { sendSignal, type SignalType } from '@/lib/feedback';
 import {
   useCanonicalStockPortfolio,
@@ -46,8 +47,12 @@ function shortDate(iso?: string | null): string | null {
 }
 
 export function ProofPulse() {
+  const { authenticated } = useSession();
   const { data: book } = useCanonicalStockPortfolio();
   const { data: closed } = useClosedRecommendations(book?.portfolio_id ?? null);
+
+  // Signed-in only — signed-out visitors get the reviewer-facing ReviewerProof.
+  if (!authenticated) return null;
 
   const realized = book?.realized_pnl ?? null;
   const ret = book?.total_return_pct ?? null;
