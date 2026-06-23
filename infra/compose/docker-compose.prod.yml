@@ -15,22 +15,31 @@ services:
   api:
     ports: []          # not exposed directly; Caddy proxies internally
     restart: always
+    mem_limit: 768m    # ~6.7x observed (115M); spikes spill to swap, not OOM
 
   # Base compose defines TWO worker services — override both by their real
   # names (an orphan `worker:` here would not match either and the daily-loop /
   # restart wiring would never apply).
   worker-tickloop:   # tick-loop scheduler (apps.worker.src.main)
     restart: always
+    mem_limit: 512m    # observed 82M
   worker-cron:       # supercronic → scripts/run_daily_loop.sh (03:30 ET, Tue–Sat)
     restart: always
+    mem_limit: 1g      # observed 51M at rest; daily pipeline (pandas/ML) spikes
+
+  # web is defined in the base compose (Vite dev/HMR server); cap it here too.
+  web:
+    mem_limit: 384m    # observed 106M
 
   db:
     restart: always
     ports: []          # never expose postgres publicly in prod
+    mem_limit: 1.25g   # most headroom — query/shared_buffers; swap behind it
 
   caddy:
     image: caddy:2-alpine
     restart: always
+    mem_limit: 256m    # observed 23M; headroom per operator request
     # Site address for the Caddyfile. Set ARTHOS_DOMAIN in the host .env to your
     # real domain (Option A: Caddy ACME HTTPS) or ":80" (Option B: behind
     # Cloudflare TLS). Defaults to ":80" so Caddy never fails on an unset var.
