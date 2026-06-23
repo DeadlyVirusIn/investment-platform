@@ -23,6 +23,7 @@ import { plainThesis } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
+import { ProofPulse } from '../components/ProofPulse';
 import { PlanRows } from '../components/PlanRows';
 import { ContinuePathCard } from '../components/ContinuePathCard';
 import { ProgressSpine } from '../components/ProgressSpine';
@@ -102,6 +103,9 @@ export function Opportunities() {
               <Section number="01" title="Today's top idea">
                 {hero && <RecCard rec={hero} featured />}
               </Section>
+              {/* Proof & Pulse — honest paper record + 1-tap beta feedback,
+                  surfaced right under the top idea (visible, zero clicks). */}
+              <ProofPulse />
               {alsoConsider.length > 0 && (
                 <Section number="02" title="Also worth a look">
                   <div className="space-y-3">
