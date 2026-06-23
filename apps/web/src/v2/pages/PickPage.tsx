@@ -306,7 +306,7 @@ export function PickPage() {
             <span className="ink-primary text-[13px] tabular-nums">{absTime(rec.generated_at)}</span>
           </div>
           <p className="ink-fainter text-[12px] italic leading-relaxed">
-            Generated live from current market data.
+            Generated from the latest market data.
           </p>
         </div>
       </FadeIn>
