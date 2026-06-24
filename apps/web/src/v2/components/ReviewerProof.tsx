@@ -10,6 +10,7 @@
 // and clearly labelled paper-only. No returns promise, no beat-the-market,
 // no win-rate until the sample-size gate is met.
 
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { useSession } from '../state/SessionContext';
@@ -40,6 +41,7 @@ function shortDate(iso?: string | null): string | null {
 
 export function ReviewerProof() {
   const { authenticated, loading } = useSession();
+  const [showHow, setShowHow] = useState(false);
   const { data: book } = useCanonicalStockPortfolio();
   const { data: closed } = useClosedRecommendations(book?.portfolio_id ?? null);
   const { data: recsData } = useTodaysRecommendations();
@@ -72,9 +74,9 @@ export function ReviewerProof() {
       }}>The honest record</p>
 
       <p className="ink-primary" style={{ fontSize: 15, lineHeight: 1.55, marginBottom: 6 }}>
-        ArthOS publishes one explained investing idea a day and <strong>tracks every one to the
-        end on paper</strong> — wins and losses. Below is a recovered paper demo book, shown
-        before you sign up so you can judge the record for yourself.
+        Today's idea is at the top of this page. ArthOS <strong>tracks every idea it makes to
+        the end on paper</strong> — so here's the record so far. It's the history of how past
+        ideas resolved, <strong>not a prediction of today's call</strong>.
       </p>
       <p className="ink-muted" style={{ fontSize: 12.5, lineHeight: 1.5, marginBottom: 16 }}>
         Paper-only — practice money, <strong>not a live brokerage account</strong>. Not financial
@@ -103,17 +105,26 @@ export function ReviewerProof() {
         {latestIdea && <> · Ideas refreshed daily; latest <strong>{latestIdea}</strong>.</>}
       </p>
 
-      {/* How to read this */}
-      <div className="rounded-lg p-4 mb-5" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
-        <p className="font-semibold uppercase" style={{
-          fontSize: 10, letterSpacing: '0.12em', color: 'var(--muted-foreground)', marginBottom: 8,
-        }}>How to read this</p>
-        <ul className="space-y-1.5">
-          <Explain term="Paper P/L">practice-money profit/loss — nothing real is at stake.</Explain>
-          <Explain term="Entry / Target / Exit">where an idea suggests starting, where it's aiming, and the level that would prove it wrong.</Explain>
-          <Explain term="Why ArthOS shows its reasoning">you learn how an investor weighs risk — the thinking matters more than the call.</Explain>
-          <Explain term="What it does not promise">no returns, no real trading, no "beat the market." It's a learning tool.</Explain>
-        </ul>
+      {/* How to read this — collapsed by default so the card stays light on
+          first run; one tap expands the beginner glossary. */}
+      <div className="rounded-lg mb-5" style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+        <button type="button" onClick={() => setShowHow((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 p-4 text-left">
+          <span className="font-semibold uppercase" style={{
+            fontSize: 10, letterSpacing: '0.12em', color: 'var(--muted-foreground)',
+          }}>How to read this</span>
+          <span aria-hidden style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+            {showHow ? '▲' : '▼'}
+          </span>
+        </button>
+        {showHow && (
+          <ul className="space-y-1.5 px-4 pb-4">
+            <Explain term="Paper P/L">practice-money profit/loss — nothing real is at stake.</Explain>
+            <Explain term="Entry / Target / Exit">where an idea suggests starting, where it's aiming, and the level that would prove it wrong.</Explain>
+            <Explain term="Why ArthOS shows its reasoning">you learn how an investor weighs risk — the thinking matters more than the call.</Explain>
+            <Explain term="What it does not promise">no returns, no real trading, no "beat the market." It's a learning tool.</Explain>
+          </ul>
+        )}
       </div>
 
       {/* Reviewer CTAs */}
@@ -129,11 +140,6 @@ export function ReviewerProof() {
           className="inline-flex items-center px-4 h-10 rounded-full"
           style={{ fontSize: 13, fontWeight: 600, border: '1px solid var(--border)', color: 'var(--foreground)' }}>
           Create a free practice account
-        </Link>
-        <Link to="/v2/account"
-          className="inline-flex items-center px-3 h-10"
-          style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--brand)' }}>
-          Give beta feedback
         </Link>
       </div>
     </SurfaceCard>

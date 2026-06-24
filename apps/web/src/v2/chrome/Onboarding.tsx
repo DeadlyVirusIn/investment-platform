@@ -31,6 +31,13 @@ export function Onboarding() {
     navigate('/v2/start');
   };
 
+  // First-run escape hatch — reviewers / curious visitors who want to see
+  // today's idea + the track record immediately, without the guided lesson.
+  const seeIdea = () => {
+    completeOnboarding('building', [], '07:00');
+    navigate('/v2/discover');
+  };
+
   return (
     <AnimatePresence>
       {!hasOnboarded && (
@@ -69,17 +76,33 @@ export function Onboarding() {
             </p>
 
             {/* P1 — CTA above the value-prop atmosphere so "Begin Day 1" is
-                visible without scrolling on mobile. PromiseLine moves below. */}
-            <button
-              onClick={finish}
-              className="h-12 px-7 rounded-full text-[15px] font-semibold tracking-tight transition-colors hover:opacity-92"
-              style={{
-                backgroundColor: 'var(--brand)',
-                color: 'var(--brand-foreground)',
-              }}
-            >
-              Begin Day 1 →
-            </button>
+                visible without scrolling on mobile. PromiseLine moves below.
+                Primary = guided lesson; secondary = jump straight to today's
+                idea (reviewers / curious visitors). */}
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-3">
+              <button
+                onClick={finish}
+                className="h-12 px-7 rounded-full text-[15px] font-semibold tracking-tight transition-colors hover:opacity-92"
+                style={{
+                  backgroundColor: 'var(--brand)',
+                  color: 'var(--brand-foreground)',
+                }}
+              >
+                Begin Day 1 →
+              </button>
+              <button
+                onClick={seeIdea}
+                className="text-[14px] font-semibold transition-colors hover:opacity-80"
+                style={{ color: 'var(--brand)', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                See today's idea first →
+              </button>
+            </div>
+            <p className="mt-3 ink-fainter text-[13px] leading-relaxed max-w-narrative">
+              <strong className="ink-muted">Begin Day 1</strong> is a ~5-minute guided lesson — read one
+              idea, see one real decision, write one note, watch a trade play out. Paper-only; nothing
+              real is at stake.
+            </p>
 
             <div className="mt-10 max-w-narrative">
               <PromiseLine variant="hero" />
