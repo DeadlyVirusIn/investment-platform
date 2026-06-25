@@ -144,6 +144,11 @@ services:
       # /api/performance/paper/pending-fills endpoint can see them.
       # Operator-written by run_paper_daily_safe outside the container.
       - ../../artifacts:/app/artifacts:ro
+      # Admin-2 — host healthcheck status DIR, read-only, for /api/admin/system.
+      # Directory bind-mount (NOT the docker socket, NOT a single file) so the
+      # healthcheck's atomic tmp+mv rewrite (new inode each run) is always seen
+      # by the api. The api reads /var/health/status.json.
+      - ${ARTHOS_HEALTH_DIR_HOST:-/home/opc/arthos-health}:/var/health:ro
     depends_on:
       db:
         condition: service_healthy

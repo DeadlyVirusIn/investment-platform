@@ -37,22 +37,42 @@ def is_owner(email: str | None) -> bool:
     return bool(allow) and email.strip().lower() in allow
 
 
+def _email_and_role(db: Session, uid: str) -> tuple[str | None, str | None]:
+    """Return (email, access_role) for a user id. Defensive: if the
+    access_role column does not exist yet (pre-migration), fall back to
+    email-only so the env allowlist still works."""
+    try:
+        row = db.execute(
+            text("SELECT email, access_role FROM app_user WHERE id = :i"), {"i": uid}
+        ).mappings().first()
+        if row:
+            return row["email"], row.get("access_role")
+    except Exception:
+        db.rollback()
+        row = db.execute(
+            text("SELECT email FROM app_user WHERE id = :i"), {"i": uid}
+        ).mappings().first()
+        if row:
+            return row["email"], None
+    return None, None
+
+
 def require_owner(request: Request, db: Session = Depends(get_session)) -> dict:
     """FastAPI dependency. Returns the owner identity, or raises 404.
 
-    404 (not 403) for both anonymous and authenticated-non-owner callers:
-    the admin surface must be undiscoverable to anyone but the owner.
+    Owner access is granted by EITHER the durable DB role (access_role =
+    'owner') OR the env allowlist (ARTHOS_OWNER_EMAILS) — DB role is the
+    durable source, env is the bootstrap/failsafe. 404 (not 403) for both
+    anonymous and authenticated-non-owner callers: the admin surface must be
+    undiscoverable to anyone but the owner.
     """
     uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
     if not uid:
-        # Anonymous — do not reveal the admin surface exists.
         raise HTTPException(status_code=404)
-    row = db.execute(
-        text("SELECT id, email FROM app_user WHERE id = :i"), {"i": uid}
-    ).mappings().first()
-    email = row["email"] if row else None
-    if not is_owner(email):
+    email, role = _email_and_role(db, uid)
+    via = "db_role" if role == "owner" else ("env" if is_owner(email) else None)
+    if via is None:
         logger.warning("admin_access_denied path={} uid={}", request.url.path, uid)
         raise HTTPException(status_code=404)
-    logger.info("admin_access_ok owner={} path={}", email, request.url.path)
-    return {"id": uid, "email": email}
+    logger.info("admin_access_ok owner={} via={} path={}", email, via, request.url.path)
+    return {"id": uid, "email": email, "role": role, "via": via}

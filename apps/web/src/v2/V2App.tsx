@@ -49,7 +49,7 @@ import { ArthReportCard } from './pages/ArthReportCard';
 import { Observability } from './pages/Observability';
 // Admin-1 — owner-only console (overview + feedback). Server-guarded; the
 // page-level AdminGuard bounces non-owners.
-import { AdminHome, AdminFeedback } from './pages/Admin';
+import { AdminHome, AdminFeedback, AdminJobs, AdminSystem, AdminGuard } from './pages/Admin';
 // Options — read-only V2-native options subsystem visibility surface.
 import { OptionsVisibility } from './pages/OptionsVisibility';
 
@@ -98,6 +98,8 @@ function V2Surface() {
         {/* Admin-1 — owner-only console (server-guarded; non-owners bounce). */}
         <Route path="admin" element={<AdminHome />} />
         <Route path="admin/feedback" element={<AdminFeedback />} />
+        <Route path="admin/jobs" element={<AdminJobs />} />
+        <Route path="admin/system" element={<AdminSystem />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}
@@ -119,8 +121,8 @@ function V2Surface() {
         <Route path="account" element={<AccountPage />} />
         {/* M3 — collect-only profile onboarding. */}
         <Route path="profile" element={<ProfilePage />} />
-        {/* Admin — read-only system observability. */}
-        <Route path="admin/observability" element={<Observability />} />
+        {/* Admin — read-only system observability (now owner-guarded). */}
+        <Route path="admin/observability" element={<AdminGuard><Observability /></AdminGuard>} />
         {/* Options — read-only V2-native options subsystem visibility. */}
         <Route path="options" element={<OptionsVisibility />} />
         {/* Phase G1 — read-only options portfolio (open positions). */}

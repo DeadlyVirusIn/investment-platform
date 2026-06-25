@@ -12,6 +12,7 @@ context. Feedback is the anonymized ``build_report`` (counts + capped text).
 from __future__ import annotations
 
 import datetime as dt
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends
@@ -20,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.api.admin_guard import require_owner
 from apps.api.src.api.feedback_report import build_report
+from apps.api.src.config import settings
 from apps.api.src.db import get_session
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
@@ -83,3 +85,116 @@ def feedback(db: Session = Depends(get_session)) -> dict[str, Any]:
     token; free text is length-capped and identity-stripped.
     """
     return build_report(db, days=None)
+
+
+_ERR_CAP = 240  # max chars of any error message surfaced (redaction cap)
+
+
+@router.get("/jobs")
+def jobs(db: Session = Depends(get_session)) -> dict[str, Any]:
+    """Scheduler state — job_schedule + recent job_run. Read-only. Error text
+    is length-capped; no secrets are stored in these columns."""
+    schedule = [
+        {
+            "name": r["name"], "enabled": bool(r["enabled"]),
+            "cron": r["cron_expr"],
+            "last_run_at": r["last_run_at"].isoformat() if r["last_run_at"] else None,
+            "next_run_at": r["next_run_at"].isoformat() if r["next_run_at"] else None,
+        }
+        for r in db.execute(text(
+            "SELECT name, enabled, cron_expr, last_run_at, next_run_at "
+            "FROM job_schedule ORDER BY name"
+        )).mappings().all()
+    ]
+    recent = [
+        {
+            "name": r["name"], "status": r["status"],
+            "started_at": r["started_at"].isoformat() if r["started_at"] else None,
+            "duration_seconds": (
+                round(float(r["duration_seconds"]), 1) if r["duration_seconds"] is not None else None
+            ),
+            "error": (str(r["error_message"])[:_ERR_CAP] if r["error_message"] else None),
+        }
+        for r in db.execute(text(
+            "SELECT js.name, jr.status, jr.started_at, jr.duration_seconds, jr.error_message "
+            "FROM job_run jr JOIN job_schedule js ON js.id = jr.job_schedule_id "
+            "ORDER BY jr.started_at DESC LIMIT 25"
+        )).mappings().all()
+    ]
+    # Stale = enabled job whose newest successful run is > 26h old (or never).
+    stale = [
+        r["name"] for r in db.execute(text(
+            "SELECT js.name, max(jr.started_at) FILTER (WHERE jr.status = 'success') AS ok "
+            "FROM job_schedule js LEFT JOIN job_run jr ON jr.job_schedule_id = js.id "
+            "WHERE js.enabled GROUP BY js.name "
+            "HAVING max(jr.started_at) FILTER (WHERE jr.status = 'success') IS NULL "
+            "   OR max(jr.started_at) FILTER (WHERE jr.status = 'success') < now() - interval '26 hours'"
+        )).mappings().all()
+    ]
+    failed_recent = sum(1 for r in recent if r["status"] not in ("success", "running", None))
+    return {
+        "schedule": schedule,
+        "recent_runs": recent,
+        "summary": {
+            "scheduled": len(schedule),
+            "stale": stale,
+            "failed_in_recent": failed_recent,
+        },
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }
+
+
+# Host-emitted health JSON, bind-mounted read-only into the api container by the
+# healthcheck script. Avoids a docker-socket mount and any request-path shell-out.
+_HEALTH_JSON_PATH = os.getenv("ARTHOS_HEALTH_JSON", "/var/health/status.json")
+_HEALTH_STALE_SECONDS = 30 * 60  # healthcheck runs every 15m; >30m = stale
+
+
+@router.get("/system")
+def system(db: Session = Depends(get_session)) -> dict[str, Any]:
+    """VM/system health from the healthcheck JSON (read-only) + a live DB ping.
+    Degrades gracefully when the JSON is missing or stale — never shells out,
+    never reads the docker socket, never returns secrets."""
+    try:
+        db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    health: dict[str, Any] = {"available": False, "fields": {}}
+    try:
+        import json
+        with open(_HEALTH_JSON_PATH, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+        ts = raw.get("ts")
+        age = None
+        if ts:
+            try:
+                age = (
+                    dt.datetime.now(dt.timezone.utc)
+                    - dt.datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+                ).total_seconds()
+            except Exception:
+                age = None
+        # Allowlist the safe fields only — never echo arbitrary keys.
+        safe_keys = (
+            "site", "api_health", "tunnel", "bot", "worker_cron", "worker_tickloop",
+            "disk_pct", "mem_avail_mb", "swap_free_mb", "job_age_h", "ts",
+        )
+        health = {
+            "available": True,
+            "stale": (age is not None and age > _HEALTH_STALE_SECONDS),
+            "age_seconds": round(age) if age is not None else None,
+            "fields": {k: raw.get(k) for k in safe_keys if k in raw},
+        }
+    except FileNotFoundError:
+        health = {"available": False, "reason": "no healthcheck JSON yet", "fields": {}}
+    except Exception:
+        health = {"available": False, "reason": "unreadable healthcheck JSON", "fields": {}}
+
+    return {
+        "db_connectivity": db_ok,
+        "app_version": settings.APP_VERSION,
+        "health": health,
+        "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+    }

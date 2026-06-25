@@ -12,6 +12,13 @@ set -u
 
 REPO="${ARTHOS_REPO:-$HOME/investment-platform}"
 LOG="${ARTHOS_HEALTH_LOG:-$HOME/arthos-health.log}"
+# Machine-readable status JSON for the owner /api/admin/system dashboard.
+# Written inside a DIRECTORY that the api bind-mounts read-only — mounting the
+# dir (not the single file) avoids inode-pinning: the atomic tmp+mv rewrite
+# creates a new inode each run, which a single-file mount would never see.
+HEALTH_JSON="${ARTHOS_HEALTH_JSON:-$HOME/arthos-health/status.json}"
+mkdir -p "$(dirname "$HEALTH_JSON")" 2>/dev/null
+chmod 755 "$(dirname "$HEALTH_JSON")" 2>/dev/null
 LOG_MAX_LINES=500          # 15-min cadence → ~5 days history, ~50 KB cap
 DISK_WARN=90               # percent
 MEM_AVAIL_WARN_MB=400
@@ -26,8 +33,11 @@ SITE=$(curl -s -o /dev/null -w '%{http_code}' --connect-timeout 10 https://app.a
 [ "$SITE" = "200" ] || warns+=("site=$SITE")
 
 # 2. /api/health
-curl -s --connect-timeout 10 https://app.arthosfinance.xyz/api/health 2>/dev/null | grep -q '"status":"ok"' \
-  || warns+=("api_health_bad")
+if curl -s --connect-timeout 10 https://app.arthosfinance.xyz/api/health 2>/dev/null | grep -q '"status":"ok"'; then
+  API_HEALTH=ok
+else
+  API_HEALTH=bad; warns+=("api_health_bad")
+fi
 
 # 3. worker job freshness — latest job_run age (hours)
 P="docker compose --env-file $REPO/.env -f $REPO/infra/compose/docker-compose.yml -f $REPO/infra/compose/docker-compose.prod.yml"
@@ -50,12 +60,12 @@ SWAP_FREE=$(free -m | awk '/^Swap:/{print $4}')
 { [ -n "$SWAP_FREE" ] && [ "$SWAP_FREE" -lt "$SWAP_FREE_WARN_MB" ]; } 2>/dev/null && warns+=("swap_free=${SWAP_FREE}M")
 
 # 6-8. services active (read-only; bot is checked, never touched)
-for svc in ptcgpb-bot cloudflared-arthos; do
-  systemctl is-active --quiet "$svc" || warns+=("$svc=down")
-done
-for c in compose-worker-cron-1 compose-worker-tickloop-1; do
-  [ "$(docker inspect -f '{{.State.Running}}' "$c" 2>/dev/null)" = "true" ] || warns+=("$c=down")
-done
+BOT=$(systemctl is-active ptcgpb-bot 2>/dev/null); [ "$BOT" = active ] || warns+=("ptcgpb-bot=$BOT")
+TUNNEL=$(systemctl is-active cloudflared-arthos 2>/dev/null); [ "$TUNNEL" = active ] || warns+=("cloudflared-arthos=$TUNNEL")
+WCRON=$([ "$(docker inspect -f '{{.State.Running}}' compose-worker-cron-1 2>/dev/null)" = "true" ] && echo running || echo down)
+[ "$WCRON" = running ] || warns+=("worker-cron=$WCRON")
+WTICK=$([ "$(docker inspect -f '{{.State.Running}}' compose-worker-tickloop-1 2>/dev/null)" = "true" ] && echo running || echo down)
+[ "$WTICK" = running ] || warns+=("worker-tickloop=$WTICK")
 
 STAMP="site=$SITE disk=${DISK}% mem_avail=${MEM_AVAIL}M swap_free=${SWAP_FREE}M job_age=${JOB_AGE:-?}h"
 if [ ${#warns[@]} -eq 0 ]; then
@@ -63,6 +73,15 @@ if [ ${#warns[@]} -eq 0 ]; then
 else
   echo "$(ts) WARN ${warns[*]} | $STAMP" >> "$LOG"
 fi
+
+# Machine-readable status JSON for the owner /api/admin/system dashboard.
+# Atomic write (tmp + mv). Status fields only — never secrets. world-readable
+# so the bind-mounted api container (different uid) can read it.
+cat > "$HEALTH_JSON.tmp" <<JSON
+{"ts":"$(ts)","site":"$SITE","api_health":"${API_HEALTH:-unknown}","tunnel":"${TUNNEL:-unknown}","bot":"${BOT:-unknown}","worker_cron":"${WCRON:-unknown}","worker_tickloop":"${WTICK:-unknown}","disk_pct":${DISK:-null},"mem_avail_mb":${MEM_AVAIL:-null},"swap_free_mb":${SWAP_FREE:-null},"job_age_h":${JOB_AGE:-null}}
+JSON
+chmod 644 "$HEALTH_JSON.tmp" 2>/dev/null
+mv "$HEALTH_JSON.tmp" "$HEALTH_JSON" 2>/dev/null
 
 # self-cap the log (never let it grow the disk)
 tail -n "$LOG_MAX_LINES" "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG"
