@@ -298,6 +298,10 @@ app.include_router(profile_router, prefix="/api")
 # M5 — collect-only demand-validation feedback signals.
 from apps.api.src.api.feedback import router as feedback_router  # noqa: E402
 app.include_router(feedback_router, prefix="/api")
+# Admin-1 — owner-only read-only console (overview + feedback). Guarded by
+# require_owner on the router; non-owner/anonymous get 404.
+from apps.api.src.api.admin_console import router as admin_console_router  # noqa: E402
+app.include_router(admin_console_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------

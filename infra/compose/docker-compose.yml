@@ -51,6 +51,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Marker dir mounted from worker-cron volume (read-only).
       SCHEDULER_MARKER_DIR: /var/scheduler_markers
+      # Admin-1 — owner allowlist for the /api/admin/* guard (api only).
+      ARTHOS_OWNER_EMAILS: ${ARTHOS_OWNER_EMAILS:-}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
       ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}

@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     POLYGON_API_KEY: str = ""     # paid Massive/Polygon — primary historical daily source
     LOG_LEVEL: str = "INFO"
     APP_VERSION: str = "0.1.0"
+    # Owner/admin allowlist (Admin-1). Comma-separated emails, case-insensitive.
+    # Source of truth for the owner guard — no DB role column. Empty = no owner
+    # (admin surface denied to everyone).
+    ARTHOS_OWNER_EMAILS: str = ""
 
     # Canonical stock practice portfolio (Phase A — single source of truth).
     # Every user-facing portfolio surface reads THIS id only — never an

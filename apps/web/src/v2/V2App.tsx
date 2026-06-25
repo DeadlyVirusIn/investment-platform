@@ -47,6 +47,9 @@ import { JournalPage } from './pages/JournalPage';
 import { ArthReportCard } from './pages/ArthReportCard';
 // Admin — read-only cron/job + data-freshness observability pane.
 import { Observability } from './pages/Observability';
+// Admin-1 — owner-only console (overview + feedback). Server-guarded; the
+// page-level AdminGuard bounces non-owners.
+import { AdminHome, AdminFeedback } from './pages/Admin';
 // Options — read-only V2-native options subsystem visibility surface.
 import { OptionsVisibility } from './pages/OptionsVisibility';
 
@@ -92,6 +95,9 @@ function V2Surface() {
         <Route path="journal" element={<JournalPage />} />
         {/* Phase 2B — Arth Report Card. */}
         <Route path="arth" element={<ArthReportCard />} />
+        {/* Admin-1 — owner-only console (server-guarded; non-owners bounce). */}
+        <Route path="admin" element={<AdminHome />} />
+        <Route path="admin/feedback" element={<AdminFeedback />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}
