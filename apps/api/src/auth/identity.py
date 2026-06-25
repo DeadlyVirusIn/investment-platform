@@ -29,6 +29,7 @@ from apps.api.src.config import settings
 SESSION_COOKIE = "arthos_session"
 _SESSION_TTL_DAYS = 30
 _N, _R, _P = 2 ** 14, 8, 1  # scrypt cost params
+_MAX_PASSWORD_LEN = 256     # reject absurdly long passwords (input-DoS guard)
 
 
 # --------------------------------------------------------------------------
@@ -37,13 +38,15 @@ _N, _R, _P = 2 ** 14, 8, 1  # scrypt cost params
 def hash_password(password: str) -> str:
     if not password or len(password) < 8:
         raise ValueError("password must be at least 8 characters")
+    if len(password) > _MAX_PASSWORD_LEN:
+        raise ValueError("password too long")
     salt = secrets.token_bytes(16)
     dk = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=_N, r=_R, p=_P, dklen=32)
     return f"scrypt${_N}${_R}${_P}${salt.hex()}${dk.hex()}"
 
 
 def verify_password(password: str, encoded: str | None) -> bool:
-    if not encoded or not password:
+    if not encoded or not password or len(password) > _MAX_PASSWORD_LEN:
         return False
     try:
         scheme, n, r, p, salt_hex, hash_hex = encoded.split("$")
