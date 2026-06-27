@@ -16,7 +16,7 @@ function isOperator(): boolean {
 
 /** Wraps the operator route group. Non-operators are bounced to the product. */
 export function OperatorGuard() {
-  return isOperator() ? <Outlet /> : <Navigate to="/v2" replace />;
+  return isOperator() ? <Outlet /> : <Navigate to="/" replace />;
 }
 
 /** `/advanced` — opts the browser into operator mode, then enters the console. */

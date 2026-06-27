@@ -58,7 +58,7 @@ export default function StatusRail() {
                value={`${regime} · ${engineText}`} />
       <Segment label="NEXT" tone="accent" value={nextText} />
       <Segment label="PORTFOLIO" tone={portfolioTone}
-               value={portfolioLabel} to="/v2/track-record" />
+               value={portfolioLabel} to="/track-record" />
     </div>
   );
 }

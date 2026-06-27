@@ -69,7 +69,7 @@ function useSearchIndex(): Result[] {
         category: 'Ideas',
         title: `${sym} — ${effectiveAction(r) ?? 'Hold'}`,
         subtitle: plainThesis(r.thesis) ?? 'Tap to see the reasoning',
-        to: `/v2/today/pick/${sym}`,
+        to: `/today/pick/${sym}`,
         icon: <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} />,
       });
     });
@@ -79,7 +79,7 @@ function useSearchIndex(): Result[] {
         category: 'Model Portfolios',
         title: p.name,
         subtitle: p.thesis ?? 'Follow this portfolio',
-        to: `/v2/portfolios/${p.slug}`,
+        to: `/portfolios/${p.slug}`,
         icon: <Layers className="w-3.5 h-3.5" strokeWidth={1.5} />,
       });
     });
@@ -89,7 +89,7 @@ function useSearchIndex(): Result[] {
         category: 'Themes',
         title: t.label,
         subtitle: 'Explore this theme',
-        to: `/v2/portfolios/${t.slug}`,
+        to: `/portfolios/${t.slug}`,
         icon: <Hash className="w-3.5 h-3.5" strokeWidth={1.5} />,
       });
     });
@@ -99,7 +99,7 @@ function useSearchIndex(): Result[] {
         category: 'Lessons',
         title: l.title,
         subtitle: `${l.readMinutes} min · ${l.abstract.slice(0, 70)}`,
-        to: `/v2/learn/lesson/${l.slug}`,
+        to: `/learn/lesson/${l.slug}`,
         icon: <BookOpen className="w-3.5 h-3.5" strokeWidth={1.5} />,
       });
     });

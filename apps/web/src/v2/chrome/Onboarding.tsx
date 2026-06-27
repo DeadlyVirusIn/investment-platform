@@ -28,14 +28,14 @@ export function Onboarding() {
     // flow rather than the magazine-style Learn home. Returning visitors
     // (hasOnboarded=true) skip this gate and land on whichever route
     // they navigated to directly.
-    navigate('/v2/start');
+    navigate('/start');
   };
 
   // First-run escape hatch — reviewers / curious visitors who want to see
   // today's idea + the track record immediately, without the guided lesson.
   const seeIdea = () => {
     completeOnboarding('building', [], '07:00');
-    navigate('/v2/discover');
+    navigate('/discover');
   };
 
   return (

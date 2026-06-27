@@ -6,18 +6,18 @@
 import { Link, useLocation } from 'react-router-dom';
 
 const TABS: { label: string; to: string; match: (p: string) => boolean }[] = [
-  { label: 'Holdings', to: '/v2/portfolio', match: (p) => p.startsWith('/v2/portfolio') },
+  { label: 'Holdings', to: '/portfolio', match: (p) => p.startsWith('/portfolio') },
   {
     label: 'Performance',
-    to: '/v2/track-record',
-    match: (p) => p.startsWith('/v2/track-record'),
+    to: '/track-record',
+    match: (p) => p.startsWith('/track-record'),
   },
   {
     // P1.5D2a — Options book joins the Practice spine. Specific prefix
     // so it never collides with /v2/options (engine-room diagnostics).
     label: 'Options',
-    to: '/v2/options/portfolio',
-    match: (p) => p.startsWith('/v2/options/portfolio'),
+    to: '/options/portfolio',
+    match: (p) => p.startsWith('/options/portfolio'),
   },
 ];
 

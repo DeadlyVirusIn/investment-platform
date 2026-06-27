@@ -137,12 +137,12 @@ export function Briefing() {
           className="mt-12 pt-8 flex flex-wrap items-center justify-between gap-3"
           style={{ borderTop: '1px solid var(--border)' }}
         >
-          <Link to="/v2/methodology"
+          <Link to="/methodology"
             className="inline-flex items-center gap-1.5"
             style={{ fontSize: 12.5, color: 'var(--muted-foreground)' }}>
             How Arth decides →
           </Link>
-          <Link to="/v2/opportunities"
+          <Link to="/opportunities"
             className="inline-flex items-center gap-1.5"
             style={{ fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>
             See the full desk →
@@ -174,7 +174,7 @@ function EmptyDesk({
         Breakdown: {dist['Hold'] ?? 0} Hold · {dist['Trim'] ?? 0} Trim · {dist['Buy'] ?? 0} Buy.
         I'd rather show you nothing than manufacture a trade.
       </p>
-      <Link to="/v2/opportunities"
+      <Link to="/opportunities"
         className="inline-flex items-center gap-1.5 mt-4"
         style={{ fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>
         See everything I'm watching →
@@ -235,7 +235,7 @@ function PortfolioSummaryCard() {
           )}
         </>
       )}
-      <Link to="/v2/portfolio"
+      <Link to="/portfolio"
         className="inline-flex items-center gap-1.5 mt-4 transition-colors"
         style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
         See practice account →

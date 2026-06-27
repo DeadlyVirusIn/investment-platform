@@ -55,7 +55,7 @@ export function TrustBanner() {
           · practice book {totalRet >= 0 ? '+' : ''}{totalRet.toFixed(2)}%
         </span>
       )}
-      <Link to="/v2/arth"
+      <Link to="/arth"
             className="ml-auto"
             style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
         See the full record →

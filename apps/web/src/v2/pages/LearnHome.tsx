@@ -169,7 +169,7 @@ export function LearnHome() {
             )}
 
             <Link
-              to={`/v2/learn/lesson/${recommended.slug}`}
+              to={`/learn/lesson/${recommended.slug}`}
               className="inline-flex items-center justify-center gap-2 h-12 px-6 rounded-full text-[14px] font-semibold tracking-tight transition-colors hover:opacity-92"
               style={{
                 backgroundColor: 'var(--brand)',
@@ -218,7 +218,7 @@ export function LearnHome() {
               </p>
             </article>
             <Link
-              to="/v2/methodology"
+              to="/methodology"
               className="inline-flex items-center gap-1.5 mt-5 transition-colors"
               style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 600 }}
             >
@@ -267,7 +267,7 @@ export function LearnHome() {
                     }
                   >
                     <Link
-                      to={`/v2/learn/lesson/${lesson.slug}`}
+                      to={`/learn/lesson/${lesson.slug}`}
                       className="flex items-baseline justify-between gap-4 px-5 py-4 sm:px-6 sm:py-5 transition-colors"
                       style={{
                         backgroundColor: 'transparent',
@@ -329,7 +329,7 @@ export function LearnHome() {
                 </p>
               </div>
               <Link
-                to="/v2/learn/glossary"
+                to="/learn/glossary"
                 className="inline-flex items-center gap-2 h-10 px-4 rounded-full text-[13px] font-semibold transition-colors hover:opacity-92 shrink-0"
                 style={{
                   border: '1px solid var(--border)',
@@ -357,7 +357,7 @@ export function LearnHome() {
           style={{ borderTop: '1px solid var(--border)' }}
         >
           <Link
-            to="/v2/methodology"
+            to="/methodology"
             className="inline-flex items-center gap-1.5 transition-colors"
             style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
           >
@@ -399,10 +399,10 @@ function PathTile({
   const entrySlug =
     path.lessonSlugs.find((s) => !readSlugs.includes(s)) ?? path.lessonSlugs[0];
   const targetHref = academyRoute
-    ? `/v2/learn/${academyRoute}`
+    ? `/learn/${academyRoute}`
     : entrySlug
-    ? `/v2/learn/lesson/${entrySlug}`
-    : '/v2/learn';
+    ? `/learn/lesson/${entrySlug}`
+    : '/learn';
 
   return (
     <SurfaceCard className="flex flex-col h-full">

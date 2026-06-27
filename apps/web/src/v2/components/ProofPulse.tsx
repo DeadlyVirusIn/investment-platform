@@ -115,7 +115,7 @@ export function ProofPulse() {
       </p>
 
       <div className="mb-4">
-        <Link to="/v2/arth" style={{ fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>
+        <Link to="/arth" style={{ fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>
           See the full record →
         </Link>
       </div>

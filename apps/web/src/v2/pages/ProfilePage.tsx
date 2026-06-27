@@ -82,7 +82,7 @@ export function ProfilePage() {
     setError(null);
     try {
       await saveProfile(values);
-      navigate('/v2/portfolio');
+      navigate('/portfolio');
     } catch {
       setError("Couldn't save your profile. Please try again.");
     } finally {
@@ -100,7 +100,7 @@ export function ProfilePage() {
           <p className="ink-muted mt-2" style={{ fontSize: 14 }}>
             Your profile is private to your account.
           </p>
-          <Link to="/v2/account" className="inline-block mt-5 rounded-lg px-4 h-10 leading-10 font-medium"
+          <Link to="/account" className="inline-block mt-5 rounded-lg px-4 h-10 leading-10 font-medium"
             style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)', fontSize: 14 }}>
             Sign in
           </Link>
@@ -166,7 +166,7 @@ export function ProfilePage() {
                 {saving ? 'Saving…' : 'Save profile'}
               </button>
               <button
-                onClick={() => navigate('/v2/discover')}
+                onClick={() => navigate('/discover')}
                 className="rounded-lg px-4 h-11 font-medium"
                 style={{ color: 'var(--muted-foreground)', fontSize: 14 }}
               >

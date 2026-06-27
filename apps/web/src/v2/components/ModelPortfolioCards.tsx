@@ -46,7 +46,7 @@ export function TrendingThemes({ collapsed = false }: { collapsed?: boolean }) {
       {open && (
         <div className="flex flex-wrap gap-2">
           {themes.map((t) => (
-            <Link key={t.slug} to={`/v2/portfolios/${t.slug}`}
+            <Link key={t.slug} to={`/portfolios/${t.slug}`}
               className="px-3.5 py-1.5 rounded-full ink-primary"
               style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
               {t.label}
@@ -136,15 +136,15 @@ export function SocialProofStrip() {
   return (
     <div className="flex flex-wrap gap-2 mb-6">
       {topFollow && (
-        <Pill to={`/v2/portfolios/${topFollow.slug}`}
+        <Pill to={`/portfolios/${topFollow.slug}`}
           label="Most followed" value={`${topFollow.name} · ${topFollow.follows}★`} />
       )}
       {trending && trending.slug !== topFollow?.slug && (
-        <Pill to={`/v2/portfolios/${trending.slug}`}
+        <Pill to={`/portfolios/${trending.slug}`}
           label="Trending" value={trending.name} />
       )}
       {topAdd && (
-        <Pill to={`/v2/today/pick/${topAdd.symbol}`}
+        <Pill to={`/today/pick/${topAdd.symbol}`}
           label="Most added" value={`${topAdd.symbol} · ${topAdd.adds}×`} />
       )}
     </div>
@@ -215,7 +215,7 @@ export function ModelPortfolioCard({ pf }: { pf: ModelPortfolioSummary }) {
         </div>
         <Spark points={pf.spark} />
       </div>
-      <Link to={`/v2/portfolios/${pf.slug}`}
+      <Link to={`/portfolios/${pf.slug}`}
         className="inline-block mt-4 px-3.5 py-1.5 rounded-full"
         style={{
           fontSize: 12.5, fontWeight: 600, color: 'var(--background)',

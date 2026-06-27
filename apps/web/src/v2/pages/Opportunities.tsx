@@ -142,7 +142,7 @@ export function Opportunities() {
                 <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {trims.slice(0, 8).map((r) => (
                     <li key={r.id} className="py-3 grid grid-cols-[90px_1fr] items-baseline gap-3">
-                      <Link to={`/v2/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13 }}>
+                      <Link to={`/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13 }}>
                         <CompanyTitle symbol={r.symbol} name={r.name} />
                       </Link>
                       <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{plainThesis(r.thesis) ?? 'Cautious for now.'}</span>
@@ -297,7 +297,7 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
         <TickerBadge symbol={rec.symbol} size={featured ? 'lg' : 'md'} />
         <ActionPill action={action} />
       </div>
-      <Link to={`/v2/today/pick/${rec.symbol}`} className="block">
+      <Link to={`/today/pick/${rec.symbol}`} className="block">
         <CompanyTitle symbol={rec.symbol} name={rec.name} showTickerWhenNamed={false}
           className="ink-primary font-display"
           style={{ fontSize: featured ? 18 : 15.5, lineHeight: 1.25 }} />
@@ -314,13 +314,13 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       <div className="mt-3"><PlanRows rec={rec} compact={!featured} /></div>
       <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-3" />
       <div className="flex items-center gap-4 mt-4">
-        <Link to={`/v2/today/pick/${rec.symbol}`}
+        <Link to={`/today/pick/${rec.symbol}`}
           style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
           See why →
         </Link>
         {/* Add to paper — Phase 4 wires the one-tap submit_trade; routes to
             the idea detail where the action lives until then. */}
-        <Link to={`/v2/today/pick/${rec.symbol}?add=1`}
+        <Link to={`/today/pick/${rec.symbol}?add=1`}
           className="px-3 py-1.5 rounded-full"
           style={{
             fontSize: 12, fontWeight: 600, color: 'var(--background)',

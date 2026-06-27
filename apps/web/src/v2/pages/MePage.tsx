@@ -228,7 +228,7 @@ export function MePage() {
                   <li key={p.slug}>
                     {linkable ? (
                       <Link
-                        to={`/v2/learn/${p.route}`}
+                        to={`/learn/${p.route}`}
                         className="block hover:opacity-90 transition-opacity"
                       >
                         {inner}
@@ -268,7 +268,7 @@ export function MePage() {
               )}
             </div>
             <Link
-              to="/v2/reflections"
+              to="/reflections"
               className="inline-flex items-center mt-4 text-meta ink-fainter hover:ink-muted transition-colors"
             >
               See all reflections →
@@ -327,7 +327,7 @@ export function MePage() {
                   return (
                     <li key={loop.slug}>
                       <Link
-                        to={`/v2/try/${loop.slug}`}
+                        to={`/try/${loop.slug}`}
                         className="block surface-drawer p-5 sm:p-6 hover:opacity-90 transition-opacity"
                       >
                         <div className="font-serif ink-primary text-[17px] leading-snug mb-2 max-w-narrative">
@@ -403,7 +403,7 @@ export function MePage() {
               </div>
             </div>
             <Link
-              to="/v2/portfolio"
+              to="/portfolio"
               className="inline-flex items-center mt-4 px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Open practice account →
@@ -417,19 +417,19 @@ export function MePage() {
           <MetaLabel>Where to go next</MetaLabel>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
-              to="/v2/today"
+              to="/today"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Today's briefing
             </Link>
             <Link
-              to="/v2/learn"
+              to="/learn"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Browse lessons
             </Link>
             <Link
-              to="/v2/methodology"
+              to="/methodology"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               How ArthOS works

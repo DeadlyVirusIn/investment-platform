@@ -18,11 +18,11 @@ import type { PresentedOption, BiasTone, ActionTone } from '../lib/optionsPresen
 
 const AMBER = 'oklch(0.70 0.14 75)';
 
-export const OPTIONS_TAB_HREF = '/v2/opportunities?tab=options';
+export const OPTIONS_TAB_HREF = '/opportunities?tab=options';
 
 /** Detail route for a single setup (Phase B). */
 export function optionDetailHref(observationId: number): string {
-  return `/v2/today/options/${observationId}`;
+  return `/today/options/${observationId}`;
 }
 
 function toneColor(tone: BiasTone): string {

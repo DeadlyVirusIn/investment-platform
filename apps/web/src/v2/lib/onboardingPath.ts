@@ -19,10 +19,10 @@ export interface PathAction {
 
 // Resume targets per Day-1 step (mirror of StartHere's STEPS order).
 const RESUME: { to: string; title: string }[] = [
-  { to: '/v2/learn/lesson/what-is-a-stock', title: 'Read: what you actually own when you buy a stock' },
-  { to: '/v2/today', title: "See today's AI decision in the wild" },
-  { to: '/v2/learn/lesson/what-is-a-stock#reflect', title: 'Reflect: what would change your mind?' },
-  { to: '/v2/portfolio', title: 'See how your practice portfolio is doing' },
+  { to: '/learn/lesson/what-is-a-stock', title: 'Read: what you actually own when you buy a stock' },
+  { to: '/today', title: "See today's AI decision in the wild" },
+  { to: '/learn/lesson/what-is-a-stock#reflect', title: 'Reflect: what would change your mind?' },
+  { to: '/portfolio', title: 'See how your practice portfolio is doing' },
 ];
 
 export function useOnboardingPath(paperCount: number): PathAction {
@@ -37,7 +37,7 @@ export function useOnboardingPath(paperCount: number): PathAction {
     return {
       title: 'Add a second idea',
       blurb: 'One more practice position helps you compare and learn.',
-      to: '/v2/discover',
+      to: '/discover',
       progress: null,
     };
   }
@@ -45,7 +45,7 @@ export function useOnboardingPath(paperCount: number): PathAction {
     return {
       title: 'Review your practice portfolio',
       blurb: 'See how your practice ideas are holding up.',
-      to: '/v2/portfolio',
+      to: '/portfolio',
       progress: null,
     };
   }
@@ -74,7 +74,7 @@ export function useOnboardingPath(paperCount: number): PathAction {
   return {
     title: 'Add your first idea',
     blurb: 'Pick a stock idea and add it to your practice account.',
-    to: '/v2/today',
+    to: '/today',
     progress: null,
   };
 }

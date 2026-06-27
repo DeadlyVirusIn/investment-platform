@@ -220,13 +220,13 @@ export function PaperBook() {
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Link
-                to="/v2/discover"
+                to="/discover"
                 className="px-4 py-2 rounded-full inline-flex items-center gap-1.5"
                 style={{ fontSize: 13, fontWeight: 600, color: 'var(--background)', backgroundColor: 'var(--brand)' }}
               >
                 Browse ideas <span aria-hidden>→</span>
               </Link>
-              <Link to="/v2/track-record" className="text-meta ink-muted hover:ink-primary transition-colors">
+              <Link to="/track-record" className="text-meta ink-muted hover:ink-primary transition-colors">
                 See track record →
               </Link>
             </div>

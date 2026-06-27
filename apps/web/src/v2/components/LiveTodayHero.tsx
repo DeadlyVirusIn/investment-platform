@@ -120,7 +120,7 @@ export function LiveTodayHero({
 
       <div className="mt-5">
         <Link
-          to={`/v2/today/pick/${rec.symbol}`}
+          to={`/today/pick/${rec.symbol}`}
           className="inline-flex items-center gap-2 h-10 px-4 rounded-full"
           style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}
         >
@@ -136,7 +136,7 @@ export function LiveTodayHero({
           <ul className="space-y-2">
             {alsoConsider.slice(0, 4).map((r) => (
               <li key={r.id} className="flex items-baseline gap-3">
-                <Link to={`/v2/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13.5 }}>
+                <Link to={`/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13.5 }}>
                   <CompanyTitle symbol={r.symbol} name={r.name} />
                 </Link>
                 <span className="ink-muted" style={{ fontSize: 12.5 }}>

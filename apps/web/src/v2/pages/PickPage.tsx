@@ -156,7 +156,7 @@ export function PickPage() {
           <p className="ink-muted text-[13.5px] max-w-narrative">
             The engine did not surface this name in today's evaluated set. It may not have cleared data-sufficiency, or it isn't in the current universe.
           </p>
-          <Link to="/v2/opportunities" className="text-meta ink-muted mt-4 inline-block">
+          <Link to="/opportunities" className="text-meta ink-muted mt-4 inline-block">
             See the live desk →
           </Link>
         </div>
@@ -246,11 +246,11 @@ export function PickPage() {
                 Track it using practice money before risking real money.
               </p>
               <div className="flex items-center gap-3 mt-3 flex-wrap">
-                <Link to="/v2/portfolio" className="px-3 py-1.5 rounded-full"
+                <Link to="/portfolio" className="px-3 py-1.5 rounded-full"
                   style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
                   View portfolio
                 </Link>
-                <Link to="/v2/discover" className="text-[12.5px]"
+                <Link to="/discover" className="text-[12.5px]"
                   style={{ color: 'var(--brand)', fontWeight: 600 }}>
                   Continue exploring ideas →
                 </Link>
@@ -451,11 +451,11 @@ export function PickPage() {
             {rec.enough_data ? '.' : ' — based on limited data, so treat it with extra caution.'}
           </p>
           <div className="mt-4 flex items-center gap-5">
-            <Link to="/v2/discover" className="text-meta ink-primary inline-block" style={{ fontWeight: 600 }}>
+            <Link to="/discover" className="text-meta ink-primary inline-block" style={{ fontWeight: 600 }}>
               Back to ideas →
             </Link>
             {/* Embed a path to the glossary so unfamiliar terms are one tap away. */}
-            <Link to="/v2/learn/glossary" className="text-meta ink-muted inline-block">
+            <Link to="/learn/glossary" className="text-meta ink-muted inline-block">
               New to these terms? Glossary →
             </Link>
           </div>

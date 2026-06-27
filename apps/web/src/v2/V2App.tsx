@@ -86,7 +86,7 @@ function V2Surface() {
             deprecated; /v2/me-legacy now redirects to the canonical Me.
             MePage.tsx retained, no longer routed. */}
         <Route path="me" element={<MentorProfile />} />
-        <Route path="me-legacy" element={<Navigate to="/v2/me" replace />} />
+        <Route path="me-legacy" element={<Navigate to="/me" replace />} />
         <Route path="methodology" element={<Methodology />} />
         {/* UX Phase 3A — close-the-loop surfaces. */}
         <Route path="try/:lessonSlug" element={<TryFromLesson />} />

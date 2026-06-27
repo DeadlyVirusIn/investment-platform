@@ -106,13 +106,13 @@ export function GlossaryIndex() {
           <MetaLabel>Where to go next</MetaLabel>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
-              to="/v2/learn"
+              to="/learn"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               All paths
             </Link>
             <Link
-              to="/v2/today"
+              to="/today"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Today's briefing

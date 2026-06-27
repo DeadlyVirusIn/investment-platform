@@ -145,7 +145,7 @@ export function ModelPortfolioDetail() {
                   recent price data.
                 </p>
               )}
-              <Link to="/v2/portfolio" className="inline-flex items-center mt-3 px-4 h-9 rounded-full"
+              <Link to="/portfolio" className="inline-flex items-center mt-3 px-4 h-9 rounded-full"
                 style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
                 Watch it in My Portfolio →
               </Link>

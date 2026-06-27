@@ -130,13 +130,13 @@ export function ReviewerProof() {
       {/* Reviewer CTAs */}
       <div className="flex flex-wrap items-center gap-2.5">
         {heroSymbol && (
-          <Link to={`/v2/today/pick/${heroSymbol}`}
+          <Link to={`/today/pick/${heroSymbol}`}
             className="inline-flex items-center px-4 h-10 rounded-full"
             style={{ fontSize: 13, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
             Try today's idea →
           </Link>
         )}
-        <Link to="/v2/account"
+        <Link to="/account"
           className="inline-flex items-center px-4 h-10 rounded-full"
           style={{ fontSize: 13, fontWeight: 600, border: '1px solid var(--border)', color: 'var(--foreground)' }}>
           Create a free practice account

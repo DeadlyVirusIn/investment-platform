@@ -44,7 +44,7 @@ export function PersonalizationLens({ meta }: { meta: RecMeta }) {
           <MetaLabel>Personalization lens</MetaLabel>
           <p className="ink-primary text-[15px] mt-2">Complete your profile to see fit context.</p>
           <p className="ink-muted text-[13px] leading-relaxed mt-1">{lens.limitations}</p>
-          <Link to="/v2/profile" className="text-meta ink-primary mt-3 inline-block" style={{ fontWeight: 600 }}>
+          <Link to="/profile" className="text-meta ink-primary mt-3 inline-block" style={{ fontWeight: 600 }}>
             Complete profile →
           </Link>
         </div>

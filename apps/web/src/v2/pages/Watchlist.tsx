@@ -34,7 +34,7 @@ export function Watchlist() {
             here. We'll let you know when it shows up in our work.
           </p>
           <Link
-            to="/v2/opportunities"
+            to="/opportunities"
             className="text-meta ink-primary hover:opacity-70 transition-opacity inline-flex items-center gap-1.5"
           >
             Open today's opportunities <span aria-hidden>→</span>

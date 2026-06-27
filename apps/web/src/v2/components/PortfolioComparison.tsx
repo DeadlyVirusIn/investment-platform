@@ -70,7 +70,7 @@ export function PortfolioComparison({ collapsed = false }: { collapsed?: boolean
           <p className="ink-muted px-4 py-4" style={{ fontSize: 13 }}>Loading…</p>
         ) : (
           portfolios.map((p) => (
-            <Link key={p.slug} to={`/v2/portfolios/${p.slug}`}
+            <Link key={p.slug} to={`/portfolios/${p.slug}`}
               className="grid items-center gap-2 px-4 py-3 hover:opacity-80"
               style={{ gridTemplateColumns: '1fr 58px 56px 64px', borderTop: '1px solid var(--border)' }}>
               <span className="min-w-0">

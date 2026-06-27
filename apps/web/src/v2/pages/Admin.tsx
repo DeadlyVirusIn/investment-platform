@@ -66,7 +66,7 @@ export function AdminGuard({ children }: { children: React.ReactNode }) {
       </ArthosPage>
     );
   }
-  if (isError) return <Navigate to="/v2/discover" replace />;
+  if (isError) return <Navigate to="/discover" replace />;
   return <>{children}</>;
 }
 
@@ -95,11 +95,11 @@ function AdminNav({ active }: { active: AdminTab }) {
   );
   return (
     <div className="flex items-center gap-2 mb-6 flex-wrap">
-      {tab('/v2/admin', 'overview', 'Overview')}
-      {tab('/v2/admin/feedback', 'feedback', 'Feedback')}
-      {tab('/v2/admin/jobs', 'jobs', 'Jobs')}
-      {tab('/v2/admin/system', 'system', 'System')}
-      {tab('/v2/admin/observability', 'observability', 'Observability')}
+      {tab('/admin', 'overview', 'Overview')}
+      {tab('/admin/feedback', 'feedback', 'Feedback')}
+      {tab('/admin/jobs', 'jobs', 'Jobs')}
+      {tab('/admin/system', 'system', 'System')}
+      {tab('/admin/observability', 'observability', 'Observability')}
     </div>
   );
 }

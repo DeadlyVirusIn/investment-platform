@@ -36,7 +36,7 @@ const STEPS: StartStep[] = [
     blurb:
       "The reframe everything else builds on. Six minutes; nothing is graded.",
     estMinutes: 6,
-    to: '/v2/learn/lesson/what-is-a-stock',
+    to: '/learn/lesson/what-is-a-stock',
   },
   {
     n: 2,
@@ -47,7 +47,7 @@ const STEPS: StartStep[] = [
     estMinutes: 8,
     // P1.7B — link to today's Briefing (leads with the live top pick) rather
     // than a hardcoded symbol that dead-ends when the picks list drifts.
-    to: '/v2/today',
+    to: '/today',
   },
   {
     n: 3,
@@ -56,7 +56,7 @@ const STEPS: StartStep[] = [
     blurb:
       "One honest answer at the bottom of the lesson. Stored on your device only, never sent.",
     estMinutes: 3,
-    to: '/v2/learn/lesson/what-is-a-stock#reflect',
+    to: '/learn/lesson/what-is-a-stock#reflect',
   },
   {
     n: 4,
@@ -65,7 +65,7 @@ const STEPS: StartStep[] = [
     blurb:
       "Your paper portfolio, marked daily. Watch a real decision play out — nothing real is at stake.",
     estMinutes: 10,
-    to: '/v2/portfolio',
+    to: '/portfolio',
   },
 ];
 
@@ -233,13 +233,13 @@ export function StartHere() {
       <FadeIn delay={0.45}>
         <div className="mt-16 pt-10 border-t border-hairline flex flex-wrap gap-3">
           <Link
-            to="/v2/learn"
+            to="/learn"
             className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
           >
             I'd rather just browse
           </Link>
           <Link
-            to="/v2/methodology"
+            to="/methodology"
             className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
           >
             How does ArthOS work?

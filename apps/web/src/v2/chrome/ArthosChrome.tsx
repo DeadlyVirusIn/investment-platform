@@ -102,7 +102,7 @@ function AccountTile() {
   if (!authenticated || !user) {
     return (
       <Link
-        to="/v2/account"
+        to="/account"
         className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md"
         aria-label="Sign in"
       >
@@ -129,7 +129,7 @@ function AccountTile() {
   return (
     <div className="flex items-center gap-1 min-w-0">
       <Link
-        to="/v2/account"
+        to="/account"
         className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md min-w-0"
         aria-label="Your account"
       >
@@ -152,7 +152,7 @@ function AccountTile() {
         </div>
       </Link>
       <button
-        onClick={async () => { await signOut(); navigate('/v2/discover'); }}
+        onClick={async () => { await signOut(); navigate('/discover'); }}
         aria-label="Log out"
         className="p-1.5 rounded-md transition-colors"
         style={{ color: 'var(--muted-foreground)' }}
@@ -171,7 +171,7 @@ function AccountTopBarButton() {
   const initial = authenticated && user ? ((user.email ?? user.display_name ?? 'U').trim()[0] ?? 'U').toUpperCase() : null;
   return (
     <Link
-      to="/v2/account"
+      to="/account"
       aria-label={authenticated ? 'Your account' : 'Sign in'}
       className="inline-flex items-center gap-1.5 ink-muted hover:ink-primary transition-colors p-1.5"
     >
@@ -214,7 +214,7 @@ export function SideNav() {
       }}
     >
       <Link
-        to="/v2/learn"
+        to="/learn"
         className="flex items-center gap-2.5 px-6 h-16 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
@@ -300,10 +300,10 @@ export function SideNav() {
             /api/admin/overview probe succeeds (owner). Server-guarded;
             non-owners never see this and cannot reach the pages. */}
         {isOwner && (() => {
-          const active = location.pathname.startsWith('/v2/admin');
+          const active = location.pathname.startsWith('/admin');
           return (
             <Link
-              to="/v2/admin"
+              to="/admin"
               className="flex items-center gap-3 px-3 h-10 rounded-lg font-medium transition-colors"
               style={{
                 fontSize: 13.5,
@@ -466,7 +466,7 @@ export function TopBar({
       >
         <div className="mx-auto w-full max-w-screen-md lg:max-w-[1080px] px-5 lg:px-10 h-14 lg:h-16 flex items-center justify-between gap-4">
           {/* Mobile-only brand block (desktop handled by SideNav). */}
-          <Link to="/v2/learn" className="flex items-center gap-2 lg:hidden">
+          <Link to="/learn" className="flex items-center gap-2 lg:hidden">
             <BrandMark size="sm" />
             <span className="flex flex-col leading-none">
               <span
@@ -582,41 +582,41 @@ export function TopBar({
 const NAV_PRIMARY: NavItem[] = [
   {
     label: 'Discover',
-    to: '/v2/discover',
+    to: '/discover',
     icon: Sparkles,
     match: (p) =>
-      p === '/v2' ||
-      p.startsWith('/v2/discover') ||
-      p.startsWith('/v2/opportunities') ||
-      p.startsWith('/v2/today') ||
-      p.startsWith('/v2/catalysts'),
+      p === '/' ||
+      p.startsWith('/discover') ||
+      p.startsWith('/opportunities') ||
+      p.startsWith('/today') ||
+      p.startsWith('/catalysts'),
   },
   {
     label: 'My Portfolio',
     shortLabel: 'Portfolio',
-    to: '/v2/portfolio',
+    to: '/portfolio',
     icon: BookOpen,
     match: (p) =>
-      p.startsWith('/v2/portfolio') ||
-      p.startsWith('/v2/try') ||
-      p.startsWith('/v2/track-record'),
+      p.startsWith('/portfolio') ||
+      p.startsWith('/try') ||
+      p.startsWith('/track-record'),
   },
   {
     label: 'Learn',
-    to: '/v2/learn',
+    to: '/learn',
     icon: Compass,
     match: (p) =>
-      p.startsWith('/v2/learn') || p.startsWith('/v2/methodology'),
+      p.startsWith('/learn') || p.startsWith('/methodology'),
   },
   {
     label: 'Me',
-    to: '/v2/me',
+    to: '/me',
     icon: User,
     match: (p) =>
-      p.startsWith('/v2/me') ||
-      p.startsWith('/v2/journal') ||
-      p.startsWith('/v2/reflections') ||
-      p.startsWith('/v2/arth'),
+      p.startsWith('/me') ||
+      p.startsWith('/journal') ||
+      p.startsWith('/reflections') ||
+      p.startsWith('/arth'),
   },
 ];
 

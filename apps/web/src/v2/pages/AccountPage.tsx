@@ -50,7 +50,7 @@ export function AccountPage() {
       }
       await refresh();
       // New users go to onboarding; returning users back to their portfolio.
-      navigate(mode === 'signup' ? '/v2/profile' : '/v2/portfolio');
+      navigate(mode === 'signup' ? '/profile' : '/portfolio');
     } catch {
       // Generic error — never reveal whether the email exists or is locked out.
       setError(
@@ -77,7 +77,7 @@ export function AccountPage() {
           </p>
           {profileComplete === false && (
             <Link
-              to="/v2/profile"
+              to="/profile"
               className="block mt-5 rounded-xl p-4"
               style={{ border: '1px solid var(--border)', backgroundColor: 'color-mix(in oklch, var(--brand) 6%, transparent)' }}
             >
@@ -89,19 +89,19 @@ export function AccountPage() {
           )}
           {profileComplete === true && (
             <p className="ink-muted mt-4" style={{ fontSize: 13 }}>
-              Profile complete. <Link to="/v2/profile" className="ink-primary underline">Edit</Link>
+              Profile complete. <Link to="/profile" className="ink-primary underline">Edit</Link>
             </p>
           )}
           <div className="mt-6 flex items-center gap-3">
             <button
-              onClick={() => navigate('/v2/portfolio')}
+              onClick={() => navigate('/portfolio')}
               className="rounded-lg px-4 h-10 font-medium"
               style={{ backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)', fontSize: 14 }}
             >
               Go to my portfolio
             </button>
             <button
-              onClick={async () => { await signOut(); navigate('/v2/discover'); }}
+              onClick={async () => { await signOut(); navigate('/discover'); }}
               className="rounded-lg px-4 h-10 font-medium"
               style={{ border: '1px solid var(--border)', color: 'var(--muted-foreground)', fontSize: 14 }}
             >
