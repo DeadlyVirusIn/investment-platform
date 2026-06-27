@@ -23,13 +23,33 @@ import {
   Sparkles,
   User,
   LogOut,
+  Shield,
   type LucideProps,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { getTerm } from '../data/arthosData';
 import { useTheme } from './ThemeContext';
 import { GlobalTicker } from './GlobalTicker';
 import { useCommandPalette } from './CommandPalette';
 import { useSession } from '../state/SessionContext';
+import { apiGet } from '../../lib/api';
+
+// Owner-only nav gate. Probes GET /api/admin/overview using the same query
+// key AdminGuard uses, so this dedupes with the admin pages' own fetch. The
+// SERVER is the real enforcer — require_owner returns 404 for anyone but the
+// owner, so a non-owner's probe errors and the Admin link stays hidden. This
+// is purely cosmetic visibility; it never grants access. retry:false avoids
+// re-hammering the endpoint on the expected 404 for non-owners.
+function useIsOwner(): boolean {
+  const { isSuccess } = useQuery({
+    queryKey: ['admin', 'overview'],
+    queryFn: () => apiGet('/admin/overview'),
+    retry: false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  return isSuccess;
+}
 
 // Phase B visual-parity — nav item shape now carries an icon ref so
 // the new SideNav + restyled MobileBottomTab can render icon+label
@@ -183,6 +203,7 @@ function AccountTopBarButton() {
 export function SideNav() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
+  const isOwner = useIsOwner();
   return (
     <aside
       className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-[248px] flex-col backdrop-blur-xl"
@@ -274,6 +295,48 @@ export function SideNav() {
             </Link>
           );
         })}
+
+        {/* Owner-only — Admin console. Rendered only when the server's
+            /api/admin/overview probe succeeds (owner). Server-guarded;
+            non-owners never see this and cannot reach the pages. */}
+        {isOwner && (() => {
+          const active = location.pathname.startsWith('/v2/admin');
+          return (
+            <Link
+              to="/v2/admin"
+              className="flex items-center gap-3 px-3 h-10 rounded-lg font-medium transition-colors"
+              style={{
+                fontSize: 13.5,
+                backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.backgroundColor =
+                    'color-mix(in oklch, var(--sage-light) 60%, transparent)';
+                  e.currentTarget.style.color = 'var(--foreground)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--muted-foreground)';
+                }
+              }}
+            >
+              <Shield
+                style={{
+                  width: 17,
+                  height: 17,
+                  color: active ? 'var(--brand)' : 'var(--muted-foreground)',
+                }}
+                strokeWidth={active ? 2.1 : 1.7}
+                aria-hidden
+              />
+              <span>Admin</span>
+            </Link>
+          );
+        })()}
 
         {/* Secondary destinations — previously only in the mobile
             drawer, leaving them unreachable on desktop. Surfaced here
