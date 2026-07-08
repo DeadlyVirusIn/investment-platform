@@ -28,6 +28,7 @@ from apps.api.src.domain.paper_trading.auto_trader import (
 from apps.api.src.domain.paper_trading.paper_service import (
     engine_tradable_portfolio_ids,
     snapshot_equity_now,
+    user_paper_book_ids,
 )
 from apps.api.src.reasoning.audit import record_envelope
 from apps.api.src.reasoning.worker_integration import (
@@ -325,6 +326,27 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
                 )
         except Exception as exc:  # noqa: BLE001 — one portfolio must not kill the job
             logger.error("run_paper_trading failed for {}: {}", portfolio_id, exc)
+
+    # P1 2026-07-08: user books are never TRADED by the engine, but their
+    # daily equity snapshot must still be produced — /api/paper/canonical/stock
+    # reads the latest source='live' snapshot for the portfolio page. Live
+    # runs only (replay is engine history; user books have none).
+    if as_of is None:
+        with SessionLocal() as session:
+            user_book_ids = user_paper_book_ids(session)
+        snapped = 0
+        for pid in user_book_ids:
+            try:
+                with SessionLocal() as session:
+                    portfolio = session.get(PaperPortfolio, pid)
+                    if portfolio is None:
+                        continue
+                    snapshot_equity_now(session, portfolio, as_of=now, source="live")
+                    session.commit()
+                    snapped += 1
+            except Exception as exc:  # noqa: BLE001 — observe-only, never abort
+                logger.error("user-book snapshot failed for {}: {}", pid, exc)
+        logger.info("user-book snapshots: {}/{}", snapped, len(user_book_ids))
 
     logger.info(
         "run_paper_trading complete: decisions={} executed={} rejected={}",

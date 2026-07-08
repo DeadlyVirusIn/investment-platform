@@ -121,3 +121,23 @@ def test_engine_selector_never_returns_user_books(pg_session: Session) -> None:
     ids = engine_tradable_portfolio_ids(pg_session)
     assert engine_pf.id in ids
     assert user_pid not in ids
+
+
+def test_user_paper_book_ids_selects_only_user_books(pg_session: Session) -> None:
+    """P1 2026-07-08: the observe-only snapshot pass must see user books and
+    nothing else (engine books get their snapshot in the trading loop)."""
+    from apps.api.src.domain.paper_trading.paper_service import (
+        PortfolioCreate,
+        create_portfolio,
+        user_paper_book_ids,
+    )
+
+    user_pid = resolve_user_stock_portfolio(pg_session, "snap-guard-user")
+    engine_pf = create_portfolio(
+        pg_session, PortfolioCreate(name="snap-guard-engine-book")
+    )
+    pg_session.commit()
+
+    ids = user_paper_book_ids(pg_session)
+    assert user_pid in ids
+    assert engine_pf.id not in ids

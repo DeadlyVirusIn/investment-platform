@@ -124,6 +124,20 @@ def engine_tradable_portfolio_ids(session: Session) -> list[str]:
     return list(session.scalars(engine_tradable_portfolios_stmt()))
 
 
+def user_paper_book_ids(session: Session) -> list[str]:
+    """Active per-user practice books. The engine may OBSERVE these
+    (daily equity snapshot for /paper/canonical/stock freshness) but must
+    never trade them."""
+    return list(
+        session.scalars(
+            select(PaperPortfolio.id).where(
+                PaperPortfolio.is_active.is_(True),
+                PaperPortfolio.name.like(f"{USER_BOOK_PREFIX}%"),
+            )
+        )
+    )
+
+
 def resolve_user_stock_portfolio(session: Session, user_id: str) -> str:
     """Get-or-create the caller's OWN stock paper book (``user:<id>:stock``).
 
