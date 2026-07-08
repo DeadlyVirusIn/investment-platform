@@ -98,3 +98,26 @@ def test_known_device_resolution_is_stable_and_never_shared_fallback(
     pid_again = resolve_user_stock_portfolio(pg_session, device)
     pg_session.commit()
     assert pid_again == pid_first
+
+
+def test_engine_selector_never_returns_user_books(pg_session: Session) -> None:
+    """P1 incident 2026-07-08: the nightly auto-trader drained user books.
+
+    The engine job selector must return active ENGINE portfolios only —
+    a per-user book (``user:<id>:stock``) must never be auto-traded,
+    rebalanced, or exit-cycled by scheduled jobs."""
+    from apps.api.src.domain.paper_trading.paper_service import (
+        create_portfolio,
+        engine_tradable_portfolio_ids,
+    )
+    from apps.api.src.domain.paper_trading.paper_service import PortfolioCreate
+
+    user_pid = resolve_user_stock_portfolio(pg_session, "engine-guard-user")
+    engine_pf = create_portfolio(
+        pg_session, PortfolioCreate(name="engine-guard-book")
+    )
+    pg_session.commit()
+
+    ids = engine_tradable_portfolio_ids(pg_session)
+    assert engine_pf.id in ids
+    assert user_pid not in ids
