@@ -25,7 +25,10 @@ from apps.api.src.domain.paper_trading.auto_trader import (
     AutoTradeConfig,
     auto_trade_portfolio,
 )
-from apps.api.src.domain.paper_trading.paper_service import snapshot_equity_now
+from apps.api.src.domain.paper_trading.paper_service import (
+    engine_tradable_portfolio_ids,
+    snapshot_equity_now,
+)
 from apps.api.src.reasoning.audit import record_envelope
 from apps.api.src.reasoning.worker_integration import (
     generate_envelope_for_paper_trade,
@@ -114,11 +117,9 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
     total_rejected = 0
 
     with SessionLocal() as session:
-        portfolio_ids = [
-            p.id for p in session.scalars(
-                select(PaperPortfolio).where(PaperPortfolio.is_active.is_(True))
-            )
-        ]
+        # P1 2026-07-08: engine-tradable only — per-user books (user:<id>:stock)
+        # are excluded so the auto-trader never spends a user's practice cash.
+        portfolio_ids = engine_tradable_portfolio_ids(session)
 
     for portfolio_id in portfolio_ids:
         try:

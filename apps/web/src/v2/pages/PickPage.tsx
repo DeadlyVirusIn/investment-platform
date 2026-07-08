@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
+import { ApiError } from '@/lib/api';
 import { plainThesis, ideaSignals } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
@@ -38,6 +39,28 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
       {children}
     </motion.div>
   );
+}
+
+// P1 incident 2026-07-08 — status-aware "Add to paper" failure copy. The
+// generic "Try again" hid the real reasons (signed out, no practice cash
+// left, stale price data, rate limit). Specific, still internal-safe.
+function addToPaperErrorCopy(err: unknown): string {
+  if (err instanceof ApiError) {
+    const msg = (err.message || '').toLowerCase();
+    if (err.status === 401) {
+      return 'Sign in to add ideas to your own practice portfolio.';
+    }
+    if (err.status === 409 && msg.includes('insufficient cash')) {
+      return "Not enough practice cash left in your book for a $1,000 add. Free up cash by closing a practice position first.";
+    }
+    if (err.status === 409 && msg.includes('no price data')) {
+      return 'No recent price data for this symbol yet — try again a little later.';
+    }
+    if (err.status === 429) {
+      return 'Too many adds in a short time — please wait a bit and try again.';
+    }
+  }
+  return "Couldn't add to your paper book. Try again.";
 }
 
 function absTime(iso: string | null): string {
@@ -233,7 +256,7 @@ export function PickPage() {
           </button>
           {addIdea.isError && (
             <p className="mt-2 text-[12px]" style={{ color: 'var(--destructive)' }}>
-              Couldn't add to your paper book. Try again.
+              {addToPaperErrorCopy(addIdea.error)}
             </p>
           )}
           {addIdea.isSuccess && (
