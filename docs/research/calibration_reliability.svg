@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" font-family="monospace" font-size="11">
+<rect width="480" height="480" fill="white"/>
+<line x1="50" y1="430" x2="430" y2="50" stroke="#999" stroke-dasharray="4 3"/>
+<line x1="50" y1="430" x2="430" y2="430" stroke="#333"/>
+<line x1="50" y1="430" x2="50" y2="50" stroke="#333"/>
+<text x="240.0" y="468" text-anchor="middle">predicted (conviction/100)</text>
+<text x="14" y="240.0" transform="rotate(-90 14 240.0)" text-anchor="middle">observed hit rate</text>
+<text x="240.0" y="20" text-anchor="middle">Reliability — displayed confidence as probability (walk-forward pooled)</text>
+<line x1="265.13137755102036" y1="240.92226653897848" x2="265.13137755102036" y2="222.15490866747993" stroke="#c33" stroke-width="1"/>
+<circle cx="265.13137755102036" cy="231.51785714285714" r="4" fill="#c33"/>
+<text x="265.13137755102036" y="223.51785714285714" text-anchor="middle" font-size="9">n=1568</text>
+<line x1="303.34600000000006" y1="219.7373314444784" x2="303.34600000000006" y2="198.9054645546271" stroke="#c33" stroke-width="1"/>
+<circle cx="303.34600000000006" cy="209.22643029814665" r="4" fill="#c33"/>
+<text x="303.34600000000006" y="201.22643029814665" text-anchor="middle" font-size="9">n=1241</text>
+<path d="M265.1,231.5 L303.3,209.2" fill="none" stroke="#c33" stroke-width="1.5"/>
+<text x="50" y="446" text-anchor="middle">0</text>
+<text x="42" y="434" text-anchor="end">0</text>
+<text x="145.0" y="446" text-anchor="middle">0.25</text>
+<text x="42" y="339.0" text-anchor="end">0.25</text>
+<text x="240.0" y="446" text-anchor="middle">0.5</text>
+<text x="42" y="244.0" text-anchor="end">0.5</text>
+<text x="335.0" y="446" text-anchor="middle">0.75</text>
+<text x="42" y="149.0" text-anchor="end">0.75</text>
+<text x="430.0" y="446" text-anchor="middle">1</text>
+<text x="42" y="54.0" text-anchor="end">1</text>
+</svg>
