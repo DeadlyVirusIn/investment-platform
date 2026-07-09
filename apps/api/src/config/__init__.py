@@ -646,6 +646,13 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # PHASE G — auth + subscription tier resolution
     # ------------------------------------------------------------------
+    # Elite ArthOS "Honest Numbers" — dataset-level ingest contracts
+    # (domain/prices/contracts.py): quarantine suspect bars, fail closed on
+    # widespread corruption, structured per-symbol reports. Default OFF —
+    # the legacy validate_batch path is byte-identical when false. Enable
+    # only after the wired path's tests and an owner review of quarantine
+    # thresholds.
+    INGEST_CONTRACTS_ENABLED: bool = False
     # When True, get_current_user() falls back to a synthetic dev user
     # and tier resolution honors the legacy `RESEARCH_PREMIUM_TIER`
     # env. NEVER set true in production.
