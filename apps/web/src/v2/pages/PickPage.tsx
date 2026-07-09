@@ -11,6 +11,11 @@ import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { ApiError } from '@/lib/api';
+// Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
+// their VITE_DEV_* flags are '1' (absent in every normal build).
+import { AttributionWorking } from '../components/AttributionWorking';
+import { ATTRIBUTION_FIXTURE } from '../components/attributionFixture';
+import { ThesisCardDev } from '../components/ThesisCardDev';
 import { plainThesis, ideaSignals } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
@@ -483,6 +488,12 @@ export function PickPage() {
             </Link>
           </div>
         </section>
+
+        {/* Elite ArthOS dev previews — both components render null unless
+            VITE_DEV_ATTRIBUTION / VITE_DEV_THESIS are '1'; inert in every
+            normal build. They supplement, never replace, the narrative. */}
+        <AttributionWorking payload={ATTRIBUTION_FIXTURE} />
+        <ThesisCardDev />
       </FadeIn>
     </ArthosPage>
   );

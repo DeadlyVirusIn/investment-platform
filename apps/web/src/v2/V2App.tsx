@@ -27,6 +27,7 @@ import { TrackRecord } from './pages/TrackRecord';
 import { LessonPage } from './pages/LessonPage';
 import { Opportunities } from './pages/Opportunities';
 import { ModelPortfolioDetail } from './pages/ModelPortfolioDetail';
+import { TrustCenterDev, trustCenterDevEnabled } from './pages/TrustCenterDev';
 import { Catalysts } from './pages/Catalysts';
 import { FieldNotes } from './pages/FieldNotes';
 import { Watchlist } from './pages/Watchlist';
@@ -95,6 +96,12 @@ function V2Surface() {
         <Route path="journal" element={<JournalPage />} />
         {/* Phase 2B — Arth Report Card. */}
         <Route path="arth" element={<ArthReportCard />} />
+        {/* Elite ArthOS Sprint 7 — dev-only Trust Center prototype. The
+            component renders null unless VITE_DEV_TRUST_CENTER='1', so this
+            route is inert in every normal build. */}
+        {trustCenterDevEnabled() && (
+          <Route path="dev/trust-center" element={<TrustCenterDev />} />
+        )}
         {/* Admin-1 — owner-only console (server-guarded; non-owners bounce). */}
         <Route path="admin" element={<AdminHome />} />
         <Route path="admin/feedback" element={<AdminFeedback />} />
