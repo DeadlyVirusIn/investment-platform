@@ -48,6 +48,12 @@ async def jobs_health() -> dict[str, Any]:
                     "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
                     "last_status": last_run.status if last_run else None,
                     "last_error": last_run.error_message if last_run else None,
+                    # P0-5B — enabled row with NULL next_run_at is unclaimable
+                    # (stuck): normally self-healed next tick; persists only
+                    # for a malformed cron_expr.
+                    "stuck_null_schedule": bool(
+                        sched.enabled and sched.next_run_at is None
+                    ),
                 }
             )
 

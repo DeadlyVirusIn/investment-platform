@@ -70,6 +70,59 @@ def _claim_due_job(schedule: JobSchedule, now: datetime.datetime) -> bool:
     return row is not None
 
 
+def _heal_null_schedules(now: datetime.datetime) -> int:
+    """P0-5B — bootstrap enabled schedules whose ``next_run_at`` is NULL.
+
+    Migration-seeded rows (e.g. 069's options jobs, the exit-cycle row)
+    were created with next_run_at NULL, and the claim predicate
+    (``next_run_at <= now``) can never match NULL — such jobs are stuck
+    forever and have 0 job_run rows. Repair = compute the next valid slot
+    from the row's own cron_expr (NEVER "now": no immediate mass-fire).
+
+    Safety:
+      * disabled rows are never touched;
+      * malformed cron_expr is left NULL and surfaced loudly as a
+        structured ``schedule_stuck`` error (visible, not executed);
+      * the guarded UPDATE (``AND next_run_at IS NULL``) is race-safe
+        across both scheduler containers — the loser matches 0 rows;
+      * exactly-once execution still flows through _claim_due_job.
+
+    Returns the number of rows repaired by THIS instance."""
+    repaired = 0
+    with SessionLocal() as session:
+        rows = list(session.scalars(
+            select(JobSchedule).where(
+                JobSchedule.enabled == True,  # noqa: E712
+                JobSchedule.next_run_at.is_(None),
+            )
+        ))
+        for sched in rows:
+            try:
+                nxt = croniter(sched.cron_expr, now).get_next(datetime.datetime)
+            except Exception as exc:  # noqa: BLE001 — malformed cron: stuck, visible
+                logger.error(
+                    'schedule_stuck name="{}" reason=invalid_cron cron_expr={!r} error="{}"',
+                    sched.name, sched.cron_expr, exc,
+                )
+                continue
+            row = session.execute(
+                text(
+                    "UPDATE job_schedule SET next_run_at = :next "
+                    "WHERE id = :id AND enabled = true AND next_run_at IS NULL "
+                    "RETURNING id"
+                ),
+                {"next": nxt, "id": sched.id},
+            ).first()
+            if row is not None:
+                repaired += 1
+                logger.info(
+                    'schedule_repaired name="{}" next_run_at="{}" reason=null_bootstrap',
+                    sched.name, nxt.isoformat(),
+                )
+        session.commit()
+    return repaired
+
+
 def _touch_heartbeat() -> None:
     try:
         Path(_HEARTBEAT_FILE).touch()
@@ -151,6 +204,11 @@ async def _tick() -> None:
     """Single scheduler tick: find due jobs and launch them."""
     now = datetime.datetime.now(datetime.timezone.utc)
     semaphore = asyncio.Semaphore(_MAX_CONCURRENT)
+
+    # P0-5B — repair NULL next_run_at rows BEFORE the due query so newly
+    # seeded / stuck schedules join the normal claim flow at their NEXT
+    # cron slot (never immediately).
+    _heal_null_schedules(now)
 
     with SessionLocal() as session:
         stmt = select(JobSchedule).where(
