@@ -33,6 +33,8 @@ from apps.api.src.domain.prices.reconcile import (
     dedupe_payload,
     should_upsert,
 )
+from apps.api.src.config import settings
+from apps.api.src.domain.prices.contracts import DatasetVerdict, evaluate_dataset
 from apps.api.src.domain.prices.validate import validate_batch
 
 BENCHMARK_SYMBOLS: tuple[str, ...] = ("SPY",)
@@ -53,6 +55,11 @@ class SymbolRunReport:
     bars_skipped: int = 0
     warnings: list[str] = field(default_factory=list)
     failure_reason: str | None = None
+    # Elite ArthOS Sprint 4/Honest Numbers — dataset-contract report
+    # (contracts.DatasetContractReport.to_dict()). Populated only when
+    # settings.INGEST_CONTRACTS_ENABLED is true; None otherwise. This is
+    # the development-only seam for the future Admin/Trust Center feed.
+    contract: dict | None = None
 
 
 @dataclass
@@ -199,11 +206,43 @@ async def ingest_symbol(
         )
 
     # --- 4. Validate ---
-    accepted, rejected = validate_batch(deduped)
-    report.bars_rejected = len(rejected)
-    if rejected:
-        sample = "; ".join(r[1].reject_reason or "?" for r in rejected[:3])
-        report.warnings.append(f"validation rejected {len(rejected)}: {sample}")
+    if settings.INGEST_CONTRACTS_ENABLED:
+        # Elite ArthOS Honest Numbers — dataset-level contract supersedes the
+        # bare per-bar pass: quarantines suspect rows (they never reach the
+        # upsert below, hence never inference) and fails CLOSED on
+        # widespread corruption (ABORT writes nothing). Default-off flag;
+        # legacy path below is byte-identical when the flag is off.
+        contract_accepted, contract_report = evaluate_dataset(
+            deduped,
+            symbol=report.symbol,
+            provider=used_provider.name,
+            now=now,
+        )
+        report.contract = contract_report.to_dict()
+        report.bars_rejected = contract_report.rows_quarantined
+        if contract_report.dataset_flags:
+            report.warnings.extend(
+                f"contract: {f}" for f in contract_report.dataset_flags[:5]
+            )
+        if contract_report.verdict is DatasetVerdict.ABORT_DATASET:
+            report.failure_reason = (
+                f"contract abort: {contract_report.abort_reason}"
+            )
+            return report
+        if contract_report.rows_quarantined:
+            sample = "; ".join(
+                i.rule for i in contract_report.issues[:3]
+            )
+            report.warnings.append(
+                f"contract quarantined {contract_report.rows_quarantined}: {sample}"
+            )
+        accepted = contract_accepted
+    else:
+        accepted, rejected = validate_batch(deduped)
+        report.bars_rejected = len(rejected)
+        if rejected:
+            sample = "; ".join(r[1].reject_reason or "?" for r in rejected[:3])
+            report.warnings.append(f"validation rejected {len(rejected)}: {sample}")
 
     if not accepted:
         return report
