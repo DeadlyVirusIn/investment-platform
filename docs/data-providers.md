@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-07-09** — describes the pre-auth single-user Phase-0 design
+> (2026-04); superseded by apps/api/src/domain/prices/providers/ (yahoo/tiingo/polygon).
+> Kept for history; do not use for implementation.
+
 # Data Providers
 
 > **Note:** All limits below are VERIFIED against provider docs as of the

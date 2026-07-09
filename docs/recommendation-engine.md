@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-07-09** — describes the pre-auth single-user Phase-0 design
+> (2026-04); superseded by the rule-based agreement-scoring engine (LightGBM shadow-only) — see docs/research/MODEL_AND_DATA_FORENSICS.md.
+> Kept for history; do not use for implementation.
+
 # Recommendation Engine
 
 ## Actions (5-value enum)
