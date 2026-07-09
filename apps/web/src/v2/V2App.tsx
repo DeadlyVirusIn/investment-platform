@@ -51,6 +51,7 @@ import { Observability } from './pages/Observability';
 // Admin-1 — owner-only console (overview + feedback). Server-guarded; the
 // page-level AdminGuard bounces non-owners.
 import { AdminHome, AdminFeedback, AdminJobs, AdminSystem, AdminGuard } from './pages/Admin';
+import { AdminTrustCenter } from './pages/AdminTrustCenter';
 // Options — read-only V2-native options subsystem visibility surface.
 import { OptionsVisibility } from './pages/OptionsVisibility';
 
@@ -107,6 +108,9 @@ function V2Surface() {
         <Route path="admin/feedback" element={<AdminFeedback />} />
         <Route path="admin/jobs" element={<AdminJobs />} />
         <Route path="admin/system" element={<AdminSystem />} />
+        {/* Honest Numbers — owner Trust Center (server-guarded; endpoint
+            404s non-owners). Not linked from user navigation. */}
+        <Route path="admin/trust-center" element={<AdminTrustCenter />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}

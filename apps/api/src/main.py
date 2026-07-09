@@ -83,6 +83,7 @@ from apps.api.src.api.diagnostics_pending import (
 )
 from apps.api.src.api.factors import router as factors_router
 from apps.api.src.api.admin_observability import router as admin_observability_router
+from apps.api.src.api.trust_center import router as trust_center_router
 from apps.api.src.api.paper_canonical import router as paper_canonical_router
 from apps.api.src.api.model_portfolios import router as model_portfolios_router
 from apps.api.src.api.freshness import router as freshness_router
@@ -224,6 +225,7 @@ for _router in (
     factors_router,
     freshness_router,
     admin_observability_router,
+    trust_center_router,
     paper_canonical_router,
     model_portfolios_router,
     stock_engine_router,
