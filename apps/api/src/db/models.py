@@ -2101,3 +2101,282 @@ class ResearchRunApproval(Base):
     decided_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
+
+
+# ---------------------------------------------------------------------------
+# Thesis Ledger — Elite ArthOS Sprint 6 (migrations 110 + 111)
+# ---------------------------------------------------------------------------
+# A thesis is one durable, plain-English belief with a MANDATORY falsifier
+# (`wrong_if`). Evidence (stance supports|contradicts), catalysts, risks and
+# polymorphic links attach to it; every thesis mutation appends an immutable
+# ThesisRevision row. Status changes flow through
+# apps/api/src/domain/thesis/service.py ONLY (transition table there) — never
+# auto-mutated from generated content. All FKs are ON DELETE RESTRICT: no
+# cascade path can silently destroy history.
+# Spec: docs/architecture/THESIS_LEDGER_SPEC.md
+
+class Thesis(Base):
+    """One belief, not a recommendation. `wrong_if` is required at creation
+    (DB CHECK: > 10 chars) — ArthOS never holds a belief without a stated
+    falsifier. Revived ideas are NEW rows via supersedes_thesis_id; history
+    is never rewritten (no un-invalidating, no transition out of closed)."""
+
+    __tablename__ = "thesis"
+
+    id: Mapped[str]              = mapped_column(String(36), primary_key=True, default=_uuid)
+    asset_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("asset.id"))
+    scope: Mapped[str]           = mapped_column(String(16), nullable=False, default="company")
+    title: Mapped[str]           = mapped_column(String(200), nullable=False)
+    statement: Mapped[str]       = mapped_column(Text, nullable=False)
+    wrong_if: Mapped[str]        = mapped_column(Text, nullable=False)
+    horizon: Mapped[str]         = mapped_column(String(16), nullable=False, default="months")
+    status: Mapped[str]          = mapped_column(String(16), nullable=False, default="forming")
+    status_reason: Mapped[str | None] = mapped_column(Text)
+    status_changed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    invalidated_reason: Mapped[str | None] = mapped_column(Text)
+    supersedes_thesis_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT")
+    )
+    created_by: Mapped[str]      = mapped_column(String(64), nullable=False, default="owner")
+    published_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime.datetime | None]    = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now, onupdate=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "scope IN ('company','sector','theme','macro')",
+            name="ck_thesis_scope",
+        ),
+        CheckConstraint(
+            "status IN ('forming','active','strengthened','weakened',"
+            "'invalidated','closed')",
+            name="ck_thesis_status",
+        ),
+        CheckConstraint(
+            "horizon IN ('weeks','months','quarters','years')",
+            name="ck_thesis_horizon",
+        ),
+        CheckConstraint(
+            "char_length(wrong_if) > 10",
+            name="ck_thesis_wrong_if_len",
+        ),
+        CheckConstraint(
+            "status <> 'invalidated' OR invalidated_reason IS NOT NULL",
+            name="ck_thesis_invalidated",
+        ),
+        CheckConstraint(
+            "scope <> 'company' OR asset_id IS NOT NULL",
+            name="ck_thesis_company_asset",
+        ),
+        Index("ix_thesis_asset", "asset_id"),
+        Index("ix_thesis_status", "status"),
+    )
+
+    evidence: Mapped[list[ThesisEvidence]] = relationship(back_populates="thesis")
+    catalysts: Mapped[list[ThesisCatalyst]] = relationship(back_populates="thesis")
+    risks: Mapped[list[ThesisRisk]] = relationship(back_populates="thesis")
+    links: Mapped[list[ThesisLink]] = relationship(back_populates="thesis")
+    revisions: Mapped[list[ThesisRevision]] = relationship(back_populates="thesis")
+
+
+class ThesisEvidence(Base):
+    """Durable belief evidence with provenance + human review. Counter-
+    evidence is NOT a separate entity — it is a row with
+    stance='contradicts'. Generated rows MUST carry source_url and always
+    start review_status='pending' (forced server-side); rows are immutable
+    after insert except the three review fields. Rejected rows are kept —
+    no delete path."""
+
+    __tablename__ = "thesis_evidence"
+
+    id: Mapped[str]         = mapped_column(String(36), primary_key=True, default=_uuid)
+    thesis_id: Mapped[str]  = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT"), nullable=False
+    )
+    stance: Mapped[str]      = mapped_column(String(16), nullable=False)
+    category: Mapped[str]    = mapped_column(String(16), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(Text)
+    published_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    observed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    summary: Mapped[str]     = mapped_column(Text, nullable=False)
+    weight: Mapped[object | None] = mapped_column(Numeric(5, 4))
+    provenance: Mapped[str]  = mapped_column(String(16), nullable=False)
+    review_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "stance IN ('supports','contradicts')",
+            name="ck_thesis_evidence_stance",
+        ),
+        CheckConstraint(
+            "category IN ('price_action','fundamentals','news','analyst',"
+            "'macro','other')",
+            name="ck_thesis_evidence_category",
+        ),
+        CheckConstraint(
+            "provenance IN ('generated','human')",
+            name="ck_thesis_evidence_provenance",
+        ),
+        CheckConstraint(
+            "review_status IN ('pending','approved','rejected')",
+            name="ck_thesis_evidence_review",
+        ),
+        CheckConstraint(
+            "weight IS NULL OR (weight >= 0 AND weight <= 1)",
+            name="ck_thesis_evidence_weight",
+        ),
+        # generated evidence must carry a source URL — provenance rule at
+        # the DB layer
+        CheckConstraint(
+            "provenance <> 'generated' OR source_url IS NOT NULL",
+            name="ck_thesis_evidence_gen_url",
+        ),
+        # reviewed rows must say who/when
+        CheckConstraint(
+            "review_status = 'pending' "
+            "OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
+            name="ck_thesis_evidence_reviewed",
+        ),
+        Index("ix_thesis_evidence_thesis", "thesis_id", "review_status"),
+        Index(
+            "ix_thesis_evidence_pending", "review_status",
+            postgresql_where=text("review_status = 'pending'"),
+        ),
+    )
+
+    thesis: Mapped[Thesis] = relationship(back_populates="evidence")
+
+
+class ThesisRevision(Base):
+    """Immutable revision history — the service appends one row on EVERY
+    thesis mutation (create + every status transition). NO update or delete
+    path exists anywhere; corrections are new thesis mutations which append
+    new revisions. snapshot = {statement, status, wrong_if, status_reason}
+    as of the mutation."""
+
+    __tablename__ = "thesis_revision"
+
+    id: Mapped[str]          = mapped_column(String(36), primary_key=True, default=_uuid)
+    thesis_id: Mapped[str]   = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT"), nullable=False
+    )
+    revision_no: Mapped[int] = mapped_column(Integer, nullable=False)
+    snapshot: Mapped[dict]   = mapped_column(JSON_COL, nullable=False)
+    changed_by: Mapped[str]  = mapped_column(String(64), nullable=False, default="owner")
+    changed_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint("thesis_id", "revision_no", name="uq_thesis_revision_no"),
+        CheckConstraint("revision_no >= 1", name="ck_thesis_revision_no"),
+        Index("ix_thesis_revision_thesis", "thesis_id", text("revision_no DESC")),
+    )
+
+    thesis: Mapped[Thesis] = relationship(back_populates="revisions")
+
+
+class ThesisCatalyst(Base):
+    """What could move this thesis, with an optional expected window.
+    No deletes; resolution is data."""
+
+    __tablename__ = "thesis_catalyst"
+
+    id: Mapped[str]        = mapped_column(String(36), primary_key=True, default=_uuid)
+    thesis_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT"), nullable=False
+    )
+    title: Mapped[str]     = mapped_column(String(200), nullable=False)
+    expected_at: Mapped[datetime.date | None] = mapped_column(Date)
+    window_days: Mapped[int | None] = mapped_column(Integer)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False, default="either")
+    resolved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "direction IN ('helps','hurts','either')",
+            name="ck_thesis_catalyst_direction",
+        ),
+        Index("ix_thesis_catalyst_thesis", "thesis_id"),
+    )
+
+    thesis: Mapped[Thesis] = relationship(back_populates="catalysts")
+
+
+class ThesisRisk(Base):
+    """What could hurt this thesis, severity-tagged. `materialized_at` is
+    set when the risk actually happened. No deletes."""
+
+    __tablename__ = "thesis_risk"
+
+    id: Mapped[str]        = mapped_column(String(36), primary_key=True, default=_uuid)
+    thesis_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT"), nullable=False
+    )
+    title: Mapped[str]     = mapped_column(String(200), nullable=False)
+    detail: Mapped[str | None] = mapped_column(Text)
+    severity: Mapped[str]  = mapped_column(String(8), nullable=False, default="medium")
+    materialized_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "severity IN ('low','medium','high')",
+            name="ck_thesis_risk_severity",
+        ),
+        Index("ix_thesis_risk_thesis", "thesis_id"),
+    )
+
+    thesis: Mapped[Thesis] = relationship(back_populates="risks")
+
+
+class ThesisLink(Base):
+    """Polymorphic link. Deliberately NO hard FK on target_id: targets span
+    recommendation / paper_trade / recommendation_outcome today and a future
+    `lesson` table (Learning Loop M9). Follows the PaperObservationLabel
+    precedent: id-only reference keeps this table isolated from the strict
+    execution path. Existence is validated in the service layer at link
+    time."""
+
+    __tablename__ = "thesis_link"
+
+    id: Mapped[str]          = mapped_column(String(36), primary_key=True, default=_uuid)
+    thesis_id: Mapped[str]   = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT"), nullable=False
+    )
+    target_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    target_id: Mapped[str]   = mapped_column(String(36), nullable=False)
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "target_type IN ('recommendation','paper_trade','outcome','lesson')",
+            name="ck_thesis_link_type",
+        ),
+        UniqueConstraint("thesis_id", "target_type", "target_id", name="uq_thesis_link"),
+        Index("ix_thesis_link_target", "target_type", "target_id"),
+    )
+
+    thesis: Mapped[Thesis] = relationship(back_populates="links")
