@@ -13,6 +13,7 @@
 // The raw narratives live only in the Layer-3 Recommendation Trace.
 
 import type { RecApi, RecEvidence } from '@/lib/operator/hooks';
+import { confidenceNarrativeSuffix } from './confidenceDisplay';
 
 export interface SidePoint {
   key: string;
@@ -169,10 +170,10 @@ export function bullBear(rec: RecApi): BullBear {
   const a = action.toLowerCase();
   if (a === 'buy') {
     verdictLabel = 'Why ArthOS still likes it';
-    verdict = `${lead}, ${bull.length} supportive signal${bull.length === 1 ? '' : 's'} outweigh them — enough to clear the buy line${conf ? ` at ${conf.toLowerCase()} confidence` : ''}.`;
+    verdict = `${lead}, ${bull.length} supportive signal${bull.length === 1 ? '' : 's'} outweigh them — enough to clear the buy line${confidenceNarrativeSuffix(conf)}.`;
   } else if (a === 'sell' || a === 'trim') {
     verdictLabel = 'Why ArthOS is stepping back';
-    verdict = `The risks currently outweigh the supportive signals, so ArthOS rates this a ${action}${conf ? ` at ${conf.toLowerCase()} confidence` : ''}.`;
+    verdict = `The risks currently outweigh the supportive signals, so ArthOS rates this a ${action}${confidenceNarrativeSuffix(conf)}.`;
   } else {
     verdictLabel = 'Where ArthOS lands';
     verdict = `The bullish and bearish signals roughly balance, so ArthOS keeps this a ${action} rather than a buy${conf ? ` (${conf.toLowerCase()} confidence)` : ''}.`;

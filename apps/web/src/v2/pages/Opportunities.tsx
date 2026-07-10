@@ -10,6 +10,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
+import { confidenceDisplay } from '../lib/confidenceDisplay';
 import {
   ModelPortfoliosSection,
   SocialProofStrip,
@@ -304,7 +305,7 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       </Link>
       <div className="flex items-center gap-2 mt-2 mb-2.5 flex-wrap">
         {sectorLabel(rec.sector) && <SmallChip>{sectorLabel(rec.sector)}</SmallChip>}
-        <SmallChip>{(rec.confidence_label ?? 'Medium').toLowerCase()} confidence</SmallChip>
+        <SmallChip>{confidenceDisplay(rec.confidence_label)}</SmallChip>
       </div>
       {plainThesis(rec.thesis) && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{plainThesis(rec.thesis)}</p>

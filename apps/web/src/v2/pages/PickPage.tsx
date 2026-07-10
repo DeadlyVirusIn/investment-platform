@@ -11,6 +11,7 @@ import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { ApiError } from '@/lib/api';
+import { confidenceDisplay } from '../lib/confidenceDisplay';
 // Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
 // their VITE_DEV_* flags are '1' (absent in every normal build).
 import { AttributionWorking } from '../components/AttributionWorking';
@@ -236,7 +237,7 @@ export function PickPage() {
           </h1>
           <div className="text-meta ink-muted tabular-nums">
             {sec && <>{sec}{' · '}</>}
-            {rec.confidence_label ?? 'Medium'} confidence
+            {confidenceDisplay(rec.confidence_label)}
             {' · '}
             <span style={{ color: fresh ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
               {fresh ? 'updated today' : 'needs a refresh'}

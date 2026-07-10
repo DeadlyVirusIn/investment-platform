@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { plainThesis, ideaSignals } from '../lib/plainText';
+import { confidenceDisplay } from '../lib/confidenceDisplay';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from './CompanyTitle';
 import { PlanRows } from './PlanRows';
@@ -50,7 +51,7 @@ export function LiveTodayHero({
   const why = plainThesis(rec.thesis);
   const support = sig.why.slice(0, 3);
   const keyRisk = sig.risks[0] ?? null;
-  const confLabel = (rec.confidence_label ?? 'Medium').toLowerCase();
+  const confLabel = confidenceDisplay(rec.confidence_label);
   const sec = sectorLabel(rec.sector);
 
   return (
@@ -73,7 +74,7 @@ export function LiveTodayHero({
       {/* Sector + confidence (plain word, no number) + freshness. */}
       <div className="flex items-center gap-2 flex-wrap mt-2">
         {sec && <Chip>{sec}</Chip>}
-        <Chip>{confLabel} confidence</Chip>
+        <Chip>{confLabel}</Chip>
         <Chip tone={fresh.tone}>{fresh.label}</Chip>
       </div>
 
@@ -140,7 +141,7 @@ export function LiveTodayHero({
                   <CompanyTitle symbol={r.symbol} name={r.name} />
                 </Link>
                 <span className="ink-muted" style={{ fontSize: 12.5 }}>
-                  {effectiveAction(r)} · {(r.confidence_label ?? 'Medium').toLowerCase()} confidence
+                  {effectiveAction(r)} · {confidenceDisplay(r.confidence_label)}
                 </span>
               </li>
             ))}

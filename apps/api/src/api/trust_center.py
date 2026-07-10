@@ -105,11 +105,16 @@ def trust_center(db: Session = Depends(get_session)) -> dict[str, Any]:
     )).scalar()
     sections.append(_section(
         "Recommendation sample size",
+        "preliminary" if recs else "insufficient_data",
+        "Counts from THIS environment's database (replay rows excluded).",
+        {"live_recommendations": recs},
+    ))
+
+    sections.append(_section(
+        "Resolved vs unresolved outcomes",
         "preliminary" if resolved and resolved >= 10 else "insufficient_data",
-        "Counts from THIS environment's database. Outcome accuracy publishes "
-        "only at >= 10 resolved outcomes.",
-        {"live_recommendations": recs, "resolved_outcomes": resolved,
-         "unresolved_outcomes": unresolved},
+        "Outcome accuracy publishes only at >= 10 resolved outcomes.",
+        {"resolved_outcomes": resolved, "unresolved_outcomes": unresolved},
     ))
 
     # -- confidence calibration: study reference, never a prod stat --------
