@@ -155,3 +155,39 @@ async def test_full_outage_keeps_legacy_failure_shape(pg_session: Session) -> No
     assert report.failure_reason == "all providers failed or empty"
     assert report.contract is None            # contract never evaluated
     assert _bar_count(pg_session) == 0
+
+
+async def test_retry_after_abort_yields_clean_writes_only(pg_session: Session) -> None:
+    """An aborted batch writes zero rows; a subsequent clean retry writes
+    only the clean batch — no mixed/partial state can accumulate."""
+    corrupt = [_raw(f"2026-07-0{d}", close="-1", open_="-1") for d in (1, 2, 3, 6, 7)]
+    corrupt.append(_raw("2026-07-08"))
+    first = await ingest_symbol(
+        pg_session, "CTRT", providers=[FakeProvider(corrupt)],
+        start_date=START, end_date=END,
+    )
+    assert first.contract["verdict"] == "abort_dataset"
+    assert _bar_count(pg_session) == 0            # nothing partial persisted
+
+    retry = await ingest_symbol(
+        pg_session, "CTRT", providers=[FakeProvider(_clean())],
+        start_date=START, end_date=END,
+    )
+    assert retry.contract["verdict"] == "accept"
+    assert retry.bars_written == 3
+    assert _bar_count(pg_session) == 3            # exactly the clean batch
+
+
+async def test_report_has_no_provider_payload_or_secrets(pg_session: Session) -> None:
+    import json as _json
+
+    raws = _clean() + [_raw("2026-07-02", close="-9", open_="-9")]
+    report = await ingest_symbol(
+        pg_session, "CTRT", providers=[FakeProvider(raws)],
+        start_date=START, end_date=END,
+    )
+    encoded = _json.dumps(report.contract).lower()
+    # bounded structured fields only — never raw provider rows or creds
+    assert "password" not in encoded and "api_key" not in encoded
+    assert "rawproviderbar" not in encoded
+    assert len(encoded) < 20_000
