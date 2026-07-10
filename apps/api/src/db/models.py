@@ -2041,3 +2041,63 @@ class PortfolioFollow(Base):
         Index("ix_follow_user", "user_id"),
     )
 
+
+
+class ResearchRun(Base):
+    """Elite ArthOS Sprint 5 — reproducible experiment ledger (migration
+    109). Rows freeze once terminal (app-enforced; DB CHECKs pin the
+    terminal invariants); promotion decisions live in
+    research_run_approval, never as in-place edits."""
+
+    __tablename__ = "research_run"
+
+    id: Mapped[str]           = mapped_column(String(36), primary_key=True, default=_uuid)
+    run_uid: Mapped[str]      = mapped_column(String(32), nullable=False, unique=True)
+    run_type: Mapped[str]     = mapped_column(String(32), nullable=False)
+    name: Mapped[str]         = mapped_column(String(256), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str]       = mapped_column(String(16), nullable=False, default="draft")
+    git_sha: Mapped[str]      = mapped_column(String(64), nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(64))
+    feature_schema_version: Mapped[str | None] = mapped_column(String(64))
+    data_start: Mapped[datetime.date | None] = mapped_column(Date)
+    data_end: Mapped[datetime.date | None]   = mapped_column(Date)
+    data_hash: Mapped[str | None]   = mapped_column(String(64))
+    config_hash: Mapped[str]  = mapped_column(String(64), nullable=False)
+    random_seed: Mapped[int | None] = mapped_column(BigInteger)
+    split_method: Mapped[str | None] = mapped_column(String(32))
+    parameters: Mapped[dict]  = mapped_column(JSON_COL, nullable=False, default=dict)
+    metrics: Mapped[dict]     = mapped_column(JSON_COL, nullable=False, default=dict)
+    artifact_manifest: Mapped[list] = mapped_column(JSON_COL, nullable=False, default=list)
+    parent_run_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("research_run.id", ondelete="RESTRICT")
+    )
+    promotion_status: Mapped[str] = mapped_column(String(16), nullable=False, default="none")
+    promoted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime.datetime | None]  = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str]   = mapped_column(String(64), nullable=False, default="owner")
+    error_summary: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+
+class ResearchRunApproval(Base):
+    """Append-only promotion decisions for research runs (migration 109).
+    Never UPDATE or DELETE rows — corrections are new rows; FK RESTRICT
+    keeps decided-on runs undeletable."""
+
+    __tablename__ = "research_run_approval"
+
+    id: Mapped[str]        = mapped_column(String(36), primary_key=True, default=_uuid)
+    run_id: Mapped[str]    = mapped_column(
+        String(36), ForeignKey("research_run.id", ondelete="RESTRICT"), nullable=False
+    )
+    decision: Mapped[str]  = mapped_column(String(16), nullable=False)
+    approver: Mapped[str]  = mapped_column(String(64), nullable=False)
+    rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    run_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    decided_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
