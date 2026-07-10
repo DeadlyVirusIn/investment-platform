@@ -653,6 +653,29 @@ class Settings(BaseSettings):
     # only after the wired path's tests and an owner review of quarantine
     # thresholds.
     INGEST_CONTRACTS_ENABLED: bool = False
+    # Elite ArthOS "Honest Numbers" — Priority 3: honest paper execution
+    # costs (domain\paper_trading\execution_costs.py). When True, the bare
+    # submit_trade fill path applies adverse slippage (liquidity-aware
+    # square-root impact when 20-bar avg dollar volume exists, flat
+    # spread-floor fallback otherwise) plus commission, both deducted from
+    # cash and stamped on the trade row via the existing fill_price /
+    # slippage_bps / commission columns. Callers that pass
+    # fill_price_override / slippage_bps / commission (weekly rebalance)
+    # keep their own cost model. Default OFF — the legacy zero-cost fill
+    # path is byte-identical when false.
+    PAPER_COST_MODEL_ENABLED: bool = False
+    # Commission in basis points of gross notional (0 = free broker).
+    PAPER_COMMISSION_BPS: float = 0.0
+    # Slippage floor in bps (half-spread proxy; mirrors the weekly
+    # rebalance cost model's 2bps minimum). Also the flat deterministic
+    # fallback when no dollar-volume data exists for the asset.
+    PAPER_SPREAD_FLOOR_BPS: float = 2.0
+    # Hard cap (bps) on liquidity-aware slippage for very large orders.
+    PAPER_SLIPPAGE_CAP_BPS: float = 50.0
+    # Square-root impact coefficient: slippage_bps =
+    # k * sqrt(order_notional / avg_dollar_volume) — k is the slippage in
+    # bps for an order equal to one full day's average dollar volume.
+    PAPER_IMPACT_K_BPS: float = 10.0
     # When True, get_current_user() falls back to a synthetic dev user
     # and tier resolution honors the legacy `RESEARCH_PREMIUM_TIER`
     # env. NEVER set true in production.
