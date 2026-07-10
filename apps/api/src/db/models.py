@@ -2484,3 +2484,93 @@ class ResearchReport(Base):
     )
 
     task: Mapped[ResearchTask] = relationship(back_populates="reports")
+
+
+# ---------------------------------------------------------------------------
+# Learning Loop — Elite ArthOS Priority 6 (migration 113)
+# ---------------------------------------------------------------------------
+# One post-outcome learning record tied to the decision it judges. All
+# mutations flow through apps/api/src/domain/learning/service.py ONLY:
+# the hindsight guard (original_thesis_quote must be a verbatim substring
+# of a thesis_revision snapshot at-or-before recommendation.generated_at),
+# the censored-outcome guard (unresolved outcomes may only carry
+# thesis_effect='none'), and the forced-draft rule for generated lessons
+# all live there. Approving a lesson NEVER mutates thesis status — it may
+# only attach a thesis_link(target_type='lesson') row.
+# Spec: docs/architecture/LEARNING_LOOP_SPEC.md
+
+class Lesson(Base):
+    """A human-reviewed lesson from one resolved recommendation outcome.
+    `original_thesis_quote` is verbatim as-of-decision-time text (hindsight
+    guard); reviewer identity is mandatory on approve/reject (DB CHECK).
+    outcome_ref is a soft reference to recommendation_outcome.id
+    (thesis_link precedent — service existence-checks it, no hard FK)."""
+
+    __tablename__ = "lesson"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    recommendation_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("recommendation.id", ondelete="RESTRICT")
+    )
+    paper_trade_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("paper_trade.id", ondelete="SET NULL")
+    )
+    outcome_ref: Mapped[str | None] = mapped_column(String(36))
+    thesis_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("thesis.id", ondelete="RESTRICT")
+    )
+    what_happened: Mapped[str] = mapped_column(Text, nullable=False)
+    original_thesis_quote: Mapped[str] = mapped_column(Text, nullable=False)
+    expectation: Mapped[str | None] = mapped_column(Text)
+    evidence_correct: Mapped[list] = mapped_column(
+        JSON_COL, nullable=False, default=list
+    )
+    evidence_misleading: Mapped[list] = mapped_column(
+        JSON_COL, nullable=False, default=list
+    )
+    thesis_effect: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="none"
+    )
+    calibration_note: Mapped[str | None] = mapped_column(Text)
+    risk_controls_note: Mapped[str | None] = mapped_column(Text)
+    should_change: Mapped[str | None] = mapped_column(Text)
+    provenance: Mapped[str] = mapped_column(String(16), nullable=False)
+    review_state: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="draft"
+    )
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    created_by: Mapped[str] = mapped_column(
+        String(64), nullable=False, default="owner"
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "thesis_effect IN ('strengthened','weakened','invalidated','none')",
+            name="ck_lesson_effect",
+        ),
+        CheckConstraint(
+            "provenance IN ('generated','human')",
+            name="ck_lesson_provenance",
+        ),
+        CheckConstraint(
+            "review_state IN ('draft','approved','rejected')",
+            name="ck_lesson_review",
+        ),
+        # approved/rejected rows must carry the reviewer trail
+        CheckConstraint(
+            "review_state = 'draft' "
+            "OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
+            name="ck_lesson_reviewed",
+        ),
+        Index("ix_lesson_review_created", "review_state",
+              text("created_at DESC")),
+        Index("ix_lesson_recommendation", "recommendation_id"),
+        Index("ix_lesson_thesis", "thesis_id"),
+        Index("ix_lesson_outcome_ref", "outcome_ref"),
+    )
