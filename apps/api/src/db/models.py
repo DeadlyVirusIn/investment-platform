@@ -2380,3 +2380,107 @@ class ThesisLink(Base):
     )
 
     thesis: Mapped[Thesis] = relationship(back_populates="links")
+
+
+# ---------------------------------------------------------------------------
+# Research Inbox — Elite ArthOS (migration 112)
+# ---------------------------------------------------------------------------
+# A research_task is one durable standing question; every execution delivers
+# a versioned, IMMUTABLE research_report. Delivered reports are frozen: the
+# only post-delivery writes are the review fields, moved exclusively through
+# apps/api/src/domain/research_inbox/service.py. Corrections NEVER edit a
+# delivered row — they insert version+1 with supersedes_report_id set.
+# Staleness (fresh|stale|superseded) is derived at read time from
+# expires_at / citation observed_at age / a superseding row — never stored.
+# `schedule_expr` is a cron DEFINITION only; nothing executes it in this
+# slice (scheduler wiring is a separate, approval-gated change).
+# Spec: docs/architecture/RESEARCH_INBOX_SPEC.md
+
+class ResearchTask(Base):
+    """One standing research question (scope = symbols CSV or theme text).
+    Follow-up questions link back via follow_up_of_task_id (RESTRICT — the
+    provenance chain never breaks). Closing a task keeps it and every
+    report forever."""
+
+    __tablename__ = "research_task"
+
+    id: Mapped[str]            = mapped_column(String(36), primary_key=True, default=_uuid)
+    title: Mapped[str]         = mapped_column(String(200), nullable=False)
+    question: Mapped[str]      = mapped_column(Text, nullable=False)
+    scope: Mapped[str | None]  = mapped_column(Text)          # "NVDA,TSM" or theme text
+    schedule_expr: Mapped[str | None] = mapped_column(Text)   # cron, DEFINITION ONLY
+    status: Mapped[str]        = mapped_column(String(16), nullable=False, default="open")
+    created_by: Mapped[str]    = mapped_column(String(64), nullable=False, default="owner")
+    follow_up_of_task_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("research_task.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('open','paused','closed')",
+            name="ck_research_task_status",
+        ),
+        Index("ix_research_task_status", "status"),
+        Index("ix_research_task_follow_up", "follow_up_of_task_id"),
+    )
+
+    reports: Mapped[list[ResearchReport]] = relationship(back_populates="task")
+
+
+class ResearchReport(Base):
+    """One versioned, immutable answer to a research_task. Frozen at
+    delivery: only review_status/reviewed_by/reviewed_at ever change after
+    insert (service-only path). citations = [{source, url, observed_at}]
+    — the service rejects any citation missing url or observed_at.
+    Corrections are new rows (version+1, supersedes_report_id); the old
+    version stays byte-identical and turns 'superseded' at read time."""
+
+    __tablename__ = "research_report"
+
+    id: Mapped[str]        = mapped_column(String(36), primary_key=True, default=_uuid)
+    task_id: Mapped[str]   = mapped_column(
+        String(36), ForeignKey("research_task.id", ondelete="RESTRICT"), nullable=False
+    )
+    version: Mapped[int]   = mapped_column(Integer, nullable=False)
+    body: Mapped[str]      = mapped_column(Text, nullable=False)
+    citations: Mapped[list] = mapped_column(JSON_COL, nullable=False, default=list)
+    provenance: Mapped[str] = mapped_column(String(16), nullable=False)
+    review_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
+    reviewed_by: Mapped[str | None] = mapped_column(String(64))
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    delivered_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+    expires_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    supersedes_report_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("research_report.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        UniqueConstraint("task_id", "version", name="uq_research_report_task_version"),
+        CheckConstraint("version >= 1", name="ck_research_report_version"),
+        CheckConstraint(
+            "provenance IN ('generated','human')",
+            name="ck_research_report_provenance",
+        ),
+        CheckConstraint(
+            "review_status IN ('pending','approved','rejected')",
+            name="ck_research_report_review",
+        ),
+        # reviewed rows must say who/when (thesis_evidence precedent)
+        CheckConstraint(
+            "review_status = 'pending' "
+            "OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
+            name="ck_research_report_reviewed",
+        ),
+        Index("ix_research_report_task", "task_id", text("version DESC")),
+        Index("ix_research_report_review", "review_status"),
+    )
+
+    task: Mapped[ResearchTask] = relationship(back_populates="reports")
