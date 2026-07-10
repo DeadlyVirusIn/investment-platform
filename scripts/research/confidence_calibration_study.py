@@ -28,6 +28,7 @@ Read-only against the database; writes only the two artifact files.
 
 from __future__ import annotations
 
+import argparse
 import datetime as dt
 import json
 import math
@@ -361,7 +362,90 @@ def reliability_svg(bins: list[dict], path: str) -> None:
         f.write("\n".join(parts))
 
 
-def main() -> int:
+def _record_registry_run(
+    engine, result: dict, rows: list[Row], artifact_paths: list[tuple[str, str]],
+) -> None:
+    """Record this study as a completed research_run (--registry only).
+
+    Graceful no-op (with a message) when the target DB has never run
+    migration 109 — the study output itself is unaffected either way.
+    """
+    # Lazy imports: the default (no-flag) path must not gain import side
+    # effects or new hard dependencies.
+    from sqlalchemy.orm import Session
+
+    from apps.ml.lab.registry import (
+        RegistryClient, registry_table_exists, resolve_git_sha,
+    )
+
+    if not registry_table_exists(engine):
+        print("[registry] research_run table absent on this DB "
+              "(migration 109 not applied) — skipping registry record")
+        return
+
+    params = {
+        "study": result["study"],
+        "score_definition": result["score_definition"],
+        "outcome_definition": result["outcome_definition"],
+        **result["method"],
+        "label_bands": [list(b) for b in LABEL_BANDS],
+    }
+    live = result["cohorts"]["live"]
+    idc = live.get("identity_full_cohort", {})
+    wf_pooled = live.get("walk_forward", {}).get("pooled", {})
+    metrics: dict = {
+        **{f"count_{k}": v for k, v in result["counts"].items()},
+        "n_live": result["cohorts"]["live"]["n"],
+        "n_replay": result["cohorts"]["replay"]["n"],
+        "live_identity_brier": idc.get("identity", {}).get("brier"),
+        "live_identity_ece": idc.get("identity", {}).get("ece"),
+        "live_identity_mce": idc.get("identity", {}).get("mce"),
+        "live_identity_auc": idc.get("identity", {}).get("auc"),
+        "live_hit_rate": idc.get("hit_rate"),
+        "live_wf_pooled_n": live.get("walk_forward", {}).get("pooled_n"),
+    }
+    for model_name, m in wf_pooled.items():
+        for metric_name, val in m.items():
+            metrics[f"live_wf_pooled_{model_name}_{metric_name}"] = val
+
+    window = None
+    if rows:
+        window = (
+            min(r.generated_at for r in rows).date(),
+            max(r.generated_at for r in rows).date(),
+        )
+
+    with Session(engine) as session:
+        client = RegistryClient(session)
+        run = client.create_run(
+            run_type="calibration",
+            name=result["study"],
+            description="Displayed stock confidence (conviction/100) vs "
+                        "resolved barrier outcomes — walk-forward calibration study",
+            params=params,
+            git_sha=resolve_git_sha(),
+            data_window=window,
+            split_method="purged_walk_forward",
+            created_by="script:confidence_calibration_study",
+        )
+        client.start(run)
+        client.append_metrics(run, metrics)
+        for path, kind in artifact_paths:
+            client.add_artifact(run, path, kind=kind)
+        client.finish(run)
+        session.commit()
+        print(f"[registry] recorded run {run.run_uid} (completed)")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--registry", action="store_true",
+        help="record this study as a completed research_run row "
+             "(requires a DB with the research_run table; default off)",
+    )
+    args = parser.parse_args(argv)
+
     engine = create_engine(os.environ["DATABASE_URL"])
     rows, counts = load_rows(engine)
     live = [r for r in rows if r.cohort == "live"]
@@ -414,16 +498,22 @@ def main() -> int:
         })
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    with open(os.path.join(OUT_DIR, "calibration_metrics.json"), "w",
-              encoding="utf-8") as f:
+    json_path = os.path.join(OUT_DIR, "calibration_metrics.json")
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=1, default=str)
+    artifact_paths: list[tuple[str, str]] = [(json_path, "report")]
 
     bins = (result["cohorts"]["live"].get("walk_forward", {})
             .get("identity_reliability_bins")) or (
         result["cohorts"]["live"].get("identity_full_cohort", {})
         .get("reliability_bins"))
     if bins:
-        reliability_svg(bins, os.path.join(OUT_DIR, "calibration_reliability.svg"))
+        svg_path = os.path.join(OUT_DIR, "calibration_reliability.svg")
+        reliability_svg(bins, svg_path)
+        artifact_paths.append((svg_path, "reliability_curve"))
+
+    if args.registry:
+        _record_registry_run(engine, result, rows, artifact_paths)
 
     print(json.dumps({
         "buy_resolved_scored": counts["buy_resolved_scored"],
