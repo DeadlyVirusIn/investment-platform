@@ -15,6 +15,9 @@ from sqlalchemy import select, text
 
 from apps.api.src.db import SessionLocal
 from apps.api.src.db.models import JobRun, JobSchedule
+from apps.api.src.options.data_provider._redact import (
+    redact_error_for_storage as _redact_store,
+)
 from apps.worker.src.jobs.registry import REGISTRY
 
 _TICK_INTERVAL: int = 60          # seconds between polls
@@ -161,7 +164,10 @@ async def _execute_job(schedule: JobSchedule, semaphore: asyncio.Semaphore) -> N
             result = await job_fn()
         except Exception:
             status = "error"
-            error_msg = traceback.format_exc()
+            # Redact before BOTH logging and DB storage: a traceback can carry
+            # a provider URL with `…apiKey=…`. The loguru patcher scrubs the
+            # log line; job_run.error_message bypasses loguru so scrub here.
+            error_msg = _redact_store(traceback.format_exc())
             logger.error("Job '{}' failed:\n{}", schedule.name, error_msg)
         else:
             # P0-2A.4 — honor job-reported failure (swallowed exceptions
@@ -169,7 +175,7 @@ async def _execute_job(schedule: JobSchedule, semaphore: asyncio.Semaphore) -> N
             # raise; scheduling/retry semantics unchanged.
             if _result_reports_failure(result):
                 status = "error"
-                error_msg = f"job returned failure status: {result!r}"[:2000]
+                error_msg = _redact_store(f"job returned failure status: {result!r}")[:2000]
                 logger.error(
                     "Job '{}' reported failure via return value: {}",
                     schedule.name, error_msg,

@@ -143,6 +143,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         level=(settings.LOG_LEVEL or "INFO").upper(),
         colorize=True,
     )
+    # Credential-redaction boundary — scrubs every emitted log message so a
+    # provider exception carrying `…apiKey=…` can never leak (incident
+    # 2026-07-11). Installed after add() so the sink stays; patcher is global.
+    from apps.api.src.options.data_provider._redact import install_global_redaction
+    install_global_redaction(logger)
     logger.info("Starting investment-platform API v{}", settings.APP_VERSION)
     # P0-4 — build provenance banner (image <-> git state traceability).
     from apps.api.src.build_provenance import provenance_log_line
