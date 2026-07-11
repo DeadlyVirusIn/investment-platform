@@ -249,6 +249,7 @@ def _insert_report(
         body=body,
         citations=normalized,
         provenance=provenance,
+        generated_by=(created_by or None),
         review_status=review_status,
         reviewed_by=reviewed_by,
         reviewed_at=reviewed_at,

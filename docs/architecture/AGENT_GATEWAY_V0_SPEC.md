@@ -15,6 +15,63 @@ written (`test_agent_gateway_pg.py`) for `make test-auth`. **Not deployed; no
 DB applied; no MCP client shipped** — those remain separate approval-gated
 changes per `CLAUDE.md`.
 
+### Implementation status (2026-07-11)
+
+- **R (implemented):** `GET /agent/whoami`, `/recommendations` (list, ≤50/pg,
+  offset ≤10k, no symbol fan-out), `/recommendations/{id}` (+evidence ≤20).
+  Serves only the already-public recommendation corpus; no `model_version`/
+  `snapshot_hash`/research/thesis/admin fields cross the boundary.
+- **P (implemented):** `GET /agent/portfolio`, `/portfolio/trades` (≤100/pg).
+  Book resolved server-side from `token.created_by` → `user:<id>:stock`;
+  read-only; no portfolio id crosses either way; cross-user isolation tested.
+- **B (implemented):** `POST /agent/jobs` (202), `GET /agent/jobs/{uid}`,
+  `POST /agent/jobs/{uid}/cancel` (queued-only), `GET /agent/jobs/{uid}/events`
+  (SSE). Job types are a **frozen enum** — `calibration_study`,
+  `walk_forward_baseline`, `drift_report`, `attribution_fixture` — each mapped
+  to a hardcoded read-only handler + allowlisted param schema. Migration 116
+  (`agent_job`/`agent_job_event`/`agent_idempotency`, PROPOSED). Idempotency
+  key mandatory (atomic INSERT..ON CONFLICT: replay→original, different→409);
+  queue cap 5/owner under advisory lock; deterministic seed required or
+  server-generated + recorded; every accepted job writes a `research_run`
+  registry row; terminal statuses immutable; failures store capped summaries
+  (≤500 chars), never stack traces. Execution is the **dev/offline lane only**
+  (`run_next_queued` — manual/test invocation; NEVER from a request handler,
+  NEVER scheduled). No shell/eval/exec/dynamic-import/URL/SQL path exists
+  (source-scan test).
+- **D (implemented):** `POST /agent/drafts` (201) → Research Inbox report,
+  `provenance='generated'` forced `pending`, `generated_by='agent:<name>'`
+  server-set (migration 117 adds the column). Gateway has **no** approve/
+  publish/correct/delete surface (route-scan test); owner console review is
+  the only visibility path. Idempotency shared with B (same
+  replay/409 semantics). Citations use the existing validated structure; no
+  arbitrary URLs/fetched content.
+
+### SSE bounds (spec §6, as built)
+`SSE_MAX_SECONDS=120`, `SSE_MAX_EVENTS=500` (client may lower, never raise),
+`SSE_HEARTBEAT_SECONDS=15`; one concurrent stream per token (second connection
+evicts the first via a generation counter); terminal event closes; client
+disconnect (`GeneratorExit`) stops all delivery; DB access is short-lived
+sessions on the indexed `(job_id, seq)` page — no unbounded queues, no threads
+spawned from request handlers; token revoked/expired mid-stream terminates at
+the next heartbeat; one audit row per stream with duration + emitted-event
+count.
+
+### Known limitations / production promotion gates
+- **Rate limiting is in-memory per process** — correct for the current
+  single-replica VM; >1 API replica requires a shared store (DB/redis). Gate:
+  no multi-replica rollout until this moves server-side.
+- **Owner-only principal** — every token's `created_by` is the owner in v0;
+  true multi-user P/T6 isolation (named-user beta, spec §10.2) is not yet
+  reachable and its authz-matrix must be re-tested before beta.
+- **MCP client remains UNIMPLEMENTED and has no authority.** No MCP process
+  ships; the REST surface is the entire gateway. Any future thin client holds
+  one token, makes no authz decisions, and changes none of the guarantees
+  here — building it is a separate approval-gated change.
+- **Flag stays OFF in production** (`AGENT_GATEWAY_ENABLED=False`); migrations
+  114–117 are ephemeral-validated and applied to **dev only** (114 applied;
+  115–117 pending). Production promotion needs: rate-limit shared store,
+  30 days clean dev audit history, and a fresh security review (spec §10.1).
+
 Original design intent (unchanged below): architecture-only proposal, no
 migration/router/MCP process shipping from the document; approval-gated per
 `CLAUDE.md`. Source context: `docs/research/EXTERNAL_QUANT_AI_REVIEW_2026.md`

@@ -2453,6 +2453,10 @@ class ResearchReport(Base):
     body: Mapped[str]      = mapped_column(Text, nullable=False)
     citations: Mapped[list] = mapped_column(JSON_COL, nullable=False, default=list)
     provenance: Mapped[str] = mapped_column(String(16), nullable=False)
+    # P7 D-scope (migration 117) — WHO authored: 'agent:<name>' for gateway
+    # drafts, owner email for human reports, NULL for legacy. Distinct from
+    # provenance (HOW: generated|human).
+    generated_by: Mapped[str | None] = mapped_column(String(64))
     review_status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     reviewed_by: Mapped[str | None] = mapped_column(String(64))
     reviewed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))

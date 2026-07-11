@@ -159,6 +159,11 @@ class AgentAuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         if not request.url.path.startswith("/api/agent"):
             return await call_next(request)
+        if request.url.path.endswith("/events"):
+            # SSE: the streaming body outlives this middleware pass — the
+            # generator's finally block writes the audit row (with duration
+            # + emitted-event count) at stream end instead.
+            return await call_next(request)
         started = time.monotonic()
 
         # -- pre-auth guards (no body parse, no DB) --
@@ -465,19 +470,326 @@ def get_portfolio_trades(
 
 
 # ---------------------------------------------------------------------------
-# Routes — B/D scopes: bounded stubs until their server-side contracts land.
-# Scope-gated + audited; 501 (not 404) so a correctly-scoped client learns
-# the surface exists but is not yet implemented.
+# Routes — B scope: bounded offline research jobs (spec §3 B / §4 / §6).
+# Job types are a frozen enum of hardcoded read-only handlers; execution
+# happens on the dev/offline lane ONLY (run_next_queued — manual/test
+# invocation, never from a request handler, never scheduled).
 # ---------------------------------------------------------------------------
-def _not_yet(what: str):
-    raise HTTPException(status_code=501, detail=f"{what} not implemented in gateway v0")
+from pydantic import BaseModel, Field  # noqa: E402
+
+from apps.api.src.domain.agent_gateway import jobs as jobs_svc  # noqa: E402
 
 
-@router.post("/jobs")
-def submit_job(_: dict = Depends(require_agent_scope("B"))):
-    _not_yet("offline job submission")
+class JobSubmitBody(BaseModel):
+    job_type: str = Field(min_length=1, max_length=32)
+    params: dict = Field(default_factory=dict)
+    idempotency_key: str = Field(min_length=1, max_length=64)
+    seed: int | None = Field(default=None, ge=0, le=jobs_svc.MAX_SEED)
 
 
-@router.post("/drafts")
-def create_draft(_: dict = Depends(require_agent_scope("D"))):
-    _not_yet("draft report creation")
+def _job_public(job: dict) -> dict:
+    return {k: v for k, v in job.items() if not k.startswith("_")}
+
+
+def _map_job_error(exc: jobs_svc.AgentJobError):
+    if isinstance(exc, jobs_svc.JobNotFound):
+        raise HTTPException(status_code=404)
+    if isinstance(exc, jobs_svc.IdempotencyConflict):
+        raise HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, jobs_svc.QueueFull):
+        raise HTTPException(status_code=429, detail=str(exc))
+    if isinstance(exc, jobs_svc.TerminalStateError):
+        raise HTTPException(status_code=409, detail=str(exc))
+    raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post("/jobs", status_code=202)
+def submit_job(
+    body: JobSubmitBody,
+    request: Request,
+    ident: dict = Depends(require_agent_scope("B")),
+) -> dict:
+    """Submit a bounded offline research job. Idempotency key mandatory:
+    replay of the same request returns the ORIGINAL job (flagged); the same
+    key with a different request is 409. Queue capped at 5 per owner."""
+    from apps.api.src.db import SessionLocal
+
+    request.state.agent_scope_used = "B"
+    with SessionLocal() as s:
+        try:
+            job, replayed = jobs_svc.submit_job(
+                s, ident=ident, job_type=body.job_type, params=body.params,
+                idempotency_key=body.idempotency_key, seed=body.seed,
+            )
+            s.commit()
+        except jobs_svc.AgentJobError as exc:
+            s.rollback()
+            _map_job_error(exc)
+    return {**_job_public(job), "replayed": replayed}
+
+
+@router.get("/jobs/{job_uid}")
+def get_job(
+    job_uid: str,
+    ident: dict = Depends(require_agent_scope("B")),
+) -> dict:
+    from apps.api.src.db import SessionLocal
+
+    with SessionLocal() as s:
+        try:
+            job = jobs_svc.get_job(s, ident, job_id_or_uid=job_uid)
+        except jobs_svc.AgentJobError as exc:
+            _map_job_error(exc)
+    return _job_public(job)
+
+
+@router.post("/jobs/{job_uid}/cancel")
+def cancel_job(
+    job_uid: str,
+    ident: dict = Depends(require_agent_scope("B")),
+) -> dict:
+    """Cancel a QUEUED job (the only safe point — nothing has run). Running
+    and terminal jobs cannot be cancelled; no kill path exists."""
+    from apps.api.src.db import SessionLocal
+
+    with SessionLocal() as s:
+        try:
+            job = jobs_svc.cancel_job(s, ident, job_uid)
+            s.commit()
+        except jobs_svc.AgentJobError as exc:
+            s.rollback()
+            _map_job_error(exc)
+    return _job_public(job)
+
+
+# ---------------------------------------------------------------------------
+# Bounded SSE job events (spec §6): ≤ SSE_MAX_EVENTS events, ≤
+# SSE_MAX_SECONDS per connection, heartbeat, cursor resume, one concurrent
+# stream per token (a second connection evicts the first), terminal event
+# closes, disconnect stops all delivery work (sync generator → GeneratorExit
+# → finally). DB access is short-lived sessions on the indexed
+# (job_id, seq) page — no unbounded queues, no threads spawned.
+# ---------------------------------------------------------------------------
+SSE_MAX_SECONDS = 120
+SSE_MAX_EVENTS = 500
+SSE_HEARTBEAT_SECONDS = 15
+SSE_POLL_SECONDS = 0.5
+
+_sse_generation: dict[str, int] = {}   # token_prefix -> latest stream id
+_sse_lock = threading.Lock()
+
+
+def _sse_line(event: str, data: str) -> str:
+    return f"event: {event}\ndata: {data[:500]}\n\n"
+
+
+def job_event_stream(ident: dict, job_id: str, *, after: int,
+                     max_events: int, route_tmpl: str):
+    """Sync generator (StreamingResponse runs it in a threadpool; client
+    disconnect raises GeneratorExit which ends all polling). Emits at most
+    max_events data events then closes with a cursor event."""
+    from apps.api.src.db import SessionLocal
+
+    with _sse_lock:
+        my_gen = _sse_generation.get(ident["token_prefix"], 0) + 1
+        _sse_generation[ident["token_prefix"]] = my_gen
+
+    started = time.monotonic()
+    emitted = 0
+    cursor = after
+    last_beat = started
+    last_auth = started
+    try:
+        while True:
+            now = time.monotonic()
+            if now - started >= SSE_MAX_SECONDS:
+                yield _sse_line("cursor", str(cursor))
+                return
+            with _sse_lock:
+                if _sse_generation.get(ident["token_prefix"], 0) != my_gen:
+                    yield _sse_line("evicted", "newer stream opened")
+                    return
+            # periodic re-auth: a token revoked/expired mid-stream loses
+            # access at the next heartbeat boundary
+            if now - last_auth >= SSE_HEARTBEAT_SECONDS:
+                last_auth = now
+                # re-resolve by prefix+status (cheap indexed check)
+                try:
+                    with SessionLocal() as s:
+                        ok = s.execute(
+                            text(
+                                "SELECT 1 FROM agent_token WHERE "
+                                "token_prefix = :p AND status = 'active' "
+                                "AND expires_at > now()"
+                            ),
+                            {"p": ident["token_prefix"]},
+                        ).first()
+                    if ok is None:
+                        yield _sse_line("auth_expired", "token no longer valid")
+                        return
+                except Exception:
+                    yield _sse_line("error", "gateway unavailable")
+                    return
+            try:
+                with SessionLocal() as s:
+                    events = jobs_svc.fetch_events(
+                        s, job_id, after_seq=cursor,
+                        limit=min(100, max_events - emitted),
+                    )
+                    job_status = s.execute(
+                        text("SELECT status FROM agent_job WHERE id = :i"),
+                        {"i": job_id},
+                    ).scalar()
+            except Exception:
+                yield _sse_line("error", "gateway unavailable")
+                return
+            for ev in events:
+                cursor = ev["seq"]
+                emitted += 1
+                yield _sse_line(ev["event"], f"{ev['seq']}:{ev['payload']}")
+                if emitted >= max_events:
+                    yield _sse_line("cursor", str(cursor))
+                    return
+            if job_status in ("succeeded", "failed", "cancelled") and not events:
+                yield _sse_line("terminal", job_status)
+                return
+            if time.monotonic() - last_beat >= SSE_HEARTBEAT_SECONDS:
+                last_beat = time.monotonic()
+                yield ": heartbeat\n\n"
+            time.sleep(SSE_POLL_SECONDS)
+    finally:
+        # audit: one row per stream with duration + emitted-event count.
+        # (The middleware skips /events routes — a streaming body outlives
+        # its middleware pass, so the row is written here at stream end.)
+        duration_ms = int((time.monotonic() - started) * 1000)
+        try:
+            with SessionLocal() as s:
+                audit.record(
+                    s, route=route_tmpl, method="GET", status_code=200,
+                    duration_ms=duration_ms,
+                    agent_name=ident["agent_name"],
+                    token_prefix=ident["token_prefix"], scope_used="B",
+                    idempotency_key=f"sse_events={emitted}",
+                )
+        except Exception as exc:  # pragma: no cover
+            logger.warning("sse_audit_failed err={}", exc)
+
+
+@router.get("/jobs/{job_uid}/events")
+def job_events(
+    job_uid: str,
+    request: Request,
+    ident: dict = Depends(require_agent_scope("B")),
+    after: int = Query(default=0, ge=0),
+    max_events: int = Query(default=SSE_MAX_EVENTS, ge=1,
+                            le=SSE_MAX_EVENTS),  # client may lower, never raise
+):
+    from starlette.responses import StreamingResponse
+
+    from apps.api.src.db import SessionLocal
+
+    with SessionLocal() as s:
+        try:
+            job = jobs_svc.get_job(s, ident, job_id_or_uid=job_uid)
+        except jobs_svc.AgentJobError as exc:
+            _map_job_error(exc)
+    return StreamingResponse(
+        job_event_stream(ident, job["_id"], after=after,
+                         max_events=max_events,
+                         route_tmpl="/agent/jobs/{job_uid}/events"),
+        media_type="text/event-stream",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Routes — D scope: draft research reports into the Inbox (spec §3 D).
+# generated_by is ALWAYS agent:<name> (server-set); the inbox service forces
+# provenance='generated' drafts to review_status='pending'; the gateway has
+# NO approve/publish/correct/delete surface — human review in the owner
+# console remains the only path to visibility.
+# ---------------------------------------------------------------------------
+DRAFT_REPORT_TYPES = frozenset({"research_note"})
+MAX_DRAFT_BODY = 20_000
+MAX_DRAFT_CITATIONS = 20
+
+
+class DraftCreateBody(BaseModel):
+    task_uid: str = Field(min_length=1, max_length=36)
+    report_type: str = Field(default="research_note", max_length=32)
+    body_md: str = Field(min_length=1, max_length=MAX_DRAFT_BODY)
+    citations: list[dict] = Field(default_factory=list,
+                                  max_length=MAX_DRAFT_CITATIONS)
+    idempotency_key: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/drafts", status_code=201)
+def create_draft(
+    body: DraftCreateBody,
+    request: Request,
+    ident: dict = Depends(require_agent_scope("D")),
+) -> dict:
+    import hashlib as _hashlib
+    import json as _json
+
+    from apps.api.src.db import SessionLocal
+    from apps.api.src.domain.research_inbox import service as inbox_svc
+
+    if body.report_type not in DRAFT_REPORT_TYPES:
+        raise HTTPException(status_code=422, detail="unknown report_type")
+
+    rhash = _hashlib.sha256(_json.dumps(
+        {"t": body.task_uid, "rt": body.report_type, "b": body.body_md,
+         "c": body.citations}, sort_keys=True).encode()).hexdigest()
+
+    with SessionLocal() as s:
+        try:
+            import uuid as _uuid
+            probe_ref = str(_uuid.uuid4())
+            claimed, ref = jobs_svc.claim_idempotency(
+                s, token_prefix=ident["token_prefix"],
+                idem_key=body.idempotency_key, kind="draft",
+                request_hash=rhash, ref_id=probe_ref,
+            )
+            if not claimed:
+                # replay — return the original draft
+                row = s.execute(
+                    text("SELECT id, task_id, version, review_status "
+                         "FROM research_report WHERE id = :i"),
+                    {"i": ref},
+                ).mappings().first()
+                if row is None:
+                    raise HTTPException(status_code=409,
+                                        detail="idempotent replay unavailable")
+                return {"report_id": row["id"], "task_id": row["task_id"],
+                        "version": row["version"],
+                        "review_status": row["review_status"],
+                        "replayed": True}
+            try:
+                report = inbox_svc.create_report(
+                    s, body.task_uid,
+                    body=body.body_md,
+                    citations=body.citations,
+                    provenance="generated",           # forced pending
+                    created_by=f"agent:{ident['agent_name']}"[:64],
+                )
+            except inbox_svc.TaskNotFound:
+                s.rollback()
+                raise HTTPException(status_code=404)
+            except inbox_svc.ResearchInboxError as exc:
+                s.rollback()
+                raise HTTPException(status_code=422, detail=str(exc)[:200])
+            # point the claimed idempotency row at the real report id
+            s.execute(
+                text("UPDATE agent_idempotency SET ref_id = :r "
+                     "WHERE token_prefix = :tp AND idem_key = :k"),
+                {"r": report.id, "tp": ident["token_prefix"],
+                 "k": body.idempotency_key[:64]},
+            )
+            s.commit()
+            return {"report_id": report.id, "task_id": report.task_id,
+                    "version": report.version,
+                    "review_status": report.review_status,   # always pending
+                    "replayed": False}
+        except jobs_svc.IdempotencyConflict as exc:
+            s.rollback()
+            raise HTTPException(status_code=409, detail=str(exc))

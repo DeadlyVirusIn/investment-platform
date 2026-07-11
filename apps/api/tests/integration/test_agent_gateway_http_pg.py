@@ -262,7 +262,9 @@ def test_cross_scope_denial_matrix(gw_env):
         for method, path, needed in ROUTES:
             r = client.request(method, path, headers=_bearer(toks[held]))
             if held == needed:
-                assert r.status_code in (200, 501), (held, path, r.status_code)
+                # scope admits the call; body-less POSTs then fail Pydantic
+                # validation (422) — never an authz outcome
+                assert r.status_code in (200, 202, 422, 501), (held, path, r.status_code)
             else:
                 assert r.status_code == 403, (held, path, r.status_code)
 
@@ -546,13 +548,15 @@ def test_route_scan_no_trade_mutation_endpoints(gw_env):
         methods = getattr(r, "methods", set()) or set()
         assert not ({"PUT", "PATCH", "DELETE"} & methods), r.path
         if "POST" in methods:
-            assert r.path in ("/agent/jobs", "/agent/drafts"), r.path
+            assert r.path in ("/agent/jobs", "/agent/drafts",
+                              "/agent/jobs/{job_uid}/cancel"), r.path
             # no write-capable route may carry trade vocabulary at all
             for bad in ("trade", "order", "buy", "sell", "position"):
                 assert bad not in r.path.lower(), r.path
-        # execution vocabulary is banned on EVERY route, read or write
-        # (GET /agent/portfolio/trades is a legitimate read-only history view)
-        for bad in ("execute", "cancel", "submit_", "/order"):
+        # trade-EXECUTION vocabulary banned on EVERY route (job cancel is a
+        # queued-job control, not order cancellation; portfolio/trades is a
+        # read-only history view — both legitimate)
+        for bad in ("execute", "submit_trade", "/order", "broker"):
             assert bad not in r.path.lower(), r.path
 
 

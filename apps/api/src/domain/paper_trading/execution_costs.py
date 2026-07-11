@@ -176,10 +176,19 @@ def compute_fill_costs(
         raise ValueError(f"unknown side: {side!r}")
     qty = _dec(quantity)
     price = _dec(fill_price)
+    # Non-finite inputs (NaN/Infinity) must never reach the ledger: NaN
+    # propagates through every product and lands in cash. Fail loudly.
+    if not qty.is_finite() or not price.is_finite():
+        raise ValueError("quantity and fill_price must be finite")
     if qty <= 0:
         raise ValueError("quantity must be positive")
     if price <= 0:
         raise ValueError("fill_price must be positive")
+    adv_in = _dec(avg_dollar_volume) if avg_dollar_volume is not None else _ZERO
+    if not adv_in.is_finite() or adv_in < 0:
+        # bad liquidity input degrades to the deterministic fallback,
+        # never to NaN slippage
+        avg_dollar_volume = None
 
     gross = qty * price
     floor_bps = max(config.spread_floor_bps, _ZERO)
