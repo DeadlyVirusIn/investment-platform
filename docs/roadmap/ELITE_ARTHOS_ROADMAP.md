@@ -25,14 +25,14 @@
 | Trust Center v1 (owner route, live feeds replacing fixtures) | **BUILD NOW** |
 | research_run registry (migration 109 + walk-forward scripts write to it) | **BUILD NOW** |
 | Confidence wording review (product decision from calibration data) | **BUILD NOW** (decision), copy change gated on owner approval |
-| Thesis Ledger (migrations 110/111 + idea-page card) | **PROTOTYPE → BUILD** (31–90d) |
+| Thesis Ledger (migrations 110/111 + catalyst/risk CRUD) | **BUILT (dev, flag-off)** — 2026-07-11; see IMPLEMENTATION_STATUS |
 | Experiment Lab harness (walk-forward + cost sweeps + benchmarks vs buy-and-hold/12-1) | **BUILD** (31–90d) |
-| Research Inbox (112 + weekly scheduled report) | **PROTOTYPE** (31–90d) |
-| Learning Loop lessons (113) | **DESIGN DONE → BUILD** (90–180d, needs resolved prod outcomes) |
-| Agent Gateway v0 (114, owner-only R/P/B/D) | **DESIGN ONLY → BUILD** (90–180d) |
+| Research Inbox (112 + owner review workflow) | **BUILT (dev, flag-off)** — 2026-07-11 |
+| Learning Loop lessons (113) | **BUILT (dev, flag-off)** — 2026-07-11 (hindsight guard + forced-draft) |
+| Agent Gateway v0 (114/116/117, owner-only R/P/B/D) | **BUILT (dev, flag-off)** — 2026-07-11; R/P/B/D + SSE + owner console; promotion-gated (see PROMOTION_PLAN) |
 | Attribution on live candidates (requires reviving the shadow inference seam + registry) | **DEFER** until a model passes Experiment Lab gates |
 | Fitted calibrator / MAPIE intervals | **DEFER** to ≥3 embargo-separated quarters of live decisions (~2027Q1) |
-| Commission/slippage in nightly paper track | **BUILD** (31–90d; prerequisite for honest benchmark claims) |
+| Commission/slippage in nightly paper track (migration 115 cost stamp) | **BUILT (dev, flag-off)** — 2026-07-11 (honest cost model + durable audit stamp) |
 | pgvector retrieval, MLflow UI, drift dashboards (Evidently) | **DEFER** (SQL-PSI job first) |
 | Public Trust Center v2 | **DESIGN ONLY** (separate approval; redaction serializers per spec) |
 | Multi-tenant / third-party agent tokens | **REJECT for now** |

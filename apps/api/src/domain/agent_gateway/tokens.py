@@ -208,16 +208,23 @@ def resolve_token(db: Session, full_token: str | None, *, touch: bool = True) ->
     if prefix is None:
         hmac.compare_digest(_DUMMY_HASH, _DUMMY_HASH)  # flatten timing
         return None
+    # LEFT JOIN app_user: a token whose principal (created_by) is a KNOWN
+    # disabled app_user resolves to None immediately — a disabled/deleted
+    # user loses gateway access on the next request, no session cache. Tokens
+    # whose created_by is not an app_user id (owner-bootstrap / dev) are
+    # unaffected (u.id IS NULL passes). Named-user beta relies on this gate.
     row = db.execute(
         text(
             """
-            SELECT id, agent_name, token_hash, scopes, rate_limit_per_min,
-                   max_request_bytes, created_by
-            FROM agent_token
-            WHERE token_prefix = :p
-              AND status = 'active'
-              AND revoked_at IS NULL
-              AND expires_at > now()
+            SELECT t.id, t.agent_name, t.token_hash, t.scopes,
+                   t.rate_limit_per_min, t.max_request_bytes, t.created_by
+            FROM agent_token t
+            LEFT JOIN app_user u ON u.id = t.created_by
+            WHERE t.token_prefix = :p
+              AND t.status = 'active'
+              AND t.revoked_at IS NULL
+              AND t.expires_at > now()
+              AND (u.id IS NULL OR u.disabled_at IS NULL)
             """
         ),
         {"p": prefix},
