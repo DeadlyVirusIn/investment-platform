@@ -139,6 +139,68 @@ def test_list_tokens_never_leaks_hash(db: Session):
     assert all("token_prefix" in r for r in rows)
 
 
+def test_dummy_compare_runs_on_prefix_miss(db: Session, monkeypatch):
+    """Timing seam: resolve_token must execute exactly one constant-time
+    compare on BOTH the prefix-miss and the wrong-secret path, so unknown
+    prefixes are not distinguishable from bad secrets by comparison count.
+    (Deterministic structural check — wall-clock timing tests are flaky.)"""
+    calls: list[int] = []
+    real = tokens.hmac.compare_digest
+
+    def spy(a, b):
+        calls.append(1)
+        return real(a, b)
+
+    monkeypatch.setattr(tokens.hmac, "compare_digest", spy)
+    # unknown prefix (row miss) → exactly one dummy compare
+    calls.clear()
+    assert tokens.resolve_token(db, tokens.NAMESPACE + "f" * 40) is None
+    assert len(calls) == 1
+    # known prefix, wrong secret → exactly one real compare
+    full, meta = _mint(db)
+    db.commit()
+    forged = tokens.NAMESPACE + meta["token_prefix"] + "0" * 32
+    calls.clear()
+    assert tokens.resolve_token(db, forged) is None
+    assert len(calls) == 1
+
+
+def test_duplicate_prefix_rejected_by_unique_constraint(db: Session):
+    """Two tokens can never share a prefix — lookup can never be ambiguous,
+    so a forged token can never authenticate against the wrong row."""
+    import uuid
+    full, meta = _mint(db)
+    db.commit()
+    with pytest.raises(Exception):
+        db.execute(
+            text(
+                "INSERT INTO agent_token (id,agent_name,token_prefix,token_hash,"
+                "scopes,expires_at,created_by) VALUES (:i,'dupe',:p,:h,'R',"
+                "now()+interval '1 day','o')"
+            ),
+            {"i": str(uuid.uuid4()), "p": meta["token_prefix"], "h": "e" * 64},
+        )
+        db.commit()
+    db.rollback()
+
+
+def test_service_layer_rejects_bad_scopes_before_db(db: Session):
+    for bad in ("T", "R,T", "", [], ["Z"]):
+        with pytest.raises(ValueError):
+            tokens.create_token(
+                db, agent_name="x", scopes=bad, created_by="o",
+                ttl_days=30, max_ttl_days=90,
+            )
+
+
+def test_ttl_capped_at_max(db: Session):
+    with pytest.raises(ValueError):
+        tokens.create_token(
+            db, agent_name="x", scopes="R", created_by="o",
+            ttl_days=91, max_ttl_days=90,
+        )
+
+
 def test_scopes_check_constraint_blocks_trade_scope(db: Session):
     # even a raw insert cannot store a 'T' scope — the DB CHECK rejects it
     import uuid

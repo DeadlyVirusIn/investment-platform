@@ -212,7 +212,7 @@ def resolve_token(db: Session, full_token: str | None, *, touch: bool = True) ->
         text(
             """
             SELECT id, agent_name, token_hash, scopes, rate_limit_per_min,
-                   max_request_bytes
+                   max_request_bytes, created_by
             FROM agent_token
             WHERE token_prefix = :p
               AND status = 'active'
@@ -240,6 +240,9 @@ def resolve_token(db: Session, full_token: str | None, *, touch: bool = True) ->
         "token_prefix": prefix,
         "rate_limit_per_min": row["rate_limit_per_min"],
         "max_request_bytes": row["max_request_bytes"],
+        # owner identity for P-scope ownership resolution (spec §7.4:
+        # identity is server-resolved from the token, never client-supplied)
+        "created_by": row["created_by"],
     }
 
 

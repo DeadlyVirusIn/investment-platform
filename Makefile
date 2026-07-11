@@ -159,7 +159,10 @@ test-auth:
 	    apps/api/tests/integration/test_feedback_pg.py \
 	    apps/api/tests/integration/test_feedback_report_pg.py \
 	    apps/api/tests/unit/test_feedback_report.py \
-	    apps/api/tests/integration/test_paper_user_portfolio_pg.py --no-header -q
+	    apps/api/tests/integration/test_paper_user_portfolio_pg.py \
+	    apps/api/tests/unit/test_agent_gateway_tokens.py \
+	    apps/api/tests/integration/test_agent_gateway_pg.py \
+	    apps/api/tests/integration/test_agent_gateway_http_pg.py --no-header -q
 
 .PHONY: prune-login-attempts
 ## M1C — delete old login_attempt rows (honors AUTH_LOGIN_ATTEMPT_RETENTION_DAYS;
