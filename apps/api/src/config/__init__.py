@@ -325,6 +325,13 @@ class Settings(BaseSettings):
     # existence, never authorization). Generated content is always created
     # pending human review (service-enforced state machines); none of these
     # slices touches trading, execution, or recommendation generation.
+    # P0-5 exactly-once — when True, run_paper_trading acquires a per-trading-
+    # day execution lease so only one executor proceeds even if reached via
+    # multiple scheduled paths (tick-loop claim + supercronic). Default OFF →
+    # byte-identical legacy behavior until the execution_lease table (migration
+    # 118) ships. The unique trade constraint stays as defense-in-depth.
+    PAPER_EXECUTION_LEASE_ENABLED: bool = False
+
     THESIS_LEDGER_ENABLED: bool = False       # /api/theses + /api/admin/theses*
     RESEARCH_INBOX_ENABLED: bool = False      # /api/admin/inbox/*
     LEARNING_LOOP_ENABLED: bool = False       # /api/admin/lessons/*

@@ -61,6 +61,27 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
     submission timestamps are anchored to 15:00 UTC on as_of so next-bar
     fills land on the correct historical open.
     """
+    # P0-5 exactly-once guard. auto_trader is reachable via two independent
+    # scheduled paths (tick-loop claim + supercronic run_paper_daily); acquire
+    # a per-trading-day execution lease so only ONE executor proceeds. The
+    # loser no-ops cleanly (no ERROR, no duplicate attempt) — the unique trade
+    # constraint stays as defense-in-depth. Gated on PAPER_EXECUTION_LEASE_ENABLED
+    # (default OFF → byte-identical legacy behavior until the lease table ships).
+    from apps.api.src.config import settings as _settings
+
+    _lease_key: str | None = None
+    if bool(getattr(_settings, "PAPER_EXECUTION_LEASE_ENABLED", False)):
+        from apps.api.src.domain.scheduling import execution_lease as _lease
+        _lease_key = _lease.daily_key("run_paper_trading", as_of)
+        with SessionLocal() as _ls:
+            got = _lease.acquire(_ls, _lease_key)
+            _ls.commit()
+        if not got:
+            logger.info(
+                "run_paper_trading: lease {} held by another executor — "
+                "skipping (exactly-once, not an error)", _lease_key)
+            return
+
     if as_of is not None:
         now = dt.datetime.combine(as_of, dt.time(15, 0), tzinfo=dt.timezone.utc)
     else:
