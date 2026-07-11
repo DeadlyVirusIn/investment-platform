@@ -14,8 +14,28 @@ from apps.api.src.db.models import JobRun, JobSchedule
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture
+def bind_worker_sessionlocal(pg_engine, monkeypatch):
+    """Point the scheduler's module-level SessionLocal at the ISOLATED test
+    engine. `_tick` opens its own `apps.api.src.db.SessionLocal` (bound to
+    DATABASE_URL, i.e. localhost) rather than the injected pg_session — without
+    this rebind the test connects to a non-existent localhost:5432. Rebinding
+    makes the test hermetic against the same TEST_DATABASE_URL the rest of the
+    suite uses. (Root cause of the two prior 'connection refused' failures.)"""
+    from sqlalchemy.orm import Session as _S
+    from sqlalchemy.orm import sessionmaker
+
+    import apps.api.src.db as db_mod
+    test_sm = sessionmaker(bind=pg_engine, class_=_S, expire_on_commit=False)
+    monkeypatch.setattr(db_mod, "SessionLocal", test_sm)
+    # tick_loop imported SessionLocal by name at module load — rebind there too
+    import apps.worker.src.scheduler.tick_loop as tl
+    monkeypatch.setattr(tl, "SessionLocal", test_sm)
+    return test_sm
+
+
 async def test_scheduler_runs_due_job_and_updates_schedule(
-    pg_session: Session, monkeypatch: pytest.MonkeyPatch
+    pg_session: Session, bind_worker_sessionlocal, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from apps.api.src.config import settings
     from apps.worker.src.scheduler.tick_loop import _tick
@@ -54,7 +74,9 @@ async def test_scheduler_runs_due_job_and_updates_schedule(
     assert sched_after.next_run_at > now
 
 
-async def test_scheduler_skips_future_jobs(pg_session: Session) -> None:
+async def test_scheduler_skips_future_jobs(
+    pg_session: Session, bind_worker_sessionlocal
+) -> None:
     from apps.worker.src.scheduler.tick_loop import _tick
 
     now = dt.datetime.now(dt.timezone.utc)
