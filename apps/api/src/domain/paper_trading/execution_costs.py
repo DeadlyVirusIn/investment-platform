@@ -45,6 +45,11 @@ from apps.api.src.db.models import PriceBar
 
 _BPS = Decimal("10000")
 _ZERO = Decimal("0")
+
+# Version of THIS cost model implementation, stamped into
+# paper_trade.execution_cost_json so every cost-enabled fill durably
+# reconstructs even across model/config churn. Bump on ANY formula change.
+COST_MODEL_VERSION = "pc-1"
 # Quantization matched to the paper_trade columns so the stamped row
 # round-trips exactly: fill_price/commission Numeric(20,6), slippage_bps
 # Numeric(10,4).
@@ -111,6 +116,32 @@ class CostBreakdown:
     model: str  # 'liquidity' | 'fallback'
     slippage_bps: Decimal
     effective_fill_price: Decimal
+
+    def as_stamp(self, *, raw_fill_price: Decimal, config: "CostConfig") -> dict[str, str]:
+        """Durable JSON stamp for paper_trade.execution_cost_json — the full
+        audit record for one cost-enabled fill. Everything a reconstruction
+        needs, all as exact Decimal strings (never floats):
+        gross/commission/slippage/total/net, the raw (pre-cost) and effective
+        fill prices, and the model version + configuration that produced them.
+        """
+        return {
+            "version": COST_MODEL_VERSION,
+            "model": self.model,
+            "raw_fill_price": str(raw_fill_price),
+            "effective_fill_price": str(self.effective_fill_price),
+            "slippage_bps": str(self.slippage_bps),
+            "gross_notional": str(self.gross_notional),
+            "commission": str(self.commission),
+            "slippage_cost": str(self.slippage),
+            "total_cost": str(self.total),
+            "net_notional": str(self.net_notional),
+            "config": {
+                "commission_bps": str(config.commission_bps),
+                "spread_floor_bps": str(config.spread_floor_bps),
+                "slippage_cap_bps": str(config.slippage_cap_bps),
+                "impact_k_bps": str(config.impact_k_bps),
+            },
+        }
 
     def as_log_fields(self) -> dict[str, str]:
         return {

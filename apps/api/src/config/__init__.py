@@ -317,6 +317,19 @@ class Settings(BaseSettings):
     AGENT_TOKEN_MAX_TTL_DAYS: int = 90
 
     # ------------------------------------------------------------------
+    # ELITE ARTHOS PRODUCT SLICES — three INDEPENDENT fail-closed flags
+    # ------------------------------------------------------------------
+    # Each mounts one router in main.py; all default OFF (routes 404, no
+    # public navigation). Owner/session authorization is enforced inside
+    # the routers (require_owner on every mutation — the flag only controls
+    # existence, never authorization). Generated content is always created
+    # pending human review (service-enforced state machines); none of these
+    # slices touches trading, execution, or recommendation generation.
+    THESIS_LEDGER_ENABLED: bool = False       # /api/theses + /api/admin/theses*
+    RESEARCH_INBOX_ENABLED: bool = False      # /api/admin/inbox/*
+    LEARNING_LOOP_ENABLED: bool = False       # /api/admin/lessons/*
+
+    # ------------------------------------------------------------------
     # PHASE 16 v1 — Intraday context overlay (ephemeral)
     # ------------------------------------------------------------------
     # PERMANENT default OFF. When False, the market-tape poller does

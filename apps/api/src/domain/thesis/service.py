@@ -31,9 +31,11 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.db.models import (
     Thesis,
+    ThesisCatalyst,
     ThesisEvidence,
     ThesisLink,
     ThesisRevision,
+    ThesisRisk,
 )
 
 # ---------------------------------------------------------------------------
@@ -441,4 +443,110 @@ def link_target(
         raise DuplicateLink(
             f"thesis {thesis_id!r} already links {target_type} {target_id!r}"
         ) from None
+    return row
+
+
+# ---------------------------------------------------------------------------
+# Catalysts + risks (spec §3 five-blocks) — no deletes; resolution is data.
+# ---------------------------------------------------------------------------
+
+
+class CatalystNotFound(ThesisError):
+    """Unknown catalyst id."""
+
+
+class RiskNotFound(ThesisError):
+    """Unknown risk id."""
+
+
+def add_catalyst(
+    db: Session,
+    *,
+    thesis_id: str,
+    title: str,
+    direction: str = "either",
+    expected_at: datetime.date | None = None,
+    window_days: int | None = None,
+) -> ThesisCatalyst:
+    """Attach a catalyst to a thesis. Direction is the CHECK-enum
+    helps|hurts|either; window_days, when given, must be positive."""
+    thesis = db.get(Thesis, thesis_id)
+    if thesis is None:
+        raise ThesisNotFound(f"unknown thesis: {thesis_id!r}")
+    clean_title = _clean(title)
+    if not clean_title:
+        raise InvalidInput("catalyst title required")
+    if direction not in ("helps", "hurts", "either"):
+        raise InvalidInput(f"invalid direction: {direction!r}")
+    if window_days is not None and int(window_days) <= 0:
+        raise InvalidInput("window_days must be positive")
+    row = ThesisCatalyst(
+        thesis_id=thesis.id,
+        title=clean_title[:200],
+        direction=direction,
+        expected_at=expected_at,
+        window_days=window_days,
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def resolve_catalyst(
+    db: Session, catalyst_id: str, *, resolution: str
+) -> ThesisCatalyst:
+    """Mark a catalyst resolved (what actually happened). One-way: a
+    resolved catalyst cannot be re-resolved; nothing is ever deleted."""
+    row = db.get(ThesisCatalyst, catalyst_id)
+    if row is None:
+        raise CatalystNotFound(f"unknown catalyst: {catalyst_id!r}")
+    if row.resolved_at is not None:
+        raise ReviewStateError("catalyst already resolved")
+    clean = _clean(resolution)
+    if not clean:
+        raise InvalidInput("resolution text required")
+    row.resolved_at = _now()
+    row.resolution = clean[:2000]
+    db.commit()
+    return row
+
+
+def add_risk(
+    db: Session,
+    *,
+    thesis_id: str,
+    title: str,
+    severity: str = "medium",
+    detail: str | None = None,
+) -> ThesisRisk:
+    """Attach a severity-tagged risk to a thesis."""
+    thesis = db.get(Thesis, thesis_id)
+    if thesis is None:
+        raise ThesisNotFound(f"unknown thesis: {thesis_id!r}")
+    clean_title = _clean(title)
+    if not clean_title:
+        raise InvalidInput("risk title required")
+    if severity not in ("low", "medium", "high"):
+        raise InvalidInput(f"invalid severity: {severity!r}")
+    row = ThesisRisk(
+        thesis_id=thesis.id,
+        title=clean_title[:200],
+        severity=severity,
+        detail=(_clean(detail) or None),
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def materialize_risk(db: Session, risk_id: str) -> ThesisRisk:
+    """Record that a risk actually happened. One-way, idempotence rejected
+    explicitly so the audit trail carries exactly one materialization."""
+    row = db.get(ThesisRisk, risk_id)
+    if row is None:
+        raise RiskNotFound(f"unknown risk: {risk_id!r}")
+    if row.materialized_at is not None:
+        raise ReviewStateError("risk already materialized")
+    row.materialized_at = _now()
+    db.commit()
     return row

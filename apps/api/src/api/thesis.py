@@ -304,7 +304,9 @@ def _raise_http(exc: thesis_service.ThesisError) -> None:
         raise HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, (thesis_service.ThesisNotFound,
                         thesis_service.EvidenceNotFound,
-                        thesis_service.TargetNotFound)):
+                        thesis_service.TargetNotFound,
+                        thesis_service.CatalystNotFound,
+                        thesis_service.RiskNotFound)):
         raise HTTPException(status_code=404, detail=str(exc))
     # FalsifierRequired / InvalidInput / anything else invalid
     raise HTTPException(status_code=422, detail=str(exc))
@@ -455,3 +457,93 @@ def admin_link_target(
         "target_type": row.target_type,
         "target_id": row.target_id,
     }
+
+
+# ---------------------------------------------------------------------------
+# Catalysts + risks — owner-only CRUD (create + one-way resolution; no
+# deletes — resolution/materialization is data, spec §3 five-blocks)
+# ---------------------------------------------------------------------------
+
+
+class CatalystCreateBody(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    direction: str = Field(default="either", pattern="^(helps|hurts|either)$")
+    expected_at: datetime.date | None = None
+    window_days: int | None = Field(default=None, ge=1, le=3650)
+
+
+class CatalystResolveBody(BaseModel):
+    resolution: str = Field(min_length=1, max_length=2000)
+
+
+class RiskCreateBody(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    severity: str = Field(default="medium", pattern="^(low|medium|high)$")
+    detail: str | None = Field(default=None, max_length=4000)
+
+
+@router.post("/admin/theses/{thesis_id}/catalysts", status_code=201)
+def admin_add_catalyst(
+    thesis_id: str,
+    body: CatalystCreateBody,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    try:
+        c = thesis_service.add_catalyst(
+            db, thesis_id=thesis_id, title=body.title,
+            direction=body.direction, expected_at=body.expected_at,
+            window_days=body.window_days,
+        )
+    except thesis_service.ThesisError as exc:
+        _raise_http(exc)
+    return {"id": c.id, "thesis_id": c.thesis_id, "title": c.title,
+            "direction": c.direction, "expected_at": _iso(c.expected_at),
+            "window_days": c.window_days}
+
+
+@router.post("/admin/catalysts/{catalyst_id}/resolve")
+def admin_resolve_catalyst(
+    catalyst_id: str,
+    body: CatalystResolveBody,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    try:
+        c = thesis_service.resolve_catalyst(db, catalyst_id,
+                                            resolution=body.resolution)
+    except thesis_service.ThesisError as exc:
+        _raise_http(exc)
+    return {"id": c.id, "resolved_at": _iso(c.resolved_at),
+            "resolution": c.resolution}
+
+
+@router.post("/admin/theses/{thesis_id}/risks", status_code=201)
+def admin_add_risk(
+    thesis_id: str,
+    body: RiskCreateBody,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    try:
+        r = thesis_service.add_risk(
+            db, thesis_id=thesis_id, title=body.title,
+            severity=body.severity, detail=body.detail,
+        )
+    except thesis_service.ThesisError as exc:
+        _raise_http(exc)
+    return {"id": r.id, "thesis_id": r.thesis_id, "title": r.title,
+            "severity": r.severity, "detail": r.detail}
+
+
+@router.post("/admin/risks/{risk_id}/materialize")
+def admin_materialize_risk(
+    risk_id: str,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    try:
+        r = thesis_service.materialize_risk(db, risk_id)
+    except thesis_service.ThesisError as exc:
+        _raise_http(exc)
+    return {"id": r.id, "materialized_at": _iso(r.materialized_at)}

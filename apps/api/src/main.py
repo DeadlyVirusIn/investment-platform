@@ -358,6 +358,28 @@ if (
 # and no token can be minted. There is NO live-trading scope by design
 # (spec §3). See docs/architecture/AGENT_GATEWAY_V0_SPEC.md.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Elite ArthOS product slices — three INDEPENDENT fail-closed flags. When a
+# flag is False (production default) its router is absent → routes 404 and
+# the surface is undiscoverable. Authorization lives inside the routers
+# (require_owner on every mutation), never in the flag. Generated content is
+# service-forced to pending/draft review states. No scheduler is added.
+# ---------------------------------------------------------------------------
+if settings.THESIS_LEDGER_ENABLED:
+    from apps.api.src.api.thesis import router as thesis_router  # noqa: E402
+    app.include_router(thesis_router, prefix="/api")
+
+if settings.RESEARCH_INBOX_ENABLED:
+    from apps.api.src.api.research_inbox import (  # noqa: E402
+        router as research_inbox_router,
+    )
+    app.include_router(research_inbox_router, prefix="/api")
+
+if settings.LEARNING_LOOP_ENABLED:
+    from apps.api.src.api.learning import router as learning_router  # noqa: E402
+    app.include_router(learning_router, prefix="/api")
+
+
 if settings.AGENT_GATEWAY_ENABLED:
     from apps.api.src.api.agent_gateway import (  # noqa: E402
         AgentAuditMiddleware,

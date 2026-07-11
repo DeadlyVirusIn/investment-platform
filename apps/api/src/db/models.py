@@ -500,6 +500,11 @@ class PaperTrade(Base):
     commission: Mapped[object]          = mapped_column(
         Numeric(20, 6), nullable=False, default=Decimal("0"),
     )
+    # Priority 3 hardening (migration 115) — durable cost-audit stamp: raw +
+    # effective fill price, gross/commission/slippage/total/net (Decimal
+    # strings) and the cost-model version + config that produced them. NULL
+    # on the legacy zero-cost path and for callers baking their own costs.
+    execution_cost_json: Mapped[dict | None] = mapped_column(JSON_COL)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )

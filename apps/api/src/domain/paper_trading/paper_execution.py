@@ -308,6 +308,7 @@ def submit_trade(
     # fill_price_override / slippage_bps / commission (weekly rebalance)
     # already bake in their own cost model and must not be double-charged.
     costs: CostBreakdown | None = None
+    cost_stamp: dict | None = None
     if (
         fill_price_override is None
         and slippage_bps is None
@@ -321,6 +322,12 @@ def submit_trade(
                     session, asset_id, submitted_at
                 ),
                 config=cost_config,
+            )
+            # Durable audit stamp: raw + effective price, full breakdown,
+            # model version + config — reconstruction never depends on
+            # backing costs out of the quantized effective fill.
+            cost_stamp = costs.as_stamp(
+                raw_fill_price=fill_price, config=cost_config
             )
             fill_price = costs.effective_fill_price
             slippage_bps = costs.slippage_bps
@@ -443,6 +450,9 @@ def submit_trade(
         realized_pnl=realized_pnl,
         slippage_bps=slippage_bps,
         commission=commission if commission is not None else Decimal("0"),
+        # Priority 3 hardening — NULL on the legacy zero-cost path and for
+        # callers that bake their own costs (fill_price_override).
+        execution_cost_json=cost_stamp,
     )
     session.add(trade)
     session.flush()
