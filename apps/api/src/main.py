@@ -351,6 +351,26 @@ if (
 
 
 # ---------------------------------------------------------------------------
+# Elite ArthOS Priority 7 — Agent Gateway v0.
+# Mounted ONLY when AGENT_GATEWAY_ENABLED is True (fail-closed). When False
+# (production default), the /agent/* router, the owner token-management
+# console, and the audit middleware are all absent → every agent path 404s
+# and no token can be minted. There is NO live-trading scope by design
+# (spec §3). See docs/architecture/AGENT_GATEWAY_V0_SPEC.md.
+# ---------------------------------------------------------------------------
+if settings.AGENT_GATEWAY_ENABLED:
+    from apps.api.src.api.agent_gateway import (  # noqa: E402
+        AgentAuditMiddleware,
+        router as agent_gateway_router,
+    )
+    from apps.api.src.api.agent_admin import router as agent_admin_router  # noqa: E402
+
+    app.add_middleware(AgentAuditMiddleware)
+    app.include_router(agent_gateway_router, prefix="/api")
+    app.include_router(agent_admin_router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
 # Built-in health route
 # ---------------------------------------------------------------------------
 

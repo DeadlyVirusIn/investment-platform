@@ -1,7 +1,22 @@
 # Agent Gateway v0 — Spec (Sprint 10)
 
-Status: PROPOSAL — **architecture only, no implementation**. No migration,
-no router, no MCP process ships from this document. Approval-gated per
+Status: **IMPLEMENTING (Priority 7 / P7)** — the security core of this spec is
+now built, flag-off. Landed: migration `114_agent_gateway` (agent_token +
+agent_audit, PROPOSED — validated on ephemeral container only, NOT applied to
+any DB); token model `domain/agent_gateway/tokens.py` (§2/§3); append-only
+audit `domain/agent_gateway/audit.py` (§5); Bearer auth dependency + `/agent`
+router + audit middleware `api/agent_gateway.py` (§4); owner-only token console
+`api/agent_admin.py` (§2); all mounted behind fail-closed
+`AGENT_GATEWAY_ENABLED=False`. `GET /agent/whoami` is a live authenticated
+round-trip; the data/job/draft route bodies return 501 pending their
+data-contract slices (§4 routes exist + are scope-gated + audited). Pure-core
+unit tests green (24 assertions); DB-backed lifecycle + authz-matrix tests
+written (`test_agent_gateway_pg.py`) for `make test-auth`. **Not deployed; no
+DB applied; no MCP client shipped** — those remain separate approval-gated
+changes per `CLAUDE.md`.
+
+Original design intent (unchanged below): architecture-only proposal, no
+migration/router/MCP process shipping from the document; approval-gated per
 `CLAUDE.md`. Source context: `docs/research/EXTERNAL_QUANT_AI_REVIEW_2026.md`
 §3A (QuantDinger governance patterns — **independently re-expressed from
 the review's descriptions; no external code copied**), §5 security gate,

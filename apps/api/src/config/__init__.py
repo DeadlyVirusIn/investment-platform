@@ -301,6 +301,22 @@ class Settings(BaseSettings):
     RESEARCH_RO_ENABLED: bool = False
 
     # ------------------------------------------------------------------
+    # ELITE ARTHOS PRIORITY 7 — Agent Gateway v0 (fail-closed)
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF. When False, the /agent/* router is NOT
+    # mounted (every agent route 404s) and the owner token-management
+    # console router is NOT mounted either — there is no way to mint a
+    # token, so a leaked binary/config cannot activate the surface.
+    # Flipping to True is dev/test only; a production flip is a separate
+    # approval-gated decision (spec §10 rollout). The gateway is
+    # read/jobs/drafts only — there is NO live-trading scope by design
+    # (spec §3, NON-GOALS). See docs/architecture/AGENT_GATEWAY_V0_SPEC.md.
+    AGENT_GATEWAY_ENABLED: bool = False
+    # Token TTL policy (spec §2): mandatory expiry, v0 default 30d, max 90d.
+    AGENT_TOKEN_DEFAULT_TTL_DAYS: int = 30
+    AGENT_TOKEN_MAX_TTL_DAYS: int = 90
+
+    # ------------------------------------------------------------------
     # PHASE 16 v1 — Intraday context overlay (ephemeral)
     # ------------------------------------------------------------------
     # PERMANENT default OFF. When False, the market-tape poller does
