@@ -13,6 +13,7 @@
 
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { StatusPanel } from '../components/ui/StatusPanel';
+import { useSession } from '../state/SessionContext';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
 import { Link } from 'react-router-dom';
@@ -47,7 +48,7 @@ function snapshotStatus(f: string | undefined, asOf: string | null | undefined):
       title: dateStr
         ? `Snapshot from ${dateStr}${age && age !== 'today' ? ` — ${age}` : ''}`
         : 'Snapshot is awaiting the next refresh',
-      detail: 'Nothing is lost — these are your real practice positions, valued '
+      detail: 'Nothing is lost — these are real practice positions, valued '
         + 'as of that date. Prices refresh automatically after the next market close.',
     };
   }
@@ -82,6 +83,11 @@ const toneCls = (v: number | null | undefined): string =>
   v == null ? 'ink-primary' : v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'ink-primary';
 
 export function PaperBook() {
+  // Demo-book honesty (audit M2): anonymous visitors see the shared
+  // canonical engine book — it must NEVER be presented as "your"
+  // portfolio. Only a resolved authenticated session earns that word.
+  const { authenticated, loading: sessionLoading } = useSession();
+  const isDemo = !sessionLoading && !authenticated;
   const { data: book, isLoading } = useCanonicalStockPortfolio();
   const portfolioId = book?.portfolio_id;
   const {
@@ -99,16 +105,42 @@ export function PaperBook() {
   return (
     <ArthosPage maxWidth="max-w-copy">
       <header className="mb-16 sm:mb-20">
-        <MetaLabel>Your practice portfolio</MetaLabel>
+        <MetaLabel>{isDemo ? 'Demo practice portfolio' : 'Your practice portfolio'}</MetaLabel>
         <h1 className="font-serif text-masthead ink-primary mt-3 mb-6 max-w-[18ch]">
-          Practice portfolio.
+          {isDemo ? 'Demo practice portfolio.' : 'Practice portfolio.'}
         </h1>
-        <p className="ink-muted leading-relaxed max-w-narrative">
-          This is your <strong>paper portfolio</strong> — practice money, nothing
-          real at risk. Every idea you follow or add is tracked here with live
-          prices, so you can see what actually holds up before you ever invest
-          real money.
-        </p>
+        {isDemo ? (
+          <>
+            <p className="ink-muted leading-relaxed max-w-narrative">
+              This is ArthOS's shared <strong>demo book</strong> — real paper
+              trades made by the engine with practice money, shown so you can
+              see how ideas are tracked to the end. It is illustrative and
+              doesn't belong to you.
+            </p>
+            <div className="mt-5 max-w-narrative">
+              <StatusPanel
+                variant="info"
+                title="Want a practice portfolio of your own?"
+                action={
+                  <Link to="/account" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
+                    style={{ fontSize: 12.5, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
+                    Create a free account →
+                  </Link>
+                }
+              >
+                Sign in and every idea you add is tracked privately under your
+                own book — practice money only, nothing real at risk.
+              </StatusPanel>
+            </div>
+          </>
+        ) : (
+          <p className="ink-muted leading-relaxed max-w-narrative">
+            This is your <strong>paper portfolio</strong> — practice money, nothing
+            real at risk. Every idea you follow or add is tracked here with live
+            prices, so you can see what actually holds up before you ever invest
+            real money.
+          </p>
+        )}
       </header>
 
       <PracticeTabs />
