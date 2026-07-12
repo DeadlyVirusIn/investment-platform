@@ -13,6 +13,7 @@ import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { ApiError } from '@/lib/api';
 import { confidenceDisplay } from '../lib/confidenceDisplay';
 import { freshnessInfo } from '../lib/freshness';
+import { lsGetRaw, lsSetRaw } from '@/lib/storage';
 // Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
 // their VITE_DEV_* flags are '1' (absent in every normal build).
 import { AttributionWorking } from '../components/AttributionWorking';
@@ -111,7 +112,7 @@ function PaperExplainer() {
   const KEY = 'arthos_seen_paper_explainer';
   const [show, setShow] = useState(false);
   useEffect(() => {
-    try { if (!localStorage.getItem(KEY)) setShow(true); } catch { /* ignore */ }
+    if (!lsGetRaw(KEY)) setShow(true);
   }, []);
   if (!show) return null;
   return (
@@ -121,7 +122,7 @@ function PaperExplainer() {
         Paper means practice money — no real money is used.
       </p>
       <button type="button"
-        onClick={() => { try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ } setShow(false); }}
+        onClick={() => { lsSetRaw(KEY, '1'); setShow(false); }}
         className="text-[12px] ink-fainter hover:ink-muted shrink-0">Got it</button>
     </div>
   );

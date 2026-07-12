@@ -3,6 +3,8 @@
  * to the FastAPI backend (localhost:8000 in dev, api:8000 in prod via Caddy).
  */
 
+import { lsGetRaw, lsSetRaw } from './storage';
+
 class ApiError extends Error {
   constructor(
     public status: number,
@@ -19,10 +21,10 @@ class ApiError extends Error {
 function deviceId(): string {
   try {
     const KEY = 'arthos_device_id';
-    let id = localStorage.getItem(KEY);
+    let id = lsGetRaw(KEY);
     if (!id) {
       id = (crypto?.randomUUID?.() ?? `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`);
-      localStorage.setItem(KEY, id);
+      lsSetRaw(KEY, id);
     }
     return id;
   } catch {
