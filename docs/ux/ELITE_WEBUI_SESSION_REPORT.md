@@ -77,3 +77,64 @@ wording, reversible via `VITE_MEETS_BUY_BAR=0`. Recommend riding the
 existing PRODUCTION_PROMOTION_PLAN stages: web-only image rebuild after
 Stage B unblocks; re-verify `/admin/trust-center` against the prod API
 (needs elite API code in the prod image before the route exists).
+
+---
+
+# Session 2 addendum — 2026-07-12 (frontend-quality backlog)
+
+## Fixes shipped (commits, oldest first)
+
+| Commit | Scope |
+|--------|-------|
+| `457d2e1` | Vitest + Testing Library runner; revived 204 dormant tests, repaired 4 drifted; new primitive coverage (freshness, EvidenceBadge, StatusPanel, confidenceDisplay); ResearchJobHealthCard fail-closed hardening |
+| `25ff7a2` | Route-level error boundary (retry, Discover exit, focus/alert, bounded logs, dev `?__crash=1`) |
+| `c6651b5` | Signed-out demo-book honesty ("Demo practice portfolio", sign-in CTA, 4 tests) |
+| `01684de` | `lint:portfolio` gate green — localStorage surface consolidated (keys unchanged), test files exempt from production-freeze rules |
+| `90590dd` | `/today` what-changed strip + next step; `/track-record` open-vs-resolved + EvidenceBadge + paper-only disclosure + methodology details |
+| `92cb4ec` | Research Inbox UI (dev-only flag, owner-gated, review state machine, versioned corrections, 6 tests) |
+| `91aca4f` | P7 polish: `.pb-safe` safe-area, Ctrl+K/⌘K platform hint, feedback pills echo the recorded answer |
+
+## Quality gate (all green)
+
+- TypeScript `tsc --noEmit` — clean
+- ESLint (`--max-warnings 0`) — clean
+- `lint:portfolio` — green (was 6 pre-existing violations)
+- Production build — green
+- Unit tests — **241 passing / 16 files** (`npm test` = `vitest run`)
+- Route smokes (11 routes), dark mode, 200 % zoom (no horizontal overflow
+  at 720 px), mobile 390 px — verified in live dev app
+
+## New screenshots
+
+`route-error-state-desktop.jpeg`, `portfolio-demo-book-desktop.jpeg`,
+`today-desktop.jpeg`, `track-record-desktop.jpeg`,
+`research-inbox-desktop.jpeg`, `research-inbox-mobile.jpeg`,
+`discover-dark-desktop.jpeg`.
+
+## Dev-data cleanup (executed, dev DB only)
+
+Confirmed target: `investment_platform` on local compose (`compose-db-1`,
+127.0.0.1:54329, role `invest`). Older `*@example.com` QA fixtures were
+inspected and left untouched.
+
+Removed in one transaction (row backups retained in schema
+`cleanup_bak_20260712`): app_user `elite-audit@example.com`
+(a62c400b-492d-4722-934a-4d2394df46ca) · its book
+`user:a62c400b…:stock` (437306d3-d359-4ec7-985b-659bf818a8b3) ·
+1 paper_position (GE) · 1 paper_trade · 2 user_session rows; `local-dev`
+restored owner → user. Post-checks: zero orphan positions/trades/
+sessions/profiles. Rollback: `INSERT … SELECT` from `cleanup_bak_20260712`,
+then `DROP SCHEMA cleanup_bak_20260712 CASCADE` once satisfied.
+
+Intentionally retained (not on the documented cleanup list): sanitized
+Research-Inbox fixtures created for the P4 screenshots (2 research_task +
+5 research_report rows, fictional content, `example.com` fixture URLs) —
+the rejected "probe" row demonstrates retained-forever history.
+
+## Remaining backlog
+
+MEDIUM: M1 (placeholder-scale ticker values), M3 (per-idea "what changed"
+needs a backend delta contract), M6 (operator options diagnostics
+vocabulary — deliberate). POLISH: options terminology sweep on the
+operator surface, code-splitting the 858 kB bundle, superseded-correction
+HTTP route (service `correct_report` exists; no REST endpoint yet).

@@ -32,18 +32,25 @@ Verdicts use: CRITICAL (trust or comprehension breaks), HIGH (blocks the
 | H8 | Sidebar wordmark links to `/learn`, not the home surface `/discover` — disorients (logo = home convention). | `ArthosChrome.tsx` | FIXED — logo routes to `/discover` |
 | H9 | Owner-only / unauthorized state is a bare sentence ("Not available (owner-only).") — no what-happened / is-anything-lost / what-next. | `AdminTrustCenter.tsx` | FIXED — proper owner-only state panel |
 
-## MEDIUM (not fixed this pass — tracked)
+## MEDIUM (status after the 2026-07-12 session)
 
-| # | Finding | Where |
-|---|---------|-------|
-| M1 | Ticker values are placeholder-scale (S&P 754.95) with +0.00 % across the board when market closed — consider hiding price level when data source is the delayed dev feed. | `GlobalTicker`/tape API |
-| M2 | Signed-out `/portfolio` (auth-disabled dev) shows the engine canonical book under "YOUR practice portfolio" — verify prod path gates correctly; label should say "Demo book" when unauthenticated. | `PaperBook.tsx` |
-| M3 | "What changed" narrative block (Phase-4 item 4) has no data source yet; PickPage shows freshness but not deltas vs. yesterday's read. | backend contract missing |
-| M4 | `/today` Briefing and `/track-record` still use older layout patterns (denser, less narrative) than Discover/Pick. | `Briefing.tsx`, `TrackRecord.tsx` |
-| M5 | Research Inbox has no UI surface (agent-gateway drafts land as pending recommendations, no inbox view); mission audit item noted as N/A. | — |
-| M6 | Options pages (`/options`, `/options/portfolio`) expose more telemetry vocabulary than the stock surfaces. | `OptionsVisibility.tsx` |
-| M7 | No route-level error boundary — an exception in a page component white-screens the SPA. | `App.tsx` |
-| M8 | Command palette (⌘K) has no visible keyboard hint for Windows users (Ctrl+K). | `ArthosChrome.tsx` |
+| # | Finding | Where | Status |
+|---|---------|-------|--------|
+| M1 | Ticker values are placeholder-scale (S&P 754.95) with +0.00 % across the board when market closed — consider hiding price level when data source is the delayed dev feed. | `GlobalTicker`/tape API | OPEN |
+| M2 | Signed-out `/portfolio` shows the engine canonical book under "YOUR practice portfolio". | `PaperBook.tsx`, `Briefing.tsx` sidebar | FIXED — "Demo practice portfolio" framing + sign-in CTA; "Your" reserved for authenticated sessions; 4 tests |
+| M3 | "What changed" narrative needs a backend delta contract; PickPage shows freshness but not deltas vs. yesterday's read. | backend contract missing | PARTIAL — `/today` now derives a truthful "what changed today" strip from live counts; per-idea deltas still need backend |
+| M4 | `/today` Briefing and `/track-record` older layout patterns. | `Briefing.tsx`, `TrackRecord.tsx` | FIXED — what-changed strip + next step; open-vs-resolved with EvidenceBadge, paper-only disclosure, methodology details |
+| M5 | Research Inbox has no UI surface. | — | FIXED — `/admin/research-inbox` (VITE_RESEARCH_INBOX=1, owner-gated server routes, approve/reject state machine, versioned corrections; 6 tests) |
+| M6 | Options pages expose more telemetry vocabulary than the stock surfaces. | `OptionsVisibility.tsx` | OPEN (deliberate: it is the operator diagnostics surface; beginner options surfaces were reworked in the earlier trader-first pass) |
+| M7 | No route-level error boundary — an exception white-screens the SPA. | `App.tsx` | FIXED — `RouteErrorBoundary` (retry, Discover exit, focus + alert, bounded logs; 5 tests) |
+| M8 | Command palette has no visible hint for Windows users. | `ArthosChrome.tsx` | FIXED — platform-aware Ctrl+K / ⌘K |
+
+Also cleared this session: frontend test runner (Vitest + Testing Library,
+241 tests), `lint:portfolio` gate green (frozen localStorage surface
+consolidated into `storage.ts` raw-key wrappers; test files exempted from
+production-only freeze rules), mobile `.pb-safe` safe-area utility defined,
+feedback pills echo the recorded answer, dark-mode + 200 % zoom verified
+(no horizontal overflow at 720 px).
 
 ## POLISH
 
