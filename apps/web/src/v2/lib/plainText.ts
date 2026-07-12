@@ -65,3 +65,19 @@ export function plainThesis(raw?: string | null): string | null {
   const letters = (t.match(/[A-Za-z]/g) ?? []).length;
   return letters >= 8 ? t : null;
 }
+
+/** One plain-English line for an idea card (audit H5). Prefers a cleaned
+ *  engine thesis; when that is pure quant residue, composes a truthful
+ *  sentence from the signal families instead of showing nothing. */
+export function ideaOneLiner(
+  thesis?: string | null,
+  familyScores?: Record<string, string | null> | null,
+): string | null {
+  const cleaned = plainThesis(thesis);
+  if (cleaned) return cleaned;
+  const sig = ideaSignals(familyScores);
+  if (sig.why.length === 0) return null;
+  const head = sig.why.slice(0, 2).join(', and ').toLowerCase();
+  const risk = sig.risks[0] ? ` — though ${sig.risks[0].toLowerCase()}` : '';
+  return `What's working: ${head}${risk}.`;
+}

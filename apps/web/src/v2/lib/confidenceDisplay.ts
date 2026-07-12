@@ -8,11 +8,12 @@
 // buy bar".
 //
 // Presentation ONLY: numeric conviction and confidence_label are
-// unchanged in the API and database. Gated by VITE_MEETS_BUY_BAR
-// (absent by default — production copy unchanged until approved).
+// unchanged in the API and database. Elite WebUI pass (2026-07-11): the
+// approved wording is now the DEFAULT presentation; VITE_MEETS_BUY_BAR=0
+// restores the legacy "high confidence" form if ever needed.
 
 export function meetsBuyBarEnabled(): boolean {
-  return import.meta.env.VITE_MEETS_BUY_BAR === '1';
+  return import.meta.env.VITE_MEETS_BUY_BAR !== '0';
 }
 
 /** Chip/inline text for a recommendation's confidence label.

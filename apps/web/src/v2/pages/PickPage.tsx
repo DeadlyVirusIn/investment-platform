@@ -12,6 +12,7 @@ import { useUserPrefs } from '../state/UserPrefsContext';
 import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
 import { ApiError } from '@/lib/api';
 import { confidenceDisplay } from '../lib/confidenceDisplay';
+import { freshnessInfo } from '../lib/freshness';
 // Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
 // their VITE_DEV_* flags are '1' (absent in every normal build).
 import { AttributionWorking } from '../components/AttributionWorking';
@@ -102,12 +103,7 @@ function actionPlain(action: string): { verb: string; explain: string; tone: 'po
   }
 }
 
-function isFresh(rec: RecApi): boolean {
-  if (rec.stale_data) return false;
-  if (!rec.generated_at) return true;
-  const h = (Date.now() - new Date(rec.generated_at).getTime()) / 3600_000;
-  return !(Number.isFinite(h) && h > 30);
-}
+// Truthful freshness (audit C1) — shared mapping in lib/freshness.ts.
 
 // One-time explainer: clarifies "paper" the first time a user reaches an
 // idea detail. Dismiss persists in localStorage so it shows only once.
@@ -194,7 +190,7 @@ export function PickPage() {
   }
 
   const action = effectiveAction(rec) ?? 'Hold';
-  const fresh = isFresh(rec);
+  const fresh = freshnessInfo(rec.generated_at, rec.stale_data);
   const watching = inWatchlist(rec.symbol ?? '');
   const sig = ideaSignals(rec.family_scores);
   const holding = HOLDING_PERIOD;
@@ -239,8 +235,8 @@ export function PickPage() {
             {sec && <>{sec}{' · '}</>}
             {confidenceDisplay(rec.confidence_label)}
             {' · '}
-            <span style={{ color: fresh ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
-              {fresh ? 'updated today' : 'needs a refresh'}
+            <span style={{ color: fresh.tone === 'good' ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
+              {fresh.label.toLowerCase()}
             </span>
           </div>
           <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-2" />

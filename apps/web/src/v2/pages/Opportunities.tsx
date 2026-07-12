@@ -20,7 +20,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
-import { plainThesis } from '../lib/plainText';
+import { plainThesis, ideaOneLiner } from '../lib/plainText';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
@@ -307,8 +307,10 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
         {sectorLabel(rec.sector) && <SmallChip>{sectorLabel(rec.sector)}</SmallChip>}
         <SmallChip>{confidenceDisplay(rec.confidence_label)}</SmallChip>
       </div>
-      {plainThesis(rec.thesis) && (
-        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{plainThesis(rec.thesis)}</p>
+      {ideaOneLiner(rec.thesis, rec.family_scores) && (
+        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+          {ideaOneLiner(rec.thesis, rec.family_scores)}
+        </p>
       )}
       {/* Pricing — Last close / Entry / Target / Exit-if-wrong on every stock
           idea card (featured shows it full, the list compact). */}

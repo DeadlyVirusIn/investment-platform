@@ -9,25 +9,13 @@ import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
 import { plainThesis, ideaSignals } from '../lib/plainText';
 import { confidenceDisplay } from '../lib/confidenceDisplay';
+import { freshnessInfo } from '../lib/freshness';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from './CompanyTitle';
 import { PlanRows } from './PlanRows';
 import { type RecApi, effectiveAction } from '@/lib/operator/hooks';
 
-function ageHours(iso: string | null): number | null {
-  if (!iso) return null;
-  const t = new Date(iso).getTime();
-  if (Number.isNaN(t)) return null;
-  return (Date.now() - t) / 3600_000;
-}
-
-function freshness(rec: RecApi): { label: string; tone: 'good' | 'warn' } {
-  const h = ageHours(rec.generated_at);
-  if (rec.stale_data || (h != null && h > 30)) {
-    return { label: 'Older', tone: 'warn' };
-  }
-  return { label: 'Updated today', tone: 'good' };
-}
+// Truthful freshness (audit C1) — shared mapping in ../lib/freshness.ts.
 
 function absTime(iso: string | null): string {
   if (!iso) return '—';
@@ -45,7 +33,7 @@ export function LiveTodayHero({
   alsoConsider?: RecApi[];
 }) {
   const action = effectiveAction(rec) ?? 'Hold';
-  const fresh = freshness(rec);
+  const fresh = freshnessInfo(rec.generated_at, rec.stale_data);
   const freshColor = fresh.tone === 'good' ? 'var(--brand)' : 'oklch(0.70 0.14 75)';
   const sig = ideaSignals(rec.family_scores);
   const why = plainThesis(rec.thesis);
