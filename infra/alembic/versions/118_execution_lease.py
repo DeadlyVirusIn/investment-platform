@@ -38,6 +38,10 @@ def upgrade() -> None:
         # e.g. 'run_paper_trading:2026-07-11' — job + logical window
         sa.Column("lease_key", sa.String(128), primary_key=True),
         sa.Column("holder", sa.String(64), nullable=False),
+        # fencing token (Kleppmann): monotonic generation, incremented on every
+        # steal. A stale former holder's (holder, fence) no longer matches after
+        # ownership changes, so it cannot continue writing.
+        sa.Column("fence", sa.BigInteger, nullable=False, server_default="1"),
         sa.Column("acquired_at", sa.DateTime(timezone=True), nullable=False,
                   server_default=sa.text("now()")),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),

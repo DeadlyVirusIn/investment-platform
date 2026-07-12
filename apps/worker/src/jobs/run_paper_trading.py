@@ -69,18 +69,21 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
     # (default OFF → byte-identical legacy behavior until the lease table ships).
     from apps.api.src.config import settings as _settings
 
-    _lease_key: str | None = None
+    _lease_handle = None
+    _lease = None
     if bool(getattr(_settings, "PAPER_EXECUTION_LEASE_ENABLED", False)):
         from apps.api.src.domain.scheduling import execution_lease as _lease
         _lease_key = _lease.daily_key("run_paper_trading", as_of)
         with SessionLocal() as _ls:
-            got = _lease.acquire(_ls, _lease_key)
+            _lease_handle = _lease.acquire(_ls, _lease_key)
             _ls.commit()
-        if not got:
+        if _lease_handle is None:
             logger.info(
                 "run_paper_trading: lease {} held by another executor — "
                 "skipping (exactly-once, not an error)", _lease_key)
             return
+        logger.info("run_paper_trading: acquired lease {} fence={}",
+                    _lease_handle.lease_key, _lease_handle.fence)
 
     if as_of is not None:
         now = dt.datetime.combine(as_of, dt.time(15, 0), tzinfo=dt.timezone.utc)
@@ -146,6 +149,18 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
     for portfolio_id in portfolio_ids:
         try:
             with SessionLocal() as session:
+                # P0-5 fencing: before mutating THIS portfolio, prove we still
+                # own the lease. If a slow run's lease expired and another
+                # executor stole it (higher fence), verify_ownership is False
+                # and we STOP before any further trade write — a stale former
+                # holder can never overlap the new owner's mutations.
+                if _lease_handle is not None and not _lease.verify_ownership(
+                    session, _lease_handle
+                ):
+                    logger.warning(
+                        "run_paper_trading: lost lease {} (fenced out) — "
+                        "stopping before further mutations", _lease_handle.lease_key)
+                    break
                 portfolio = session.get(PaperPortfolio, portfolio_id)
                 if portfolio is None:
                     continue
