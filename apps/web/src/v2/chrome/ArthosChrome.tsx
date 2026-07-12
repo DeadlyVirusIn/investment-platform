@@ -534,8 +534,11 @@ export function TopBar({
               className="ink-muted hover:ink-primary transition-colors p-2 inline-flex items-center gap-2"
             >
               <Search className="w-4 h-4" strokeWidth={1.5} />
+              {/* Platform-aware hint (audit P8/M8): Windows/Linux users see
+                  Ctrl+K, not the Mac-only ⌘K glyph. */}
               <kbd className="hidden sm:inline text-[10px] ink-fainter font-mono">
-                ⌘K
+                {typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform ?? '')
+                  ? '⌘K' : 'Ctrl+K'}
               </kbd>
             </button>
             <button

@@ -11,7 +11,7 @@ function Pill({ onClick, children }: { onClick: () => void; children: React.Reac
   return (
     <button
       onClick={onClick}
-      className="rounded-full px-3.5 h-9 font-medium transition-colors"
+      className="rounded-full px-3.5 h-9 font-medium transition-colors active:scale-95 hover:ink-primary"
       style={{ fontSize: 13, border: '1px solid var(--border)', color: 'var(--muted-foreground)' }}
     >
       {children}
@@ -20,8 +20,10 @@ function Pill({ onClick, children }: { onClick: () => void; children: React.Reac
 }
 
 export function FeedbackWidget({ surface }: { surface: FeedbackSurface }) {
-  const [useful, setUseful] = useState(false);
-  const [again, setAgain] = useState(false);
+  // Store the chosen label (audit P4): the thank-you echoes the answer so
+  // the user sees exactly what was recorded, not just that "something" was.
+  const [useful, setUseful] = useState<string | null>(null);
+  const [again, setAgain] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [textSent, setTextSent] = useState(false);
 
@@ -38,11 +40,11 @@ export function FeedbackWidget({ surface }: { surface: FeedbackSurface }) {
         <div className="mt-3">
           <p className="ink-primary text-[14px] mb-2">Was this explanation useful?</p>
           {useful ? (
-            <p className="ink-muted text-[13px]">Thanks — noted.</p>
+            <p className="ink-muted text-[13px]" role="status">Thanks — noted "{useful}".</p>
           ) : (
             <div className="flex gap-2">
-              <Pill onClick={() => { setUseful(true); fire('trust_useful', 'yes'); }}>Yes</Pill>
-              <Pill onClick={() => { setUseful(true); fire('trust_not_useful', 'no'); }}>Not really</Pill>
+              <Pill onClick={() => { setUseful('Yes'); fire('trust_useful', 'yes'); }}>Yes</Pill>
+              <Pill onClick={() => { setUseful('Not really'); fire('trust_not_useful', 'no'); }}>Not really</Pill>
             </div>
           )}
         </div>
@@ -50,11 +52,11 @@ export function FeedbackWidget({ surface }: { surface: FeedbackSurface }) {
         <div className="mt-4">
           <p className="ink-primary text-[14px] mb-2">Would you use ArthOS to review another idea?</p>
           {again ? (
-            <p className="ink-muted text-[13px]">Thanks.</p>
+            <p className="ink-muted text-[13px]" role="status">Thanks — noted "{again}".</p>
           ) : (
             <div className="flex gap-2">
-              <Pill onClick={() => { setAgain(true); fire('would_use_again', 'yes'); }}>Yes</Pill>
-              <Pill onClick={() => { setAgain(true); fire('would_not_use_again', 'not_yet'); }}>Not yet</Pill>
+              <Pill onClick={() => { setAgain('Yes'); fire('would_use_again', 'yes'); }}>Yes</Pill>
+              <Pill onClick={() => { setAgain('Not yet'); fire('would_not_use_again', 'not_yet'); }}>Not yet</Pill>
             </div>
           )}
         </div>
