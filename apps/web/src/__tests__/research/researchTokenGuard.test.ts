@@ -61,6 +61,8 @@ describe('research token guard', () => {
   it('exports the frozen banner text', () => {
     expect(RESEARCH_BANNER_TEXT).toContain('Research note');
     expect(RESEARCH_BANNER_TEXT).toContain('not execution logic');
-    expect(RESEARCH_BANNER_TEXT).toContain('not financial advice');
+    // Case-insensitive: the frozen copy capitalizes the sentence start
+    // ("… Not financial advice."); the guarantee is the phrase itself.
+    expect(RESEARCH_BANNER_TEXT.toLowerCase()).toContain('not financial advice');
   });
 });
