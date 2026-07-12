@@ -12,6 +12,7 @@
 // "—") whenever no price is available — we never fabricate a mark.
 
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { StatusPanel } from '../components/ui/StatusPanel';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
 import { Link } from 'react-router-dom';
@@ -23,14 +24,41 @@ import {
   type CanonicalStockPortfolio,
 } from '@/lib/operator/hooks';
 
-function freshnessNote(f: string | undefined): string | null {
-  switch (f) {
-    case 'fresh': return null;
-    case 'degraded': return 'Snapshot slightly delayed.';
-    case 'stale': return 'Snapshot is stale — awaiting the next refresh.';
-    case 'unknown': return 'Snapshot timing unavailable.';
-    default: return null;
+// Age-aware snapshot honesty (audit H2): "slightly delayed" understated a
+// 3-day-old book. State the snapshot date and age plainly; escalate tone
+// past one day. Values shown are still real — just as of that timestamp.
+function snapshotStatus(f: string | undefined, asOf: string | null | undefined): {
+  title: string; detail: string; variant: 'warn' | 'info';
+} | null {
+  const ageDays = (() => {
+    if (!asOf) return null;
+    const t = new Date(asOf).getTime();
+    if (Number.isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / 86_400_000);
+  })();
+  const dateStr = asOf
+    ? new Date(asOf).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+  if ((ageDays != null && ageDays >= 1) || f === 'stale' || f === 'degraded') {
+    const age = ageDays == null ? null
+      : ageDays === 0 ? 'today' : ageDays === 1 ? '1 day old' : `${ageDays} days old`;
+    return {
+      variant: ageDays != null && ageDays > 1 ? 'warn' : 'info',
+      title: dateStr
+        ? `Snapshot from ${dateStr}${age && age !== 'today' ? ` — ${age}` : ''}`
+        : 'Snapshot is awaiting the next refresh',
+      detail: 'Nothing is lost — these are your real practice positions, valued '
+        + 'as of that date. Prices refresh automatically after the next market close.',
+    };
   }
+  if (f === 'unknown') {
+    return {
+      variant: 'info',
+      title: 'Snapshot timing unavailable',
+      detail: 'The book is intact; the last-updated time could not be read.',
+    };
+  }
+  return null;
 }
 
 // ── display-only formatters (null → "—"; never fabricated) ──
@@ -44,6 +72,12 @@ const fmtSignedMoney = (v: number | null | undefined): string =>
         minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtSignedPct = (v: number | null | undefined): string =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}%`;
+// Audit H1: raw float quantities ("1628.664495114 shares") read as a bug.
+// Whole shares stay whole; fractional shares round to 2 decimals (display
+// only — the ledger keeps full precision).
+const fmtShares = (v: number): string =>
+  Number.isInteger(v) ? v.toLocaleString()
+    : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const toneCls = (v: number | null | undefined): string =>
   v == null ? 'ink-primary' : v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'ink-primary';
 
@@ -60,7 +94,7 @@ export function PaperBook() {
   const unreal = book?.unrealized_pnl ?? null;
   const real = book?.realized_pnl ?? null;
   const ret = book?.total_return_pct ?? null;
-  const note = freshnessNote(book?.freshness);
+  const note = snapshotStatus(book?.freshness, book?.as_of);
 
   return (
     <ArthosPage maxWidth="max-w-copy">
@@ -174,7 +208,11 @@ export function PaperBook() {
               {' '}· source: {book?.source ?? 'live'}
             </p>
             {note && (
-              <p className="ink-fainter text-[12px] mt-2">{note}</p>
+              <div className="mt-3">
+                <StatusPanel variant={note.variant} title={note.title} role="status">
+                  {note.detail}
+                </StatusPanel>
+              </div>
             )}
           </>
         )}
@@ -268,7 +306,7 @@ function PositionRow({ position }: { position: ExecutedPosition }) {
     <li className="surface-base py-6">
       <div className="flex items-baseline gap-3 mb-3 flex-wrap">
         <CompanyTitle symbol={position.symbol} className="ink-primary text-[14px]" />
-        <span className="text-meta ink-fainter">{qty} {units}</span>
+        <span className="text-meta ink-fainter">{fmtShares(qty)} {units}</span>
         <span className="text-meta ink-fainter">· {holdStatus}</span>
         {position.source !== 'live' && (
           <span className="text-meta ink-fainter">· {position.source}</span>
