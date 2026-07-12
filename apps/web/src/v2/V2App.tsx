@@ -53,6 +53,7 @@ import { Observability } from './pages/Observability';
 // page-level AdminGuard bounces non-owners.
 import { AdminHome, AdminFeedback, AdminJobs, AdminSystem, AdminGuard } from './pages/Admin';
 import { AdminTrustCenter } from './pages/AdminTrustCenter';
+import { AdminResearchInbox, researchInboxEnabled } from './pages/AdminResearchInbox';
 // Options — read-only V2-native options subsystem visibility surface.
 import { OptionsVisibility } from './pages/OptionsVisibility';
 
@@ -113,6 +114,11 @@ function V2Surface() {
         {/* Honest Numbers — owner Trust Center (server-guarded; endpoint
             404s non-owners). Not linked from user navigation. */}
         <Route path="admin/trust-center" element={<AdminTrustCenter />} />
+        {/* Elite P4 — Research Inbox (dev-only, default off; server routes
+            owner-gated AND flag-mounted). Not linked from public nav. */}
+        {researchInboxEnabled() && (
+          <Route path="admin/research-inbox" element={<AdminResearchInbox />} />
+        )}
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}
