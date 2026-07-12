@@ -16,6 +16,7 @@ import { AccountPage } from './pages/AccountPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { CommandPaletteProvider } from './chrome/CommandPalette';
 import { Onboarding } from './chrome/Onboarding';
+import { RouteErrorBoundary } from './components/RouteErrorBoundary';
 
 import { LearnHome } from './pages/LearnHome';
 import { Briefing } from './pages/Briefing';
@@ -74,6 +75,7 @@ function V2Surface() {
   return (
     <div className="v2-root" data-theme={theme}>
       <Onboarding />
+      <RouteErrorBoundary>
       <Routes>
         {/* MVP — Discover is the homepage, not Learn. Phase 2 transforms
             Opportunities into the full Today's-Ideas feed; /v2/discover is
@@ -140,6 +142,7 @@ function V2Surface() {
         <Route path="options/portfolio" element={<OptionsPortfolio />} />
         <Route path="*" element={<Navigate to="discover" replace />} />
       </Routes>
+      </RouteErrorBoundary>
     </div>
   );
 }
