@@ -100,3 +100,29 @@ during their build sprints; confirmed present, `alembic current` = 117.)
 - The master roadmap (`ELITE_ARTHOS_ROADMAP.md`) is updated so no completed
   item still reads "DESIGN ONLY" / "PROTOTYPE" — see its status column.
 - Screenshots/fixtures: sanitized, token prefixes only.
+
+---
+
+## Addendum 2026-07-12 — status corrections + post-Elite pointers
+
+- Branch head is now `e401d53`; **dev DB is at migration 118**
+  (118_execution_lease applied 2026-07-11 with backup; prod unchanged at
+  109). The header above ("dev at 117") is superseded by this note.
+- **Elite WebUI (2 passes) COMPLETE in dev**: audit + all CRITICAL/HIGH and
+  M2/M4/M5/M7/M8 fixed; Vitest runner with 241 passing tests;
+  `lint:portfolio` green; Research Inbox UI at `/admin/research-inbox`
+  (VITE_RESEARCH_INBOX=1). Evidence: `docs/ux/ELITE_WEBUI_AUDIT.md`,
+  `docs/ux/ELITE_WEBUI_SESSION_REPORT.md`.
+- **Confidence wording**: approved "Meets the buy bar" presentation is now
+  the web DEFAULT (`VITE_MEETS_BUY_BAR=0` restores legacy). The
+  trust_center.py body sentence "copy change not yet applied" is stale and
+  should be updated in the next backend copy pass.
+- **Known small backend gap**: `research_inbox.correct_report` has no HTTP
+  route (service + pinned tests exist) — scheduled Wave 2 of the post-Elite
+  plan.
+- **Post-Elite program** (research → plan complete, implementation NOT
+  started): see `docs/research/FINAL_EXTERNAL_REPO_GAP_REVIEW_2026.md`,
+  `docs/roadmap/POST_ELITE_OPUS_IMPLEMENTATION_PLAN.md`,
+  `docs/roadmap/post_elite_priority_matrix.json`. First build item:
+  **Recommendation Publication Preflight** (proposed migration 119 —
+  verify `alembic heads` first).

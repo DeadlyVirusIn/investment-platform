@@ -72,3 +72,46 @@ Dev-machine only for research compute (calibration study ran in seconds; walk-fo
 ## 10. Explicit non-goals (program-wide)
 
 Live trading, broker credentials, generated-code execution, autonomous agent actions, multi-tenant tokens, new always-on services, any claim of alpha without registry-recorded out-of-sample evidence.
+
+---
+
+## 10. Post-Elite addendum (2026-07-12) — final external gap review
+
+A second, evidence-first pass over OpenAlice (AGPL, clean-room), NOFX (AGPL,
+clean-room), QuantDinger (Apache backend), and the awesome-ML index was
+completed against this branch @ `e401d53` (dev migration 118). Full record:
+`docs/research/FINAL_EXTERNAL_REPO_GAP_REVIEW_2026.md`; implementation-ready
+plan: `docs/roadmap/POST_ELITE_OPUS_IMPLEMENTATION_PLAN.md`; scores:
+`docs/roadmap/post_elite_priority_matrix.json`.
+
+**Outcome.** ArthOS already equals or exceeds the reviewed repos on: inbox
+provenance, immutable corrections, thesis lifecycle, experiment
+reproducibility (registry beats snapshot-only), gateway token/audit design,
+scheduler durability, accessibility, honest states. Genuine remaining gaps
+are concentrated in the **trust-control spine** — no unified publication
+gate, no automatic safe mode, no what-changed contract, no decision replay
+surface — plus the already-committed Experiment Lab and small research-
+workspace UI completions.
+
+**Post-Elite waves** (all dev-first, flag-off, additive migrations 119+
+proposed — verify head before generating):
+- **Wave 1 — trust-control spine:** Publication Preflight (verdict artifact,
+  no LLM override) · Research Safe Mode (NORMAL/RESTRICTED/SAFE posture,
+  owner-ack recovery) · what-changed delta contract (no migration) ·
+  Decision Replay Timeline (read-only, hindsight-proof).
+- **Wave 2 — research workspace:** Inbox correction route/UI + follow-ups ·
+  Research Mission Board (aggregation only) · tracked-entity thin slice
+  (typed links; wikilinks and full graph rejected).
+- **Wave 3 — evidence operations:** Experiment Lab harness (anchor; adds
+  statsmodels + Optuna; statsforecast blocked on its scipy pin) ·
+  Comparison Arena (owner-only, evidence-gated) · promotion queue · audit
+  viewer · Control Room (Trust Center = evidence; Control Room = action).
+- **Wave 4 — statistical depth (evidence-gated):** lifelines survival
+  analysis (≥100 resolved trades) · BH multiple testing in all Lab reports ·
+  portfolio attribution rollup · MAPIE intervals (calibrator unblock) ·
+  cost-model application with sensitivity evidence.
+
+**Unchanged:** every §5 gate, the production promotion plan as the critical
+path, and the rejection list (now extended: wikilinks, full knowledge graph,
+public leaderboards, MLflow/Evidently/SHAP/sktime/River, Trading-as-Git,
+task-handoff semantics until multi-user).
