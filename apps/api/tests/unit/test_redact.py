@@ -198,3 +198,117 @@ def test_redact_preserves_non_token_chars():
     """Whitespace, punctuation, normal-length idents preserved."""
     src = "GET /v1/markets/clock\nstatus: 200\nbody: ok"
     assert redact_token(src) == src
+
+
+# ---------------------------------------------------------------------------
+# Incident 2026-07-11 — Polygon apiKey leak. Hostile cases the prior
+# case-sensitive pattern missed (apiKey capital-K + underscore in value).
+# ---------------------------------------------------------------------------
+
+# realistic shape: 32 chars including an underscore (bare-token regex misses
+# it; only the query-param scrub catches it)
+_POLY_KEY = "5lXPS8ka_mXSB2HcNt1HfZ35JLhIxLG0"
+
+
+def test_polygon_apikey_mixed_case_query_scrubbed():
+    url = f"https://api.polygon.io/v2/aggs/ticker/SPY/range/1/minute/2026-07-11/2026-07-11?adjusted=true&sort=desc&limit=30&apiKey={_POLY_KEY}"
+    out = redact_token(url)
+    assert _POLY_KEY not in out
+    assert "apiKey=<REDACTED>" in out
+    # host + path + non-secret params preserved
+    assert "api.polygon.io" in out and "adjusted=true" in out and "limit=30" in out
+
+
+def test_httpx_raise_for_status_string_scrubbed():
+    # the exact leak format seen in prod logs
+    s = (f"Client error '403 Forbidden' for url "
+         f"'https://api.polygon.io/v2/aggs/ticker/QQQ/range/1/minute/"
+         f"2026-07-11/2026-07-11?adjusted=true&apiKey={_POLY_KEY}'")
+    out = redact_token(s)
+    assert _POLY_KEY not in out
+    assert "403 Forbidden" in out  # useful diagnostic preserved
+
+
+def test_param_order_independent():
+    a = redact_token(f"?apiKey={_POLY_KEY}&sort=asc")
+    b = redact_token(f"?sort=asc&apiKey={_POLY_KEY}")
+    assert _POLY_KEY not in a and _POLY_KEY not in b
+
+
+def test_percent_encoded_key_scrubbed():
+    enc = "AbC%2Fd3f%2BXX99kkllmmnnoopp00112233"
+    out = redact_token(f"https://x.io/a?api_key={enc}&z=1")
+    assert enc not in out and "api_key=<REDACTED>" in out and "z=1" in out
+
+
+def test_duplicate_secret_params_all_scrubbed():
+    out = redact_token(f"?apiKey={_POLY_KEY}&other=1&apikey={_POLY_KEY[::-1]}")
+    assert _POLY_KEY not in out and _POLY_KEY[::-1] not in out
+    assert out.count("<REDACTED>") >= 2
+
+
+def test_case_variants_of_param_names():
+    for name in ("APIKEY", "Api_Key", "ACCESS_TOKEN", "Token", "KEY", "secret"):
+        out = redact_token(f"?{name}={_FAKE_TOKEN_40}&keep=ok")
+        assert _FAKE_TOKEN_40 not in out, name
+        assert "keep=ok" in out
+
+
+def test_header_form_secrets_scrubbed():
+    for line in (f"X-Api-Key: {_FAKE_TOKEN_40}",
+                 f'"token": "{_FAKE_TOKEN_40}"',
+                 f"api_key={_FAKE_TOKEN_40}"):
+        out = redact_token(line)
+        assert _FAKE_TOKEN_40 not in out, line
+
+
+def test_nested_exception_chain_scrubbed():
+    # simulate a chained-exception repr string
+    s = (f"ProviderError: fetch failed\n  caused by HTTPStatusError: 403 for "
+         f"url 'https://api.polygon.io/x?apiKey={_POLY_KEY}'\n  "
+         f"during retry 2 header Authorization: Bearer {_FAKE_TOKEN_40}")
+    out = redact_token(s)
+    assert _POLY_KEY not in out and _FAKE_TOKEN_40 not in out
+    assert "retry 2" in out  # non-secret retry diagnostic preserved
+
+
+def test_redirect_location_url_scrubbed():
+    s = f"302 -> Location: https://api.polygon.io/v3/next?cursor=abc&apiKey={_POLY_KEY}"
+    out = redact_token(s)
+    assert _POLY_KEY not in out and "cursor=abc" in out
+
+
+def test_output_is_bounded():
+    huge = "?apiKey=" + ("a" * 100000)
+    out = redact_token(huge)
+    assert len(out) <= 4000
+
+
+def test_non_secret_key_names_preserved():
+    # sort_key / ticker / order_key must NOT be scrubbed (only exact 'key')
+    src = "?sort_key=asc&ticker=SPY&limit=30"
+    assert redact_token(src) == src
+
+
+def test_global_patcher_scrubs_at_sink(capfd):
+    from apps.api.src.options.data_provider._redact import install_global_redaction
+    logger.remove()
+    logger.add(io.StringIO())  # keep default too; capfd catches stderr
+    sink = io.StringIO()
+    logger.remove()
+    logger.add(sink, level="INFO")
+    install_global_redaction(logger)
+    logger.warning(
+        "Polygon minute aggs fetch failed for SPY: Client error '403' for "
+        "url 'https://api.polygon.io/x?apiKey={}'", _POLY_KEY)
+    out = sink.getvalue()
+    assert _POLY_KEY not in out and "403" in out
+    logger.remove()
+    logger.configure(patcher=None)  # reset for other tests
+
+
+def test_redact_error_for_storage_scrubs_and_bounds():
+    from apps.api.src.options.data_provider._redact import redact_error_for_storage
+    s = f"Traceback ... url 'https://x?apiKey={_POLY_KEY}'"
+    out = redact_error_for_storage(s)
+    assert _POLY_KEY not in out and len(out) <= 4000

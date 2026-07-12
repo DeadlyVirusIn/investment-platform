@@ -15,6 +15,9 @@ from apps.worker.src.scheduler.tick_loop import run
 def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level=settings.LOG_LEVEL, colorize=True)
+    # Credential-redaction boundary (incident 2026-07-11).
+    from apps.api.src.options.data_provider._redact import install_global_redaction
+    install_global_redaction(logger)
     logger.info("Investment-platform worker starting")
     # P0-4 — build provenance banner (image <-> git state traceability).
     from apps.api.src.build_provenance import provenance_log_line

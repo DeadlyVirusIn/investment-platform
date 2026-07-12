@@ -15,6 +15,9 @@ from sqlalchemy import select, text
 
 from apps.api.src.db import SessionLocal
 from apps.api.src.db.models import JobRun, JobSchedule
+from apps.api.src.options.data_provider._redact import (
+    redact_error_for_storage as _redact_store,
+)
 from apps.worker.src.jobs.registry import REGISTRY
 
 _TICK_INTERVAL: int = 60          # seconds between polls
@@ -161,7 +164,8 @@ async def _execute_job(schedule: JobSchedule, semaphore: asyncio.Semaphore) -> N
             result = await job_fn()
         except Exception:
             status = "error"
-            error_msg = traceback.format_exc()
+            # scrub before log + DB store (a traceback may carry a provider URL)
+            error_msg = _redact_store(traceback.format_exc())
             logger.error("Job '{}' failed:\n{}", schedule.name, error_msg)
         else:
             # P0-2A.4 — honor job-reported failure (swallowed exceptions
