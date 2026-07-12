@@ -23,6 +23,7 @@ export function AccountPage() {
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileComplete, setProfileComplete] = useState<boolean | null>(null);
   const [betaSent, setBetaSent] = useState(false);
@@ -55,8 +56,8 @@ export function AccountPage() {
       // Generic error — never reveal whether the email exists or is locked out.
       setError(
         mode === 'signup'
-          ? "Couldn't create that account. Try a different email."
-          : 'Invalid email or password.',
+          ? "Couldn't create that account. Try a different email, or sign in if you already have one."
+          : "That email and password don't match. Check for typos — passwords are case-sensitive — or create an account if you're new.",
       );
     } finally {
       setSubmitting(false);
@@ -165,15 +166,32 @@ export function AccountPage() {
               onKeyDown={(e) => { if (e.key === 'Enter') void handleSubmit(); }}
             />
           </Field>
-          <Field label="Password" hint={mode === 'signup' ? `At least ${MIN_PASSWORD} characters` : undefined}>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-              style={inputStyle}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleSubmit(); }}
-            />
+          <Field
+            label="Password"
+            hint={mode === 'signup'
+              ? `At least ${MIN_PASSWORD} characters — a short phrase you'll remember works well.`
+              : undefined}
+          >
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                style={{ ...inputStyle, paddingRight: 58 }}
+                onKeyDown={(e) => { if (e.key === 'Enter') void handleSubmit(); }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((s) => !s)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded font-medium"
+                style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </Field>
 
           {error && (
@@ -212,6 +230,20 @@ export function AccountPage() {
         {sessionLoading && (
           <p className="ink-fainter text-center mt-4" style={{ fontSize: 12 }}>Checking session…</p>
         )}
+
+        {/* Why trust ArthOS with an account (audit H7) — stated, not implied. */}
+        <ul className="mt-8 pt-5 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
+          {[
+            'Practice money only — no bank link, no card, nothing real at risk.',
+            'Your portfolio and profile are private to your account.',
+            'We only ask for what personalizes your practice — nothing is sold or shared.',
+          ].map((line) => (
+            <li key={line} className="ink-muted flex items-start gap-2" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+              <span aria-hidden style={{ color: 'var(--brand)' }}>✓</span>
+              {line}
+            </li>
+          ))}
+        </ul>
       </div>
     </ArthosPage>
   );
