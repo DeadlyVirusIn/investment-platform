@@ -24,7 +24,7 @@ export function GlobalTicker() {
   const run = [...quotes, ...quotes, ...quotes];
 
   return (
-    <div className="w-full overflow-hidden" aria-label="Live market ticker"
+    <div className="w-full overflow-hidden"
       style={{
         borderBottom: '1px solid var(--border)',
         backgroundColor: 'color-mix(in oklch, var(--background) 90%, var(--card))',
@@ -34,7 +34,13 @@ export function GlobalTicker() {
         .arthos-ticker-track { animation: arthos-ticker 36s linear infinite; will-change: transform; }
         @media (prefers-reduced-motion: reduce) { .arthos-ticker-track { animation: none; } }
       `}</style>
-      <div className="arthos-ticker-track flex items-center whitespace-nowrap py-1.5">
+      {/* Screen readers get ONE calm summary sentence; the tripled marquee
+          below would otherwise announce ~200 fragments on every page. */}
+      <p className="sr-only">
+        {allFlat ? 'Markets closed. ' : ''}Delayed index quotes:{' '}
+        {quotes.map((q) => `${LABELS[q.symbol] ?? q.symbol} ${q.price != null ? q.price.toFixed(2) : ''} (${(q.change_pct ?? 0) >= 0 ? '+' : ''}${(q.change_pct ?? 0).toFixed(2)}%)`).join(', ')}.
+      </p>
+      <div aria-hidden="true" className="arthos-ticker-track flex items-center whitespace-nowrap py-1.5">
         {allFlat && (
           <span className="px-4 ink-fainter" style={{ fontSize: 11 }}>Markets closed · delayed</span>
         )}

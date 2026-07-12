@@ -214,7 +214,7 @@ export function SideNav() {
       }}
     >
       <Link
-        to="/learn"
+        to="/discover"
         className="flex items-center gap-2.5 px-6 h-16 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
@@ -466,7 +466,7 @@ export function TopBar({
       >
         <div className="mx-auto w-full max-w-screen-md lg:max-w-[1080px] px-5 lg:px-10 h-14 lg:h-16 flex items-center justify-between gap-4">
           {/* Mobile-only brand block (desktop handled by SideNav). */}
-          <Link to="/learn" className="flex items-center gap-2 lg:hidden">
+          <Link to="/discover" className="flex items-center gap-2 lg:hidden">
             <BrandMark size="sm" />
             <span className="flex flex-col leading-none">
               <span
