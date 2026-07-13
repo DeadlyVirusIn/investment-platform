@@ -396,6 +396,14 @@ if settings.REC_DELTA_ENABLED:
     )
     app.include_router(recommendation_delta_router, prefix="/api")
 
+if settings.DECISION_REPLAY_ENABLED:
+    from apps.api.src.api.decision_replay import (  # noqa: E402
+        owner_router as replay_owner_router,
+        public_router as replay_public_router,
+    )
+    app.include_router(replay_public_router, prefix="/api")
+    app.include_router(replay_owner_router, prefix="/api")
+
 if settings.SYSTEM_POSTURE_ENABLED:
     from apps.api.src.api.system_posture import (  # noqa: E402
         owner_router as posture_owner_router,

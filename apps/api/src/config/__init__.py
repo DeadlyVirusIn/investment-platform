@@ -357,6 +357,12 @@ class Settings(BaseSettings):
     # without ever triggering an evaluation.
     REC_DELTA_ENABLED: bool = False
 
+    # Wave 1D — Decision Replay Timeline. Default OFF → routes absent, no
+    # replay links, recommendation responses unchanged, zero extra queries.
+    # Read-only, zero-migration; renders stored artifacts only (hindsight
+    # firewall — never evaluates, never writes, never fetches prices).
+    DECISION_REPLAY_ENABLED: bool = False
+
     # ------------------------------------------------------------------
     # PHASE 16 v1 — Intraday context overlay (ephemeral)
     # ------------------------------------------------------------------
