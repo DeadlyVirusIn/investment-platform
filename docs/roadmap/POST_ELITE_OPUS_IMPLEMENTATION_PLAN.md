@@ -221,14 +221,17 @@ pinned test; web tests for both actions. No migration. Flags: existing
 `RESEARCH_INBOX_ENABLED` + `VITE_RESEARCH_INBOX`.
 
 ### 6. Research Mission Board  — flag `VITE_RESEARCH_INBOX` (same surface)
-Owner page `/admin/research-board`: columns Queued (tasks w/ schedule or no
-report yet), Running (gateway jobs active for research kinds), Review
-needed (pending reports), Delivered (approved, fresh), Corrected
-(superseded chains), Stale, Failed (gateway job failures). Pure aggregation
-of: `/admin/inbox/tasks`, `/admin/inbox/reports`, gateway `/agent` job admin
-list (owner path). No new tables, no new states. Card click → existing
-detail surfaces. Mobile: columns collapse to filter chips (reuse Inbox
-pattern). Tests: mapping matrix unit test + web render.
+**SHIPPED 2026-07-13 (Wave 2B).** Owner page `/admin/research-board` over
+`GET /api/admin/inbox/mission-board` (rule set `mission-board-1`; spec
+`docs/architecture/RESEARCH_MISSION_BOARD.md`). Columns Queued / Running /
+Review needed / Delivered / Corrected / Stale / Failed. Pure server-side
+aggregation service (`domain/research_inbox/mission_board.py`, ≤4 bounded
+SELECTs, zero writes). Plan corrections discovered in Phase 0 and pinned:
+`agent_job` has NO task linkage, so Running/Failed carry labelled JOB
+cards (tasks never enter them); there is no owner gateway-job UI or
+owner-session cancel route, so those card actions are absent by design;
+corrected approved chains live in Corrected (not Delivered). Mobile:
+segmented column tabs. Tests: 34 unit + 12 pg + 9 web.
 
 ### 7. Tracked-entity thin slice  — flag `ENTITY_LINKS_ENABLED`
 **Design first, then prototype.** Migration 121 (proposed):

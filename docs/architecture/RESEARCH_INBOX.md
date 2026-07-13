@@ -104,3 +104,14 @@ owner correct v2 (approved, human) → duplicate correct 409 → v3 → follow-u
 task (task-level provenance, report unchanged). Fixtures + smoke owner
 removed after capture; version-chain + correction-dialog screenshots in
 `docs/ux/screenshots/elite-webui/inbox-*.jpeg`.
+
+## Related surfaces
+
+Wave 2B added the **Research Mission Board** (`/admin/research-board`,
+`GET /api/admin/inbox/mission-board`) — a read-only operational overview
+that sits ABOVE this Inbox (same flags, same owner gate). It aggregates
+task/report/version-chain state plus gateway job status into seven columns
+and links every action back here; it stores nothing and can never diverge
+from Inbox truth. Spec: `docs/architecture/RESEARCH_MISSION_BOARD.md`.
+Owner navigation: the Inbox header links to the Board and vice versa;
+neither appears in public navigation.

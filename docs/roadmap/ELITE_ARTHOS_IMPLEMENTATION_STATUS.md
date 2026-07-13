@@ -226,3 +226,25 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   migration 121; no report mutation, no job launch.
 - **Tests:** 11 new pg + legacy 12 + 5 web; web suite 265.
 - **Prod:** not deployed. Wave 2B (Mission Board) next.
+
+### Wave 2B — Research Mission Board — 2026-07-13
+- **Spec:** `docs/architecture/RESEARCH_MISSION_BOARD.md`. Rule set
+  `mission-board-1`. NO migration, no new states, no stored copies —
+  pure read aggregation (≤4 bounded SELECTs, pinned) over research_task /
+  research_report chains / agent_job.
+- **Files:** `domain/research_inbox/mission_board.py`,
+  `api/research_inbox.py` (+`GET /admin/inbox/mission-board`),
+  `AdminResearchBoard.tsx` (+route `/admin/research-board`, Inbox
+  cross-links).
+- **Flags:** existing `RESEARCH_INBOX_ENABLED` + `VITE_RESEARCH_INBOX`.
+- **Truth decisions (pinned):** agent_job has NO task linkage → Running/
+  Failed hold clearly-labelled job cards, tasks never enter them; no
+  `blocked` column (no producer); corrected approved chains live in
+  Corrected (not Delivered); precedence review_needed > stale > corrected
+  > delivered > queued; staleness advisory
+  (fresh/aging/stale/unknown — no as-of fact ⇒ unknown, never fresh);
+  gateway off ⇒ zero job queries + explicit note.
+- **Tests:** 34 unit + 12 pg new (focused selection incl. Wave-1 files:
+  261 passed); web +9 (suite 274); tsc/eslint/lint:portfolio/build green.
+- **Prod:** not deployed. Next: Wave 2C tracked-entity thin slice —
+  DESIGN REVIEW FIRST (proposed migration 121).
