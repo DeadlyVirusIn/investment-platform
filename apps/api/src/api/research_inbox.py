@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from apps.api.src.api.admin_guard import require_owner
 from apps.api.src.db import get_session
 from apps.api.src.db.models import ResearchReport, ResearchTask
+from apps.api.src.domain.research_inbox import mission_board
 from apps.api.src.domain.research_inbox import service as inbox_service
 
 router = APIRouter(prefix="/admin/inbox", tags=["research-inbox"])
@@ -242,6 +243,34 @@ def correct_report(
     out["correction_reason"] = body.reason
     out["corrects_report_id"] = report_id
     return out
+
+
+@router.get("/mission-board")
+def get_mission_board(
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+    column: str | None = Query(
+        default=None,
+        pattern="^(queued|running|review_needed|delivered|corrected|stale|"
+                "failed)$"),
+    q: str | None = Query(default=None, max_length=64),
+    provenance: str | None = Query(default=None,
+                                   pattern="^(generated|human)$"),
+    freshness: str | None = Query(default=None,
+                                  pattern="^(fresh|aging|stale|unknown)$"),
+    per_column: int = Query(default=mission_board.PER_COLUMN_DEFAULT,
+                            ge=1, le=mission_board.PER_COLUMN_MAX),
+) -> dict[str, Any]:
+    """Wave 2B — Research Mission Board. Pure READ aggregation over the
+    existing task/report/gateway-job state (mission-board-1 rule set):
+    at most four bounded SELECTs, zero writes, zero job launches, no
+    report bodies / raw citations / secrets / emails in the payload.
+    Route exists only when RESEARCH_INBOX_ENABLED is on (router mount)
+    and is owner-gated with the standard 404 posture."""
+    return mission_board.build_mission_board(
+        db, column=column, q=q, provenance=provenance,
+        freshness=freshness, per_column=per_column,
+    )
 
 
 @router.post("/reports/{report_id}/follow-up", status_code=201)

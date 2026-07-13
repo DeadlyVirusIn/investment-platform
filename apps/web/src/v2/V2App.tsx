@@ -54,6 +54,8 @@ import { Observability } from './pages/Observability';
 import { AdminHome, AdminFeedback, AdminJobs, AdminSystem, AdminGuard } from './pages/Admin';
 import { AdminTrustCenter } from './pages/AdminTrustCenter';
 import { AdminResearchInbox, researchInboxEnabled } from './pages/AdminResearchInbox';
+// Wave 2B — read-only Mission Board over Inbox + gateway state (same flag).
+import { AdminResearchBoard } from './pages/AdminResearchBoard';
 import { AdminPreflight } from './pages/AdminPreflight';
 import { IdeaHistory } from './pages/IdeaHistory';
 // Options — read-only V2-native options subsystem visibility surface.
@@ -120,6 +122,11 @@ function V2Surface() {
             owner-gated AND flag-mounted). Not linked from public nav. */}
         {researchInboxEnabled() && (
           <Route path="admin/research-inbox" element={<AdminResearchInbox />} />
+        )}
+        {/* Wave 2B — Mission Board: read-only aggregation ABOVE the Inbox
+            (same flag; server route owner-gated AND flag-mounted). */}
+        {researchInboxEnabled() && (
+          <Route path="admin/research-board" element={<AdminResearchBoard />} />
         )}
         {/* Wave 1A — owner preflight console. Server routes owner-gated AND
             flag-mounted; page fails closed to owner-only panel otherwise. */}

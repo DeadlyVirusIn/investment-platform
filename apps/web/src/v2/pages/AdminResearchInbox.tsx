@@ -148,7 +148,13 @@ export function AdminResearchInbox() {
   return (
     <ArthosPage maxWidth="max-w-copy">
       <p className="text-meta ink-fainter mb-1 mt-8">ADMIN — OWNER-FACING</p>
-      <h1 className="font-serif text-headline ink-primary mb-2">Research Inbox</h1>
+      <div className="flex items-baseline justify-between gap-3 flex-wrap">
+        <h1 className="font-serif text-headline ink-primary mb-2">Research Inbox</h1>
+        <Link to="/admin/research-board" className="text-[12.5px] font-semibold"
+          style={{ color: 'var(--brand)' }}>
+          Mission Board →
+        </Link>
+      </div>
       <p className="ink-muted text-[13.5px] mb-8 max-w-narrative">
         Generated research lands here <strong>pending</strong> — nothing is
         treated as truth until the owner approves it. Corrections arrive as new
