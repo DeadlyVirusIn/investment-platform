@@ -390,6 +390,12 @@ if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
     )
     app.include_router(publication_preflight_router, prefix="/api")
 
+if settings.REC_DELTA_ENABLED:
+    from apps.api.src.api.recommendation_delta import (  # noqa: E402
+        router as recommendation_delta_router,
+    )
+    app.include_router(recommendation_delta_router, prefix="/api")
+
 if settings.SYSTEM_POSTURE_ENABLED:
     from apps.api.src.api.system_posture import (  # noqa: E402
         owner_router as posture_owner_router,

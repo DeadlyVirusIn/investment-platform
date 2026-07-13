@@ -351,6 +351,12 @@ class Settings(BaseSettings):
     SYSTEM_POSTURE_ENABLED: bool = False
     SYSTEM_POSTURE_OVERRIDE: str = ""
 
+    # Wave 1C — "What changed?" recommendation delta. Default OFF → route
+    # absent, recommendation responses byte-compatible, zero extra queries.
+    # Read-only, zero-migration; consumes persisted preflight/posture facts
+    # without ever triggering an evaluation.
+    REC_DELTA_ENABLED: bool = False
+
     # ------------------------------------------------------------------
     # PHASE 16 v1 — Intraday context overlay (ephemeral)
     # ------------------------------------------------------------------
