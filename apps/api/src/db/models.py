@@ -2583,3 +2583,61 @@ class Lesson(Base):
         Index("ix_lesson_thesis", "thesis_id"),
         Index("ix_lesson_outcome_ref", "outcome_ref"),
     )
+
+
+# ---------------------------------------------------------------------------
+# recommendation_preflight — Wave 1A publication-gate verdict ledger
+# (migration 119). Append-only: the service exposes NO update/delete path;
+# re-evaluation appends a new row; identical (recommendation, rule set,
+# input hash) evaluations collapse to one row via the unique key. CHECKs
+# are mirrored here so create_all-based tests enforce them (inbox precedent).
+# ---------------------------------------------------------------------------
+
+class RecommendationPreflight(Base):
+    __tablename__ = "recommendation_preflight"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    recommendation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("recommendation.id"), nullable=False
+    )
+    verdict: Mapped[str] = mapped_column(String(32), nullable=False)
+    rule_set_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    checks_json: Mapped[str] = mapped_column(Text, nullable=False)
+    limitations_json: Mapped[str] = mapped_column(Text, nullable=False)
+    blocking_reasons_json: Mapped[str] = mapped_column(Text, nullable=False)
+    evaluated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    evaluator_git_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_freshness_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "verdict IN ('READY','READY_WITH_LIMITATIONS','HOLD','BLOCKED')",
+            name="ck_rec_preflight_verdict",
+        ),
+        CheckConstraint(
+            "char_length(checks_json) <= 20000",
+            name="ck_rec_preflight_checks_bound",
+        ),
+        CheckConstraint(
+            "char_length(limitations_json) <= 8000",
+            name="ck_rec_preflight_limitations_bound",
+        ),
+        CheckConstraint(
+            "char_length(blocking_reasons_json) <= 8000",
+            name="ck_rec_preflight_blocking_bound",
+        ),
+        UniqueConstraint(
+            "recommendation_id", "rule_set_version", "input_hash",
+            name="ux_rec_preflight_idempotency",
+        ),
+        Index("ix_rec_preflight_rec_created",
+              "recommendation_id", "created_at"),
+    )

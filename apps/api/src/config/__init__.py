@@ -336,6 +336,18 @@ class Settings(BaseSettings):
     RESEARCH_INBOX_ENABLED: bool = False      # /api/admin/inbox/*
     LEARNING_LOOP_ENABLED: bool = False       # /api/admin/lessons/*
 
+    # Wave 1A — Recommendation Publication Preflight (deterministic trust
+    # gate). Default OFF → publication behavior byte-identical to legacy.
+    # When on: /api/admin/preflight/* mounts, GET /recommendations filters
+    # HOLD/BLOCKED candidates from beginner surfaces and embeds a read-safe
+    # verdict projection. No LLM, no override path, fail-closed.
+    RECOMMENDATION_PREFLIGHT_ENABLED: bool = False
+
+    # Wave 1B seam only (Research Safe Mode is NOT implemented yet): the
+    # posture interface consumed by preflight. Dev/test override; empty →
+    # NORMAL. Values: NORMAL | RESTRICTED | SAFE.
+    SYSTEM_POSTURE_OVERRIDE: str = ""
+
     # ------------------------------------------------------------------
     # PHASE 16 v1 — Intraday context overlay (ephemeral)
     # ------------------------------------------------------------------

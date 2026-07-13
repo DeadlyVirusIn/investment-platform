@@ -384,6 +384,12 @@ if settings.LEARNING_LOOP_ENABLED:
     from apps.api.src.api.learning import router as learning_router  # noqa: E402
     app.include_router(learning_router, prefix="/api")
 
+if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
+    from apps.api.src.api.publication_preflight import (  # noqa: E402
+        router as publication_preflight_router,
+    )
+    app.include_router(publication_preflight_router, prefix="/api")
+
 
 if settings.AGENT_GATEWAY_ENABLED:
     from apps.api.src.api.agent_gateway import (  # noqa: E402

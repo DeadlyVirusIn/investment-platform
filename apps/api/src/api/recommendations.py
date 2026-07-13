@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from decimal import Decimal
 
+from apps.api.src.config import settings
 from apps.api.src.db import get_session
 from apps.api.src.db.models import Asset, Recommendation, RecommendationEvidence
 from apps.api.src.domain.recommendations.diagnostics import (
@@ -156,13 +157,38 @@ def list_recommendations(
 
     ev_map = _attach_evidence(session, recs)
 
-    payload = [
-        _rec_payload(
+    # Wave 1A — publication preflight (flag-off = byte-identical legacy
+    # behavior). When enabled: every candidate gets a verdict matched to its
+    # EXACT current input hash (ensure_current_verdict re-evaluates on any
+    # fact change and fails closed to HOLD); only READY /
+    # READY_WITH_LIMITATIONS publish to beginner surfaces, each carrying a
+    # redacted public projection. HOLD/BLOCKED stay owner-visible via
+    # /admin/preflight and /recommendations/diagnostics — rows are never
+    # deleted or rewritten.
+    projections: dict[str, dict[str, Any]] = {}
+    if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
+        from apps.api.src.api.publication_preflight import public_projection
+        from apps.api.src.domain.publication.preflight import (
+            ensure_current_verdict,
+        )
+
+        published: list[Recommendation] = []
+        for r in recs:
+            row = ensure_current_verdict(session, r)
+            if row.get("verdict") in ("READY", "READY_WITH_LIMITATIONS"):
+                published.append(r)
+                projections[r.id] = public_projection(row)
+        recs = published
+
+    payload = []
+    for r in recs:
+        p = _rec_payload(
             r, symbol_map.get(r.asset_id), ev_map.get(r.id, []),
             sector_map.get(r.asset_id), name_map.get(r.asset_id),
         )
-        for r in recs
-    ]
+        if r.id in projections:
+            p["preflight"] = projections[r.id]
+        payload.append(p)
     return {"recommendations": payload, "count": len(payload)}
 
 
