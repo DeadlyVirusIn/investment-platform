@@ -40,9 +40,16 @@ verdict's created_at (temporal, labeled as applicable-at-time) ·
 `execution_cost_json` (migration-115 stamp) · `lesson.recommendation_id`.
 Asset-level only: `thesis.asset_id` → included ONLY as "Related asset
 thesis … not necessarily the exact thesis used for this decision"
-(partial). Unavailable: research reports (no structured link — deferred to
-Wave 2 entity linking; listed in `unavailable_sections`, never inferred
-from symbol text).
+(partial). Unavailable: research reports (no structured link; listed in
+`unavailable_sections`, never inferred from symbol text). **Wave 2C design
+(2026-07-13) approved the closing structure**: typed
+`report_recommendation_link` (fixed "context" relation, owner-curated,
+rendered as an explicitly labelled "Owner-linked research (human-curated
+context)" section — never engine evidence, never a conviction input;
+report review/supersession state shown from existing derivations).
+Migration 122, gated + not yet implemented — until then this section
+stays unavailable. See
+`TRACKED_ENTITY_AND_RESEARCH_PROVENANCE_DESIGN.md`.
 
 ## Event model + ordering
 

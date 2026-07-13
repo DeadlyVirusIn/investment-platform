@@ -248,3 +248,27 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   261 passed); web +9 (suite 274); tsc/eslint/lint:portfolio/build green.
 - **Prod:** not deployed. Next: Wave 2C tracked-entity thin slice —
   DESIGN REVIEW FIRST (proposed migration 121).
+
+### Wave 2C — Tracked-entity & research provenance DESIGN REVIEW — 2026-07-13
+- **Design-only wave; zero code, zero migrations.** Doc of record:
+  `docs/architecture/TRACKED_ENTITY_AND_RESEARCH_PROVENANCE_DESIGN.md`.
+- **Phase-0 verified:** local=origin @ 82c8b75; single alembic head 120;
+  dev DB 120; prod 109. Errata fixed: agent_job is migration **116**
+  (Wave 2B docs said 115).
+- **Proposed polymorphic entity_link REJECTED** (no FK integrity possible,
+  deletion behavior undefinable, evidence-gate bypass, symbol duplicates
+  asset). Replaced by typed design: migration 121 = execution + origin
+  provenance (`agent_job.research_task_id` FK RESTRICT;
+  `research_task.source_report_id` composite FK (id, task_id) — DB
+  enforces the source report belongs to the parent task); migration 122
+  (gated) = `research_theme` vocabulary + `research_task_theme` +
+  `research_task_asset` + `report_recommendation_link` (fixed "context"
+  relation, owner-curated, never evidence — closes the Replay
+  research-report limitation).
+- **Verdicts:** tracked entity REDESIGN (theme-only, deferred to 122) ·
+  task-job GO (121) · job-report DEFER (no producer exists; drafts already
+  have provenance via generated_by + agent_idempotency) · follow-up
+  source-report GO (121) · Replay linkage GO-with-conditions (122).
+  Backfill: NONE (no log/free-text parsing; history stays honestly
+  unlinked). Overall: **WAVE 2C DESIGN APPROVED FOR IMPLEMENTATION** —
+  awaits explicit authorization.

@@ -56,9 +56,14 @@ existing `create_task(follow_up_of_task_id=…)`. The structured stored link
 is **task-level** (`follow_up_of_task_id` — the schema's supported field).
 Report-ID and report-version provenance are echoed in the response and the
 bounded audit log but are **not** hidden inside free-text fields to simulate
-a relationship. Structured report-level provenance is explicitly DEFERRED to
-entity linking (migration 121, Wave 2 tracked-entity slice). The follow-up
-never mutates the source report and never launches any agent job.
+a relationship. Structured report-level provenance was DEFERRED here and is
+now DESIGNED (Wave 2C, 2026-07-13): `research_task.source_report_id` with a
+composite FK to `research_report (id, task_id)` so the database itself
+enforces that the source report belongs to the parent task — see
+`TRACKED_ENTITY_AND_RESEARCH_PROVENANCE_DESIGN.md` (migration 121, approved
+design, not yet implemented; historical follow-ups stay unlinked — no
+backfill from logs). The follow-up never mutates the source report and
+never launches any agent job.
 
 ## Authorization + safety
 

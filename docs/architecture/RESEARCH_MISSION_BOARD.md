@@ -25,7 +25,7 @@ Phase-0 inspection facts this design is pinned to:
    derived (`service.report_state`, 7-day citation-age boundary =
    `DEFAULT_MAX_CITATION_AGE_DAYS`); citations carry `observed_at` (the only
    market as-of fact); `expires_at` optional.
-3. `agent_job` (migration 115, raw SQL — not ORM-mapped): status enum is
+3. `agent_job` (migration 116, raw SQL — not ORM-mapped): status enum is
    exactly `queued | running | succeeded | failed | cancelled` (no
    "claimed", no "cancellation requested"). Job types are four frozen
    offline **analytics** kinds. **`agent_job` has NO task linkage — there
@@ -172,16 +172,23 @@ revert the commit(s); no schema, no data, no flag changes needed.
 1. `RESEARCH_INBOX_ENABLED` promotion is governed by the existing Inbox
    plan (PRODUCTION_PROMOTION_PLAN) — the board rides it, never leads it.
 2. Before enabling in prod: re-measure the 4 queries against prod volumes;
-   confirm migration 115 (`agent_job`) present or accept the degraded note.
+   confirm migration 116 (`agent_job`) present or accept the degraded note.
 3. Owner smoke: board renders, counts match Inbox, no body text anywhere
    in the payload (`curl … | grep -c body` = 0).
 
 ## Known limitations
 
-- Gateway jobs cannot be tied to tasks (schema fact). A future tracked-
-  entity design (Wave 2C, design review first) could add linkage.
+- Gateway jobs cannot be tied to tasks (schema fact). **Wave 2C design
+  (2026-07-13) approved the fix**: nullable `agent_job.research_task_id`
+  FK RESTRICT (migration 121, not yet implemented). When it lands, NEW
+  linked jobs become task-aware in Running/Failed and this rule set bumps
+  to `mission-board-2`; historical unlinked jobs keep the labelled
+  job-card behavior (no backfill). See
+  `TRACKED_ENTITY_AND_RESEARCH_PROVENANCE_DESIGN.md`.
 - "View gateway job" / cancel actions are absent by design: no owner job
-  UI or owner-session cancel route exists today.
+  UI or owner-session cancel route exists today (121 adds a read-only
+  `GET /admin/inbox/tasks/{id}/execution-history`).
 - `schedule_expr` is not parsed (definition-only); overdue detection uses
   the 14-day report-age heuristic, not the cron expression.
-- Report-level follow-up provenance remains deferred to migration 121.
+- Report-level follow-up provenance: designed in Wave 2C
+  (`research_task.source_report_id`, migration 121), not yet implemented.

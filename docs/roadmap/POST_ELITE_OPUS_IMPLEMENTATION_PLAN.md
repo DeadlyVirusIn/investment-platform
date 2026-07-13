@@ -233,19 +233,26 @@ owner-session cancel route, so those card actions are absent by design;
 corrected approved chains live in Corrected (not Delivered). Mobile:
 segmented column tabs. Tests: 34 unit + 12 pg + 9 web.
 
-### 7. Tracked-entity thin slice  — flag `ENTITY_LINKS_ENABLED`
-**Design first, then prototype.** Migration 121 (proposed):
-`tracked_entity` (`id uuid pk · kind text CHECK in (symbol, sector, theme) ·
-key text · display_name text · created_by text · created_at` · unique
-(kind, key)) and `entity_link` (`id uuid pk · entity_id fk · target_kind
-text CHECK in (thesis, research_report, recommendation) · target_id uuid ·
-relation text CHECK in (about, exposed_to, supports, contradicts) ·
-created_by · created_at` · unique (entity_id, target_kind, target_id,
-relation)). Owner CRUD routes under `/admin/entities*`; linking UI = a
-picker on Inbox report cards + thesis admin. Read surface: entity page
-listing linked theses/reports/recs with freshness. NO free-text wikilinks,
-NO graph visualization, NO beginner exposure in v1. Tests: service CRUD +
-uniqueness + link integrity (pg); web picker + entity page.
+### 7. Tracked-entity thin slice — DESIGN REVIEW DONE (Wave 2C, 2026-07-13)
+**Original proposal (tracked_entity + polymorphic entity_link) REJECTED**
+by the Wave 2C design review — Postgres cannot FK a polymorphic
+target_id; supports/contradicts would bypass the reviewed
+thesis_evidence gate; symbol entities duplicate `asset`
+(UNIQUE(symbol, exchange) — symbol alone isn't unique). Replacement
+design of record:
+`docs/architecture/TRACKED_ENTITY_AND_RESEARCH_PROVENANCE_DESIGN.md`.
+Verdicts: task↔job provenance GO (nullable
+`agent_job.research_task_id` FK RESTRICT, migration 121); follow-up
+source-report provenance GO (`research_task.source_report_id` with
+composite FK enforcing same-task, migration 121); job→report DEFER (no
+producing path exists); tracked entities REDESIGNED to theme-only
+vocabulary + typed task↔theme/task↔asset tables (migration 122, gated
+on 121-usage evidence); Replay report linkage GO-with-conditions
+(typed `report_recommendation_link`, fixed "context" relation, never
+evidence, migration 122). No backfill anywhere. Overall: **WAVE 2C
+DESIGN APPROVED FOR IMPLEMENTATION** — implementation awaits explicit
+authorization; nothing generated or applied (heads verified at 120,
+prod 109).
 
 **Wave 2 gates.** Dev-only until Inbox itself is promoted; board and links
 ride the same flags. Parallel: #5 and #6 independent; #7 after design
