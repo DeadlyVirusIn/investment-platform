@@ -54,7 +54,13 @@ from apps.api.src.domain.recommendations.delta import (
     _parse_families,
 )
 
-REPLAY_RULE_SET_VERSION = "replay-1"
+REPLAY_RULE_SET_VERSION = "replay-2"   # replay-2: lifecycle continuity must
+                                       # be PROVEN by stored facts (resolved
+                                       # outcome bound, or a paper position
+                                       # opened by the pinned rec still open
+                                       # at the later row's generation);
+                                       # otherwise updates are conservatively
+                                       # omitted with updates_complete=false.
 MAX_UPDATE_EVENTS = 6
 MAX_EVENTS = 40
 
@@ -114,6 +120,7 @@ class ReplayInputs:
     verdict: dict[str, Any] | None            # verdict/limitations/created_at/checks(owner)
     posture: dict[str, Any] | None            # posture/event created_at
     updates: list[dict[str, Any]]             # delta summaries of later rows
+    updates_complete: bool                    # replay-2 continuity proven?
     paper: list[dict[str, Any]]               # THIS user's linked activity only
     theses: list[dict[str, Any]]              # asset-level, labeled related
     lessons: list[dict[str, Any]]
@@ -217,24 +224,51 @@ def load_inputs(
             posture = {"posture": p_row[0],
                        "created_at": p_row[1].isoformat()}
 
-    # lifecycle window end = outcome resolution when it exists
+    # ---- replay-2 lifecycle continuity ------------------------------------
+    # Later same-asset rows enter the pinned lifecycle ONLY when continuity
+    # is PROVEN by stored facts, in this hierarchy:
+    #   1. (No explicit recommendation supersession/predecessor link exists
+    #      in the schema — verified; skipped.)
+    #   2. Resolved outcome: the pinned row's own barrier_first_touch_at
+    #      bounds its lifecycle — updates strictly inside that window belong
+    #      to the run-to-resolution of THIS idea.
+    #   3. Linked open paper position: a position opened_by_recommendation_id
+    #      = pinned rec that is still open at the later row's generation
+    #      proves the idea is still actively tracked (any book — the LINK is
+    #      the proof; per-user visibility of paper EVENTS stays isolated).
+    #   4. Otherwise STOP: same asset / same action / elapsed time are never
+    #      proof. updates_complete=false + an unavailable-section explanation.
     window_end = None
+    updates_complete = True
+    continuity: str | None = None
     if outcome and outcome["first_touch_at"]:
         window_end = outcome["first_touch_at"]
+        continuity = "resolved_outcome"
+    else:
+        pos = db.execute(text(
+            "SELECT is_open, closed_at FROM paper_position "
+            "WHERE opened_by_recommendation_id = :r "
+            "ORDER BY opened_at ASC LIMIT 1"
+        ), {"r": rec.id}).first()
+        if pos is not None:
+            continuity = "linked_open_position"
+            if not pos[0] and pos[1] is not None:
+                window_end = pos[1].isoformat()
+        else:
+            updates_complete = False
 
-    # updates: later rows for the SAME asset inside the window, summarized
-    # through the delta service (no separate rules). Consecutive-pair
-    # comparison over a bounded scan.
     from apps.api.src.domain.recommendations.delta import (
         RecFacts, compute as delta_compute,
     )
-    later = db.execute(text(
-        "SELECT id, generated_at, action, rationale FROM recommendation "
-        "WHERE asset_id = :a AND (generated_at, id) > (:g, :i) "
-        + ("AND generated_at <= :we " if window_end else "")
-        + "ORDER BY generated_at ASC, id ASC LIMIT 40"
-    ), {"a": rec.asset_id, "g": rec.generated_at, "i": rec.id,
-        **({"we": window_end} if window_end else {})}).all()
+    later = []
+    if continuity is not None:
+        later = db.execute(text(
+            "SELECT id, generated_at, action, rationale FROM recommendation "
+            "WHERE asset_id = :a AND (generated_at, id) > (:g, :i) "
+            + ("AND generated_at <= :we " if window_end else "")
+            + "ORDER BY generated_at ASC, id ASC LIMIT 40"
+        ), {"a": rec.asset_id, "g": rec.generated_at, "i": rec.id,
+            **({"we": window_end} if window_end else {})}).all()
 
     def _facts(row_id, gen, action, rationale_raw) -> RecFacts:
         try:
@@ -332,7 +366,8 @@ def load_inputs(
         engine_version=rec.model_version,
         snapshot_hash_present=bool(rec.snapshot_hash),
         price_at=price_at, outcome=outcome, verdict=verdict, posture=posture,
-        updates=updates, paper=paper, theses=theses, lessons=lessons,
+        updates=updates, updates_complete=updates_complete,
+        paper=paper, theses=theses, lessons=lessons,
         predates_preflight=v_row is None,
         predates_posture=posture is None,
         user_scoped=user_id is not None,
@@ -569,6 +604,15 @@ def assemble(i: ReplayInputs) -> dict[str, Any]:
             details={"provenance": l["provenance"]} if i.owner else {},
         ))
 
+    # replay-2: unproven continuity → later rows conservatively omitted
+    if not i.updates_complete:
+        unavailable.append({
+            "section": "later_updates",
+            "reason": "Later recommendations for this company could not be "
+                      "proven to belong to this exact idea, so they are not "
+                      "shown as updates.",
+        })
+
     # research reports: no structured link exists — deferred to Wave 2
     unavailable.append({
         "section": "research_reports",
@@ -599,6 +643,7 @@ def assemble(i: ReplayInputs) -> dict[str, Any]:
         "events": [e.public_dict() for e in events],
         "unavailable_sections": unavailable,
         "sections_present": sorted(present),
+        "updates_complete": i.updates_complete,
         "user_scoped": i.user_scoped,
         "generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
     }

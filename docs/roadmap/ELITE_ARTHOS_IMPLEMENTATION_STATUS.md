@@ -199,5 +199,17 @@ during their build sprints; confirmed present, `alembic current` = 117.)
 - **Isolation:** principal resolved server-side; anonymous zero paper
   events; user A/B + engine-book exclusion + principal-keyed cache pinned.
 - **Perf:** 157ms cold / 7ms warm (GE 447 rows); ≤12 queries.
-- **Tests:** 15 unit + 12 pg + 4 web; suite totals 158 backend Wave-1 /
-  260 web. **Prod:** not deployed; gates in spec.
+- **Tests (reconciled 2026-07-13 — counts are per SELECTION, never one
+  global number):**
+  - Wave-1 FOCUSED suite (one pytest command over the nine Wave-1 files:
+    `test_publication_preflight.py`, `test_preflight_freshness_hash.py`,
+    `test_system_posture_unit.py`, `test_recommendation_delta.py`,
+    `test_decision_replay.py` + the four matching `_pg` integration
+    files): **205 passed** after replay-2 (**199** at the 1D report; the
+    "158" previously written here was an arithmetic error in this ledger,
+    not a test change).
+  - Web Vitest suite: **260 passed**.
+  - Broader local backend regression including shared legacy modules is
+    environment-dependent (147 pre-existing failures byte-identical on
+    clean HEAD; containers give green totals).
+  **Prod:** not deployed; gates in spec.

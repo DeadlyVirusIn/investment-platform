@@ -145,3 +145,40 @@ gating, no-writes + ≤12-query bound, real-id redaction, flag-off
 structure) · 4 web (flag-off state, partial pre-preflight timeline,
 complete resolved ordering, no raw diagnostics). Full web gate 260
 vitest + tsc/eslint/lint:portfolio/build green.
+
+---
+
+## replay-2 addendum (2026-07-13) — lifecycle continuity fix (HIGH)
+
+replay-1 defect: with no terminal outcome, later same-asset rows entered
+the pinned lifecycle unbounded — unrelated later idea cycles could be
+misrepresented as updates to the original idea.
+
+replay-2 separates four concepts explicitly:
+* **Pinned identity** — one recommendation id + asset id, immutable
+  (unchanged from replay-1).
+* **Lifecycle continuity** — later rows enter ONLY when PROVEN by stored
+  facts, in hierarchy: (1) an explicit recommendation supersession/
+  predecessor link — none exists in the schema (verified), skipped;
+  (2) the pinned row's RESOLVED outcome (`barrier_first_touch_at`) bounds
+  a run-to-resolution window; (3) a paper position with
+  `opened_by_recommendation_id` = pinned rec that is open at the later
+  row's generation (closed_at bounds the window when closed) — the stored
+  LINK is the proof; per-user visibility of paper events stays isolated;
+  (4) otherwise STOP. Same asset, same action, and elapsed time are never
+  proof; no fixed-day timeout is used (none is evidence-supported).
+* **Duplicate generation** — historical same-timestamp scheduler siblings
+  flow through the Delta comparison, which yields no meaningful change for
+  identical rows → no phantom update events (pg-pinned; a sibling pair
+  straddling the wording cutover legitimately emits one
+  confidence-presentation change and that is correct history).
+* **Lifecycle termination** — resolved target/exit/time outcome or the
+  linked position's closure ends the window; a later recommendation after
+  termination is a NEW lifecycle (pg-pinned).
+
+When continuity is unproven the replay returns `updates_complete=false`,
+adds an unavailable-section explanation ("Later recommendations for this
+company could not be proven to belong to this exact idea…"), and shows no
+later recommendation events. Completeness becomes `partial`. All prior
+replay behavior (pinning, isolation, redaction, firewall, ordering) is
+regression-pinned.

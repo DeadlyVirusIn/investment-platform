@@ -21,7 +21,7 @@ def inputs(**over) -> rp.ReplayInputs:
         stale_data=False, engine_version="0.1.0",
         snapshot_hash_present=True, price_at=359.27,
         outcome=None, verdict=None, posture=None,
-        updates=[], paper=[], theses=[], lessons=[],
+        updates=[], updates_complete=True, paper=[], theses=[], lessons=[],
         predates_preflight=True, predates_posture=True,
         user_scoped=False, owner=False,
     )
@@ -219,3 +219,24 @@ def test_hindsight_firewall_source_pins():
                   "evaluate_and_record", "requests.", "httpx",
                   "INSERT ", "UPDATE ", "DELETE "):
         assert token not in src, f"replay must not contain {token}"
+
+
+# ---- replay-2 conservative continuity -----------------------------------------
+
+def test_unproven_continuity_omits_updates_and_discloses():
+    res = rp.assemble(inputs(updates_complete=False))
+    assert res["updates_complete"] is False
+    assert "update" not in types(res)
+    assert any(u["section"] == "later_updates"
+               and "could not be proven" in u["reason"]
+               for u in res["unavailable_sections"])
+    assert res["completeness"] == "partial"
+
+
+def test_proven_continuity_keeps_updates_and_completeness_field():
+    res = rp.assemble(inputs(updates=[{
+        "occurred_at": (T0 + dt.timedelta(days=1)).isoformat(),
+        "summary": "u", "top_kind": "action_change",
+        "direction": "cautious"}]))
+    assert res["updates_complete"] is True
+    assert "update" in types(res)

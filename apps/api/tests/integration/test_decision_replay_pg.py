@@ -97,17 +97,101 @@ def test_pinned_identity_survives_cross_asset_same_symbol(
     assert rp.resolve_pinned(pg_session, "PIN")[1] == a2_id
 
 
-def test_updates_scoped_to_pinned_asset_and_window(
+def test_updates_included_only_with_proven_continuity(
     pg_session: Session,
 ) -> None:
+    # replay-2: a linked open paper position proves the idea is still the
+    # same lifecycle → the later row appears as an update.
     a = _mk_asset(pg_session, "UPD")
     _mk_bar(pg_session, a.id)
     r1 = _rec_at(pg_session, a.id, 72, action="Buy")
+    pid = _mk_user_book(pg_session, "user-upd")
+    _mk_paper(pg_session, pid, a.id, r1.id)           # open linked position
     _rec_at(pg_session, a.id, 48, action="Hold")      # meaningful update
     tl = rp.get_timeline(pg_session, rec_id=r1.id)
     ups = [e for e in tl["events"] if e["type"] == "update"]
     assert len(ups) == 1
     assert "cautious" in ups[0]["summary"]
+    assert tl["updates_complete"] is True
+
+
+def test_unproven_continuity_conservatively_omits_updates(
+    pg_session: Session,
+) -> None:
+    # unresolved pinned idea, NO outcome, NO linked position — a later
+    # same-asset (even same-action) row months later is NOT an update.
+    a = _mk_asset(pg_session, "UNPR")
+    _mk_bar(pg_session, a.id)
+    r1 = _rec_at(pg_session, a.id, 24 * 90, action="Buy")
+    _rec_at(pg_session, a.id, 2, action="Buy")        # same action, months later
+    tl = rp.get_timeline(pg_session, rec_id=r1.id)
+    assert tl["updates_complete"] is False
+    assert not any(e["type"] == "update" for e in tl["events"])
+    assert any(u["section"] == "later_updates"
+               for u in tl["unavailable_sections"])
+
+
+def test_closed_position_bounds_update_window(pg_session: Session) -> None:
+    a = _mk_asset(pg_session, "CLSD")
+    _mk_bar(pg_session, a.id)
+    r1 = _rec_at(pg_session, a.id, 96, action="Buy")
+    pid = _mk_user_book(pg_session, "user-clsd")
+    _mk_paper(pg_session, pid, a.id, r1.id)
+    pg_session.execute(text(
+        "UPDATE paper_position SET is_open = false, "
+        "closed_at = now() - interval '48 hours' "
+        "WHERE opened_by_recommendation_id = :r"), {"r": r1.id})
+    pg_session.flush()
+    _rec_at(pg_session, a.id, 72, action="Hold")      # inside window → update
+    _rec_at(pg_session, a.id, 2, action="Sell")       # after close → excluded
+    tl = rp.get_timeline(pg_session, rec_id=r1.id)
+    ups = [e for e in tl["events"] if e["type"] == "update"]
+    assert len(ups) == 1
+    assert "cautious" in ups[0]["summary"]
+
+
+def test_terminal_outcome_bounds_updates_and_new_idea_starts_fresh(
+    pg_session: Session,
+) -> None:
+    a = _mk_asset(pg_session, "TERM")
+    _mk_bar(pg_session, a.id)
+    r1 = _rec_at(pg_session, a.id, 96, action="Buy")
+    pg_session.execute(text(
+        "INSERT INTO recommendation_outcome (id, recommendation_id, "
+        "barrier_label, barrier_first_touch_at, created_at, updated_at) "
+        "VALUES (:i, :r, 1, now() - interval '48 hours', now(), now())"
+    ), {"i": str(uuid.uuid4()), "r": r1.id})
+    pg_session.flush()
+    _rec_at(pg_session, a.id, 72, action="Hold")      # pre-resolution update
+    later = _rec_at(pg_session, a.id, 2, action="Buy")  # post-resolution
+    tl = rp.get_timeline(pg_session, rec_id=r1.id)
+    assert tl["lifecycle_status"] == "resolved_target"
+    ups = [e for e in tl["events"] if e["type"] == "update"]
+    assert len(ups) == 1                              # bounded by resolution
+    # the post-resolution row is its own fresh lifecycle
+    rp.reset_cache_for_tests()
+    tl2 = rp.get_timeline(pg_session, rec_id=later.id)
+    assert tl2["recommendation_as_of"] != tl["recommendation_as_of"]
+
+
+def test_duplicate_scheduler_siblings_produce_no_phantom_updates(
+    pg_session: Session,
+) -> None:
+    # identical same-timestamp siblings inside a proven window: the delta
+    # between identical rows has no meaningful change → no update events.
+    a = _mk_asset(pg_session, "SIBL")
+    _mk_bar(pg_session, a.id)
+    # all rows on the same side of the wording cutover — a straddle would
+    # legitimately emit a confidence-presentation change, not a phantom
+    r1 = _rec_at(pg_session, a.id, 30, action="Buy")
+    pid = _mk_user_book(pg_session, "user-sibl")
+    _mk_paper(pg_session, pid, a.id, r1.id)
+    ts = NOW - datetime.timedelta(hours=24)
+    _mk_rec(pg_session, a.id, generated_at=ts, action="Buy")
+    _mk_rec(pg_session, a.id, generated_at=ts, action="Buy")
+    tl = rp.get_timeline(pg_session, rec_id=r1.id)
+    assert not any(e["type"] == "update" for e in tl["events"])
+    assert tl["updates_complete"] is True
 
 
 def test_same_timestamp_siblings_do_not_break_replay(
