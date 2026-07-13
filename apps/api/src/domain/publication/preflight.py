@@ -49,13 +49,19 @@ from apps.api.src.db.models import (
     Recommendation,
     RecommendationEvidence,
 )
-from apps.api.src.domain.publication.posture import Posture, current_posture
+from apps.api.src.domain.publication.posture import (
+    Posture,
+    current_posture_event,
+)
 
 # ---------------------------------------------------------------------------
 # Versioning + policy constants (bump RULE_SET_VERSION on ANY semantic change)
 # ---------------------------------------------------------------------------
 
-RULE_SET_VERSION = "pf-1"
+RULE_SET_VERSION = "pf-2"   # pf-2: verdict identity = fact ids + policy buckets
+                            # (clock removed from the hash entirely; sub-day
+                            # threshold crossings now change the hash exactly
+                            # when a policy boundary is crossed)
 
 #: Newest asset bar may be at most this many calendar days old.
 MAX_BAR_AGE_DAYS = 5
@@ -90,6 +96,64 @@ _PROBABILITY_CLAIM = re.compile(
 Severity = Literal["info", "limitation", "hold", "block"]
 Verdict = Literal["READY", "READY_WITH_LIMITATIONS", "HOLD", "BLOCKED"]
 
+FreshBucket = Literal["fresh", "stale", "missing"]
+SkewBucket = Literal["coherent", "invalid"]
+
+
+# ---------------------------------------------------------------------------
+# Policy buckets — the deterministic bridge between wall-clock and hash.
+#
+# The verdict's identity must change EXACTLY when a policy boundary is
+# crossed, not when the calendar day rolls over (pf-1 defect: a candidate
+# could cross the 30h provider threshold intra-day and reuse a stale
+# publishable verdict). Buckets are computed once at load time from stored
+# facts + the clock; the buckets (never the clock) enter the hash, and the
+# time-relative checks consume the buckets so hash identity and verdict can
+# never disagree.
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class PolicyBuckets:
+    provider_freshness: FreshBucket
+    price_freshness: FreshBucket
+    future_skew: SkewBucket
+
+
+def compute_buckets(
+    now_iso: str,
+    latest_bar_ts: str | None,
+    last_ingest_status: str | None,
+    last_ingest_finished_at: str | None,
+    generated_at: str | None,
+) -> PolicyBuckets:
+    """Pure derivation of every time-relative policy state."""
+    # provider freshness: success within MAX_INGEST_AGE_HOURS
+    if last_ingest_status != "success" or not last_ingest_finished_at:
+        provider: FreshBucket = "missing"
+    else:
+        h = _age_days(now_iso, last_ingest_finished_at)
+        h = h * 24 if h is not None else None
+        provider = "fresh" if (h is not None and h <= MAX_INGEST_AGE_HOURS) else "stale"
+
+    # price freshness: newest bar within MAX_BAR_AGE_DAYS
+    if not latest_bar_ts:
+        price: FreshBucket = "missing"
+    else:
+        d = _age_days(now_iso, latest_bar_ts)
+        price = "fresh" if (d is not None and d <= MAX_BAR_AGE_DAYS) else "stale"
+
+    # future skew: generated_at may not lead the clock beyond the allowance
+    if not generated_at:
+        skew: SkewBucket = "invalid"
+    else:
+        age = _age_days(now_iso, generated_at)
+        skew = "coherent" if (
+            age is not None and age >= -(MAX_FUTURE_SKEW_MINUTES / 1440.0)
+        ) else "invalid"
+
+    return PolicyBuckets(provider_freshness=provider, price_freshness=price,
+                         future_skew=skew)
+
 
 # ---------------------------------------------------------------------------
 # Frozen input
@@ -119,24 +183,35 @@ class PreflightInput:
     latest_bar_ts: str | None                # ISO, this asset, 1d
     latest_bar_close: str | None
     is_latest_for_asset: bool
+    newer_rec_id: str | None                 # identity of the superseding rec
     symbol_asset_count: int                  # assets sharing this symbol
+    last_ingest_run_id: str | None           # identity of the ingest run
     last_ingest_status: str | None           # success|failure|running|None
     last_ingest_finished_at: str | None
     ingest_contracts_enabled: bool
     posture: Posture
+    posture_event_id: str | None             # identity of the posture event
+    buckets: PolicyBuckets                   # derived threshold states
     evaluator_git_sha: str
-    now: str                                 # ISO, frozen at load time
+    now: str                                 # ISO, frozen at load time (NOT hashed)
     extra: dict[str, Any] = field(default_factory=dict)
 
     def canonical_json(self) -> str:
         d = {k: getattr(self, k) for k in self.__dataclass_fields__}  # noqa: SLF001
         d["evidence"] = list(d["evidence"])
-        # Idempotency contract: the hash covers INPUT FACTS, not the wall
-        # clock. `now` is quantized to its calendar date (all freshness
-        # policies are day-granular), so re-evaluating unchanged facts on the
-        # same day is idempotent while a new day (which can move day-granular
-        # freshness ages) legitimately appends a new verdict row.
-        d["now"] = (d["now"] or "")[:10]
+        d["buckets"] = {
+            "provider_freshness": self.buckets.provider_freshness,
+            "price_freshness": self.buckets.price_freshness,
+            "future_skew": self.buckets.future_skew,
+        }
+        # Idempotency contract (pf-2): the hash covers stored FACT IDENTITIES
+        # (run ids, bar timestamps, event ids, provenance, evidence) plus the
+        # derived POLICY BUCKETS. The wall clock itself never enters the
+        # hash: unchanged facts inside the same policy state are idempotent
+        # regardless of time (including across midnight), and the hash
+        # changes exactly when a policy boundary is crossed — a stale
+        # publishable verdict cannot survive a changed policy state.
+        d.pop("now")
         return json.dumps(d, sort_keys=True, separators=(",", ":"), default=str)
 
     def input_hash(self) -> str:
@@ -179,12 +254,13 @@ def load_inputs(db: Session, rec: Recommendation) -> PreflightInput:
         .limit(1)
     ).first()
 
-    newer = db.execute(
+    newer_rec_id = db.execute(
         select(Recommendation.id)
         .where(
             Recommendation.asset_id == rec.asset_id,
             Recommendation.generated_at > rec.generated_at,
         )
+        .order_by(Recommendation.generated_at.desc())
         .limit(1)
     ).scalar()
 
@@ -196,7 +272,7 @@ def load_inputs(db: Session, rec: Recommendation) -> PreflightInput:
 
     ingest = db.execute(
         text(
-            "SELECT jr.status, jr.finished_at FROM job_run jr "
+            "SELECT jr.id, jr.status, jr.finished_at FROM job_run jr "
             "JOIN job_schedule js ON js.id = jr.job_schedule_id "
             "WHERE js.name = 'ingest_prices_daily' "
             "ORDER BY jr.started_at DESC LIMIT 1"
@@ -220,6 +296,17 @@ def load_inputs(db: Session, rec: Recommendation) -> PreflightInput:
 
     prov = get_build_provenance()
 
+    posture, posture_event_id = current_posture_event(db)
+
+    now_iso = now.isoformat()
+    ingest_run_id = ingest[0] if ingest else None
+    ingest_status = ingest[1] if ingest else None
+    ingest_finished = _iso(ingest[2]) if ingest else None
+    bar_ts = _iso(bar[0]) if bar else None
+    buckets = compute_buckets(
+        now_iso, bar_ts, ingest_status, ingest_finished, _iso(rec.generated_at),
+    )
+
     return PreflightInput(
         recommendation_id=rec.id,
         asset_id=rec.asset_id,
@@ -238,16 +325,20 @@ def load_inputs(db: Session, rec: Recommendation) -> PreflightInput:
         rationale_parse_error=rat_err,
         evidence=tuple(ev_rows),
         evidence_parse_error=ev_err,
-        latest_bar_ts=_iso(bar[0]) if bar else None,
+        latest_bar_ts=bar_ts,
         latest_bar_close=str(bar[1]) if bar and bar[1] is not None else None,
-        is_latest_for_asset=newer is None,
+        is_latest_for_asset=newer_rec_id is None,
+        newer_rec_id=newer_rec_id,
         symbol_asset_count=int(symbol_asset_count),
-        last_ingest_status=ingest[0] if ingest else None,
-        last_ingest_finished_at=_iso(ingest[1]) if ingest else None,
+        last_ingest_run_id=ingest_run_id,
+        last_ingest_status=ingest_status,
+        last_ingest_finished_at=ingest_finished,
         ingest_contracts_enabled=bool(settings.INGEST_CONTRACTS_ENABLED),
-        posture=current_posture(db),
+        posture=posture,
+        posture_event_id=posture_event_id,
+        buckets=buckets,
         evaluator_git_sha=str(prov.get("git_sha", "unknown")),
-        now=now.isoformat(),
+        now=now_iso,
     )
 
 
@@ -304,30 +395,25 @@ def _c_price_data_exists(i: PreflightInput) -> CheckResult:
 
 
 def _c_price_freshness(i: PreflightInput) -> CheckResult:
-    age = _age_days(i.now, i.latest_bar_ts)
-    ok = age is not None and age <= MAX_BAR_AGE_DAYS
+    # Consumes the policy bucket — the SAME derived state that enters the
+    # input hash, so verdict identity and freshness state can never disagree.
+    ok = i.buckets.price_freshness == "fresh"
     return CheckResult(
         "price_freshness", "hold", ok,
-        f"newest bar age {age:.1f}d <= {MAX_BAR_AGE_DAYS}d"
-        if ok else f"newest bar age {age if age is not None else 'unknown'} exceeds policy ({MAX_BAR_AGE_DAYS}d)",
+        f"price freshness bucket={i.buckets.price_freshness} "
+        f"(policy: newest bar <= {MAX_BAR_AGE_DAYS}d)",
     )
 
 
 def _c_provider_state(i: PreflightInput) -> CheckResult:
-    if i.last_ingest_status is None:
-        return CheckResult("provider_state", "hold", False,
-                           "no ingest job history found (fail closed)")
-    if i.last_ingest_status != "success":
-        return CheckResult("provider_state", "hold", False,
-                           f"last ingest run status={i.last_ingest_status}")
-    age_h = _age_days(i.now, i.last_ingest_finished_at)
-    age_h = age_h * 24 if age_h is not None else None
-    ok = age_h is not None and age_h <= MAX_INGEST_AGE_HOURS
-    return CheckResult(
-        "provider_state", "hold", ok,
-        f"last successful ingest {age_h:.1f}h ago" if ok
-        else f"last successful ingest too old ({age_h} h)",
+    ok = i.buckets.provider_freshness == "fresh"
+    detail = (
+        f"provider freshness bucket={i.buckets.provider_freshness} "
+        f"(policy: successful ingest <= {MAX_INGEST_AGE_HOURS}h; "
+        f"run={i.last_ingest_run_id or 'none'}, "
+        f"status={i.last_ingest_status or 'none'})"
     )
+    return CheckResult("provider_state", "hold", ok, detail)
 
 
 def _c_ingest_contract(i: PreflightInput) -> CheckResult:
@@ -411,20 +497,14 @@ def _c_no_duplicate_open_idea(i: PreflightInput) -> CheckResult:
 
 
 def _c_timestamp_coherent(i: PreflightInput) -> CheckResult:
-    if not i.generated_at:
-        return CheckResult("timestamp_coherent", "block", False,
-                           "generated_at missing")
-    # age of generated_at relative to now: positive = in the past (fine),
-    # negative = in the future (blocked beyond clock skew). Staleness of the
-    # underlying data is deliberately NOT judged here — price_freshness
-    # already holds old data; duplicating it at block severity would turn a
-    # transient freshness problem into a false integrity failure.
-    age = _age_days(i.now, i.generated_at)
-    ok = age is not None and age >= -(MAX_FUTURE_SKEW_MINUTES / 1440.0)
+    # Bucket-driven (pf-2): staleness of the underlying data is deliberately
+    # NOT judged here — price_freshness already holds old data; this check
+    # blocks only a generated_at leading the clock beyond allowed skew.
+    ok = i.buckets.future_skew == "coherent"
     return CheckResult(
         "timestamp_coherent", "block", ok,
-        "generated_at coherent with the wall clock" if ok
-        else "generated_at is in the future beyond allowed clock skew",
+        f"future-skew bucket={i.buckets.future_skew} "
+        f"(policy: generated_at may lead clock by <= {MAX_FUTURE_SKEW_MINUTES}m)",
     )
 
 
@@ -800,3 +880,228 @@ def ensure_current_verdict(db: Session, rec: Recommendation) -> dict[str, Any]:
             "source_freshness_at": None,
             "synthetic": True,
         }
+
+
+# ---------------------------------------------------------------------------
+# Bulk publication path (Wave 1B read-side-effect review).
+#
+# Per-candidate load_inputs costs ~6 queries; on a 200-idea Discover list
+# that measured ~8.7s warm / ~18s cold. This bulk loader answers the same
+# questions in 7 fixed queries TOTAL, builds identical PreflightInput
+# objects (pinned by test), and resolves verdicts with one lookup + one
+# batched idempotent insert. Fail-closed semantics unchanged: any error
+# degrades the batch to synthetic HOLD.
+# ---------------------------------------------------------------------------
+
+def _bulk_load_inputs(
+    db: Session, recs: list[Recommendation],
+) -> dict[str, PreflightInput]:
+    now = dt.datetime.now(dt.timezone.utc)
+    now_iso = now.isoformat()
+    rec_ids = [r.id for r in recs]
+    asset_ids = sorted({r.asset_id for r in recs})
+
+    assets: dict[str, tuple[str | None, str | None]] = {}
+    sym_counts: dict[str, int] = {}
+    if asset_ids:
+        for aid, sym, name in db.execute(
+            select(Asset.id, Asset.symbol, Asset.name)
+            .where(Asset.id.in_(asset_ids))
+        ).all():
+            assets[aid] = (sym, name)
+        for sym, cnt in db.execute(
+            text(
+                "SELECT symbol, count(*) FROM asset WHERE symbol IN "
+                "(SELECT symbol FROM asset WHERE id = ANY(:ids)) "
+                "GROUP BY symbol"
+            ),
+            {"ids": asset_ids},
+        ).all():
+            sym_counts[sym] = int(cnt)
+
+    bars: dict[str, tuple[Any, Any]] = {}
+    if asset_ids:
+        for aid, ts, close in db.execute(
+            text(
+                "SELECT DISTINCT ON (asset_id) asset_id, ts, close "
+                "FROM price_bar WHERE timeframe='1d' "
+                "AND asset_id = ANY(:ids) "
+                "ORDER BY asset_id, ts DESC"
+            ),
+            {"ids": asset_ids},
+        ).all():
+            bars[aid] = (ts, close)
+
+    newer: dict[str, str] = {}
+    if recs:
+        latest_by_asset: dict[str, tuple[Any, str]] = {}
+        for aid, rid, gen in db.execute(
+            text(
+                "SELECT asset_id, id, generated_at FROM recommendation "
+                "WHERE asset_id = ANY(:ids)"
+            ),
+            {"ids": asset_ids},
+        ).all():
+            cur = latest_by_asset.get(aid)
+            if cur is None or (gen is not None
+                               and (cur[0] is None or gen > cur[0])):
+                latest_by_asset[aid] = (gen, rid)
+        for r in recs:
+            top = latest_by_asset.get(r.asset_id)
+            if top and top[1] != r.id and top[0] is not None \
+                    and r.generated_at is not None and top[0] > r.generated_at:
+                newer[r.id] = top[1]
+
+    ingest = db.execute(text(
+        "SELECT jr.id, jr.status, jr.finished_at FROM job_run jr "
+        "JOIN job_schedule js ON js.id = jr.job_schedule_id "
+        "WHERE js.name = 'ingest_prices_daily' "
+        "ORDER BY jr.started_at DESC LIMIT 1"
+    )).first()
+    ingest_run_id = ingest[0] if ingest else None
+    ingest_status = ingest[1] if ingest else None
+    ingest_finished = _iso(ingest[2]) if ingest else None
+
+    ev_by_rec: dict[str, list[dict[str, Any]]] = {rid: [] for rid in rec_ids}
+    ev_err_by_rec: dict[str, bool] = {rid: False for rid in rec_ids}
+    if rec_ids:
+        for ev in db.execute(
+            select(RecommendationEvidence)
+            .where(RecommendationEvidence.recommendation_id.in_(rec_ids))
+        ).scalars():
+            parsed, err = _strict_parse_json(ev.summary)
+            ev_err_by_rec[ev.recommendation_id] = (
+                ev_err_by_rec[ev.recommendation_id] or err)
+            ev_by_rec[ev.recommendation_id].append({
+                "factor_key": ev.evidence_type,
+                "family": ev.source,
+                "direction": parsed.get("direction"),
+                "narrative": parsed.get("narrative") or "",
+            })
+
+    posture, posture_event_id = current_posture_event(db)
+    sha = str(get_build_provenance().get("git_sha", "unknown"))
+
+    out: dict[str, PreflightInput] = {}
+    for r in recs:
+        rationale, rat_err = _strict_parse_json(r.rationale)
+        sym, name = assets.get(r.asset_id, (None, None))
+        bar = bars.get(r.asset_id)
+        bar_ts = _iso(bar[0]) if bar else None
+        gen_iso = _iso(r.generated_at)
+        out[r.id] = PreflightInput(
+            recommendation_id=r.id,
+            asset_id=r.asset_id,
+            symbol=sym,
+            company_name=name,
+            action=r.action,
+            conviction=str(r.conviction) if r.conviction is not None else None,
+            confidence_label=rationale.get("confidence_label"),
+            enough_data=bool(rationale.get("enough_data", False)),
+            stale_data=bool(rationale.get("stale_data", False)),
+            engine_version=r.model_version,
+            snapshot_hash=r.snapshot_hash or rationale.get("snapshot_hash"),
+            generated_at=gen_iso,
+            thesis=rationale.get("thesis"),
+            family_scores=dict(rationale.get("family_scores") or {}),
+            rationale_parse_error=rat_err,
+            evidence=tuple(ev_by_rec.get(r.id, [])),
+            evidence_parse_error=ev_err_by_rec.get(r.id, False),
+            latest_bar_ts=bar_ts,
+            latest_bar_close=(str(bar[1]) if bar and bar[1] is not None
+                              else None),
+            is_latest_for_asset=r.id not in newer,
+            newer_rec_id=newer.get(r.id),
+            symbol_asset_count=int(sym_counts.get(sym or "", 1)),
+            last_ingest_run_id=ingest_run_id,
+            last_ingest_status=ingest_status,
+            last_ingest_finished_at=ingest_finished,
+            ingest_contracts_enabled=bool(settings.INGEST_CONTRACTS_ENABLED),
+            posture=posture,
+            posture_event_id=posture_event_id,
+            buckets=compute_buckets(now_iso, bar_ts, ingest_status,
+                                    ingest_finished, gen_iso),
+            evaluator_git_sha=sha,
+            now=now_iso,
+        )
+    return out
+
+
+def ensure_current_verdicts_bulk(
+    db: Session, recs: list[Recommendation],
+) -> dict[str, dict[str, Any]]:
+    """Batched ensure_current_verdict: same exact-hash publication guarantee
+    and fail-closed behavior, ~7 queries + one batched idempotent insert."""
+    try:
+        inputs = _bulk_load_inputs(db, recs)
+        hashes = {rid: inp.input_hash() for rid, inp in inputs.items()}
+        existing: dict[str, dict[str, Any]] = {}
+        if hashes:
+            rows = db.execute(text(
+                "SELECT id, recommendation_id, verdict, rule_set_version, "
+                "input_hash, checks_json, limitations_json, "
+                "blocking_reasons_json, evaluated_at, evaluator_git_sha, "
+                "source_freshness_at, created_at "
+                "FROM recommendation_preflight "
+                "WHERE rule_set_version = :rsv "
+                "AND recommendation_id = ANY(:ids)"
+            ), {"rsv": RULE_SET_VERSION,
+                "ids": list(hashes.keys())}).mappings().all()
+            for row in rows:
+                if hashes.get(row["recommendation_id"]) == row["input_hash"]:
+                    existing[row["recommendation_id"]] = dict(row)
+
+        to_insert: list[dict[str, Any]] = []
+        results: dict[str, dict[str, Any]] = {}
+        for rid, inp in inputs.items():
+            if rid in existing:
+                results[rid] = existing[rid]
+                continue
+            res = evaluate(inp)
+            params = {
+                "id": str(uuid.uuid4()), "rid": rid, "verdict": res.verdict,
+                "rsv": res.rule_set_version, "ih": res.input_hash,
+                "checks": json.dumps([_check_dict(c) for c in res.checks]),
+                "lims": json.dumps([_check_dict(c) for c in res.limitations]),
+                "blocks": json.dumps([_check_dict(c) for c in res.blocking]),
+                "eat": res.evaluated_at, "sha": res.evaluator_git_sha,
+                "sfa": res.source_freshness_at,
+            }
+            to_insert.append(params)
+            results[rid] = {
+                "id": params["id"], "recommendation_id": rid,
+                "verdict": res.verdict,
+                "rule_set_version": res.rule_set_version,
+                "input_hash": res.input_hash,
+                "checks_json": params["checks"],
+                "limitations_json": params["lims"],
+                "blocking_reasons_json": params["blocks"],
+                "evaluated_at": res.evaluated_at,
+                "evaluator_git_sha": res.evaluator_git_sha,
+                "source_freshness_at": res.source_freshness_at,
+            }
+        if to_insert:
+            db.execute(text(
+                "INSERT INTO recommendation_preflight "
+                "(id, recommendation_id, verdict, rule_set_version, "
+                " input_hash, checks_json, limitations_json, "
+                " blocking_reasons_json, evaluated_at, evaluator_git_sha, "
+                " source_freshness_at, created_at) "
+                "VALUES (:id, :rid, :verdict, :rsv, :ih, :checks, :lims, "
+                "        :blocks, :eat, :sha, :sfa, now()) "
+                "ON CONFLICT (recommendation_id, rule_set_version, "
+                "input_hash) DO NOTHING"
+            ), to_insert)
+            db.commit()
+        return results
+    except Exception:  # noqa: BLE001 — deliberate fail-closed boundary
+        db.rollback()
+        return {r.id: {
+            "recommendation_id": r.id, "verdict": "HOLD",
+            "rule_set_version": RULE_SET_VERSION, "input_hash": None,
+            "checks_json": "[]", "limitations_json": "[]",
+            "blocking_reasons_json": "[]",
+            "evaluated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+            "evaluator_git_sha": "unknown", "source_freshness_at": None,
+            "synthetic": True,
+        } for r in recs}

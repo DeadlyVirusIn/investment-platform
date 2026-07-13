@@ -27,7 +27,10 @@ from apps.api.src.domain.publication import preflight as pf
 
 def good_input(**overrides) -> pf.PreflightInput:
     """A candidate that passes every deterministic check except the two
-    honest always-limitations (calibration_disclosed, schema_version)."""
+    honest always-limitations (calibration_disclosed, schema_version).
+
+    pf-2: buckets are derived from the time fields unless explicitly
+    overridden, mirroring load_inputs."""
     base = dict(
         recommendation_id="rec-1",
         asset_id="asset-1",
@@ -54,15 +57,26 @@ def good_input(**overrides) -> pf.PreflightInput:
         latest_bar_ts="2026-07-11T20:00:00+00:00",
         latest_bar_close="359.27",
         is_latest_for_asset=True,
+        newer_rec_id=None,
         symbol_asset_count=1,
+        last_ingest_run_id="run-1",
         last_ingest_status="success",
         last_ingest_finished_at="2026-07-12T00:30:00+00:00",
         ingest_contracts_enabled=True,
         posture="NORMAL",
+        posture_event_id=None,
         evaluator_git_sha="abc123def456",
         now="2026-07-12T02:00:00+00:00",
     )
     base.update(overrides)
+    if "buckets" not in base:
+        base["buckets"] = pf.compute_buckets(
+            base["now"], base["latest_bar_ts"], base["last_ingest_status"],
+            base["last_ingest_finished_at"], base["generated_at"],
+        )
+    # keep the duplicate-idea facts coherent unless a test overrides both
+    if not base["is_latest_for_asset"] and base["newer_rec_id"] is None:
+        base["newer_rec_id"] = "rec-newer"
     return pf.PreflightInput(**base)
 
 

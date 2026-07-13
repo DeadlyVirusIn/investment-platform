@@ -87,9 +87,10 @@ def _mk_rec(db: Session, asset_id: str, **kw) -> Recommendation:
 def _seed_ingest_success(db: Session) -> None:
     sid = str(uuid.uuid4())
     db.execute(text(
-        "INSERT INTO job_schedule (id, name, cron_expr, enabled, created_at, "
-        "updated_at) "
-        "VALUES (:i, 'ingest_prices_daily', '0 1 * * *', true, now(), now()) "
+        "INSERT INTO job_schedule (id, name, cron_expr, enabled, next_run_at, "
+        "created_at, updated_at) "
+        "VALUES (:i, 'ingest_prices_daily', '0 1 * * *', true, "
+        "now() + interval '1 hour', now(), now()) "
         "ON CONFLICT DO NOTHING"
     ), {"i": sid})
     real_sid = db.execute(text(
@@ -370,3 +371,36 @@ def test_orm_model_matches_migration_uniques(pg_session: Session) -> None:
             "input_hash", "checks_json", "limitations_json",
             "blocking_reasons_json", "evaluated_at", "evaluator_git_sha",
             "source_freshness_at", "created_at"} <= cols
+
+
+def test_bulk_loader_parity_with_single(pg_session: Session) -> None:
+    """The bulk publication path must build byte-identical inputs (same
+    hash, same verdict) as the audited single-candidate loader."""
+    from apps.api.src.domain.publication.preflight import (
+        _bulk_load_inputs,
+        ensure_current_verdicts_bulk,
+    )
+    rec = _healthy_candidate(pg_session)
+    single = pf.load_inputs(pg_session, rec)
+    bulk = _bulk_load_inputs(pg_session, [rec])[rec.id]
+    assert bulk.input_hash() == single.input_hash()
+    assert pf.evaluate(bulk).verdict == pf.evaluate(single).verdict
+    rows = ensure_current_verdicts_bulk(pg_session, [rec])
+    assert rows[rec.id]["verdict"] == pf.evaluate(single).verdict
+    # idempotent second call reuses the stored row
+    rows2 = ensure_current_verdicts_bulk(pg_session, [rec])
+    assert rows2[rec.id]["id"] == rows[rec.id]["id"]
+
+
+def test_bulk_loader_fails_closed(pg_session: Session,
+                                  monkeypatch: pytest.MonkeyPatch) -> None:
+    from apps.api.src.domain.publication import preflight as _pf
+
+    def boom(*a, **k):  # noqa: ANN002, ANN003
+        raise RuntimeError("synthetic bulk failure")
+
+    rec = _healthy_candidate(pg_session)
+    monkeypatch.setattr(_pf, "_bulk_load_inputs", boom)
+    rows = _pf.ensure_current_verdicts_bulk(pg_session, [rec])
+    assert rows[rec.id]["verdict"] == "HOLD"
+    assert rows[rec.id].get("synthetic") is True

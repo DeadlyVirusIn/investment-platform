@@ -28,6 +28,13 @@ from apps.api.src.domain.recommendations.recommendation_engine import (
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
 
+# Wave 1A/1B read-side bounds — see the preflight block in
+# list_recommendations for semantics.
+import threading  # noqa: E402
+
+MAX_PREFLIGHT_EVALS_PER_REQUEST = 250
+_preflight_gate_lock = threading.Lock()
+
 SortBy = Literal["generated_at", "confidence"]
 
 
@@ -169,12 +176,24 @@ def list_recommendations(
     if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
         from apps.api.src.api.publication_preflight import public_projection
         from apps.api.src.domain.publication.preflight import (
-            ensure_current_verdict,
+            ensure_current_verdicts_bulk,
         )
 
+        # Read-side-effect bounds (Wave 1B review): at most
+        # MAX_PREFLIGHT_EVALS_PER_REQUEST candidates are evaluated per
+        # request (typical steady state: zero — verdicts for the current
+        # input hash already exist and evaluation short-circuits to a
+        # SELECT). Candidates beyond the cap fail CLOSED (not published this
+        # request) rather than fail open. _preflight_gate_lock single-flights
+        # concurrent cold requests so a thundering herd cannot multiply
+        # identical evaluations (losers of the DB unique-key race would be
+        # harmless but wasteful).
         published: list[Recommendation] = []
-        for r in recs:
-            row = ensure_current_verdict(session, r)
+        with _preflight_gate_lock:
+            batch = recs[:MAX_PREFLIGHT_EVALS_PER_REQUEST]
+            rows = ensure_current_verdicts_bulk(session, batch)
+        for r in batch:
+            row = rows.get(r.id) or {}
             if row.get("verdict") in ("READY", "READY_WITH_LIMITATIONS"):
                 published.append(r)
                 projections[r.id] = public_projection(row)
