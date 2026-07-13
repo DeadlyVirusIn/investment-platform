@@ -76,6 +76,23 @@ class ReviewBody(BaseModel):
     pass  # reviewer identity comes from the owner session, never the body
 
 
+class CorrectionBody(BaseModel):
+    body: str = Field(min_length=1, max_length=100_000)
+    citations: list[dict] | None = None
+    # Bounded reason. LIMITATION (documented): research_report has no
+    # structured reason column; the reason is echoed in the response and
+    # audit-logged (bounded), never hidden inside free-text content.
+    # Structured storage arrives with entity linking (migration 121).
+    reason: str = Field(min_length=1, max_length=500)
+    expires_at: datetime.datetime | None = None
+
+
+class FollowUpBody(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+    question: str = Field(min_length=1, max_length=4000)
+    scope: str | None = Field(default=None, max_length=64)
+
+
 @router.post("/tasks", status_code=201)
 def create_task(
     body: TaskCreateBody,
@@ -173,3 +190,95 @@ def reject_report(
     except inbox_service.ResearchInboxError as exc:
         _raise_http(exc)
     return _report_dict(db, r)
+
+
+@router.post("/reports/{report_id}/correct", status_code=201)
+def correct_report(
+    report_id: str,
+    body: CorrectionBody,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Wave 2A — immutable correction. ALWAYS inserts version N+1 via the
+    audited service path; the prior row stays byte-identical (service-
+    pinned). Review policy follows the EXISTING service contract: the
+    correction is authored by the authenticated human owner (provenance
+    'human', server-stamped), so it is recorded as approved with the author
+    as reviewer — generated content can never ride this path, and Gateway
+    agent tokens cannot reach it (session-cookie owner gate). Correcting a
+    non-latest (already superseded) version is refused with 409; a
+    concurrent-correction race collapses on the DB UNIQUE(task_id, version)
+    constraint and the loser receives 409."""
+    from loguru import logger
+    from sqlalchemy.exc import IntegrityError
+
+    old = db.get(ResearchReport, report_id)
+    if old is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    if inbox_service.report_state(db, old) == "superseded":
+        raise HTTPException(
+            status_code=409,
+            detail="only the latest version of a report can be corrected")
+    try:
+        r = inbox_service.correct_report(
+            db, report_id, new_body=body.body, citations=body.citations,
+            provenance="human",
+            created_by=owner.get("email") or "owner",
+            expires_at=body.expires_at,
+        )
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="a concurrent correction created this version first")
+    except inbox_service.ResearchInboxError as exc:
+        _raise_http(exc)
+    # Bounded audit line — reason + identities only, never report content.
+    logger.info(
+        "inbox_correction report={} new_version={} by={} reason={}",
+        report_id, r.version, owner.get("email"), body.reason[:200],
+    )
+    out = _report_dict(db, r)
+    out["correction_reason"] = body.reason
+    out["corrects_report_id"] = report_id
+    return out
+
+
+@router.post("/reports/{report_id}/follow-up", status_code=201)
+def create_follow_up(
+    report_id: str,
+    body: FollowUpBody,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Wave 2A — create a follow-up task from a report. Provenance: the
+    structured link is TASK-level (follow_up_of_task_id — the schema's
+    existing supported field); report-ID/version provenance is echoed in
+    the response and audit log but NOT hidden in free-text fields —
+    structured report-level linking is explicitly deferred to entity
+    linking (migration 121). Never mutates the report; never launches any
+    agent job."""
+    from loguru import logger
+
+    src = db.get(ResearchReport, report_id)
+    if src is None:
+        raise HTTPException(status_code=404, detail="report not found")
+    try:
+        t = inbox_service.create_task(
+            db, title=body.title, question=body.question, scope=body.scope,
+            schedule_expr=None,
+            created_by=owner.get("email") or "owner",
+            follow_up_of_task_id=src.task_id,
+        )
+    except inbox_service.ResearchInboxError as exc:
+        _raise_http(exc)
+    logger.info(
+        "inbox_follow_up task={} from_report={} v{} by={}",
+        t.id, report_id, src.version, owner.get("email"),
+    )
+    return {
+        "id": t.id, "title": t.title, "question": t.question,
+        "scope": t.scope, "follow_up_of_task_id": src.task_id,
+        "source_report_id": report_id,          # echoed provenance
+        "source_report_version": src.version,   # (structured link: task-level)
+    }

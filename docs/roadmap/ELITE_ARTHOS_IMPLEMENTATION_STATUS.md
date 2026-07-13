@@ -117,9 +117,9 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   the web DEFAULT (`VITE_MEETS_BUY_BAR=0` restores legacy). The
   trust_center.py body sentence "copy change not yet applied" is stale and
   should be updated in the next backend copy pass.
-- **Known small backend gap**: `research_inbox.correct_report` has no HTTP
-  route (service + pinned tests exist) — scheduled Wave 2 of the post-Elite
-  plan.
+- ~~**Known small backend gap**: `research_inbox.correct_report` has no HTTP
+  route~~ — CLOSED in Wave 2A (2026-07-13): `POST /admin/inbox/reports/
+  {id}/correct` + `/follow-up`; see `docs/architecture/RESEARCH_INBOX.md`.
 - **Post-Elite program** (research → plan complete, implementation NOT
   started): see `docs/research/FINAL_EXTERNAL_REPO_GAP_REVIEW_2026.md`,
   `docs/roadmap/POST_ELITE_OPUS_IMPLEMENTATION_PLAN.md`,
@@ -213,3 +213,16 @@ during their build sprints; confirmed present, `alembic current` = 117.)
     environment-dependent (147 pre-existing failures byte-identical on
     clean HEAD; containers give green totals).
   **Prod:** not deployed; gates in spec.
+
+### Wave 2A — Research Inbox completeness — 2026-07-13
+- **Spec:** `docs/architecture/RESEARCH_INBOX.md`. No new migration.
+- **Files:** `api/research_inbox.py` (+correct, +follow-up routes),
+  `AdminResearchInbox.tsx` (correction + follow-up dialogs, version chain).
+- **Flags:** existing `RESEARCH_INBOX_ENABLED` + `VITE_RESEARCH_INBOX`.
+- **Correction:** always v N+1, prior byte-identical, human-authored →
+  approved (existing contract), superseded-non-latest 409, concurrent race
+  409 via UNIQUE(task_id, version), no agent path. Follow-up: task-level
+  provenance (`follow_up_of_task_id`); report-level link deferred to
+  migration 121; no report mutation, no job launch.
+- **Tests:** 11 new pg + legacy 12 + 5 web; web suite 265.
+- **Prod:** not deployed. Wave 2B (Mission Board) next.

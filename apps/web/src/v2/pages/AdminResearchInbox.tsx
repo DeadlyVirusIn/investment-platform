@@ -85,6 +85,9 @@ export function AdminResearchInbox() {
   const [filter, setFilter] = useState<Filter>('all');
   const [acting, setActing] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [correcting, setCorrecting] = useState<Report | null>(null);
+  const [followUp, setFollowUp] = useState<Report | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
 
   const load = useCallback(() => {
     setState('loading');
@@ -105,6 +108,28 @@ export function AdminResearchInbox() {
     if (filter === 'stale' || filter === 'superseded') return r.state === filter;
     return r.review_status === filter;
   });
+
+  // Version chain per task (v1 → v2 → v3), newest last.
+  const chainByTask = useMemo(() => {
+    const m = new Map<string, Report[]>();
+    for (const r of reports) {
+      const arr = m.get(r.task_id) ?? [];
+      arr.push(r);
+      m.set(r.task_id, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => a.version - b.version);
+    return m;
+  }, [reports]);
+
+  async function afterCorrection(newVersion: number) {
+    setCorrecting(null);
+    setFlash(`Created v${newVersion}. Earlier versions remain available and unchanged.`);
+    load();
+    // focus the new version heading once rendered
+    setTimeout(() => {
+      document.getElementById('inbox-flash')?.focus();
+    }, 50);
+  }
 
   async function review(reportId: string, verb: 'approve' | 'reject') {
     setActing(reportId);
@@ -183,6 +208,13 @@ export function AdminResearchInbox() {
               <StatusPanel variant="warn" title={actionError} role="alert" />
             </div>
           )}
+          {flash && (
+            <div className="mb-4">
+              <div id="inbox-flash" tabIndex={-1} className="outline-none">
+                <StatusPanel variant="success" title={flash} role="status" />
+              </div>
+            </div>
+          )}
 
           {visible.length === 0 ? (
             <StatusPanel variant="info"
@@ -240,37 +272,237 @@ export function AdminResearchInbox() {
                         </ul>
                       </details>
                     )}
-                    {r.review_status === 'pending' && (
-                      <div className="flex items-center gap-3 mt-3">
-                        <button type="button" disabled={acting === r.id}
-                          onClick={() => review(r.id, 'approve')}
+                    {(() => {
+                      const chain = chainByTask.get(r.task_id) ?? [r];
+                      const supersede = formatSupersedesNoteForVersion(r, chain);
+                      return supersede ? (
+                        <p className="ink-fainter text-[11px] mt-1.5">{supersede}</p>
+                      ) : null;
+                    })()}
+                    <div className="flex items-center gap-3 mt-3 flex-wrap">
+                      {r.review_status === 'pending' && (
+                        <>
+                          <button type="button" disabled={acting === r.id}
+                            onClick={() => review(r.id, 'approve')}
+                            className="px-3.5 py-1.5 rounded-full font-semibold"
+                            style={{
+                              fontSize: 12.5, color: 'var(--brand-foreground)',
+                              backgroundColor: 'var(--brand)',
+                              opacity: acting === r.id ? 0.6 : 1,
+                            }}>
+                            Approve
+                          </button>
+                          <button type="button" disabled={acting === r.id}
+                            onClick={() => review(r.id, 'reject')}
+                            className="px-3.5 py-1.5 rounded-full font-semibold"
+                            style={{
+                              fontSize: 12.5, color: 'var(--muted-foreground)',
+                              border: '1px solid var(--border)', backgroundColor: 'transparent',
+                              opacity: acting === r.id ? 0.6 : 1,
+                            }}>
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {/* Correct — only the LATEST version of a report chain */}
+                      {r.state !== 'superseded' && (
+                        <button type="button" onClick={() => setCorrecting(r)}
                           className="px-3.5 py-1.5 rounded-full font-semibold"
-                          style={{
-                            fontSize: 12.5, color: 'var(--brand-foreground)',
-                            backgroundColor: 'var(--brand)',
-                            opacity: acting === r.id ? 0.6 : 1,
-                          }}>
-                          Approve
+                          style={{ fontSize: 12.5, color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+                          Correct report
                         </button>
-                        <button type="button" disabled={acting === r.id}
-                          onClick={() => review(r.id, 'reject')}
-                          className="px-3.5 py-1.5 rounded-full font-semibold"
-                          style={{
-                            fontSize: 12.5, color: 'var(--muted-foreground)',
-                            border: '1px solid var(--border)', backgroundColor: 'transparent',
-                            opacity: acting === r.id ? 0.6 : 1,
-                          }}>
-                          Reject
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      <button type="button" onClick={() => setFollowUp(r)}
+                        className="px-3.5 py-1.5 rounded-full font-semibold"
+                        style={{ fontSize: 12.5, color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+                        Create follow-up
+                      </button>
+                    </div>
                   </li>
                 );
               })}
             </ul>
           )}
+          {correcting && (
+            <CorrectionDialog report={correcting}
+              onClose={() => setCorrecting(null)}
+              onDone={afterCorrection} />
+          )}
+          {followUp && (
+            <FollowUpDialog report={followUp} taskById={taskById}
+              onClose={() => setFollowUp(null)}
+              onDone={(taskId) => { setFollowUp(null); setFlash(`Follow-up task created (${taskId.slice(0, 8)}…). The report was not modified.`); }} />
+          )}
         </>
       )}
     </ArthosPage>
+  );
+}
+
+// ── Version-chain helper ────────────────────────────────────────────────
+function formatSupersedesNoteForVersion(r: Report, chain: Report[]): string | null {
+  if (chain.length < 2) return null;
+  const idx = chain.findIndex((c) => c.id === r.id);
+  if (idx <= 0) return null;
+  const prev = chain[idx - 1];
+  return `Supersedes v${prev.version}${prev.review_status === 'rejected' ? ' (rejected)' : ''} — earlier versions remain available.`;
+}
+
+const dialogBackdrop: React.CSSProperties = {
+  position: 'fixed', inset: 0, zIndex: 60,
+  backgroundColor: 'color-mix(in oklch, var(--foreground) 30%, transparent)',
+  display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+  padding: '5vh 1rem', overflowY: 'auto',
+};
+const dialogCard: React.CSSProperties = {
+  width: '100%', maxWidth: 560, backgroundColor: 'var(--background)',
+  border: '1px solid var(--border)', borderRadius: 16, padding: '1.5rem',
+};
+const fieldStyle: React.CSSProperties = {
+  width: '100%', fontSize: 13, borderRadius: 8, padding: '8px 12px',
+  border: '1px solid var(--border)', backgroundColor: 'var(--surface)',
+  color: 'var(--foreground)',
+};
+
+function CorrectionDialog({ report, onClose, onDone }: {
+  report: Report; onClose: () => void; onDone: (v: number) => void;
+}) {
+  const [body, setBody] = useState(report.body);
+  const [citationsText, setCitationsText] = useState(
+    JSON.stringify(report.citations ?? [], null, 2));
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true); setErr(null);
+    let citations: unknown;
+    if (citationsText.trim()) {
+      try { citations = JSON.parse(citationsText); }
+      catch { setErr('Citations must be valid JSON (the existing format).'); setBusy(false); return; }
+    }
+    try {
+      const out = await apiPost<{ version: number }>(
+        `/admin/inbox/reports/${report.id}/correct`,
+        { body, citations, reason });
+      onDone(out.version);
+    } catch (e) {
+      const s = (e as { status?: number })?.status;
+      setErr(s === 409 ? 'This is no longer the latest version — reload and correct the current one.'
+        : s === 422 ? 'A citation is invalid (each needs a url and observed_at).'
+        : "Couldn't save the correction.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={dialogBackdrop} role="dialog" aria-modal="true"
+      aria-labelledby="correct-title" onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
+      <div style={dialogCard}>
+        <h2 id="correct-title" className="ink-primary text-[16px] font-semibold font-serif mb-1">
+          Correct this report
+        </h2>
+        <p className="ink-muted text-[12.5px] leading-relaxed mb-3">
+          The current version is <strong>not edited</strong>. A new version is
+          created, earlier versions stay available, and the correction is
+          recorded as owner-authored (approved) — it never becomes a
+          machine-generated pending report.
+        </p>
+        <label className="block mb-3">
+          <span className="ink-primary text-[12px] font-medium block mb-1">Corrected body</span>
+          <textarea value={body} onChange={(e) => setBody(e.target.value)}
+            rows={6} style={fieldStyle} />
+        </label>
+        <label className="block mb-3">
+          <span className="ink-primary text-[12px] font-medium block mb-1">Citations (existing JSON format)</span>
+          <textarea value={citationsText} onChange={(e) => setCitationsText(e.target.value)}
+            rows={4} style={{ ...fieldStyle, fontFamily: 'monospace', fontSize: 11 }} />
+        </label>
+        <label className="block mb-3">
+          <span className="ink-primary text-[12px] font-medium block mb-1">Correction reason</span>
+          <input type="text" value={reason} maxLength={500}
+            onChange={(e) => setReason(e.target.value)} style={fieldStyle} />
+        </label>
+        {err && <p className="text-[12px] mb-3" role="alert" style={{ color: 'oklch(0.62 0.19 25)' }}>{err}</p>}
+        <div className="flex items-center gap-3">
+          <button type="button" disabled={busy || !body.trim() || !reason.trim()}
+            onClick={submit} className="px-4 py-2 rounded-full font-semibold"
+            style={{ fontSize: 13, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)', opacity: busy || !body.trim() || !reason.trim() ? 0.5 : 1 }}>
+            Create corrected version
+          </button>
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 rounded-full font-medium"
+            style={{ fontSize: 13, color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FollowUpDialog({ report, taskById, onClose, onDone }: {
+  report: Report; taskById: Map<string, Task>;
+  onClose: () => void; onDone: (taskId: string) => void;
+}) {
+  const srcTask = taskById.get(report.task_id);
+  const [title, setTitle] = useState(
+    srcTask ? `Follow up: ${srcTask.title}` : 'Follow-up investigation');
+  const [question, setQuestion] = useState(
+    srcTask ? `Following up on: ${srcTask.question}` : '');
+  const [scope] = useState(srcTask?.scope ?? '');
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    setBusy(true); setErr(null);
+    try {
+      const out = await apiPost<{ id: string }>(
+        `/admin/inbox/reports/${report.id}/follow-up`,
+        { title, question, scope: scope || undefined });
+      onDone(out.id);
+    } catch {
+      setErr("Couldn't create the follow-up task.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={dialogBackdrop} role="dialog" aria-modal="true"
+      aria-labelledby="followup-title" onKeyDown={(e) => { if (e.key === 'Escape') onClose(); }}>
+      <div style={dialogCard}>
+        <h2 id="followup-title" className="ink-primary text-[16px] font-semibold font-serif mb-1">
+          Create a follow-up task
+        </h2>
+        <p className="ink-muted text-[12.5px] leading-relaxed mb-3">
+          This creates a new research task. The report is <strong>not
+          modified</strong>, and nothing runs automatically — the task waits
+          for the existing review workflow.
+        </p>
+        <label className="block mb-3">
+          <span className="ink-primary text-[12px] font-medium block mb-1">Title</span>
+          <input type="text" value={title} maxLength={200}
+            onChange={(e) => setTitle(e.target.value)} style={fieldStyle} />
+        </label>
+        <label className="block mb-3">
+          <span className="ink-primary text-[12px] font-medium block mb-1">Question</span>
+          <textarea value={question} rows={4} maxLength={4000}
+            onChange={(e) => setQuestion(e.target.value)} style={fieldStyle} />
+        </label>
+        {err && <p className="text-[12px] mb-3" role="alert" style={{ color: 'oklch(0.62 0.19 25)' }}>{err}</p>}
+        <div className="flex items-center gap-3">
+          <button type="button" disabled={busy || !title.trim() || !question.trim()}
+            onClick={submit} className="px-4 py-2 rounded-full font-semibold"
+            style={{ fontSize: 13, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)', opacity: busy || !title.trim() || !question.trim() ? 0.5 : 1 }}>
+            Create follow-up
+          </button>
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 rounded-full font-medium"
+            style={{ fontSize: 13, color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
