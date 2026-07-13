@@ -22,6 +22,7 @@ import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis, ideaOneLiner } from '../lib/plainText';
 import { PreflightLimitations } from '../components/PreflightLimitations';
+import { PostureBanner } from '../components/PostureBanner';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
@@ -61,6 +62,7 @@ export function Opportunities() {
 
   return (
     <ArthosPage topBarEyebrow="Discover">
+      <PostureBanner />
       <PageHeader
         eyebrow="Discover"
         title={<>Ideas you can<br />follow and prove.</>}

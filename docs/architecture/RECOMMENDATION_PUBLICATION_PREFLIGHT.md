@@ -208,3 +208,32 @@ SAFE holds all new publications, RESTRICTED caps at
 READY_WITH_LIMITATIONS, existing ideas/portfolios always readable. Wave 1B
 implements signal-derived posture + the audited event log behind the SAME
 signature; nothing in preflight changes when it lands.
+
+---
+
+## pf-2 addendum (2026-07-13) — freshness-hash correctness fix (HIGH)
+
+pf-1 defect: the input hash quantized the clock to a calendar date while
+checks used sub-day thresholds (provider ≤30h) — a candidate could cross a
+policy boundary intra-day and reuse a stale publishable verdict.
+
+pf-2 (RULE_SET_VERSION bumped): the clock never enters the hash. Verdict
+identity = stored FACT IDENTITIES (ingest run id + completion timestamp,
+newest bar timestamp, posture event id + posture, generated_at, evidence +
+review state, engine version, snapshot hash, duplicate/newer-rec identity,
+rule-set version, contracts flag) PLUS derived POLICY BUCKETS computed once
+at load time (`compute_buckets`): provider_freshness fresh|stale|missing ·
+price_freshness fresh|stale|missing · future_skew coherent|invalid. The
+time-relative checks consume the same buckets that are hashed, so hash
+identity and verdict can never disagree; the hash changes exactly when a
+policy boundary is crossed (29h59m vs 30h01m pinned by test) and crossing
+midnight with unchanged policy state appends nothing.
+
+Wave 1B additions: posture is signal-derived (see RESEARCH_SAFE_MODE.md)
+and its event id is hashed → any posture transition invalidates stale
+verdicts. Publication read path now uses the BULK evaluator
+(`ensure_current_verdicts_bulk`: 7 fixed queries + one batched idempotent
+insert; measured 1.18s cold / ~0.7s warm on 200 candidates vs 18s/8.7s per-
+candidate), capped at 250 evaluations/request with fail-closed overflow and
+a single-flight lock; bulk/single parity pinned by test. Boundary tests:
+`tests/unit/test_preflight_freshness_hash.py` (15).

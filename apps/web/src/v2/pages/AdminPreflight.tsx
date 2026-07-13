@@ -122,6 +122,155 @@ function VerdictCard({ row, onReevaluate, busy }: {
   );
 }
 
+// ── Wave 1B — Research Safe Mode owner panel ────────────────────────────
+type PostureEvent = {
+  id: string; posture: 'NORMAL' | 'RESTRICTED' | 'SAFE';
+  reasons: { kind: string; id?: string; level?: string; text: string;
+    severity?: string }[];
+  triggered_by: string; previous_event_id: string | null;
+  evaluator_version: string; evaluator_git_sha: string; input_hash: string;
+  acknowledged_at: string | null; acknowledged_by: string | null;
+  created_at: string | null;
+};
+
+const POSTURE_TONE: Record<PostureEvent['posture'], { color: string; glyph: string }> = {
+  NORMAL: { color: 'var(--brand)', glyph: '✓' },
+  RESTRICTED: { color: 'oklch(0.70 0.14 75)', glyph: '◐' },
+  SAFE: { color: 'oklch(0.62 0.19 25)', glyph: '⏸' },
+};
+
+function PosturePanel() {
+  const [events, setEvents] = useState<PostureEvent[]>([]);
+  const [state, setState] = useState<'loading' | 'ready' | 'off' | 'error'>('loading');
+  const [busy, setBusy] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
+  const [incidentReason, setIncidentReason] = useState('');
+
+  const load = useCallback(() => {
+    apiGet<{ events: PostureEvent[] }>('/admin/posture/events?limit=20')
+      .then((r) => { setEvents(r.events); setState('ready'); })
+      .catch((e: { status?: number }) => setState(e?.status === 404 ? 'off' : 'error'));
+  }, []);
+  useEffect(() => { load(); }, [load]);
+
+  async function act(path: string, body?: unknown) {
+    setBusy(true); setActionMsg(null);
+    try {
+      await apiPost(`/admin/posture/${path}`, body ?? {});
+      load();
+    } catch (e) {
+      const status = (e as { status?: number })?.status;
+      setActionMsg(status === 409
+        ? 'Refused by the state machine (409) — the evaluator decides, actions only unlock its paths.'
+        : 'Action failed — check the API.');
+    } finally { setBusy(false); }
+  }
+
+  if (state === 'off') return null;   // flag off — panel absent by design
+
+  const latest = events[0];
+  const tone = latest ? POSTURE_TONE[latest.posture] : null;
+
+  return (
+    <section className="mb-10 rounded-xl px-5 py-4" style={{
+      border: '1px solid var(--border)',
+      backgroundColor: 'color-mix(in oklch, var(--card) 60%, transparent)',
+    }}>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+        <h2 className="ink-primary text-[15px] font-semibold font-serif">Research Safe Mode</h2>
+        {latest && tone && (
+          <span className="inline-flex items-center gap-1.5 rounded-full font-semibold uppercase"
+            style={{
+              fontSize: 11, letterSpacing: '0.05em', padding: '3px 10px',
+              color: tone.color,
+              backgroundColor: `color-mix(in oklch, ${tone.color} 11%, transparent)`,
+              border: `1px solid color-mix(in oklch, ${tone.color} 30%, transparent)`,
+            }}>
+            <span aria-hidden>{tone.glyph}</span>{latest.posture}
+          </span>
+        )}
+      </div>
+      {state === 'loading' && <p className="ink-fainter text-[12.5px]" role="status">Loading posture…</p>}
+      {state === 'error' && (
+        <StatusPanel variant="error" title="Couldn't load posture." role="alert"
+          action={<button type="button" onClick={load} className="px-3 py-1.5 rounded-full font-semibold"
+            style={{ fontSize: 12, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>Retry</button>} />
+      )}
+      {state === 'ready' && latest && (
+        <>
+          <p className="ink-fainter text-[11.5px] tabular-nums mb-2">
+            Last transition {freshnessInfo(latest.created_at).label.toLowerCase()} ·
+            trigger {latest.triggered_by} · evaluator {latest.evaluator_version}
+            {latest.acknowledged_by && ` · acknowledged by ${latest.acknowledged_by}`}
+          </p>
+          <ul className="mb-3 space-y-1">
+            {latest.reasons.map((r, i) => (
+              <li key={i} className="ink-muted text-[12px] flex items-start gap-2">
+                <span aria-hidden style={{ color: tone?.color }}>•</span>
+                <span><code className="ink-fainter text-[10.5px] mr-1.5">{r.kind}{r.level ? `/${r.level}` : ''}</code>{r.text}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button type="button" disabled={busy} onClick={() => act('evaluate')}
+              className="px-3 py-1.5 rounded-full font-semibold"
+              style={{ fontSize: 12, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)', opacity: busy ? 0.6 : 1 }}>
+              Evaluate now
+            </button>
+            {latest.posture === 'SAFE' && (
+              <button type="button" disabled={busy} onClick={() => act('acknowledge')}
+                className="px-3 py-1.5 rounded-full font-semibold"
+                style={{ fontSize: 12, color: 'var(--muted-foreground)', border: '1px solid var(--border)', opacity: busy ? 0.6 : 1 }}>
+                Acknowledge recovery
+              </button>
+            )}
+            <button type="button" disabled={busy} onClick={() => act('incident/close')}
+              className="px-3 py-1.5 rounded-full font-semibold"
+              style={{ fontSize: 12, color: 'var(--muted-foreground)', border: '1px solid var(--border)', opacity: busy ? 0.6 : 1 }}>
+              Close incident
+            </button>
+          </div>
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            <input type="text" value={incidentReason} placeholder="Incident reason…"
+              onChange={(e) => setIncidentReason(e.target.value)}
+              style={{ flex: 1, minWidth: 180, height: 34, padding: '0 10px', fontSize: 12, borderRadius: 8, border: '1px solid var(--border)', backgroundColor: 'var(--surface)', color: 'var(--foreground)' }} />
+            <button type="button" disabled={busy || !incidentReason.trim()}
+              onClick={() => act('incident', { severity: 'restricted', reason: incidentReason.trim() })}
+              className="px-3 py-1.5 rounded-full font-semibold"
+              style={{ fontSize: 12, color: 'var(--muted-foreground)', border: '1px solid var(--border)', opacity: busy || !incidentReason.trim() ? 0.5 : 1 }}>
+              Declare RESTRICTED
+            </button>
+            <button type="button" disabled={busy || !incidentReason.trim()}
+              onClick={() => act('incident', { severity: 'safe', reason: incidentReason.trim() })}
+              className="px-3 py-1.5 rounded-full font-semibold"
+              style={{ fontSize: 12, color: 'oklch(0.62 0.19 25)', border: '1px solid color-mix(in oklch, oklch(0.62 0.19 25) 40%, transparent)', opacity: busy || !incidentReason.trim() ? 0.5 : 1 }}>
+              Declare SAFE
+            </button>
+          </div>
+          {actionMsg && (
+            <p className="ink-muted text-[12px] mt-2" role="alert">{actionMsg}</p>
+          )}
+          <details className="mt-3">
+            <summary className="ink-fainter text-[11.5px] cursor-pointer select-none">
+              Transition history ({events.length})
+            </summary>
+            <ul className="mt-2 space-y-1">
+              {events.map((e) => (
+                <li key={e.id} className="ink-fainter text-[11px] tabular-nums">
+                  {e.created_at?.slice(0, 19)} · {e.posture} · {e.triggered_by}
+                </li>
+              ))}
+            </ul>
+          </details>
+        </>
+      )}
+      {state === 'ready' && !latest && (
+        <p className="ink-fainter text-[12.5px]">No posture events yet — run Evaluate now.</p>
+      )}
+    </section>
+  );
+}
+
 export function AdminPreflight() {
   const [rows, setRows] = useState<VerdictRow[]>([]);
   const [state, setState] = useState<'loading' | 'ready' | 'denied' | 'error'>('loading');
@@ -157,6 +306,8 @@ export function AdminPreflight() {
         computed from stored facts only — no model, prompt, or person can
         override one; re-evaluation appends, never edits.
       </p>
+
+      <PosturePanel />
 
       {state === 'loading' && (
         <p className="ink-fainter text-[13px]" role="status">Loading verdicts…</p>

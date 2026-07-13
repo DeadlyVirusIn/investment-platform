@@ -29,6 +29,7 @@ import {
 } from '@/lib/operator/hooks';
 import { freshnessInfo } from '../lib/freshness';
 import { useSession } from '../state/SessionContext';
+import { PostureBanner } from '../components/PostureBanner';
 
 function FadeIn({
   delay = 0, children, className,
@@ -84,6 +85,7 @@ export function Briefing() {
 
   return (
     <ArthosPage topBarEyebrow="Today">
+      <PostureBanner />
       <FadeIn>
         <PageHeader eyebrow={greeting()} title={title} description={description} />
       </FadeIn>

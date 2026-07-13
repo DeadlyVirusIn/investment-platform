@@ -144,3 +144,20 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   identical to clean HEAD. Live smoke: truthful HOLD on stale dev ingest;
   READY_WITH_LIMITATIONS publish path with honest chips verified.
 - **Prod status:** not deployed; promotion gates in the spec doc.
+
+### Research Safe Mode (Wave 1B) + pf-2 hash fix — 2026-07-13
+- **Spec:** `docs/architecture/RESEARCH_SAFE_MODE.md`; preflight doc pf-2
+  addendum.
+- **Migration:** 120 (dev APPLIED after backup
+  `.backups/devdb_full_20260713_pre120.dump`; ephemeral up/down/up incl.
+  NULLS NOT DISTINCT idempotency index; prod untouched at 109).
+- **Files:** `domain/publication/posture.py` (signals/hysteresis/events),
+  `preflight.py` (pf-2 buckets + bulk path), `api/system_posture.py`,
+  worker `evaluate_system_posture`, Trust Center posture section; web
+  `PostureBanner` (Discover/Today/Pick), owner panel in AdminPreflight.
+- **Flags:** `SYSTEM_POSTURE_ENABLED=False` (off = Wave-1A byte-parity,
+  override honored, zero reads/writes — pinned).
+- **Tests:** 15+26 posture, 15 hash-boundary, Wave-1A suites re-green under
+  pf-2 (44+20), 249 web. Live drill: SAFE incident → 0 published + calm
+  banner; ack recovery path; read-path 18s→1.18s cold via bulk evaluator.
+- **Prod:** not deployed; gates in spec.

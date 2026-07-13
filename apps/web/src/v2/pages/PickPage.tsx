@@ -15,6 +15,7 @@ import { confidenceDisplay } from '../lib/confidenceDisplay';
 import { freshnessInfo } from '../lib/freshness';
 import { lsGetRaw, lsSetRaw } from '@/lib/storage';
 import { PreflightLimitations } from '../components/PreflightLimitations';
+import { PostureBanner } from '../components/PostureBanner';
 // Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
 // their VITE_DEV_* flags are '1' (absent in every normal build).
 import { AttributionWorking } from '../components/AttributionWorking';
@@ -200,6 +201,7 @@ export function PickPage() {
 
   return (
     <ArthosPage maxWidth="max-w-copy">
+      <PostureBanner />
       <button
         onClick={() => navigate(-1)}
         className="text-meta ink-fainter hover:ink-muted mb-12 inline-flex items-center gap-1.5 transition-colors"
