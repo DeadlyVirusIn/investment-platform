@@ -35,7 +35,14 @@ head; renumber if the branch has moved. One linear chain, no branches.
 
 ## Wave 1 — trust-control spine (dev-only, ~4 features, no new deps)
 
-### 1. Recommendation Publication Preflight  — flag `PUBLICATION_PREFLIGHT_ENABLED`
+### 1. Recommendation Publication Preflight — **BUILT 2026-07-12** (dev, flag-off)
+
+Shipped as specified with two deltas: flag named
+`RECOMMENDATION_PREFLIGHT_ENABLED`; table named `recommendation_preflight`.
+Authoritative record: `docs/architecture/RECOMMENDATION_PUBLICATION_PREFLIGHT.md`.
+Original spec retained below for provenance.
+
+#### Original spec — flag `PUBLICATION_PREFLIGHT_ENABLED`
 
 **Problem.** Publication checks exist but are scattered; nothing produces an
 auditable verdict of "why this idea was allowed on Discover."

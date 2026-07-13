@@ -126,3 +126,21 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   `docs/roadmap/post_elite_priority_matrix.json`. First build item:
   **Recommendation Publication Preflight** (proposed migration 119 —
   verify `alembic heads` first).
+
+### Publication Preflight (Wave 1A) — 2026-07-12
+- **Spec:** `docs/architecture/RECOMMENDATION_PUBLICATION_PREFLIGHT.md`.
+- **Migration:** 119 (dev APPLIED after backup
+  `.backups/devdb_full_20260712_pre119.dump`; ephemeral up/down/up proven;
+  prod untouched at 109).
+- **Files:** `domain/publication/{preflight,posture}.py`,
+  `api/publication_preflight.py`, seam integration in
+  `api/recommendations.py`, ORM `RecommendationPreflight`; web
+  `PreflightLimitations` chips (Discover + PickPage), owner console
+  `/admin/preflight`.
+- **Flag:** `RECOMMENDATION_PREFLIGHT_ENABLED=False` (fail-closed; off =
+  byte-identical legacy, pinned by test). Posture seam for Wave 1B:
+  `SYSTEM_POSTURE_OVERRIDE`.
+- **Tests:** 44 unit + 18 pg + 4 web, all green; unit-sweep failure set
+  identical to clean HEAD. Live smoke: truthful HOLD on stale dev ingest;
+  READY_WITH_LIMITATIONS publish path with honest chips verified.
+- **Prod status:** not deployed; promotion gates in the spec doc.
