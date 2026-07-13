@@ -108,6 +108,14 @@ function VerdictCard({ row, onReevaluate, busy }: {
         </summary>
         <ul className="mt-1.5">{row.checks.map((c) => <CheckRow key={c.check_id} c={c} />)}</ul>
       </details>
+      {/* Wave 1D — owner deep replay (API projection; full timeline UI is
+          the user history page, owner extras arrive via this endpoint). */}
+      <a href={`/api/admin/replay/${encodeURIComponent(row.recommendation_id)}`}
+        target="_blank" rel="noreferrer"
+        className="inline-block mt-3 mr-3 text-[12px] font-semibold"
+        style={{ color: 'var(--brand)' }}>
+        Owner replay →
+      </a>
       <button type="button" disabled={busy}
         onClick={() => onReevaluate(row.recommendation_id)}
         className="mt-3 px-3 py-1.5 rounded-full font-semibold"

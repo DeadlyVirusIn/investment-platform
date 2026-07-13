@@ -183,3 +183,21 @@ during their build sprints; confirmed present, `alembic current` = 117.)
 - **Prod:** not deployed; gates in spec. WebUI audit M3: CLOSED for
   desk-level + per-idea narrative (plan-zone proximity remains the
   documented residual).
+
+### Decision Replay Timeline (Wave 1D) — 2026-07-13
+- **Spec:** `docs/architecture/DECISION_REPLAY_TIMELINE.md`. Zero migration,
+  read-only, rule set replay-1. **Wave 1 (trust-control spine) COMPLETE.**
+- **Files:** `domain/recommendations/replay.py`, `api/decision_replay.py`;
+  web `IdeaHistory.tsx` (+ /today/pick/:symbol/history route), PickPage
+  history link, owner replay link in the Preflight console.
+- **Flag:** `DECISION_REPLAY_ENABLED=False`.
+- **Identity:** replay pinned to one recommendation+asset; cross-asset
+  same-symbol immunity pg-pinned. Reliable links only (outcome, preflight,
+  posture-at-time, paper via opened_by_recommendation_id/trade stamps,
+  lesson.recommendation_id); thesis = asset-level "related" label;
+  research reports deferred to Wave 2 (listed unavailable).
+- **Isolation:** principal resolved server-side; anonymous zero paper
+  events; user A/B + engine-book exclusion + principal-keyed cache pinned.
+- **Perf:** 157ms cold / 7ms warm (GE 447 rows); ≤12 queries.
+- **Tests:** 15 unit + 12 pg + 4 web; suite totals 158 backend Wave-1 /
+  260 web. **Prod:** not deployed; gates in spec.

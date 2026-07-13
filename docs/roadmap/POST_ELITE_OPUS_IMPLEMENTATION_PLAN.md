@@ -311,7 +311,7 @@ before Arena ships; promotion decisions remain owner-manual.
 ## Execution order for Opus (first feature first)
 
 1. **Recommendation Publication Preflight** (Wave 1 #1) — start here.
-2. Research Safe Mode — **BUILT 2026-07-13** → 3. What-changed — **BUILT 2026-07-13** (docs/architecture/RECOMMENDATION_DELTA_CONTRACT.md) → 4. Replay Timeline →
+2. Research Safe Mode — **BUILT 2026-07-13** → 3. What-changed — **BUILT 2026-07-13** → 4. Replay Timeline — **BUILT 2026-07-13** (docs/architecture/DECISION_REPLAY_TIMELINE.md) — **WAVE 1 COMPLETE** →
 5/6 Inbox completeness + Mission Board → 7 entity slice (after design OK) →
 8 Experiment Lab → 9 Arena → 10 ops surfaces → Wave 4 by evidence gates.
 

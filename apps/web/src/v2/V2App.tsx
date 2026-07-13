@@ -55,6 +55,7 @@ import { AdminHome, AdminFeedback, AdminJobs, AdminSystem, AdminGuard } from './
 import { AdminTrustCenter } from './pages/AdminTrustCenter';
 import { AdminResearchInbox, researchInboxEnabled } from './pages/AdminResearchInbox';
 import { AdminPreflight } from './pages/AdminPreflight';
+import { IdeaHistory } from './pages/IdeaHistory';
 // Options — read-only V2-native options subsystem visibility surface.
 import { OptionsVisibility } from './pages/OptionsVisibility';
 
@@ -132,6 +133,9 @@ function V2Surface() {
         <Route path="learn/glossary" element={<GlossaryIndex />} />
         <Route path="today" element={<Briefing />} />
         <Route path="today/pick/:symbol" element={<PickPage />} />
+        {/* Wave 1D — Decision Replay (page fails closed when the server
+            flag is off; no public nav links appear either). */}
+        <Route path="today/pick/:symbol/history" element={<IdeaHistory />} />
         {/* Phase B — options setup detail (mirrors PickPage, by observation_id). */}
         <Route path="today/options/:observationId" element={<OptionsSetupDetail />} />
         <Route path="opportunities" element={<Opportunities />} />
