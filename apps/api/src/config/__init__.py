@@ -343,9 +343,12 @@ class Settings(BaseSettings):
     # verdict projection. No LLM, no override path, fail-closed.
     RECOMMENDATION_PREFLIGHT_ENABLED: bool = False
 
-    # Wave 1B seam only (Research Safe Mode is NOT implemented yet): the
-    # posture interface consumed by preflight. Dev/test override; empty →
-    # NORMAL. Values: NORMAL | RESTRICTED | SAFE.
+    # Wave 1B — Research Safe Mode (signal-derived system posture). Default
+    # OFF → Wave-1A behavior exactly: no signals read, no events written,
+    # no posture routes, no banner; SYSTEM_POSTURE_OVERRIDE (dev/test lever)
+    # applies ONLY while this flag is off. ON → posture derives from the
+    # deterministic signal registry; the override is ignored.
+    SYSTEM_POSTURE_ENABLED: bool = False
     SYSTEM_POSTURE_OVERRIDE: str = ""
 
     # ------------------------------------------------------------------

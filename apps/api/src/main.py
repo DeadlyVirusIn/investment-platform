@@ -390,6 +390,14 @@ if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
     )
     app.include_router(publication_preflight_router, prefix="/api")
 
+if settings.SYSTEM_POSTURE_ENABLED:
+    from apps.api.src.api.system_posture import (  # noqa: E402
+        owner_router as posture_owner_router,
+        public_router as posture_public_router,
+    )
+    app.include_router(posture_public_router, prefix="/api")
+    app.include_router(posture_owner_router, prefix="/api")
+
 
 if settings.AGENT_GATEWAY_ENABLED:
     from apps.api.src.api.agent_gateway import (  # noqa: E402

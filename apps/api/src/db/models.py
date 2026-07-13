@@ -7,6 +7,7 @@ import uuid
 from decimal import Decimal
 
 from sqlalchemy import (
+    DDL,
     JSON,
     BigInteger,
     Boolean,
@@ -20,6 +21,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    event,
     text,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
@@ -2641,3 +2643,70 @@ class RecommendationPreflight(Base):
         Index("ix_rec_preflight_rec_created",
               "recommendation_id", "created_at"),
     )
+
+
+# ---------------------------------------------------------------------------
+# system_posture_event — Wave 1B Research Safe Mode append-only posture
+# ledger (migration 120). Acknowledgment/incidents are their own events;
+# no row's posture or reasons is ever updated. CHECKs mirrored for
+# create_all-based tests. The idempotency unique index uses NULLS NOT
+# DISTINCT and is created by the migration (and by conftest for the
+# create_all path) since the ORM cannot express it portably.
+# ---------------------------------------------------------------------------
+
+class SystemPostureEvent(Base):
+    __tablename__ = "system_posture_event"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    posture: Mapped[str] = mapped_column(String(16), nullable=False)
+    reasons_json: Mapped[str] = mapped_column(Text, nullable=False)
+    signal_snapshot_json: Mapped[str] = mapped_column(Text, nullable=False)
+    triggered_by: Mapped[str] = mapped_column(String(120), nullable=False)
+    previous_event_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("system_posture_event.id"), nullable=True
+    )
+    evaluator_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    evaluator_git_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    acknowledged_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    acknowledged_by: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "posture IN ('NORMAL','RESTRICTED','SAFE')",
+            name="ck_posture_event_posture",
+        ),
+        CheckConstraint(
+            "triggered_by = 'auto' OR triggered_by = 'system' "
+            "OR triggered_by LIKE 'owner:%'",
+            name="ck_posture_event_trigger",
+        ),
+        CheckConstraint(
+            "char_length(reasons_json) <= 4000",
+            name="ck_posture_event_reasons_bound",
+        ),
+        CheckConstraint(
+            "char_length(signal_snapshot_json) <= 16000",
+            name="ck_posture_event_snapshot_bound",
+        ),
+        Index("ix_posture_event_created", "created_at"),
+    )
+
+
+# create_all path (integration-test harness) must enforce the same
+# idempotency key the migration creates; alembic runs its own copy.
+event.listen(
+    SystemPostureEvent.__table__,
+    "after_create",
+    DDL(
+        "CREATE UNIQUE INDEX ux_posture_event_idempotency "
+        "ON system_posture_event "
+        "(previous_event_id, input_hash, posture, triggered_by) "
+        "NULLS NOT DISTINCT"
+    ),
+)

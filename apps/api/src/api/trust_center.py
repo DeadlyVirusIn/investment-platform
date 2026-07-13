@@ -61,6 +61,19 @@ def trust_center(db: Session = Depends(get_session)) -> dict[str, Any]:
         {"stuck_null_schedules": stuck, "overdue_jobs": overdue},
     ))
 
+    # -- Research Safe Mode posture (Wave 1B; read-only — controls live in
+    #    the owner posture console, never here) --------------------------
+    if settings.SYSTEM_POSTURE_ENABLED:
+        from apps.api.src.domain.publication import posture as _ps
+        p, _eid = _ps.current_posture_event(db)
+        sections.append(_section(
+            "Publication posture",
+            "proven" if p == "NORMAL" else "degraded",
+            "Signal-derived Research Safe Mode: SAFE pauses NEW ideas only; "
+            "existing ideas, portfolios and paper exits are never affected.",
+            {"posture": p},
+        ))
+
     # -- data freshness: newest daily bar age ------------------------------
     newest_bar = db.execute(text(
         "SELECT max(ts) FROM price_bar WHERE timeframe = '1d'"
