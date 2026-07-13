@@ -16,6 +16,7 @@ import { freshnessInfo } from '../lib/freshness';
 import { lsGetRaw, lsSetRaw } from '@/lib/storage';
 import { PreflightLimitations } from '../components/PreflightLimitations';
 import { PostureBanner } from '../components/PostureBanner';
+import { WhatChangedSection } from '../components/WhatChanged';
 // Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
 // their VITE_DEV_* flags are '1' (absent in every normal build).
 import { AttributionWorking } from '../components/AttributionWorking';
@@ -404,6 +405,12 @@ export function PickPage() {
           Layer-3 trace. */}
       <FadeIn delay={0.09}>
         <BothSidesCard rec={rec} />
+      </FadeIn>
+
+      {/* Wave 1C — narrative slot 4: what changed since the previous
+          update. Renders nothing when the delta flag is off. */}
+      <FadeIn delay={0.1}>
+        <WhatChangedSection symbol={rec.symbol ?? undefined} />
       </FadeIn>
 
       {/* Risks now live in the Bulls-vs-Bears card above; keep only the

@@ -30,6 +30,20 @@ import {
 import { freshnessInfo } from '../lib/freshness';
 import { useSession } from '../state/SessionContext';
 import { PostureBanner } from '../components/PostureBanner';
+import { useRecDelta, compactChangeNote } from '../components/WhatChanged';
+
+// Wave 1C — enrich the what-changed strip with the top idea's real delta
+// (one line, only when genuinely meaningful; aggregate counts stay honest).
+function TopIdeaChangeNote({ symbol }: { symbol: string | undefined }) {
+  const delta = useRecDelta(symbol);
+  const note = compactChangeNote(delta);
+  if (!note || !symbol) return null;
+  return (
+    <span className="ink-primary" style={{ fontSize: 13.5 }}>
+      {symbol}: {note.toLowerCase()}
+    </span>
+  );
+}
 
 function FadeIn({
   delay = 0, children, className,
@@ -123,6 +137,7 @@ export function Briefing() {
                 </span>
               );
             })()}
+            <TopIdeaChangeNote symbol={top?.symbol ?? undefined} />
             <span className="ink-muted" style={{ fontSize: 13 }}>
               {hasBuys
                 ? 'Next: read the working below, then practice it with paper money.'

@@ -161,3 +161,25 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   pf-2 (44+20), 249 web. Live drill: SAFE incident → 0 published + calm
   banner; ack recovery path; read-path 18s→1.18s cold via bulk evaluator.
 - **Prod:** not deployed; gates in spec.
+
+### "What changed?" delta (Wave 1C) — 2026-07-13
+- **Spec:** `docs/architecture/RECOMMENDATION_DELTA_CONTRACT.md`. Zero
+  migration, read-only, rule set delta-1.
+- **Files:** `domain/recommendations/delta.py`, `api/recommendation_delta.py`;
+  web `WhatChanged.tsx` (PickPage slot-4 section, Discover featured note,
+  Briefing strip one-liner, Inbox supersedes helper).
+- **Flag:** `REC_DELTA_ENABLED=False` (route absent, responses
+  byte-compatible, zero extra queries).
+- **Prior rule:** same-asset `(generated_at, id)` strictly-earlier tuple;
+  cross-asset/duplicate-timestamp safe (pinned).
+- **Consumes persisted preflight/posture/outcome facts only — never
+  evaluates, never writes.** Thesis-revision category honestly omitted (no
+  stored rec↔revision link); plan-zone proximity unavailable by design
+  (plan not persisted) — stored-price movement + outcome barriers cover it.
+- **Perf:** 127ms cold / 8ms warm (GE, 447 rows); ≤10 queries/delta.
+  Shipped alongside: preflight request cap now bounds cold evaluations
+  only (was silently truncating the 500-limit Discover request to 250).
+- **Tests:** 39 unit + 12 pg + 1 cap regression + 7 web; all gates green.
+- **Prod:** not deployed; gates in spec. WebUI audit M3: CLOSED for
+  desk-level + per-idea narrative (plan-zone proximity remains the
+  documented residual).

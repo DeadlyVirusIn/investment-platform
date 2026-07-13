@@ -23,6 +23,7 @@ import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis, ideaOneLiner } from '../lib/plainText';
 import { PreflightLimitations } from '../components/PreflightLimitations';
 import { PostureBanner } from '../components/PostureBanner';
+import { useRecDelta, compactChangeNote } from '../components/WhatChanged';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
@@ -293,6 +294,10 @@ function ActionPill({ action }: { action: string }) {
 
 function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
   const action = effectiveAction(rec) ?? 'Hold';
+  // Wave 1C — one compact change note on the FEATURED card only (no
+  // per-card fetch clutter); renders only when genuinely meaningful.
+  const delta = useRecDelta(featured ? rec.symbol ?? undefined : undefined);
+  const changeNote = featured ? compactChangeNote(delta) : null;
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
       {/* Identity — ticker badge top-left + the action call; company name on its
@@ -310,6 +315,12 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
         {sectorLabel(rec.sector) && <SmallChip>{sectorLabel(rec.sector)}</SmallChip>}
         <SmallChip>{confidenceDisplay(rec.confidence_label)}</SmallChip>
       </div>
+      {changeNote && (
+        <p className="ink-muted flex items-center gap-1.5" style={{ fontSize: 12 }}>
+          <span aria-hidden style={{ color: 'oklch(0.70 0.14 75)' }}>↷</span>
+          {changeNote}
+        </p>
+      )}
       {ideaOneLiner(rec.thesis, rec.family_scores) && (
         <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
           {ideaOneLiner(rec.thesis, rec.family_scores)}
