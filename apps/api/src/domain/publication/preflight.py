@@ -1029,9 +1029,15 @@ def _bulk_load_inputs(
 
 def ensure_current_verdicts_bulk(
     db: Session, recs: list[Recommendation],
+    max_evaluations: int | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Batched ensure_current_verdict: same exact-hash publication guarantee
-    and fail-closed behavior, ~7 queries + one batched idempotent insert."""
+    and fail-closed behavior, ~7 queries + one batched idempotent insert.
+
+    ``max_evaluations`` bounds COLD evaluations only — hash-matched lookups
+    are unlimited (steady state: every candidate resolves by lookup).
+    Candidates needing evaluation beyond the cap fail CLOSED (synthetic
+    HOLD) rather than being silently dropped from the response."""
     try:
         inputs = _bulk_load_inputs(db, recs)
         hashes = {rid: inp.input_hash() for rid, inp in inputs.items()}
@@ -1053,10 +1059,24 @@ def ensure_current_verdicts_bulk(
 
         to_insert: list[dict[str, Any]] = []
         results: dict[str, dict[str, Any]] = {}
+        evals = 0
         for rid, inp in inputs.items():
             if rid in existing:
                 results[rid] = existing[rid]
                 continue
+            if max_evaluations is not None and evals >= max_evaluations:
+                results[rid] = {
+                    "recommendation_id": rid, "verdict": "HOLD",
+                    "rule_set_version": RULE_SET_VERSION, "input_hash": None,
+                    "checks_json": "[]", "limitations_json": "[]",
+                    "blocking_reasons_json": "[]",
+                    "evaluated_at": inp.now,
+                    "evaluator_git_sha": inp.evaluator_git_sha,
+                    "source_freshness_at": None, "synthetic": True,
+                    "capped": True,
+                }
+                continue
+            evals += 1
             res = evaluate(inp)
             params = {
                 "id": str(uuid.uuid4()), "rid": rid, "verdict": res.verdict,

@@ -404,3 +404,29 @@ def test_bulk_loader_fails_closed(pg_session: Session,
     rows = _pf.ensure_current_verdicts_bulk(pg_session, [rec])
     assert rows[rec.id]["verdict"] == "HOLD"
     assert rows[rec.id].get("synthetic") is True
+
+
+def test_bulk_cap_bounds_cold_evaluations_not_lookups(
+    pg_session: Session,
+) -> None:
+    """The per-request cap limits COLD evaluations only; already-verdicted
+    candidates resolve by lookup and capped-out ones fail closed to HOLD."""
+    from apps.api.src.domain.publication.preflight import (
+        ensure_current_verdicts_bulk,
+    )
+    a1 = _mk_asset(pg_session, "CAPA")
+    a2 = _mk_asset(pg_session, "CAPB")
+    for a in (a1, a2):
+        _mk_bar(pg_session, a.id)
+    _seed_ingest_success(pg_session)
+    r1 = _mk_rec(pg_session, a1.id)
+    r2 = _mk_rec(pg_session, a2.id)
+    # pre-verdict r1, then cap evaluations at 0: r1 resolves by lookup,
+    # r2 fails closed (capped), neither silently dropped.
+    ensure_current_verdicts_bulk(pg_session, [r1])
+    rows = ensure_current_verdicts_bulk(pg_session, [r1, r2],
+                                        max_evaluations=0)
+    assert set(rows) == {r1.id, r2.id}
+    assert rows[r1.id]["verdict"] == "READY_WITH_LIMITATIONS"
+    assert rows[r2.id]["verdict"] == "HOLD"
+    assert rows[r2.id].get("capped") is True

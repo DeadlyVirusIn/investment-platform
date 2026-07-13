@@ -190,8 +190,11 @@ def list_recommendations(
         # harmless but wasteful).
         published: list[Recommendation] = []
         with _preflight_gate_lock:
-            batch = recs[:MAX_PREFLIGHT_EVALS_PER_REQUEST]
-            rows = ensure_current_verdicts_bulk(session, batch)
+            batch = recs
+            rows = ensure_current_verdicts_bulk(
+                session, batch,
+                max_evaluations=MAX_PREFLIGHT_EVALS_PER_REQUEST,
+            )
         for r in batch:
             row = rows.get(r.id) or {}
             if row.get("verdict") in ("READY", "READY_WITH_LIMITATIONS"):
