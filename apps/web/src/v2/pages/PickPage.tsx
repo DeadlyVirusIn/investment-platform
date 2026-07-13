@@ -14,6 +14,7 @@ import { ApiError } from '@/lib/api';
 import { confidenceDisplay } from '../lib/confidenceDisplay';
 import { freshnessInfo } from '../lib/freshness';
 import { lsGetRaw, lsSetRaw } from '@/lib/storage';
+import { PreflightLimitations } from '../components/PreflightLimitations';
 // Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
 // their VITE_DEV_* flags are '1' (absent in every normal build).
 import { AttributionWorking } from '../components/AttributionWorking';
@@ -241,6 +242,7 @@ export function PickPage() {
             </span>
           </div>
           <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-2" />
+          <PreflightLimitations rec={rec} />
           {/* Phase 4 — beginner-safe explanation of what "confidence" means. */}
           <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
             Confidence means how strongly Arth’s model supports this idea based on

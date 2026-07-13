@@ -21,6 +21,7 @@ import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
 import { plainThesis, ideaOneLiner } from '../lib/plainText';
+import { PreflightLimitations } from '../components/PreflightLimitations';
 import { sectorLabel } from '../lib/companyMeta';
 import { CompanyTitle } from '../components/CompanyTitle';
 import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
@@ -315,6 +316,7 @@ function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
       {/* Pricing — Last close / Entry / Target / Exit-if-wrong on every stock
           idea card (featured shows it full, the list compact). */}
       <div className="mt-3"><PlanRows rec={rec} compact={!featured} /></div>
+      <PreflightLimitations rec={rec} compact />
       <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-3" />
       <div className="flex items-center gap-4 mt-4">
         <Link to={`/today/pick/${rec.symbol}`}

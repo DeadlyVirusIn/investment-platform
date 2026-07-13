@@ -54,6 +54,7 @@ import { Observability } from './pages/Observability';
 import { AdminHome, AdminFeedback, AdminJobs, AdminSystem, AdminGuard } from './pages/Admin';
 import { AdminTrustCenter } from './pages/AdminTrustCenter';
 import { AdminResearchInbox, researchInboxEnabled } from './pages/AdminResearchInbox';
+import { AdminPreflight } from './pages/AdminPreflight';
 // Options — read-only V2-native options subsystem visibility surface.
 import { OptionsVisibility } from './pages/OptionsVisibility';
 
@@ -119,6 +120,9 @@ function V2Surface() {
         {researchInboxEnabled() && (
           <Route path="admin/research-inbox" element={<AdminResearchInbox />} />
         )}
+        {/* Wave 1A — owner preflight console. Server routes owner-gated AND
+            flag-mounted; page fails closed to owner-only panel otherwise. */}
+        <Route path="admin/preflight" element={<AdminPreflight />} />
         <Route path="learn" element={<LearnHome />} />
         <Route path="learn/lesson/:slug" element={<LessonPage />} />
         {/* Lovable port (Phase 4) — academy + glossary index. */}

@@ -160,6 +160,15 @@ export interface RecApi {
   family_scores: Record<string, string | null> | null;
   policy: unknown;
   policy_adjustments: unknown[] | null;
+  // Wave 1A — read-safe publication-preflight projection. Present only when
+  // RECOMMENDATION_PREFLIGHT_ENABLED on the API; verdicts here are always
+  // READY or READY_WITH_LIMITATIONS (HOLD/BLOCKED never reach this list).
+  preflight?: {
+    verdict: 'READY' | 'READY_WITH_LIMITATIONS';
+    limitations: string[];
+    evaluated_at: string | null;
+    freshness_summary: string | null;
+  } | null;
 }
 
 export interface RecDiagnostics {
