@@ -13,15 +13,16 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { SurfaceCard } from './ui/SurfaceCard';
+import { TickerBadge } from './IdeaIdentity';
 import type { PresentedOption, BiasTone, ActionTone } from '../lib/optionsPresent';
 
 const AMBER = 'oklch(0.70 0.14 75)';
 
-export const OPTIONS_TAB_HREF = '/v2/opportunities?tab=options';
+export const OPTIONS_TAB_HREF = '/opportunities?tab=options';
 
 /** Detail route for a single setup (Phase B). */
 export function optionDetailHref(observationId: number): string {
-  return `/v2/today/options/${observationId}`;
+  return `/today/options/${observationId}`;
 }
 
 function toneColor(tone: BiasTone): string {
@@ -107,10 +108,8 @@ export function OptionsSetupCard({
       )}
 
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-baseline gap-3 flex-wrap min-w-0">
-          <span className="font-mono ink-primary tabular-nums" style={{ fontSize: featured ? 24 : 18 }}>
-            {opt.underlying}
-          </span>
+        <div className="flex items-center gap-3 flex-wrap min-w-0">
+          <TickerBadge symbol={opt.underlying} size={featured ? 'lg' : 'md'} />
           <span className="ink-primary" style={{ fontSize: featured ? 16 : 14, fontWeight: 600 }}>
             {opt.strategyName}
           </span>
@@ -201,8 +200,8 @@ export function OptionsSetupRow({
       to={href ?? optionDetailHref(opt.observationId)}
       className="flex items-center justify-between gap-3 py-2"
     >
-      <span className="flex items-baseline gap-2 min-w-0">
-        <span className="font-mono ink-primary" style={{ fontSize: 13.5 }}>{opt.underlying}</span>
+      <span className="flex items-center gap-2 min-w-0">
+        <TickerBadge symbol={opt.underlying} size="sm" />
         <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{opt.strategyName}</span>
       </span>
       <span className="shrink-0 tabular-nums flex items-baseline gap-1.5" style={{ fontSize: 12.5 }}>

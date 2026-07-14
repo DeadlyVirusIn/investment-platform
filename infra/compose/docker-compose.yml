@@ -51,6 +51,8 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-info}
       # Marker dir mounted from worker-cron volume (read-only).
       SCHEDULER_MARKER_DIR: /var/scheduler_markers
+      # Admin-1 — owner allowlist for the /api/admin/* guard (api only).
+      ARTHOS_OWNER_EMAILS: ${ARTHOS_OWNER_EMAILS:-}
       ML_HYBRID_ENABLED: ${ML_HYBRID_ENABLED:-false}
       ML_HYBRID_MODE: ${ML_HYBRID_MODE:-advisory}
       ML_HYBRID_REQUIRE_CALIBRATION: ${ML_HYBRID_REQUIRE_CALIBRATION:-true}
@@ -142,6 +144,11 @@ services:
       # /api/performance/paper/pending-fills endpoint can see them.
       # Operator-written by run_paper_daily_safe outside the container.
       - ../../artifacts:/app/artifacts:ro
+      # Admin-2 — host healthcheck status DIR, read-only, for /api/admin/system.
+      # Directory bind-mount (NOT the docker socket, NOT a single file) so the
+      # healthcheck's atomic tmp+mv rewrite (new inode each run) is always seen
+      # by the api. The api reads /var/health/status.json.
+      - ${ARTHOS_HEALTH_DIR_HOST:-/home/opc/arthos-health}:/var/health:ro
     depends_on:
       db:
         condition: service_healthy
@@ -175,6 +182,8 @@ services:
       SCHEDULER_TZ: ${SCHEDULER_TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 2 — refresh_company_names (nightly) needs Polygon for names.
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
       # Phase 11W follow-up — run_engine_pipeline.py calls
       # backfill_macro_features which requires FRED_API_KEY. Without
       # this propagation the daily loop's macro_backfill stage exits
@@ -289,6 +298,8 @@ services:
       TZ: ${TZ:-America/New_York}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       TIINGO_API_KEY: ${TIINGO_API_KEY}
+      # Phase 2 — refresh_company_names (nightly) needs Polygon for names.
+      POLYGON_API_KEY: ${POLYGON_API_KEY:-}
       # Phase 11W follow-up — run_engine_pipeline.py calls
       # backfill_macro_features which requires FRED_API_KEY. Without
       # this propagation the daily loop's macro_backfill stage exits

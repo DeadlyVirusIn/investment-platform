@@ -104,3 +104,22 @@ def test_run_exit_cycle_default_scans_all_portfolios(pg_session: Session) -> Non
     assert res.scanned >= 2
     assert _is_open(pg_session, asset_a) is False
     assert _is_open(pg_session, asset_b) is False
+
+
+def test_run_exit_cycle_never_touches_user_books(pg_session: Session) -> None:
+    """P1 incident 2026-07-08: engine exit rules (TP/SL/max-hold) must never
+    force-sell positions inside a per-user practice book (``user:<id>:stock``)."""
+    user_pf, user_asset = _seed_portfolio_with_tp_position(
+        pg_session, name="user:exit-guard-user:stock", symbol="USR")
+    engine_pf, engine_asset = _seed_portfolio_with_tp_position(
+        pg_session, name="replay:engine-guard", symbol="ENG")
+    pg_session.commit()
+
+    res = run_exit_cycle(
+        pg_session, as_of=TODAY, portfolio_id=None,
+        take_profit_pct=Decimal("0.05"), commit=True,
+    )
+
+    assert _is_open(pg_session, engine_asset) is False   # engine book exits fire
+    assert _is_open(pg_session, user_asset) is True      # user book untouched
+    assert all(c.get("portfolio_id") != user_pf for c in res.closed)

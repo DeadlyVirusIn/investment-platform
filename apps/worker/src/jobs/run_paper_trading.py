@@ -25,7 +25,11 @@ from apps.api.src.domain.paper_trading.auto_trader import (
     AutoTradeConfig,
     auto_trade_portfolio,
 )
-from apps.api.src.domain.paper_trading.paper_service import snapshot_equity_now
+from apps.api.src.domain.paper_trading.paper_service import (
+    engine_tradable_portfolio_ids,
+    snapshot_equity_now,
+    user_paper_book_ids,
+)
 from apps.api.src.reasoning.audit import record_envelope
 from apps.api.src.reasoning.worker_integration import (
     generate_envelope_for_paper_trade,
@@ -57,6 +61,30 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
     submission timestamps are anchored to 15:00 UTC on as_of so next-bar
     fills land on the correct historical open.
     """
+    # P0-5 exactly-once guard. auto_trader is reachable via two independent
+    # scheduled paths (tick-loop claim + supercronic run_paper_daily); acquire
+    # a per-trading-day execution lease so only ONE executor proceeds. The
+    # loser no-ops cleanly (no ERROR, no duplicate attempt) — the unique trade
+    # constraint stays as defense-in-depth. Gated on PAPER_EXECUTION_LEASE_ENABLED
+    # (default OFF → byte-identical legacy behavior until the lease table ships).
+    from apps.api.src.config import settings as _settings
+
+    _lease_handle = None
+    _lease = None
+    if bool(getattr(_settings, "PAPER_EXECUTION_LEASE_ENABLED", False)):
+        from apps.api.src.domain.scheduling import execution_lease as _lease
+        _lease_key = _lease.daily_key("run_paper_trading", as_of)
+        with SessionLocal() as _ls:
+            _lease_handle = _lease.acquire(_ls, _lease_key)
+            _ls.commit()
+        if _lease_handle is None:
+            logger.info(
+                "run_paper_trading: lease {} held by another executor — "
+                "skipping (exactly-once, not an error)", _lease_key)
+            return
+        logger.info("run_paper_trading: acquired lease {} fence={}",
+                    _lease_handle.lease_key, _lease_handle.fence)
+
     if as_of is not None:
         now = dt.datetime.combine(as_of, dt.time(15, 0), tzinfo=dt.timezone.utc)
     else:
@@ -114,15 +142,25 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
     total_rejected = 0
 
     with SessionLocal() as session:
-        portfolio_ids = [
-            p.id for p in session.scalars(
-                select(PaperPortfolio).where(PaperPortfolio.is_active.is_(True))
-            )
-        ]
+        # P1 2026-07-08: engine-tradable only — per-user books (user:<id>:stock)
+        # are excluded so the auto-trader never spends a user's practice cash.
+        portfolio_ids = engine_tradable_portfolio_ids(session)
 
     for portfolio_id in portfolio_ids:
         try:
             with SessionLocal() as session:
+                # P0-5 fencing: before mutating THIS portfolio, prove we still
+                # own the lease. If a slow run's lease expired and another
+                # executor stole it (higher fence), verify_ownership is False
+                # and we STOP before any further trade write — a stale former
+                # holder can never overlap the new owner's mutations.
+                if _lease_handle is not None and not _lease.verify_ownership(
+                    session, _lease_handle
+                ):
+                    logger.warning(
+                        "run_paper_trading: lost lease {} (fenced out) — "
+                        "stopping before further mutations", _lease_handle.lease_key)
+                    break
                 portfolio = session.get(PaperPortfolio, portfolio_id)
                 if portfolio is None:
                     continue
@@ -324,6 +362,27 @@ async def run_paper_trading(as_of: dt.date | None = None) -> None:
                 )
         except Exception as exc:  # noqa: BLE001 — one portfolio must not kill the job
             logger.error("run_paper_trading failed for {}: {}", portfolio_id, exc)
+
+    # P1 2026-07-08: user books are never TRADED by the engine, but their
+    # daily equity snapshot must still be produced — /api/paper/canonical/stock
+    # reads the latest source='live' snapshot for the portfolio page. Live
+    # runs only (replay is engine history; user books have none).
+    if as_of is None:
+        with SessionLocal() as session:
+            user_book_ids = user_paper_book_ids(session)
+        snapped = 0
+        for pid in user_book_ids:
+            try:
+                with SessionLocal() as session:
+                    portfolio = session.get(PaperPortfolio, pid)
+                    if portfolio is None:
+                        continue
+                    snapshot_equity_now(session, portfolio, as_of=now, source="live")
+                    session.commit()
+                    snapped += 1
+            except Exception as exc:  # noqa: BLE001 — observe-only, never abort
+                logger.error("user-book snapshot failed for {}: {}", pid, exc)
+        logger.info("user-book snapshots: {}/{}", snapped, len(user_book_ids))
 
     logger.info(
         "run_paper_trading complete: decisions={} executed={} rejected={}",

@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-07-09** — describes the pre-auth single-user Phase-0 design
+> (2026-04); superseded by the live system: session auth in apps/api/src/api/auth_session.py, DB tick-loop scheduler in apps/worker/src/scheduler/tick_loop.py, provider chain in apps/api/src/domain/prices/.
+> Kept for history; do not use for implementation.
+
 # Architecture
 
 ## Overview

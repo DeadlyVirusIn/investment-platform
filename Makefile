@@ -128,6 +128,11 @@ seed:
 	$(COMPOSE) exec api alembic -c infra/alembic/alembic.ini upgrade head
 	$(COMPOSE) exec api python -m scripts.seed_symbols
 
+## MVP — seed curated model portfolios + compute track records (idempotent).
+## Run after `make migrate`/`make seed` so the model_portfolio tables exist.
+seed-model-portfolios:
+	$(COMPOSE) exec api python -m scripts.seed_model_portfolios
+
 ## Run Python linters (ruff + mypy)
 lint:
 	ruff check .
@@ -136,6 +141,53 @@ lint:
 ## Run backend test suite
 test:
 	pytest --tb=short -q
+
+.PHONY: test-auth
+## M1/M1B auth coverage — build the test image (INSTALL_TEST_DEPS=true brings in
+## pytest) and run the auth + isolation suite against the ISOLATED test DB.
+## Run before merging ANY public-auth change so M1/M1A/M1B coverage can't be
+## skipped accidentally. Requires the dev `db` service + investment_platform_test.
+test-auth:
+	docker build -f infra/docker/api.Dockerfile --build-arg INSTALL_TEST_DEPS=true -t arthos-api-test .
+	docker run --rm --network compose_backend \
+	  -e TEST_DATABASE_URL=postgresql+psycopg://invest:dev_only_password@db:5432/investment_platform_test \
+	  -e INTEGRATION_DB_ALLOW_UNSAFE=1 arthos-api-test \
+	  python -m pytest apps/api/tests/integration/test_accounts_m1_pg.py \
+	    apps/api/tests/integration/test_login_rate_limit_pg.py \
+	    apps/api/tests/integration/test_auth_ops_m1c_pg.py \
+	    apps/api/tests/integration/test_profile_pg.py \
+	    apps/api/tests/integration/test_feedback_pg.py \
+	    apps/api/tests/integration/test_feedback_report_pg.py \
+	    apps/api/tests/unit/test_feedback_report.py \
+	    apps/api/tests/integration/test_paper_user_portfolio_pg.py \
+	    apps/api/tests/unit/test_agent_gateway_tokens.py \
+	    apps/api/tests/integration/test_agent_gateway_pg.py \
+	    apps/api/tests/integration/test_agent_gateway_http_pg.py \
+	    apps/api/tests/integration/test_agent_jobs_pg.py \
+	    apps/api/tests/integration/test_elite_authz_matrix_pg.py \
+	    apps/api/tests/integration/test_scheduler_pg.py --no-header -q
+
+.PHONY: prune-login-attempts
+## M1C — delete old login_attempt rows (honors AUTH_LOGIN_ATTEMPT_RETENTION_DAYS;
+## never prunes rows within the active window+lockout horizon). Manual/admin run.
+prune-login-attempts:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/prune_login_attempts.py"
+
+.PHONY: feedback-report feedback-report-json feedback-report-7d
+## M5A — anonymized demand-validation report from user_feedback_signal.
+feedback-report:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py"
+feedback-report-json:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py --json"
+feedback-report-7d:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/report_feedback_signals.py --days 7"
+
+.PHONY: public-beta-preflight public-beta-preflight-prod
+## M6 — read-only deploy preflight. dev never blocks; prod exits 1 on any error.
+public-beta-preflight:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/preflight_public_beta.py --mode dev"
+public-beta-preflight-prod:
+	docker exec compose-api-1 sh -lc "cd /app && PYTHONPATH=/app python scripts/preflight_public_beta.py --mode prod"
 
 ## Start Vite dev server (frontend only — backend must already be up)
 web-dev:

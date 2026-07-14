@@ -50,6 +50,27 @@ export function strategyName(ruleId: string): string {
   return STRATEGY_META[ruleId]?.name ?? titleCase(ruleId);
 }
 
+// Plain-English strategy label for BEGINNER cards. The real strategy name
+// (strategyName) is kept as secondary text so users still learn the term;
+// the detail page shows the real name only. Falls back to null when unknown
+// (caller then shows the real name alone — never a raw id).
+const STRATEGY_PLAIN: Record<string, string> = {
+  IRON_CONDOR: 'Stays-in-range play',
+  SHORT_PUT_CREDIT_SPREAD: 'Mild-up income play',
+  SHORT_CALL_CREDIT_SPREAD: 'Mild-down income play',
+  BULL_CALL_SPREAD: 'Up play (capped)',
+  BEAR_PUT_SPREAD: 'Down play (capped)',
+  LONG_CALL: 'Up bet (capped cost)',
+  LONG_PUT: 'Down bet (capped cost)',
+  LONG_STRADDLE: 'Big-move play',
+  LONG_STRANGLE: 'Big-move play',
+  CALENDAR_SPREAD: 'Timing play',
+};
+
+export function strategyPlain(ruleId: string): string | null {
+  return STRATEGY_PLAIN[ruleId] ?? null;
+}
+
 /** Directional tone for color/dot. Falls back to the candidate's bias word. */
 export function strategyTone(ruleId: string, bias?: string | null): BiasTone {
   const meta = STRATEGY_META[ruleId];
@@ -461,6 +482,7 @@ export interface PresentedOption {
   confidence: number;          // 0–100
   confidenceLabel: 'High' | 'Medium' | 'Low';
   dte: number;
+  expiry: string | null;            // ISO date the option expires
   premiumLabel: string | null;
   liquidityLabel: string | null;
   thesis: string | null;
@@ -494,6 +516,7 @@ export function presentOption(o: OptionsOpportunity): PresentedOption {
     confidence,
     confidenceLabel: confidenceLabel(confidence),
     dte: o.dte,
+    expiry: o.expiry,
     premiumLabel: premiumLabel(o.premium_tier),
     liquidityLabel: liquidityLabel(o.liquidity_tier),
     thesis: thesisLine(o),

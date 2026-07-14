@@ -7,18 +7,37 @@
 //   03 Passed for now      — Trim (engine said reduce/avoid)
 // Empty-day variant derives from /recommendations/diagnostics.
 
-import { Link, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
-import { OpportunitiesOptionsSection } from '../components/OpportunitiesOptionsSection';
-import { useOptionsAvailability } from '../lib/optionsAvailability';
+import { confidenceDisplay } from '../lib/confidenceDisplay';
+import {
+  ModelPortfoliosSection,
+  SocialProofStrip,
+  TrendingThemes,
+} from '../components/ModelPortfolioCards';
 import { PageHeader } from '../components/ui/PageHeader';
 import { SurfaceCard } from '../components/ui/SurfaceCard';
 import { ArthVoice } from '../chrome/ArthVoice';
 import { TrustBanner } from '../components/TrustBanner';
-import { CONFIDENCE_DOCTRINE } from '../lib/copy';
+import { plainThesis, ideaOneLiner } from '../lib/plainText';
+import { PreflightLimitations } from '../components/PreflightLimitations';
+import { PostureBanner } from '../components/PostureBanner';
+import { useRecDelta, compactChangeNote } from '../components/WhatChanged';
+import { sectorLabel } from '../lib/companyMeta';
+import { CompanyTitle } from '../components/CompanyTitle';
+import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
+import { ProofPulse } from '../components/ProofPulse';
+import { ReviewerProof } from '../components/ReviewerProof';
+import { PlanRows } from '../components/PlanRows';
+import { ContinuePathCard } from '../components/ContinuePathCard';
+import { ProgressSpine } from '../components/ProgressSpine';
+import { PortfolioComparison } from '../components/PortfolioComparison';
+import { OptionsAdvancedSection } from '../components/OptionsAdvancedSection';
 import {
   useTodaysRecommendations,
   useRecommendationDiagnostics,
+  useCanonicalStockPortfolio,
   effectiveAction,
   confidenceNum,
   type RecApi,
@@ -27,20 +46,9 @@ import {
 export function Opportunities() {
   const { data, isLoading, isError } = useTodaysRecommendations();
   const { data: diag } = useRecommendationDiagnostics();
+  const { data: book } = useCanonicalStockPortfolio();
+  const paperCount = book?.open_positions_count ?? 0;
   const recs: RecApi[] = data?.recommendations ?? [];
-  const avail = useOptionsAvailability();
-  // Tab is URL-driven so the Today CTA (/v2/opportunities?tab=options) lands
-  // directly on the options tab, and the view is shareable.
-  const [sp, setSp] = useSearchParams();
-  const tabParam = sp.get('tab');
-  const tab: 'all' | 'stocks' | 'options' =
-    tabParam === 'stocks' || tabParam === 'options' ? tabParam : 'all';
-  const setTab = (t: 'all' | 'stocks' | 'options') => {
-    const next = new URLSearchParams(sp);
-    if (t === 'all') next.delete('tab');
-    else next.set('tab', t);
-    setSp(next, { replace: true });
-  };
 
   const byConf = (a: RecApi, b: RecApi) => confidenceNum(b) - confidenceNum(a);
   const buys = recs.filter((r) => effectiveAction(r) === 'Buy').sort(byConf);
@@ -49,40 +57,37 @@ export function Opportunities() {
   const alsoConsider = buys.slice(1);
   const dist = diag?.action_distribution ?? {};
   const evaluated = diag?.total ?? null;
+  const [tab, setTab] = useState<DiscoverTab>('stocks');
+  const [showAllAlso, setShowAllAlso] = useState(false);
+  const [showCautious, setShowCautious] = useState(false);
 
   return (
-    <ArthosPage topBarEyebrow="Opportunities">
+    <ArthosPage topBarEyebrow="Discover">
+      <PostureBanner />
       <PageHeader
-        eyebrow="Opportunities"
-        title={<>The rest of<br />the desk.</>}
-        description="Everything the engine surfaced today — ranked by confidence, sourced live. The strongest also leads Today."
+        eyebrow="Discover"
+        title={<>Ideas you can<br />follow and prove.</>}
+        description="Follow a ready-made portfolio, explore a theme, or add a single idea — each one explained in plain English and tracked in your free practice account."
       />
 
-      <div className="mb-6"><TrustBanner /></div>
+      <DiscoverTabs tab={tab} onChange={setTab} />
 
-      {/* P1.3 — confidence doctrine (shared SSOT) */}
-      <p className="ink-fainter text-[12px] leading-relaxed mb-6 max-w-narrative">
-        {CONFIDENCE_DOCTRINE}
-      </p>
-
-      <OppSegment
-        tab={tab}
-        setTab={setTab}
-        stockCount={buys.length}
-        optionsCount={avail.compatible}
-      />
-
-      {tab !== 'options' && (
-      <>
+      {tab === 'stocks' && (
+        <>
+      {/* Market context now lives in the GLOBAL running ticker (ArthosChrome,
+          under the top bar on every page), so no per-page strip here. */}
+      {/* Hierarchy: ideas are the PRIMARY action — they lead, directly under
+          the hero. Progress cluster, portfolios, comparison and context follow.
+          (Reordered from the prior portfolios-first layout.) */}
       {isLoading && (
         <SurfaceCard variant="muted" className="p-6">
-          <p className="ink-muted" style={{ fontSize: 14 }}>Loading the desk…</p>
+          <p className="ink-muted" style={{ fontSize: 14 }}>Loading today's ideas…</p>
         </SurfaceCard>
       )}
       {isError && (
         <SurfaceCard variant="default" className="p-6">
           <p style={{ fontSize: 14, color: 'var(--destructive)', fontWeight: 600 }}>
-            Couldn't load recommendations right now.
+            Couldn't load ideas right now.
           </p>
         </SurfaceCard>
       )}
@@ -90,96 +95,258 @@ export function Opportunities() {
       {data && (
         <>
           {buys.length === 0 ? (
-            <Section number="01" title="Cash is the call today">
+            <Section number="01" title="No new ideas today">
               <SurfaceCard variant="highlight" className="p-7">
                 <ArthVoice mode="opening">
                   {evaluated != null
-                    ? `${evaluated} recommendations evaluated today; none cleared the Buy threshold (${dist['Hold'] ?? 0} Hold, ${dist['Trim'] ?? 0} Trim). I'd rather show you nothing than manufacture a trade.`
-                    : 'No actionable Buy recommendations right now.'}
+                    ? `ArthOS looked at ${evaluated} companies today and none stand out as a clear buy right now (${dist['Hold'] ?? 0} to hold, ${dist['Trim'] ?? 0} to trim). We'd rather show you nothing than push a weak idea.`
+                    : 'No standout ideas right now — check back tomorrow.'}
                 </ArthVoice>
               </SurfaceCard>
             </Section>
           ) : (
             <>
-              <Section number="01" title="Top opportunity">
+              <Section number="01" title="Today's top idea">
                 {hero && <RecCard rec={hero} featured />}
               </Section>
+              {/* Proof surfaces — ReviewerProof (signed-out reviewers: demo
+                  record + how-to-read + CTAs) / ProofPulse (signed-in testers:
+                  own book + beta pulse). Each self-gates by auth; one shows. */}
+              <ReviewerProof />
+              <ProofPulse />
               {alsoConsider.length > 0 && (
-                <Section number="02" title="Also consider">
+                <Section number="02" title="Also worth a look">
                   <div className="space-y-3">
-                    {alsoConsider.map((r) => <RecCard key={r.id} rec={r} />)}
+                    {(showAllAlso ? alsoConsider : alsoConsider.slice(0, 3)).map(
+                      (r) => <RecCard key={r.id} rec={r} />,
+                    )}
                   </div>
+                  {alsoConsider.length > 3 && (
+                    <button type="button" onClick={() => setShowAllAlso((v) => !v)}
+                      className="mt-3 inline-flex items-center gap-1.5"
+                      style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--brand)' }}>
+                      {showAllAlso
+                        ? 'Show fewer'
+                        : `See all ${alsoConsider.length} ideas`}
+                    </button>
+                  )}
                 </Section>
               )}
             </>
           )}
 
-          <Section number="03" title="Passed for now">
-            {trims.length === 0 ? (
-              <ArthVoice mode="advisory">Nothing flagged to trim today.</ArthVoice>
-            ) : (
+          {trims.length > 0 && (
+            <Section number="03" title="Names ArthOS is cautious on">
+              <button type="button" onClick={() => setShowCautious((v) => !v)}
+                className="inline-flex items-center gap-1.5 mb-3"
+                style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--brand)' }}>
+                {showCautious ? 'Hide' : `Show ${Math.min(trims.length, 8)} names ArthOS would avoid`}
+              </button>
+              {showCautious && (
               <SurfaceCard variant="default" className="p-5">
                 <ul className="divide-y" style={{ borderColor: 'var(--border)' }}>
                   {trims.slice(0, 8).map((r) => (
-                    <li key={r.id} className="py-3 grid grid-cols-[90px_1fr_auto] items-baseline gap-3">
-                      <Link to={`/v2/today/pick/${r.symbol}`} className="font-mono ink-primary" style={{ fontSize: 13 }}>
-                        {r.symbol}
+                    <li key={r.id} className="py-3 grid grid-cols-[90px_1fr] items-baseline gap-3">
+                      <Link to={`/today/pick/${r.symbol}`} className="ink-primary" style={{ fontSize: 13 }}>
+                        <CompanyTitle symbol={r.symbol} name={r.name} />
                       </Link>
-                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{r.thesis ?? 'Reduce / avoid.'}</span>
-                      <span className="ink-muted italic" style={{ fontSize: 12 }}>
-                        {r.confidence_label} {confidenceNum(r).toFixed(0)}
-                      </span>
+                      <span className="ink-muted truncate" style={{ fontSize: 12.5 }}>{plainThesis(r.thesis) ?? 'Cautious for now.'}</span>
                     </li>
                   ))}
                 </ul>
-                {trims.length > 8 && (
-                  <p className="ink-muted mt-3 text-right" style={{ fontSize: 12 }}>
-                    {trims.length - 8} more flagged to trim.
-                  </p>
-                )}
               </SurfaceCard>
-            )}
-          </Section>
+              )}
+            </Section>
+          )}
         </>
       )}
-      </>
+
+      {/* Progress cluster — after the ideas (the primary action). */}
+      <ProgressSpine paperCount={paperCount} />
+      <ContinuePathCard paperCount={paperCount} collapsed />
+      {paperCount >= 2 && <PortfolioBridge />}
+      {paperCount >= 5 && <OptionsReadinessCard onExplore={() => setTab('options')} />}
+      {/* Build — model portfolios, then the head-to-head comparison (collapsed). */}
+      <div id="model-portfolios"><ModelPortfoliosSection collapsed /></div>
+      <PortfolioComparison collapsed />
+      {/* Context — themes, social proof, Arth's record. (Market tape moved to a
+          compact strip under the tabs above.) */}
+      <TrendingThemes collapsed />
+      <SocialProofStrip />
+      <div className="mb-8"><TrustBanner /></div>
+        </>
       )}
 
-      {tab !== 'stocks' && (
-        <Section number={tab === 'all' ? '04' : '01'} title="Options">
-          <OpportunitiesOptionsSection />
-        </Section>
-      )}
+      {/* Options Practice tab — separate from stock ideas, never mixed into
+          Today's Top Idea / Also Worth a Look. alwaysOpen renders the warning
+          + cards directly (the tab is the disclosure). Beginner language. */}
+      {tab === 'options' && <OptionsAdvancedSection alwaysOpen />}
     </ArthosPage>
   );
 }
 
-function fresh(rec: RecApi): boolean {
-  if (rec.stale_data) return false;
-  if (!rec.generated_at) return true;
-  const h = (Date.now() - new Date(rec.generated_at).getTime()) / 3600_000;
-  return !(Number.isFinite(h) && h > 30);
+// P0 onboarding — nudge from single ideas to a diversified portfolio once the
+// user has 2+ practice positions. Scrolls to the model-portfolios section.
+function PortfolioBridge() {
+  // Compact single-row nudge (keeps total Discover height ≤ 3.5 screens even
+  // when stacked with the path card + options-readiness).
+  return (
+    <SurfaceCard variant="highlight" className="p-3.5 mb-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="ink-primary min-w-0" style={{ fontSize: 13, lineHeight: 1.4 }}>
+          <strong>Ready to diversify?</strong> Try a ready-made model portfolio.
+        </p>
+        <a href="#model-portfolios"
+          className="shrink-0 inline-flex items-center px-3 h-8 rounded-full"
+          style={{ fontSize: 12, fontWeight: 600, backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)' }}>
+          Explore →
+        </a>
+      </div>
+    </SurfaceCard>
+  );
+}
+
+// P1 progression — shown once the user has 5+ practice positions. Acknowledges
+// readiness and points to Options Practice WITHOUT making options prominent.
+function OptionsReadinessCard({ onExplore }: { onExplore: () => void }) {
+  // Compact single-row nudge — acknowledges readiness without occupying a full
+  // card or making options prominent.
+  return (
+    <SurfaceCard variant="default" className="p-3.5 mb-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="ink-primary min-w-0" style={{ fontSize: 13, lineHeight: 1.4 }}>
+          <strong>Curious about options?</strong> Advanced, capped-risk, practice-only.
+        </p>
+        <button type="button" onClick={onExplore}
+          className="shrink-0 inline-flex items-center px-3 h-8 rounded-full"
+          style={{ fontSize: 12, fontWeight: 600, border: '1px solid var(--border)', color: 'var(--brand)' }}>
+          Open →
+        </button>
+      </div>
+    </SurfaceCard>
+  );
+}
+
+type DiscoverTab = 'stocks' | 'options';
+
+function DiscoverTabs({
+  tab, onChange,
+}: {
+  tab: DiscoverTab;
+  onChange: (t: DiscoverTab) => void;
+}) {
+  const items: { id: DiscoverTab; label: string; sub: string }[] = [
+    { id: 'stocks', label: 'Stock Ideas', sub: 'Plain-English ideas to follow' },
+    { id: 'options', label: 'Options Practice', sub: 'Advanced, paper-only ideas' },
+  ];
+  return (
+    <div
+      className="sticky top-14 lg:top-16 z-20 -mx-5 lg:-mx-10 px-5 lg:px-10 py-2.5 mb-6 backdrop-blur-md"
+      style={{ backgroundColor: 'color-mix(in oklch, var(--background) 86%, transparent)', borderBottom: '1px solid var(--border)' }}
+    >
+      <div role="tablist" aria-label="Discover sections"
+        className="grid grid-cols-2 gap-1.5 p-1 rounded-full"
+        style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}>
+        {items.map((it) => {
+          const active = tab === it.id;
+          return (
+            <button
+              key={it.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onChange(it.id)}
+              className="rounded-full px-4 py-2 text-center transition-colors"
+              style={{
+                backgroundColor: active ? 'var(--brand)' : 'transparent',
+                color: active ? 'var(--brand-foreground)' : 'var(--muted-foreground)',
+              }}
+            >
+              <span className="block font-semibold" style={{ fontSize: 13.5 }}>{it.label}</span>
+              <span className="block" style={{ fontSize: 10.5, opacity: 0.85 }}>{it.sub}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Colored action pill — keeps the call (Buy / Hold / Trim…) unmistakable.
+function ActionPill({ action }: { action: string }) {
+  const a = action.toLowerCase();
+  const tone =
+    a === 'buy' ? 'var(--brand)'
+      : a === 'trim' || a === 'sell' || a === 'avoid' ? 'oklch(0.58 0.15 28)'
+        : 'var(--muted-foreground)';
+  return (
+    <span className="inline-flex items-center rounded-full font-semibold uppercase shrink-0"
+      style={{
+        fontSize: 11, letterSpacing: '0.05em', padding: '3px 11px', lineHeight: 1.3,
+        color: tone,
+        backgroundColor: `color-mix(in oklch, ${tone} 13%, transparent)`,
+        border: `1px solid color-mix(in oklch, ${tone} 28%, transparent)`,
+      }}>
+      {action}
+    </span>
+  );
 }
 
 function RecCard({ rec, featured }: { rec: RecApi; featured?: boolean }) {
   const action = effectiveAction(rec) ?? 'Hold';
+  // Wave 1C — one compact change note on the FEATURED card only (no
+  // per-card fetch clutter); renders only when genuinely meaningful.
+  const delta = useRecDelta(featured ? rec.symbol ?? undefined : undefined);
+  const changeNote = featured ? compactChangeNote(delta) : null;
   return (
     <SurfaceCard variant={featured ? 'highlight' : 'default'} className="p-5">
-      <div className="flex items-baseline gap-3 flex-wrap mb-1">
-        <span className="font-mono ink-primary tabular-nums" style={{ fontSize: 16 }}>{rec.symbol}</span>
-        <span className="ink-muted" style={{ fontSize: 13 }}>{action}</span>
+      {/* Identity — ticker badge top-left + the action call; company name on its
+          own line below so the symbol is unmistakable (not buried in parens). */}
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <TickerBadge symbol={rec.symbol} size={featured ? 'lg' : 'md'} />
+        <ActionPill action={action} />
       </div>
-      <div className="flex items-center gap-2 mt-1 mb-3 flex-wrap">
-        <SmallChip>{rec.confidence_label ?? 'Medium'} · {confidenceNum(rec).toFixed(0)}</SmallChip>
-        <SmallChip tone={fresh(rec) ? 'pos' : 'neg'}>{fresh(rec) ? 'fresh' : 'stale'}</SmallChip>
-      </div>
-      {rec.thesis && (
-        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>{rec.thesis}</p>
-      )}
-      <Link to={`/v2/today/pick/${rec.symbol}`} className="inline-block mt-3"
-        style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
-        Full reasoning →
+      <Link to={`/today/pick/${rec.symbol}`} className="block">
+        <CompanyTitle symbol={rec.symbol} name={rec.name} showTickerWhenNamed={false}
+          className="ink-primary font-display"
+          style={{ fontSize: featured ? 18 : 15.5, lineHeight: 1.25 }} />
       </Link>
+      <div className="flex items-center gap-2 mt-2 mb-2.5 flex-wrap">
+        {sectorLabel(rec.sector) && <SmallChip>{sectorLabel(rec.sector)}</SmallChip>}
+        <SmallChip>{confidenceDisplay(rec.confidence_label)}</SmallChip>
+      </div>
+      {changeNote && (
+        <p className="ink-muted flex items-center gap-1.5" style={{ fontSize: 12 }}>
+          <span aria-hidden style={{ color: 'oklch(0.70 0.14 75)' }}>↷</span>
+          {changeNote}
+        </p>
+      )}
+      {ideaOneLiner(rec.thesis, rec.family_scores) && (
+        <p className="ink-primary" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
+          {ideaOneLiner(rec.thesis, rec.family_scores)}
+        </p>
+      )}
+      {/* Pricing — Last close / Entry / Target / Exit-if-wrong on every stock
+          idea card (featured shows it full, the list compact). */}
+      <div className="mt-3"><PlanRows rec={rec} compact={!featured} /></div>
+      <PreflightLimitations rec={rec} compact />
+      <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-3" />
+      <div className="flex items-center gap-4 mt-4">
+        <Link to={`/today/pick/${rec.symbol}`}
+          style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
+          See why →
+        </Link>
+        {/* Add to paper — Phase 4 wires the one-tap submit_trade; routes to
+            the idea detail where the action lives until then. */}
+        <Link to={`/today/pick/${rec.symbol}?add=1`}
+          className="px-3 py-1.5 rounded-full"
+          style={{
+            fontSize: 12, fontWeight: 600, color: 'var(--background)',
+            backgroundColor: 'var(--brand)',
+          }}>
+          Add to paper
+        </Link>
+      </div>
     </SurfaceCard>
   );
 }
@@ -198,55 +365,6 @@ function Section({ number, title, children }: {
       </div>
       {children}
     </section>
-  );
-}
-
-// All | Stocks | Options segment. View toggle only — NOT a trade control.
-// Lets ArthOS rank across both asset classes (All) once options is ready;
-// today Options shows honest read-only readiness.
-function OppSegment({ tab, setTab, stockCount, optionsCount }: {
-  tab: 'all' | 'stocks' | 'options';
-  setTab: (t: 'all' | 'stocks' | 'options') => void;
-  stockCount: number;
-  optionsCount: number;
-}) {
-  const items: Array<{ k: 'all' | 'stocks' | 'options'; label: string; badge?: number }> = [
-    { k: 'all', label: 'All' },
-    { k: 'stocks', label: 'Stocks', badge: stockCount },
-    { k: 'options', label: 'Options', badge: optionsCount },
-  ];
-  return (
-    <div
-      className="inline-flex rounded-full p-1 mb-6"
-      role="tablist"
-      aria-label="Asset class"
-      style={{ backgroundColor: 'var(--card)', border: '1px solid var(--border)' }}
-    >
-      {items.map((it) => {
-        const active = tab === it.k;
-        return (
-          <button
-            key={it.k}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            onClick={() => setTab(it.k)}
-            className="px-3.5 py-1.5 rounded-full transition-colors"
-            style={{
-              fontSize: 12.5,
-              fontWeight: 600,
-              color: active ? 'var(--background)' : 'var(--muted-foreground)',
-              backgroundColor: active ? 'var(--brand)' : 'transparent',
-            }}
-          >
-            {it.label}
-            {it.badge != null && (
-              <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.85 }}>{it.badge}</span>
-            )}
-          </button>
-        );
-      })}
-    </div>
   );
 }
 

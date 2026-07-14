@@ -27,6 +27,23 @@ import {
   effectiveAction,
   type RecApi,
 } from '@/lib/operator/hooks';
+import { freshnessInfo } from '../lib/freshness';
+import { useSession } from '../state/SessionContext';
+import { PostureBanner } from '../components/PostureBanner';
+import { useRecDelta, compactChangeNote } from '../components/WhatChanged';
+
+// Wave 1C — enrich the what-changed strip with the top idea's real delta
+// (one line, only when genuinely meaningful; aggregate counts stay honest).
+function TopIdeaChangeNote({ symbol }: { symbol: string | undefined }) {
+  const delta = useRecDelta(symbol);
+  const note = compactChangeNote(delta);
+  if (!note || !symbol) return null;
+  return (
+    <span className="ink-primary" style={{ fontSize: 13.5 }}>
+      {symbol}: {note.toLowerCase()}
+    </span>
+  );
+}
 
 function FadeIn({
   delay = 0, children, className,
@@ -82,6 +99,7 @@ export function Briefing() {
 
   return (
     <ArthosPage topBarEyebrow="Today">
+      <PostureBanner />
       <FadeIn>
         <PageHeader eyebrow={greeting()} title={title} description={description} />
       </FadeIn>
@@ -89,6 +107,45 @@ export function Briefing() {
       <FadeIn delay={0.03}>
         <TrustBanner />
       </FadeIn>
+
+      {/* What changed today — the desk's day in three plain facts, plus the
+          reader's next step. Derived entirely from live counts; renders only
+          when the diagnostics have loaded (never fabricated). */}
+      {!isLoading && !isError && evaluated != null && (
+        <FadeIn delay={0.035}>
+          <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-8 pb-6"
+            style={{ borderBottom: '1px solid var(--border)' }}>
+            <span className="font-semibold uppercase" style={{
+              fontSize: 10.5, letterSpacing: '0.14em', color: 'var(--muted-foreground)',
+            }}>
+              What changed today
+            </span>
+            <span className="ink-primary" style={{ fontSize: 13.5 }}>
+              {evaluated} name{evaluated === 1 ? '' : 's'} re-evaluated
+            </span>
+            <span className="ink-primary" style={{ fontSize: 13.5 }}>
+              {actionableCount} cleared the buy bar
+            </span>
+            {top?.generated_at && (() => {
+              const f = freshnessInfo(top.generated_at, top.stale_data);
+              return (
+                <span style={{
+                  fontSize: 13.5,
+                  color: f.tone === 'good' ? 'var(--brand)' : 'oklch(0.70 0.14 75)',
+                }}>
+                  {f.label.toLowerCase()}
+                </span>
+              );
+            })()}
+            <TopIdeaChangeNote symbol={top?.symbol ?? undefined} />
+            <span className="ink-muted" style={{ fontSize: 13 }}>
+              {hasBuys
+                ? 'Next: read the working below, then practice it with paper money.'
+                : 'Next: nothing to act on — a look at the full desk is optional.'}
+            </span>
+          </div>
+        </FadeIn>
+      )}
 
       <FadeIn delay={0.04}>
         <TodayLessonSlot />
@@ -137,12 +194,12 @@ export function Briefing() {
           className="mt-12 pt-8 flex flex-wrap items-center justify-between gap-3"
           style={{ borderTop: '1px solid var(--border)' }}
         >
-          <Link to="/v2/methodology"
+          <Link to="/methodology"
             className="inline-flex items-center gap-1.5"
             style={{ fontSize: 12.5, color: 'var(--muted-foreground)' }}>
             How Arth decides →
           </Link>
-          <Link to="/v2/opportunities"
+          <Link to="/opportunities"
             className="inline-flex items-center gap-1.5"
             style={{ fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>
             See the full desk →
@@ -174,7 +231,7 @@ function EmptyDesk({
         Breakdown: {dist['Hold'] ?? 0} Hold · {dist['Trim'] ?? 0} Trim · {dist['Buy'] ?? 0} Buy.
         I'd rather show you nothing than manufacture a trade.
       </p>
-      <Link to="/v2/opportunities"
+      <Link to="/opportunities"
         className="inline-flex items-center gap-1.5 mt-4"
         style={{ fontSize: 12.5, color: 'var(--brand)', fontWeight: 600 }}>
         See everything I'm watching →
@@ -185,6 +242,10 @@ function EmptyDesk({
 
 // ── Live portfolio sidebar (canonical) ──────────────────────────────
 function PortfolioSummaryCard() {
+  // Demo-book honesty (audit M2): anonymous visitors see the shared
+  // engine book here too — label it, never call it theirs.
+  const { authenticated, loading: sessionLoading } = useSession();
+  const isDemo = !sessionLoading && !authenticated;
   const { data: book, isLoading } = useCanonicalStockPortfolio();
   const equity = book?.nav ?? null;
   const dayPnl = book?.daily_pnl ?? null;
@@ -196,11 +257,19 @@ function PortfolioSummaryCard() {
       <p className="font-semibold uppercase mb-3" style={{
         fontSize: 11, letterSpacing: '0.16em', color: 'var(--muted-foreground)',
       }}>
-        Practice portfolio
+        {isDemo ? 'Demo practice book' : 'Practice portfolio'}
       </p>
+      {isDemo && (
+        <p className="ink-fainter mb-3" style={{ fontSize: 11.5, lineHeight: 1.5 }}>
+          ArthOS's shared demo book — illustrative, not yours. Sign in to
+          start your own.
+        </p>
+      )}
       {equity == null ? (
         <div className="ink-muted" style={{ fontSize: 12.5, lineHeight: 1.5 }}>
-          {isLoading ? 'Loading the practice account…' : 'Practice account is unavailable right now.'}
+          {isLoading
+            ? 'Loading the practice account…'
+            : 'Your practice account starts when you add or follow your first idea.'}
         </div>
       ) : (
         <>
@@ -233,7 +302,7 @@ function PortfolioSummaryCard() {
           )}
         </>
       )}
-      <Link to="/v2/portfolio"
+      <Link to="/portfolio"
         className="inline-flex items-center gap-1.5 mt-4 transition-colors"
         style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>
         See practice account →

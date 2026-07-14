@@ -27,6 +27,28 @@ export function lsRemove(key: string): void {
   }
 }
 
+// --- Raw-key variants (no prefix) ---
+// For PRE-EXISTING stores whose keys shipped before the prefix convention
+// (operator flag, device id, one-time explainer flags). Concentrating them
+// here keeps the frozen localStorage surface auditable in one file; new
+// stores must use the prefixed helpers above.
+
+export function lsGetRaw(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+export function lsSetRaw(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* noop */
+  }
+}
+
 // --- Selected paper portfolio helpers ---
 
 const SELECTED_PORTFOLIO_KEY = 'selected_portfolio_id';

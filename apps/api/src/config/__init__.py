@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     POLYGON_API_KEY: str = ""     # paid Massive/Polygon — primary historical daily source
     LOG_LEVEL: str = "INFO"
     APP_VERSION: str = "0.1.0"
+    # Owner/admin allowlist (Admin-1). Comma-separated emails, case-insensitive.
+    # Source of truth for the owner guard — no DB role column. Empty = no owner
+    # (admin surface denied to everyone).
+    ARTHOS_OWNER_EMAILS: str = ""
 
     # Canonical stock practice portfolio (Phase A — single source of truth).
     # Every user-facing portfolio surface reads THIS id only — never an
@@ -295,6 +299,72 @@ class Settings(BaseSettings):
     # to True is permitted in dev/test only; production flip is a
     # later-phase decision gated by its own audit + operator approval.
     RESEARCH_RO_ENABLED: bool = False
+
+    # ------------------------------------------------------------------
+    # ELITE ARTHOS PRIORITY 7 — Agent Gateway v0 (fail-closed)
+    # ------------------------------------------------------------------
+    # PERMANENT default OFF. When False, the /agent/* router is NOT
+    # mounted (every agent route 404s) and the owner token-management
+    # console router is NOT mounted either — there is no way to mint a
+    # token, so a leaked binary/config cannot activate the surface.
+    # Flipping to True is dev/test only; a production flip is a separate
+    # approval-gated decision (spec §10 rollout). The gateway is
+    # read/jobs/drafts only — there is NO live-trading scope by design
+    # (spec §3, NON-GOALS). See docs/architecture/AGENT_GATEWAY_V0_SPEC.md.
+    AGENT_GATEWAY_ENABLED: bool = False
+    # Token TTL policy (spec §2): mandatory expiry, v0 default 30d, max 90d.
+    AGENT_TOKEN_DEFAULT_TTL_DAYS: int = 30
+    AGENT_TOKEN_MAX_TTL_DAYS: int = 90
+
+    # ------------------------------------------------------------------
+    # ELITE ARTHOS PRODUCT SLICES — three INDEPENDENT fail-closed flags
+    # ------------------------------------------------------------------
+    # Each mounts one router in main.py; all default OFF (routes 404, no
+    # public navigation). Owner/session authorization is enforced inside
+    # the routers (require_owner on every mutation — the flag only controls
+    # existence, never authorization). Generated content is always created
+    # pending human review (service-enforced state machines); none of these
+    # slices touches trading, execution, or recommendation generation.
+    # P0-5 exactly-once — when True, run_paper_trading acquires a per-trading-
+    # day execution lease so only one executor proceeds even if reached via
+    # multiple scheduled paths (tick-loop claim + supercronic). Default OFF →
+    # byte-identical legacy behavior until the execution_lease table (migration
+    # 118) ships. The unique trade constraint stays as defense-in-depth.
+    PAPER_EXECUTION_LEASE_ENABLED: bool = False
+
+    THESIS_LEDGER_ENABLED: bool = False       # /api/theses + /api/admin/theses*
+    RESEARCH_INBOX_ENABLED: bool = False      # /api/admin/inbox/*
+    # Wave 3A — Experiment Lab (owner evaluation harness). Off = routes
+    # absent, no research_run writes from the Lab, zero behavior change.
+    EXPERIMENT_LAB_ENABLED: bool = False      # /api/admin/experiments/*
+    LEARNING_LOOP_ENABLED: bool = False       # /api/admin/lessons/*
+
+    # Wave 1A — Recommendation Publication Preflight (deterministic trust
+    # gate). Default OFF → publication behavior byte-identical to legacy.
+    # When on: /api/admin/preflight/* mounts, GET /recommendations filters
+    # HOLD/BLOCKED candidates from beginner surfaces and embeds a read-safe
+    # verdict projection. No LLM, no override path, fail-closed.
+    RECOMMENDATION_PREFLIGHT_ENABLED: bool = False
+
+    # Wave 1B — Research Safe Mode (signal-derived system posture). Default
+    # OFF → Wave-1A behavior exactly: no signals read, no events written,
+    # no posture routes, no banner; SYSTEM_POSTURE_OVERRIDE (dev/test lever)
+    # applies ONLY while this flag is off. ON → posture derives from the
+    # deterministic signal registry; the override is ignored.
+    SYSTEM_POSTURE_ENABLED: bool = False
+    SYSTEM_POSTURE_OVERRIDE: str = ""
+
+    # Wave 1C — "What changed?" recommendation delta. Default OFF → route
+    # absent, recommendation responses byte-compatible, zero extra queries.
+    # Read-only, zero-migration; consumes persisted preflight/posture facts
+    # without ever triggering an evaluation.
+    REC_DELTA_ENABLED: bool = False
+
+    # Wave 1D — Decision Replay Timeline. Default OFF → routes absent, no
+    # replay links, recommendation responses unchanged, zero extra queries.
+    # Read-only, zero-migration; renders stored artifacts only (hindsight
+    # firewall — never evaluates, never writes, never fetches prices).
+    DECISION_REPLAY_ENABLED: bool = False
 
     # ------------------------------------------------------------------
     # PHASE 16 v1 — Intraday context overlay (ephemeral)
@@ -642,10 +712,67 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------
     # PHASE G — auth + subscription tier resolution
     # ------------------------------------------------------------------
+    # Elite ArthOS "Honest Numbers" — dataset-level ingest contracts
+    # (domain/prices/contracts.py): quarantine suspect bars, fail closed on
+    # widespread corruption, structured per-symbol reports. Default OFF —
+    # the legacy validate_batch path is byte-identical when false. Enable
+    # only after the wired path's tests and an owner review of quarantine
+    # thresholds.
+    INGEST_CONTRACTS_ENABLED: bool = False
+    # Elite ArthOS "Honest Numbers" — Priority 3: honest paper execution
+    # costs (domain\paper_trading\execution_costs.py). When True, the bare
+    # submit_trade fill path applies adverse slippage (liquidity-aware
+    # square-root impact when 20-bar avg dollar volume exists, flat
+    # spread-floor fallback otherwise) plus commission, both deducted from
+    # cash and stamped on the trade row via the existing fill_price /
+    # slippage_bps / commission columns. Callers that pass
+    # fill_price_override / slippage_bps / commission (weekly rebalance)
+    # keep their own cost model. Default OFF — the legacy zero-cost fill
+    # path is byte-identical when false.
+    PAPER_COST_MODEL_ENABLED: bool = False
+    # Commission in basis points of gross notional (0 = free broker).
+    PAPER_COMMISSION_BPS: float = 0.0
+    # Slippage floor in bps (half-spread proxy; mirrors the weekly
+    # rebalance cost model's 2bps minimum). Also the flat deterministic
+    # fallback when no dollar-volume data exists for the asset.
+    PAPER_SPREAD_FLOOR_BPS: float = 2.0
+    # Hard cap (bps) on liquidity-aware slippage for very large orders.
+    PAPER_SLIPPAGE_CAP_BPS: float = 50.0
+    # Square-root impact coefficient: slippage_bps =
+    # k * sqrt(order_notional / avg_dollar_volume) — k is the slippage in
+    # bps for an order equal to one full day's average dollar volume.
+    PAPER_IMPACT_K_BPS: float = 10.0
     # When True, get_current_user() falls back to a synthetic dev user
     # and tier resolution honors the legacy `RESEARCH_PREMIUM_TIER`
     # env. NEVER set true in production.
     AUTH_DISABLED_LOCAL: bool = False
+    # M1 accounts: when True, the X-Auth-User-Id device header is honored as an
+    # identity fallback (demo/dev ONLY). MUST stay False in production — public
+    # auth resolves identity from the session cookie, never a client header.
+    DEMO_DEVICE_MODE: bool = False
+    # Session cookie Secure flag. False for local HTTP dev; True in prod (HTTPS).
+    SESSION_COOKIE_SECURE: bool = False
+    # M1B login rate-limit / lockout (brute-force protection on POST /api/login).
+    # After MAX failed attempts (by email or IP) within WINDOW seconds, further
+    # attempts are rejected with the SAME generic error for LOCKOUT seconds.
+    AUTH_LOGIN_MAX_ATTEMPTS: int = 5
+    AUTH_LOGIN_WINDOW_SECONDS: int = 900
+    AUTH_LOGIN_LOCKOUT_SECONDS: int = 900
+    # M1C trusted-proxy IP extraction. When False (default) the rate-limiter uses
+    # the direct peer IP. When True AND the direct peer is inside one of the
+    # trusted CIDRs, the first forwarded client IP (CF-Connecting-IP or the first
+    # X-Forwarded-For entry) is used. Never trust forwarded headers from an
+    # untrusted direct peer.
+    AUTH_TRUST_PROXY_HEADERS: bool = False
+    AUTH_TRUSTED_PROXY_CIDRS: str = ""   # CSV, e.g. "127.0.0.1/32,10.0.0.0/8"
+    # M1C login_attempt retention (days) for the prune job. Must exceed the
+    # window+lockout horizon; the prune helper also enforces a hard min-keep.
+    AUTH_LOGIN_ATTEMPT_RETENTION_DAYS: int = 7
+    # M6A — CORS allowed origins (comma-separated). Dev default preserves the
+    # Vite origin. In prod, set the SPA domain(s); never use '*' with credentials
+    # (the auth cookie flow requires allow_credentials=True). The deploy preflight
+    # rejects '*' and localhost-only origins in prod.
+    CORS_ALLOWED_ORIGINS: str = "http://localhost:5173"
     # When True, expired/past_due/canceled subscriptions still grant
     # the prior tier for `RESEARCH_GRACE_HOURS` hours after the
     # period end. Disabled by default — strict downgrade.

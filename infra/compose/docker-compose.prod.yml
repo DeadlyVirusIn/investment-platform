@@ -15,21 +15,48 @@ services:
   api:
     ports: []          # not exposed directly; Caddy proxies internally
     restart: always
+    mem_limit: 768m    # ~6.7x observed (115M); spikes spill to swap, not OOM
 
-  worker:
+  # Base compose defines TWO worker services — override both by their real
+  # names (an orphan `worker:` here would not match either and the daily-loop /
+  # restart wiring would never apply).
+  worker-tickloop:   # tick-loop scheduler (apps.worker.src.main)
     restart: always
+    mem_limit: 512m    # observed 82M
+  worker-cron:       # supercronic → scripts/run_daily_loop.sh (03:30 ET, Tue–Sat)
+    restart: always
+    mem_limit: 1g      # observed 51M at rest; daily pipeline (pandas/ML) spikes
+
+  # web is defined in the base compose (Vite dev/HMR server); cap it here too.
+  web:
+    mem_limit: 384m    # observed 106M
 
   db:
     restart: always
     ports: []          # never expose postgres publicly in prod
+    mem_limit: 1.25g   # most headroom — query/shared_buffers; swap behind it
 
   caddy:
     image: caddy:2-alpine
     restart: always
+    mem_limit: 256m    # observed 23M; headroom per operator request
+    # Site address for the Caddyfile. Set ARTHOS_DOMAIN in the host .env to your
+    # real domain (Option A: Caddy ACME HTTPS) or ":80" (Option B: behind
+    # Cloudflare TLS). Defaults to ":80" so Caddy never fails on an unset var.
+    environment:
+      ARTHOS_DOMAIN: ${ARTHOS_DOMAIN:-:80}
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp"   # HTTP/3
+      # Tunnel origin — loopback only. Cloudflare Tunnel (cloudflared-arthos)
+      # connects to localhost:8081 -> Caddy ":8081" plain-HTTP site. Not public.
+      # Published on BOTH IPv4 and IPv6 loopback: cloudflared resolves "localhost"
+      # to ::1 first, so an IPv4-only publish caused connection-refused -> 502.
+      - "127.0.0.1:8081:8081"
+      - "[::1]:8081:8081"
+      # HTTP/3 (443/udp) publish removed: dual TCP+UDP publish on the same port
+      # with Docker's userland-proxy caused external TCP-443 SYNs to be RST while
+      # 80 worked. TCP-only matches 80; HTTP/2 over TCP is unaffected.
     volumes:
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

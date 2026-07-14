@@ -3,8 +3,8 @@
 // Source: wise-start-bloom-31433ca8/src/components/GlossaryPopover.tsx
 // Adaptations from upstream:
 //   - <Link> swapped from @tanstack/react-router → react-router-dom.
-//   - Term route swapped to '/v2/learn/lesson/:slug' (absolute path).
-//   - Journal route ('/v2/journal/:id') links rendered conditionally;
+//   - Term route swapped to '/learn/lesson/:slug' (absolute path).
+//   - Journal route ('/journal/:id') links rendered conditionally;
 //     V2 GlossaryTerm currently has no related-journal field, so the
 //     section is omitted until Phase 6 (Decision Journal surface).
 //   - Type imports point at V2's GlossaryTerm (arthosData) — fields are
@@ -135,7 +135,7 @@ export function GlossaryPopover({
               {lessons.map((slug) => (
                 <li key={slug}>
                   <Link
-                    to={`/v2/learn/lesson/${slug}`}
+                    to={`/learn/lesson/${slug}`}
                     className="group inline-flex items-center gap-1 text-[12.5px] font-semibold"
                     style={{ color: 'var(--ink-primary, #ECE6D8)' }}
                   >

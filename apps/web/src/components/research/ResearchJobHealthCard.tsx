@@ -74,7 +74,9 @@ export default function ResearchJobHealthCard() {
         <div style={{ color: '#9e9e9e', fontSize: 12 }}>
           Loading usage rollup…
         </div>
-      ) : !data ? (
+      ) : !data || !data.audit_today || !data.alerts || !data.operators ? (
+        // Fail closed on malformed payloads (partial provider outage /
+        // error-shaped JSON) instead of crashing the whole card tree.
         <div style={{ color: '#616161', fontSize: 13 }}>
           Research subsystem: <strong>unavailable</strong>.
         </div>

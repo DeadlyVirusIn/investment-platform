@@ -1,0 +1,89 @@
+name: security
+
+# AppSec release gate — fails the build on committed secrets, high/critical
+# dependency CVEs, dangerous code patterns, or secret/PII leakage in source.
+# Covers Python + TS/JS + GitHub Actions.
+
+on:
+  push:
+    branches: [phase-1/ledger, mvp/ideas-you-can-follow]
+  pull_request:
+  schedule:
+    - cron: "0 7 * * 1"   # weekly drift scan
+
+permissions:
+  contents: read
+  security-events: write   # CodeQL SARIF upload
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+          queries: security-extended
+      - uses: github/codeql-action/analyze@v3
+
+  gitleaks:
+    name: gitleaks (committed secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  semgrep:
+    name: semgrep (security rules)
+    runs-on: ubuntu-latest
+    container: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      # --error -> non-zero exit on any finding (fail the gate)
+      - run: semgrep --config p/security-audit --config p/secrets --config p/python --config p/typescript --config p/owasp-top-ten --error --skip-unknown-extensions .
+
+  deps-python:
+    name: pip-audit (Python deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      # Fails on any known-vulnerable dependency. Document non-exploitable
+      # CVEs with --ignore-vuln GHSA-xxxx in this step if ever needed.
+      - run: uvx pip-audit -r <(uv export --no-hashes 2>/dev/null) || uvx pip-audit
+
+  deps-node:
+    name: npm audit (web deps)
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: apps/web } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "20" }
+      - run: npm audit --audit-level=high
+
+  privacy-grep:
+    name: privacy grep (secrets / tokens / private IPs / tunnel URLs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan source for leaked secrets / internal identifiers
+        run: |
+          set -e
+          # Patterns that must NEVER be committed. Excludes tests/docs/lockfiles
+          # and the obvious env templates. A hit fails the build.
+          PAT='(BEGIN (RSA|EC|OPENSSH|PGP) PRIVATE KEY|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}|xox[baprs]-[0-9A-Za-z-]{10,}|gh[ps]_[0-9A-Za-z]{30,}|AKIA[0-9A-Z]{16}|sk-[A-Za-z0-9]{20,}|trycloudflare\.com|cfargotunnel\.com)'
+          HITS=$(grep -rInE "$PAT" \
+            --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist \
+            --exclude="*.lock" --exclude="package-lock.json" --exclude="*.md" \
+            --exclude="*test*" --exclude=".env.example" --exclude="security.yml" . || true)
+          if [ -n "$HITS" ]; then echo "::error::potential secret / internal identifier committed"; echo "$HITS" | head -40; exit 1; fi
+          echo "privacy grep clean"

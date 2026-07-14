@@ -1,0 +1,55 @@
+{
+  "generated": "2026-07-12",
+  "branch": "feature/elite-arthos-provable-ideas",
+  "baseline_commit": "e401d53",
+  "dev_migration_head": 118,
+  "prod_migration_head": 109,
+  "scale": "1-5, higher is better; effort/risk fields: 5 = low effort / low risk",
+  "sources": {
+    "gap_review": "docs/research/FINAL_EXTERNAL_REPO_GAP_REVIEW_2026.md",
+    "opus_plan": "docs/roadmap/POST_ELITE_OPUS_IMPLEMENTATION_PLAN.md"
+  },
+  "repos_reviewed": [
+    {"url": "https://github.com/TraderAlice/OpenAlice", "commit": "733c957846b0f80abbf3278e2bafb34c92fb49a0", "license": "AGPL-3.0", "method": "clean-room concepts only"},
+    {"url": "https://github.com/NoFxAiOS/nofx", "commit": "dc68884559c5eae7d28cfeb22d5ee82ba8b8b29e", "license": "AGPL-3.0", "method": "clean-room concepts only"},
+    {"url": "https://github.com/brokermr810/QuantDinger", "commit": "fc33395cbbf162e0145372341740b9ae4bac3f6a", "license": "Apache-2.0 (frontend/mobile repos source-available non-commercial — walled)", "method": "pattern review"},
+    {"url": "https://github.com/josephmisiti/awesome-machine-learning", "commit": "a0692c7f92adead8f2f769d309a6445c2a127761", "license": "NOASSERTION (index only)", "method": "discovery index; libraries vetted individually"}
+  ],
+  "items": [
+    {"id": "publication-preflight", "title": "Recommendation Publication Preflight", "class": "BUILD_NEXT", "wave": 1, "order": 1, "flag": "PUBLICATION_PREFLIGHT_ENABLED", "migration_proposed": 119, "scores": {"beginner": 4, "trust": 5, "evidence": 5, "differentiation": 5, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 4}, "priority": "P1"},
+    {"id": "research-safe-mode", "title": "Research Safe Mode (system posture)", "class": "BUILD_NEXT", "wave": 1, "order": 2, "flag": "SYSTEM_POSTURE_ENABLED", "migration_proposed": 120, "scores": {"beginner": 4, "trust": 5, "evidence": 4, "differentiation": 5, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 4}, "priority": "P1"},
+    {"id": "what-changed-delta", "title": "What-changed delta contract", "class": "BUILD_NEXT", "wave": 1, "order": 3, "flag": "REC_DELTA_ENABLED", "migration_proposed": null, "scores": {"beginner": 5, "trust": 4, "evidence": 3, "differentiation": 4, "effort": 4, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P1"},
+    {"id": "decision-replay", "title": "Decision Replay Timeline (read-only)", "class": "BUILD_NEXT", "wave": 1, "order": 4, "flag": "DECISION_REPLAY_ENABLED", "migration_proposed": null, "scores": {"beginner": 4, "trust": 5, "evidence": 4, "differentiation": 5, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P2"},
+    {"id": "inbox-completeness", "title": "Research Inbox completeness (correction route/UI, follow-ups)", "class": "BUILD_NEXT", "wave": 2, "order": 5, "flag": "RESEARCH_INBOX_ENABLED", "migration_proposed": null, "scores": {"beginner": 2, "trust": 4, "evidence": 4, "differentiation": 3, "effort": 5, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P2"},
+    {"id": "mission-board", "title": "Research Mission Board", "class": "PROTOTYPE", "wave": 2, "order": 6, "flag": "VITE_RESEARCH_INBOX", "migration_proposed": null, "scores": {"beginner": 2, "trust": 4, "evidence": 3, "differentiation": 4, "effort": 4, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P3"},
+    {"id": "tracked-entity-slice", "title": "Tracked-entity thin slice (typed links, no wikilinks)", "class": "PROTOTYPE_AFTER_DESIGN", "wave": 2, "order": 7, "flag": "ENTITY_LINKS_ENABLED", "migration_proposed": 121, "scores": {"beginner": 2, "trust": 3, "evidence": 4, "differentiation": 4, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P3"},
+    {"id": "experiment-lab", "title": "Experiment Lab harness (pre-existing Elite commitment)", "class": "BUILD", "wave": 3, "order": 8, "flag": "EXPERIMENT_LAB_ENABLED", "migration_proposed": null, "scores": {"beginner": 2, "trust": 5, "evidence": 5, "differentiation": 5, "effort": 2, "security_risk": 5, "licensing_risk": 5, "infra_cost": 4, "dependency_burden": 4, "production_risk": 4}, "priority": "P2"},
+    {"id": "comparison-arena", "title": "Experiment Comparison Arena (owner-only)", "class": "DESIGN_ONLY_THEN_BUILD", "wave": 3, "order": 9, "flag": "EXPERIMENT_LAB_ENABLED", "migration_proposed": null, "scores": {"beginner": 1, "trust": 4, "evidence": 5, "differentiation": 4, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P3"},
+    {"id": "promotion-queue-ui", "title": "Promotion queue UI", "class": "DESIGN_ONLY_THEN_BUILD", "wave": 3, "order": 10, "flag": "EXPERIMENT_LAB_ENABLED", "migration_proposed": null, "scores": {"beginner": 1, "trust": 4, "evidence": 5, "differentiation": 4, "effort": 4, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P3"},
+    {"id": "audit-viewer", "title": "Audit-log viewer", "class": "PROTOTYPE", "wave": 3, "order": 11, "flag": "AGENT_GATEWAY_ENABLED", "migration_proposed": null, "scores": {"beginner": 1, "trust": 4, "evidence": 3, "differentiation": 3, "effort": 4, "security_risk": 4, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P4"},
+    {"id": "control-room", "title": "Owner Operations Control Room", "class": "PROTOTYPE", "wave": 3, "order": 12, "flag": "SYSTEM_POSTURE_ENABLED", "migration_proposed": null, "scores": {"beginner": 1, "trust": 4, "evidence": 3, "differentiation": 4, "effort": 3, "security_risk": 4, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P3"},
+    {"id": "survival-analysis", "title": "Censored-outcome survival analysis (lifelines)", "class": "DEFER_TO_WAVE_4", "wave": 4, "order": 13, "gate": ">=100 resolved trades", "scores": {"beginner": 2, "trust": 3, "evidence": 5, "differentiation": 4, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 4, "production_risk": 5}, "priority": "P4"},
+    {"id": "multiple-testing", "title": "Significance + multiple-testing (statsmodels BH) in Lab", "class": "ADOPT_IN_LAB", "wave": 3, "order": 14, "scores": {"beginner": 1, "trust": 4, "evidence": 5, "differentiation": 3, "effort": 5, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P3"},
+    {"id": "mapie-intervals", "title": "MAPIE prediction intervals", "class": "DEFER_DATA_BLOCKED", "wave": 4, "order": 15, "gate": "calibrator unblock (>=3 quarters live decisions)", "scores": {"beginner": 3, "trust": 4, "evidence": 4, "differentiation": 4, "effort": 4, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P4"},
+    {"id": "portfolio-attribution-rollup", "title": "Portfolio-level attribution rollup (SQL view)", "class": "DEFER_TO_WAVE_4", "wave": 4, "order": 16, "scores": {"beginner": 2, "trust": 4, "evidence": 4, "differentiation": 3, "effort": 4, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P4"},
+    {"id": "cost-model-application", "title": "Apply paper cost stamps to fills/track record", "class": "DEFER_TO_WAVE_4", "wave": 4, "order": 17, "flag": "PAPER_COST_MODEL_ENABLED", "gate": "Lab cost-sensitivity evidence", "scores": {"beginner": 3, "trust": 5, "evidence": 5, "differentiation": 4, "effort": 3, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 3}, "priority": "P3"},
+    {"id": "gateway-openapi-export", "title": "Gateway OpenAPI artifact export", "class": "BUILD_TINY_AT_PROMOTION", "wave": 3, "order": 18, "scores": {"beginner": 1, "trust": 3, "evidence": 2, "differentiation": 2, "effort": 5, "security_risk": 5, "licensing_risk": 5, "infra_cost": 5, "dependency_burden": 5, "production_risk": 5}, "priority": "P4"}
+  ],
+  "rejected": [
+    {"id": "wikilinks", "reason": "free-text parser surface, no beginner value"},
+    {"id": "full-knowledge-graph", "reason": "bigger not more trustworthy; thin typed slice only"},
+    {"id": "workspaces-terminals-codegen", "reason": "product boundary: no strategy-code execution environment"},
+    {"id": "trading-as-git", "reason": "product boundary: execution metaphor, terminal feel"},
+    {"id": "autonomous-trading-exchanges-leverage-crypto", "reason": "product boundary"},
+    {"id": "public-leaderboard", "reason": "competition framing contradicts calm/credible; Arena is owner-only, evidence-gated"},
+    {"id": "mlflow", "reason": "second app; SQL-first registry is the differentiator"},
+    {"id": "evidently", "reason": "26-dep web-server-carrying package on a small VM"},
+    {"id": "shap", "reason": "redundant vs LightGBM pred_contrib"},
+    {"id": "sktime", "reason": "framework-sized toolkit for estimator-sized needs"},
+    {"id": "river", "reason": "streaming ML for a nightly batch pipeline; scipy PSI/KS suffices"},
+    {"id": "pandera", "reason": "custom ingest contracts already shipped and tested (decision stands)"},
+    {"id": "statsforecast-now", "reason": "pins scipy<1.16 vs installed 1.18 — resolver conflict; re-check at Lab time"},
+    {"id": "mission-board-blocked-state", "reason": "no producer of that state exists; dashboard theater"},
+    {"id": "task-handoff-assignees", "reason": "single-owner product today; revisit in multi-user era"}
+  ]
+}

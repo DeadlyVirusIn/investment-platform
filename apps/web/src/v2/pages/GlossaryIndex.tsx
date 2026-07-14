@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { GLOSSARY } from '../data/arthosData';
+import { MEETS_BUY_BAR_GLOSSARY, meetsBuyBarEnabled } from '../lib/confidenceDisplay';
 import { GlossaryPopover } from '../components/GlossaryPopover';
 
 function FadeIn({
@@ -36,7 +37,17 @@ function FadeIn({
 export function GlossaryIndex() {
   const groups = useMemo(() => {
     const buckets = new Map<string, typeof GLOSSARY>();
-    const sorted = [...GLOSSARY].sort((a, b) =>
+    // Honest Numbers — glossary entry for the collapsed confidence label.
+    // Gated with the presentation flag so glossary and labels flip together.
+    const extra = meetsBuyBarEnabled()
+      ? [{
+          slug: 'meets-the-buy-bar',
+          term: 'meets the buy bar',
+          shortDefinition: MEETS_BUY_BAR_GLOSSARY.definition,
+          longDefinition: MEETS_BUY_BAR_GLOSSARY.definition,
+        } as (typeof GLOSSARY)[number]]
+      : [];
+    const sorted = [...GLOSSARY, ...extra].sort((a, b) =>
       a.term.localeCompare(b.term),
     );
     for (const t of sorted) {
@@ -106,13 +117,13 @@ export function GlossaryIndex() {
           <MetaLabel>Where to go next</MetaLabel>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
-              to="/v2/learn"
+              to="/learn"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               All paths
             </Link>
             <Link
-              to="/v2/today"
+              to="/today"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Today's briefing

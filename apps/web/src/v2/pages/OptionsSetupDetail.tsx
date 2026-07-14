@@ -14,6 +14,9 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
 import { useOptionsLanes } from '../lib/optionsLanes';
+import { PersonalizationLens } from '../components/PersonalizationLens';
+import { FeedbackWidget } from '../components/FeedbackWidget';
+import type { RecMeta } from '../lib/personalization';
 import { presentOption } from '../lib/optionsPresent';
 import { OPTIONS_TAB_HREF, ActionPill } from '../components/OptionsSetupCard';
 
@@ -134,6 +137,23 @@ export function OptionsSetupDetail() {
             </div>
           )}
         </div>
+      </FadeIn>
+
+      {/* M4A — honest personalization lens for OPTIONS ideas (explanation only;
+          never changes the candidate). Options are defined-risk, short-dated, so
+          the lens reads isOption=true + horizon='short'. Hidden for anonymous /
+          demo users; low/no options-experience and low risk_comfort surface
+          cautions. */}
+      <FadeIn delay={0.03}>
+        <PersonalizationLens
+          meta={{
+            isOption: true,
+            action: (typeof opt.action === 'string' ? opt.action : null),
+            confidenceLabel: opt.confidenceLabel ?? null,
+            tags: [],
+            horizon: 'short',
+          } as RecMeta}
+        />
       </FadeIn>
 
       {(opt.premiumLabel || opt.liquidityLabel || opt.catalyst) && (
@@ -339,6 +359,11 @@ export function OptionsSetupDetail() {
             Back to options in Opportunities →
           </Link>
         </section>
+      </FadeIn>
+
+      {/* M5 — demand-validation feedback (collect-only; non-blocking). */}
+      <FadeIn delay={0.2}>
+        <FeedbackWidget surface="options_detail" />
       </FadeIn>
     </ArthosPage>
   );

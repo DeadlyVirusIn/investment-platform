@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from decimal import Decimal
 
+from apps.api.src.config import settings
 from apps.api.src.db import get_session
 from apps.api.src.db.models import Asset, Recommendation, RecommendationEvidence
 from apps.api.src.domain.recommendations.diagnostics import (
@@ -26,6 +27,13 @@ from apps.api.src.domain.recommendations.recommendation_engine import (
 )
 
 router = APIRouter(prefix="/recommendations", tags=["recommendations"])
+
+# Wave 1A/1B read-side bounds — see the preflight block in
+# list_recommendations for semantics.
+import threading  # noqa: E402
+
+MAX_PREFLIGHT_EVALS_PER_REQUEST = 250
+_preflight_gate_lock = threading.Lock()
 
 SortBy = Literal["generated_at", "confidence"]
 
@@ -58,6 +66,8 @@ def _rec_payload(
     rec: Recommendation,
     symbol: str | None,
     evidences: list[RecommendationEvidence],
+    sector: str | None = None,
+    name: str | None = None,
 ) -> dict[str, Any]:
     rationale = _parse_json(rec.rationale)
     policy = rationale.get("policy") or {}
@@ -65,6 +75,13 @@ def _rec_payload(
         "id": rec.id,
         "asset_id": rec.asset_id,
         "symbol": symbol,
+        # Human company name (e.g. "Royalty Pharma plc"); null until the
+        # Polygon backfill populates it. Never fabricated — UI falls back to
+        # the ticker.
+        "name": name,
+        # Coded sector (e.g. "consumer_disc"); the frontend humanizes it.
+        # Null when the asset has no sector. Never fabricated.
+        "sector": sector,
         "action": rec.action,
         "confidence": str(rec.conviction) if rec.conviction is not None else None,
         "confidence_label": rationale.get("confidence_label"),
@@ -132,21 +149,68 @@ def list_recommendations(
             reverse=(order == "desc"),
         )
 
-    # Resolve symbols in one query
+    # Resolve symbols + sectors in one query
     asset_ids = [r.asset_id for r in recs]
     symbol_map: dict[str, str] = {}
+    sector_map: dict[str, str | None] = {}
+    name_map: dict[str, str | None] = {}
     if asset_ids:
-        for asset_id, symbol in session.execute(
-            select(Asset.id, Asset.symbol).where(Asset.id.in_(asset_ids))
+        for asset_id, symbol, sector, name in session.execute(
+            select(Asset.id, Asset.symbol, Asset.sector, Asset.name).where(Asset.id.in_(asset_ids))
         ).all():
             symbol_map[asset_id] = symbol
+            sector_map[asset_id] = sector
+            name_map[asset_id] = name
 
     ev_map = _attach_evidence(session, recs)
 
-    payload = [
-        _rec_payload(r, symbol_map.get(r.asset_id), ev_map.get(r.id, []))
-        for r in recs
-    ]
+    # Wave 1A — publication preflight (flag-off = byte-identical legacy
+    # behavior). When enabled: every candidate gets a verdict matched to its
+    # EXACT current input hash (ensure_current_verdict re-evaluates on any
+    # fact change and fails closed to HOLD); only READY /
+    # READY_WITH_LIMITATIONS publish to beginner surfaces, each carrying a
+    # redacted public projection. HOLD/BLOCKED stay owner-visible via
+    # /admin/preflight and /recommendations/diagnostics — rows are never
+    # deleted or rewritten.
+    projections: dict[str, dict[str, Any]] = {}
+    if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
+        from apps.api.src.api.publication_preflight import public_projection
+        from apps.api.src.domain.publication.preflight import (
+            ensure_current_verdicts_bulk,
+        )
+
+        # Read-side-effect bounds (Wave 1B review): at most
+        # MAX_PREFLIGHT_EVALS_PER_REQUEST candidates are evaluated per
+        # request (typical steady state: zero — verdicts for the current
+        # input hash already exist and evaluation short-circuits to a
+        # SELECT). Candidates beyond the cap fail CLOSED (not published this
+        # request) rather than fail open. _preflight_gate_lock single-flights
+        # concurrent cold requests so a thundering herd cannot multiply
+        # identical evaluations (losers of the DB unique-key race would be
+        # harmless but wasteful).
+        published: list[Recommendation] = []
+        with _preflight_gate_lock:
+            batch = recs
+            rows = ensure_current_verdicts_bulk(
+                session, batch,
+                max_evaluations=MAX_PREFLIGHT_EVALS_PER_REQUEST,
+            )
+        for r in batch:
+            row = rows.get(r.id) or {}
+            if row.get("verdict") in ("READY", "READY_WITH_LIMITATIONS"):
+                published.append(r)
+                projections[r.id] = public_projection(row)
+        recs = published
+
+    payload = []
+    for r in recs:
+        p = _rec_payload(
+            r, symbol_map.get(r.asset_id), ev_map.get(r.id, []),
+            sector_map.get(r.asset_id), name_map.get(r.asset_id),
+        )
+        if r.id in projections:
+            p["preflight"] = projections[r.id]
+        payload.append(p)
     return {"recommendations": payload, "count": len(payload)}
 
 

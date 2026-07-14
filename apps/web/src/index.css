@@ -4431,3 +4431,10 @@
     gap: 8px;
   }
 }
+
+/* ---- Elite P7: mobile bottom tab bar safe-area (audit P1) ----
+   The MobileBottomTab uses .pb-safe, which was never defined — on
+   iPhones the home indicator overlapped the tab labels. */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}

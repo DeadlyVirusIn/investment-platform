@@ -49,8 +49,19 @@ from apps.api.src.options.data_provider.tradier_adapter import (
 )
 
 
-# Default v1 universe — frozen per docs/research/OPTIONS_STRATEGY_UNIVERSE.md
-DEFAULT_UNIVERSE: tuple[str, ...] = ("SPY", "QQQ", "IWM", "GLD", "TLT")
+# Default universe. ETFs were the v1 frozen set
+# (docs/research/OPTIONS_STRATEGY_UNIVERSE.md). Phase: add liquid
+# single-name equities so Options Practice isn't ETF-only — Tradier
+# verified to return full chains for these (e.g. AAPL ~1378 quotes).
+# Conservative, deeply-liquid names with tight option markets.
+# New names surface in the UI only after the nightly chain→shadow→
+# candidate pipeline processes them.
+_ETF_UNIVERSE: tuple[str, ...] = ("SPY", "QQQ", "IWM", "GLD", "TLT")
+_EQUITY_UNIVERSE: tuple[str, ...] = (
+    "AAPL", "MSFT", "NVDA", "AMZN", "GOOGL",
+    "META", "TSLA", "AMD", "NFLX", "JPM",
+)
+DEFAULT_UNIVERSE: tuple[str, ...] = _ETF_UNIVERSE + _EQUITY_UNIVERSE
 
 
 @dataclass(frozen=True)

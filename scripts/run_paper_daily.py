@@ -124,8 +124,30 @@ def step_ingest_raw(session: Session) -> StepResult:
         )
 
 
+def resolve_target_date(es_index, requested_date: dt.date):
+    """Latest available trading day at or before ``requested_date``.
+
+    Date-aware guard: weekends, holidays, and no-data days resolve to the most
+    recent available market bar instead of hard-failing. Returns a ``dt.date``,
+    or ``None`` when NO bar exists at or before ``requested_date``. Pure — no DB
+    or network — so it is unit-testable in isolation. Never fabricates a date.
+    """
+    import pandas as _pd
+    cut = es_index[es_index <= _pd.Timestamp(requested_date)]
+    if len(cut) == 0:
+        return None
+    last = cut[-1]
+    return last.date() if hasattr(last, "date") else last
+
+
 def load_universe(target_date: dt.date) -> dict:
-    """Load all market data needed; cut at target_date. Returns frame + gates."""
+    """Load market data, cut at the latest available trading day <= target_date.
+
+    Date-aware: if ``target_date`` is a weekend/holiday/no-data day, the universe
+    is cut at — and the returned ``resolved_date`` equals — the latest available
+    trading bar at or before it (we never invent prices). Raises only when NO
+    market data exists at or before ``target_date``.
+    """
     es = fetch_es_daily(start="2020-01-01")
     spy = load_spy_from_db()
     es = es[~es.index.duplicated(keep="last")].sort_index()
@@ -133,14 +155,15 @@ def load_universe(target_date: dt.date) -> dict:
     common = es.index.intersection(spy.index)
     es = es.loc[common]
     spy = spy.loc[common]
-    es_cut = es.loc[:target_date]
-    spy_cut = spy.loc[:target_date]
-    if target_date not in es_cut.index:
+    resolved = resolve_target_date(es.index, target_date)
+    if resolved is None:
         raise RuntimeError(
-            f"production data missing for {target_date} — "
-            f"latest available {es_cut.index[-1] if len(es_cut) else None}"
+            f"no market data at or before {target_date} — cannot run"
         )
-    return {"es": es_cut, "spy": spy_cut}
+    es_cut = es.loc[:resolved]
+    spy_cut = spy.loc[:resolved]
+    return {"es": es_cut, "spy": spy_cut,
+            "requested_date": target_date, "resolved_date": resolved}
 
 
 PRODUCTION_GATE_NAMES: tuple[str, ...] = (
@@ -953,42 +976,60 @@ def main() -> int:
     warnings: list[str] = []
     errors: list[str] = []
 
-    target_date = (dt.date.fromisoformat(args.date) if args.date
-                   else dt.date.today())
+    requested_date = (dt.date.fromisoformat(args.date) if args.date
+                      else dt.date.today())
 
-    logger.info("[ops1] start  target_date={}  dry_run={}", target_date, args.dry_run)
+    logger.info("[ops1] start  requested_date={}  dry_run={}", requested_date, args.dry_run)
 
     with SessionLocal() as session:
-        # Idempotency check
+        # STEP A — ingest first so the latest bars exist before we resolve the
+        # target trading day. Non-fatal: FRED/macro timeouts return 'warn' and we
+        # degrade to the latest stored macro snapshot (no fabricated values).
+        r_a = step_ingest_raw(session); steps.append(r_a)
+        if r_a.status == "fail":
+            errors.append(f"{r_a.name}: {r_a.detail}")
+        elif r_a.status == "warn":
+            warnings.append(
+                f"{r_a.name}: {r_a.detail} — macro degraded, using latest stored snapshot")
+
+        # STEP B+C load — DATE-AWARE: resolve requested_date to the latest
+        # available trading day (weekends/holidays/no-data fall back instead of
+        # hard-failing). Fails only when NO data exists at or before requested.
+        try:
+            universe = load_universe(requested_date)
+        except Exception as exc:
+            logger.error("[ops1] HARD FAIL: {}", exc)
+            errors.append(f"load_universe: {exc}")
+            steps.append(StepResult("BC_load", "fail", detail=str(exc)))
+            _emit_summary(
+                requested_date, steps, warnings, errors,
+                freshness={}, regime={}, decision={}, paper={}, shadow={},
+                status="failed",
+            )
+            return 2
+
+        target_date = universe["resolved_date"]
+        reused = target_date != requested_date
+        logger.info(
+            "[ops1] date-aware: requested_calendar_date={} latest_available_data_date={} "
+            "target_processing_date={} status={}",
+            requested_date, target_date, target_date,
+            "reused-prior-trading-day" if reused else "fresh",
+        )
+
+        # Idempotency — keyed on the RESOLVED target trading day. Re-running for a
+        # weekend that maps to an already-processed Friday safely skips.
         if not args.force_recompute:
             existing = session.execute(text("""
               SELECT 1 FROM paper_portfolio_snapshot
               WHERE portfolio_id = :pid AND as_of_date = :d
             """), {"pid": PAPER_ID, "d": target_date}).fetchone()
             if existing and not args.dry_run:
-                logger.info("[ops1] already processed {} — use --force-recompute",
-                            target_date)
+                logger.info(
+                    "[ops1] already processed target={} (requested {}) — skip (idempotent)",
+                    target_date, requested_date)
                 print(f"Already processed {target_date}. Use --force-recompute to overwrite.")
                 return 0
-
-        # STEP A
-        r_a = step_ingest_raw(session); steps.append(r_a)
-        if r_a.status == "fail":
-            errors.append(f"{r_a.name}: {r_a.detail}")
-
-        # STEP B+C (features + context)
-        try:
-            universe = load_universe(target_date)
-        except Exception as exc:
-            logger.error("[ops1] HARD FAIL: {}", exc)
-            errors.append(f"load_universe: {exc}")
-            steps.append(StepResult("BC_load", "fail", detail=str(exc)))
-            _emit_summary(
-                target_date, steps, warnings, errors,
-                freshness={}, regime={}, decision={}, paper={}, shadow={},
-                status="failed",
-            )
-            return 2
 
         r_bc, bundle = step_compute_features_and_context(session, universe, target_date)
         steps.append(r_bc)

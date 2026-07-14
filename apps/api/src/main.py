@@ -83,7 +83,9 @@ from apps.api.src.api.diagnostics_pending import (
 )
 from apps.api.src.api.factors import router as factors_router
 from apps.api.src.api.admin_observability import router as admin_observability_router
+from apps.api.src.api.trust_center import router as trust_center_router
 from apps.api.src.api.paper_canonical import router as paper_canonical_router
+from apps.api.src.api.model_portfolios import router as model_portfolios_router
 from apps.api.src.api.freshness import router as freshness_router
 from apps.api.src.api.intelligence import router as intelligence_router
 from apps.api.src.api.jobs import router as jobs_router
@@ -141,6 +143,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         level=(settings.LOG_LEVEL or "INFO").upper(),
         colorize=True,
     )
+    # Credential-redaction boundary — scrubs every emitted log message so a
+    # provider exception carrying `…apiKey=…` can never leak (incident
+    # 2026-07-11). Installed after add() so the sink stays; patcher is global.
+    from apps.api.src.options.data_provider._redact import install_global_redaction
+    install_global_redaction(logger)
     logger.info("Starting investment-platform API v{}", settings.APP_VERSION)
     # P0-4 — build provenance banner (image <-> git state traceability).
     from apps.api.src.build_provenance import provenance_log_line
@@ -181,9 +188,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# M6A — CORS origins are env-driven (CORS_ALLOWED_ORIGINS, comma-separated).
+# Dev default = http://localhost:5173. allow_credentials stays True for the auth
+# cookie flow; never use '*' here (the deploy preflight rejects it).
+from apps.api.src.api.preflight import parse_cors_origins  # noqa: E402
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=parse_cors_origins(settings.CORS_ALLOWED_ORIGINS),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -219,7 +230,9 @@ for _router in (
     factors_router,
     freshness_router,
     admin_observability_router,
+    trust_center_router,
     paper_canonical_router,
+    model_portfolios_router,
     stock_engine_router,
     stock_engine_analytics_router,
     dashboard_router,
@@ -282,6 +295,23 @@ for _router in (
 
 
 # ---------------------------------------------------------------------------
+# M1 accounts — real auth endpoints (signup/login/logout). Always mounted.
+# ---------------------------------------------------------------------------
+from apps.api.src.api.auth_session import router as auth_session_router  # noqa: E402
+app.include_router(auth_session_router, prefix="/api")
+# M3 — collect-only user profile endpoints.
+from apps.api.src.api.profile import router as profile_router  # noqa: E402
+app.include_router(profile_router, prefix="/api")
+# M5 — collect-only demand-validation feedback signals.
+from apps.api.src.api.feedback import router as feedback_router  # noqa: E402
+app.include_router(feedback_router, prefix="/api")
+# Admin-1 — owner-only read-only console (overview + feedback). Guarded by
+# require_owner on the router; non-owner/anonymous get 404.
+from apps.api.src.api.admin_console import router as admin_console_router  # noqa: E402
+app.include_router(admin_console_router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
 # Phase 11W (Phase B) — Research Intelligence read-only router.
 # Mounted ONLY when RESEARCH_RO_ENABLED is True. When False (production
 # default), every /api/research/* path 404s. GET-only by design.
@@ -323,6 +353,83 @@ if (
         admin_router as insights_admin_router,
     )
     app.include_router(insights_admin_router, prefix="/api")
+
+
+# ---------------------------------------------------------------------------
+# Elite ArthOS Priority 7 — Agent Gateway v0.
+# Mounted ONLY when AGENT_GATEWAY_ENABLED is True (fail-closed). When False
+# (production default), the /agent/* router, the owner token-management
+# console, and the audit middleware are all absent → every agent path 404s
+# and no token can be minted. There is NO live-trading scope by design
+# (spec §3). See docs/architecture/AGENT_GATEWAY_V0_SPEC.md.
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Elite ArthOS product slices — three INDEPENDENT fail-closed flags. When a
+# flag is False (production default) its router is absent → routes 404 and
+# the surface is undiscoverable. Authorization lives inside the routers
+# (require_owner on every mutation), never in the flag. Generated content is
+# service-forced to pending/draft review states. No scheduler is added.
+# ---------------------------------------------------------------------------
+if settings.THESIS_LEDGER_ENABLED:
+    from apps.api.src.api.thesis import router as thesis_router  # noqa: E402
+    app.include_router(thesis_router, prefix="/api")
+
+if settings.RESEARCH_INBOX_ENABLED:
+    from apps.api.src.api.research_inbox import (  # noqa: E402
+        router as research_inbox_router,
+    )
+    app.include_router(research_inbox_router, prefix="/api")
+
+# Wave 3A — Experiment Lab (owner evaluation harness; fail-closed).
+if settings.EXPERIMENT_LAB_ENABLED:
+    from apps.api.src.api.experiments import (  # noqa: E402
+        router as experiments_router,
+    )
+    app.include_router(experiments_router, prefix="/api")
+
+if settings.LEARNING_LOOP_ENABLED:
+    from apps.api.src.api.learning import router as learning_router  # noqa: E402
+    app.include_router(learning_router, prefix="/api")
+
+if settings.RECOMMENDATION_PREFLIGHT_ENABLED:
+    from apps.api.src.api.publication_preflight import (  # noqa: E402
+        router as publication_preflight_router,
+    )
+    app.include_router(publication_preflight_router, prefix="/api")
+
+if settings.REC_DELTA_ENABLED:
+    from apps.api.src.api.recommendation_delta import (  # noqa: E402
+        router as recommendation_delta_router,
+    )
+    app.include_router(recommendation_delta_router, prefix="/api")
+
+if settings.DECISION_REPLAY_ENABLED:
+    from apps.api.src.api.decision_replay import (  # noqa: E402
+        owner_router as replay_owner_router,
+        public_router as replay_public_router,
+    )
+    app.include_router(replay_public_router, prefix="/api")
+    app.include_router(replay_owner_router, prefix="/api")
+
+if settings.SYSTEM_POSTURE_ENABLED:
+    from apps.api.src.api.system_posture import (  # noqa: E402
+        owner_router as posture_owner_router,
+        public_router as posture_public_router,
+    )
+    app.include_router(posture_public_router, prefix="/api")
+    app.include_router(posture_owner_router, prefix="/api")
+
+
+if settings.AGENT_GATEWAY_ENABLED:
+    from apps.api.src.api.agent_gateway import (  # noqa: E402
+        AgentAuditMiddleware,
+        router as agent_gateway_router,
+    )
+    from apps.api.src.api.agent_admin import router as agent_admin_router  # noqa: E402
+
+    app.add_middleware(AgentAuditMiddleware)
+    app.include_router(agent_gateway_router, prefix="/api")
+    app.include_router(agent_admin_router, prefix="/api")
 
 
 # ---------------------------------------------------------------------------

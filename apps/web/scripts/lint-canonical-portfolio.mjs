@@ -264,6 +264,11 @@ const GLOBAL_RULES = [
 for (const file of walk(SRC_DIR)) {
   const rel = norm(relative(ROOT, file));
   if (rel.endsWith(norm(SELF))) continue;
+  // Test files are exempt from the PRODUCTION-code freeze rules: fixtures
+  // named DEMO_/MOCK_ and stubbed stores are the point of a test. The
+  // rules above ("no mock financial data in production code") still bind
+  // every file that ships in the bundle.
+  if (/\.test\.(ts|tsx)$/.test(rel) || rel.includes('/__tests__/') || rel.includes('src/test/')) continue;
   const text = readFileSync(file, 'utf8');
   text.split('\n').forEach((line, i) => {
     const t = line.trim();

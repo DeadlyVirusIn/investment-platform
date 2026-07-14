@@ -43,6 +43,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 
@@ -101,6 +102,9 @@ describe('ResearchIntelligenceTab', () => {
 
 describe('client fail-closed', () => {
   it('test_research_fail_closed_on_forbidden_token', async () => {
+    // Free tier renders the locked preview and never mounts the body,
+    // so the client-side fail-closed path needs an unlocked tier.
+    vi.stubEnv('VITE_RESEARCH_PREMIUM_TIER', 'pro');
     // @ts-expect-error -- fetch is a global in jsdom
     global.fetch = _mockFetch({
       '/api/research/ticker/UNH/latest': {

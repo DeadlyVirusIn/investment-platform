@@ -9,13 +9,18 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel, ParagraphWithTerms } from '../chrome/ArthosChrome';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
+import { TrackRecordIntegrityCard } from '../components/TrackRecordIntegrityCard';
+import { ReflectionLoop } from '../components/ReflectionLoop';
 import {
   useCanonicalStockPortfolio,
   usePaperEquity,
   useExecutedTrades,
   type ExecutedTrade,
 } from '@/lib/operator/hooks';
+import { EvidenceBadge } from '../components/ui/EvidenceBadge';
+import { freshnessInfo } from '../lib/freshness';
 
 const MIN_CLOSES_FOR_STATS = 10;
 
@@ -44,7 +49,7 @@ export function TrackRecord() {
   const { data: book } = useCanonicalStockPortfolio();
   const pid = book?.portfolio_id;
   const { data: equity } = usePaperEquity(undefined, undefined, pid);
-  const { data: tradesData } = useExecutedTrades(false, pid);
+  const { data: tradesData } = useExecutedTrades(false, pid, { enabled: !!pid });
 
   const points = equity ?? [];
   // Real closed trades = sells with a realized P&L.
@@ -83,23 +88,64 @@ export function TrackRecord() {
           Real performance of the tracked practice portfolio — sourced live from
           the backend. Nothing here is hand-written.
         </p>
-        {book?.as_of && (
-          <p className="ink-fainter text-[12px] tabular-nums">
-            As of {absTime(book.as_of)} · source: live ·{' '}
-            <span style={{ color: book.freshness === 'fresh' ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
-              {book.freshness}
-            </span>
-          </p>
-        )}
+        {book?.as_of && (() => {
+          const f = freshnessInfo(book.as_of, book.freshness === 'stale');
+          return (
+            <p className="ink-fainter text-[12px] tabular-nums">
+              As of {absTime(book.as_of)} ·{' '}
+              <span style={{ color: f.tone === 'good' ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
+                {f.label.toLowerCase()}
+              </span>
+            </p>
+          );
+        })()}
       </header>
 
       <PracticeTabs />
+
+      {/* P0-3 — canonical Track Record Integrity Card (honest, real-data). */}
+      <FadeIn delay={0.02}>
+        <TrackRecordIntegrityCard />
+      </FadeIn>
+
+      {/* Where things stand — open vs resolved in one plain sentence, with
+          the honesty label the sample size earns (Elite pass, audit M4). */}
+      <FadeIn delay={0.025}>
+        <section className="mb-14">
+          <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
+            <MetaLabel>Where things stand</MetaLabel>
+            <EvidenceBadge
+              state={closed.length === 0 ? 'not_yet_evaluated'
+                : closed.length < MIN_CLOSES_FOR_STATS ? 'insufficient_data'
+                  : 'preliminary'}
+            />
+          </div>
+          <p className="ink-primary text-[15px] leading-relaxed max-w-narrative">
+            {(book?.open_positions_count ?? 0)} idea{(book?.open_positions_count ?? 0) === 1 ? '' : 's'} still
+            open · {closed.length} resolved to a final outcome.
+          </p>
+          <p className="ink-muted text-[13px] leading-relaxed max-w-narrative mt-2">
+            Everything on this page is <strong>paper only</strong> — practice
+            money, filled at real market prices, with no commissions or
+            slippage modeled yet. Paper results don't predict real returns.
+          </p>
+        </section>
+      </FadeIn>
+
+      {/* P0-4 — Reflection Loop: expected / happened / learned per closed
+          recommendation, templated from real stored outcomes. */}
+      <FadeIn delay={0.03}>
+        <ReflectionLoop />
+      </FadeIn>
 
       <FadeIn delay={0.04}>
         <section className="mb-14">
           <MetaLabel>Lifetime</MetaLabel>
           {book?.total_return_pct == null ? (
-            <p className="ink-muted text-[15px] mt-3">Practice account performance is unavailable right now.</p>
+            <p className="ink-muted text-[15px] leading-relaxed mt-3 max-w-narrative">
+              Your track record builds as your practice trades get marked each day.
+              Add or follow ideas to start it — your numbers will appear here.
+            </p>
           ) : (
             <>
               <div className="font-serif text-headline ink-primary mt-3 tabular-nums mb-2">
@@ -135,7 +181,15 @@ export function TrackRecord() {
 
       <FadeIn delay={0.14}>
         <section className="mb-16">
-          <MetaLabel>The numbers</MetaLabel>
+          <div className="flex items-baseline justify-between flex-wrap gap-3">
+            <MetaLabel>The numbers</MetaLabel>
+            <EvidenceBadge
+              state={stats == null ? 'not_yet_evaluated'
+                : stats.total < MIN_CLOSES_FOR_STATS ? 'insufficient_data'
+                  : 'preliminary'}
+              size="sm"
+            />
+          </div>
           {stats == null || stats.total < MIN_CLOSES_FOR_STATS ? (
             <p className="ink-muted italic leading-relaxed mt-4 max-w-narrative text-[14px]">
               {stats == null
@@ -168,7 +222,7 @@ export function TrackRecord() {
               {closed.slice().sort((a, b) => (b.fill_ts ?? '').localeCompare(a.fill_ts ?? '')).map((t) => (
                 <li key={t.trade_id} className="surface-base py-5 flex items-baseline justify-between gap-4 flex-wrap">
                   <div className="min-w-0 flex-1">
-                    <span className="font-mono ink-primary text-[14px]">{t.symbol}</span>
+                    <CompanyTitle symbol={t.symbol} className="ink-primary text-[14px]" />
                     <span className="text-meta ink-fainter tabular-nums ml-3">
                       {t.fill_ts ? absTime(t.fill_ts) : '—'}{t.source !== 'live' && ` · ${t.source}`}
                     </span>
@@ -182,6 +236,36 @@ export function TrackRecord() {
             </ul>
           )}
         </section>
+      </FadeIn>
+
+      {/* Methodology — progressive disclosure; plain-English, no jargon. */}
+      <FadeIn delay={0.22}>
+        <details className="mb-14 rounded-xl px-5 py-4" style={{ border: '1px solid var(--border)' }}>
+          <summary className="ink-primary text-[13.5px] font-semibold cursor-pointer select-none">
+            How these numbers are computed
+          </summary>
+          <div className="ink-muted text-[13px] leading-relaxed mt-3 space-y-2 max-w-narrative">
+            <p>
+              <strong>Lifetime return</strong> compares today's book value to the
+              starting practice capital. It includes both realized results
+              (closed trades) and unrealized moves (open positions marked at the
+              latest close).
+            </p>
+            <p>
+              <strong>Hit rate</strong> is simply winners ÷ resolved trades.
+              <strong> Expectancy</strong> is the average realized profit or loss
+              per resolved trade. Both publish only after{' '}
+              {MIN_CLOSES_FOR_STATS} trades have resolved — a rate computed on a
+              handful of trades is noise, not evidence.
+            </p>
+            <p>
+              <strong>Worst drawdown</strong> is the deepest peak-to-trough dip
+              of the equity curve, from daily snapshots. Fills use real market
+              prices; commissions and slippage are not modeled yet, which
+              flatters results slightly.
+            </p>
+          </div>
+        </details>
       </FadeIn>
 
       <div className="border-t border-hairline pt-12">
