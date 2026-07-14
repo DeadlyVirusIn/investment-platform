@@ -380,6 +380,13 @@ if settings.RESEARCH_INBOX_ENABLED:
     )
     app.include_router(research_inbox_router, prefix="/api")
 
+# Wave 3A — Experiment Lab (owner evaluation harness; fail-closed).
+if settings.EXPERIMENT_LAB_ENABLED:
+    from apps.api.src.api.experiments import (  # noqa: E402
+        router as experiments_router,
+    )
+    app.include_router(experiments_router, prefix="/api")
+
 if settings.LEARNING_LOOP_ENABLED:
     from apps.api.src.api.learning import router as learning_router  # noqa: E402
     app.include_router(learning_router, prefix="/api")

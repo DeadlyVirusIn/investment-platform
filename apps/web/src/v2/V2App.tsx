@@ -56,6 +56,8 @@ import { AdminTrustCenter } from './pages/AdminTrustCenter';
 import { AdminResearchInbox, researchInboxEnabled } from './pages/AdminResearchInbox';
 // Wave 2B — read-only Mission Board over Inbox + gateway state (same flag).
 import { AdminResearchBoard } from './pages/AdminResearchBoard';
+// Wave 3A — Experiment Lab minimal owner surface (own flag, default off).
+import { AdminExperiments, experimentLabEnabled } from './pages/AdminExperiments';
 import { AdminPreflight } from './pages/AdminPreflight';
 import { IdeaHistory } from './pages/IdeaHistory';
 // Options — read-only V2-native options subsystem visibility surface.
@@ -127,6 +129,11 @@ function V2Surface() {
             (same flag; server route owner-gated AND flag-mounted). */}
         {researchInboxEnabled() && (
           <Route path="admin/research-board" element={<AdminResearchBoard />} />
+        )}
+        {/* Wave 3A — Experiment Lab (server routes owner-gated AND
+            flag-mounted; page fails closed to owner-only panel). */}
+        {experimentLabEnabled() && (
+          <Route path="admin/experiments" element={<AdminExperiments />} />
         )}
         {/* Wave 1A — owner preflight console. Server routes owner-gated AND
             flag-mounted; page fails closed to owner-only panel otherwise. */}

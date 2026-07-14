@@ -334,6 +334,9 @@ class Settings(BaseSettings):
 
     THESIS_LEDGER_ENABLED: bool = False       # /api/theses + /api/admin/theses*
     RESEARCH_INBOX_ENABLED: bool = False      # /api/admin/inbox/*
+    # Wave 3A — Experiment Lab (owner evaluation harness). Off = routes
+    # absent, no research_run writes from the Lab, zero behavior change.
+    EXPERIMENT_LAB_ENABLED: bool = False      # /api/admin/experiments/*
     LEARNING_LOOP_ENABLED: bool = False       # /api/admin/lessons/*
 
     # Wave 1A — Recommendation Publication Preflight (deterministic trust
