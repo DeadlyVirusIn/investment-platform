@@ -368,3 +368,26 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   replay eras NEGATIVE excess (−0.60%); reproduction hash EXACT.
 - **Tests:** lab 42 green (+ pooling/scoping/matched pg pins); Vitest
   287; tsc/eslint/lint:portfolio/build green. Prod untouched (109).
+
+### Program consolidation review — 2026-07-14 (PLAN ONLY)
+- **Docs:** `ELITE_PROGRAM_CONSOLIDATION_REVIEW.md` +
+  `ELITE_MERGE_BACK_PLAN.md`. Nothing merged/rebased/deployed/tagged.
+- **Topology:** `phase-1/ledger` @ d4286e7 IS the merge base (0 ahead) —
+  elite @ fb477e0 is a strict descendant (+195 commits, 423 files,
+  +56,262/−955). **Zero conflicts by construction.**
+- **Hotfix:** dc36058 is an elite ancestor; elite carries the P1
+  user-book fix (7876124) + lease/fencing hardening; mvp's 52a5e3b is a
+  duplicate cherry-pick (superseded post-merge, not deleted).
+- **Prod line:** release/stage-b1-* content (redaction + ingest
+  contracts) byte-contained in elite; one release-only artifact
+  (POLYGON_CREDENTIAL_INCIDENT.md) to copy at integration.
+- **Migrations 101–121:** single linear head, additive-only, downgrades
+  present; prod verified at 109 (2026-07-13 read-only check).
+- **Deps:** Python unchanged (no statsmodels/Optuna/AGPL); web adds test
+  tooling only. No Elite flag in any deployment template.
+- **Verdicts:** conflicts ZERO · hotfix NO CONFLICT · compatibility
+  matrix has no blocked state (G6 feature-off parity + G7 code-on-109
+  are the required new proofs) · risk **LOW** · strategy = --no-ff merge
+  via short-lived `integration/elite-arthos-consolidation` ·
+  **READY FOR CONSOLIDATION BRANCH** — execution awaits explicit
+  approval.

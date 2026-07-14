@@ -146,3 +146,14 @@ feature behind its own default-off flag.
 Auto-memory `project_post_elite_plan_20260712.md` holds the running
 program log (indexed in MEMORY.md). Update it, not this file, for the next
 increment.
+
+## Addendum 2026-07-14 — program state after Waves 2B/2C/3A/3A.1 + consolidation review
+
+HEAD (pushed): see git — waves 2B (Mission Board), 2C design+121
+implementation (dev at migration 121), 3A (Experiment Lab, honest
+INSUFFICIENT verdict), 3A.1 (evidence reconstruction; replay-pooling fix;
+matched accounting; trained adapter BLOCKED on fold depth) are complete.
+Consolidation review verdict: READY FOR CONSOLIDATION BRANCH —
+phase-1/ledger is the exact merge base (elite strict descendant, zero
+conflicts); plan in docs/roadmap/ELITE_MERGE_BACK_PLAN.md awaits explicit
+approval. Prod untouched at 109 / 1fb6e28.
