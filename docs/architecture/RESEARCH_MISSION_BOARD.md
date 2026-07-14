@@ -176,19 +176,26 @@ revert the commit(s); no schema, no data, no flag changes needed.
 3. Owner smoke: board renders, counts match Inbox, no body text anywhere
    in the payload (`curl … | grep -c body` = 0).
 
+## mission-board-2 (Wave 2C, implemented 2026-07-13)
+
+Migration 121 landed task↔job provenance; the rule set is now
+`mission-board-2` (see `RESEARCH_EXECUTION_PROVENANCE.md` for the full
+policy): jobs with `research_task_id` contribute to their TASK's card —
+task precedence becomes `running > review_needed > failed > stale >
+corrected > delivered > queued`, retry supersession for linked jobs is
+task-linkage based, task cards carry a bounded execution summary +
+history link, and follow-up cards show the exact source report version
+("from v2", with a superseded note). Historical NULL-linked jobs keep
+the mission-board-1 standalone-job-card behavior verbatim (parameter-
+based retry suppression; never guessed onto a task). Query bound is now
+≤5 SELECTs (adds the source-report version lookup) — still pinned.
+
 ## Known limitations
 
-- Gateway jobs cannot be tied to tasks (schema fact). **Wave 2C design
-  (2026-07-13) approved the fix**: nullable `agent_job.research_task_id`
-  FK RESTRICT (migration 121, not yet implemented). When it lands, NEW
-  linked jobs become task-aware in Running/Failed and this rule set bumps
-  to `mission-board-2`; historical unlinked jobs keep the labelled
-  job-card behavior (no backfill). See
-  `TRACKED_ENTITY_AND_RESEARCH_PROVENANCE_DESIGN.md`.
-- "View gateway job" / cancel actions are absent by design: no owner job
-  UI or owner-session cancel route exists today (121 adds a read-only
-  `GET /admin/inbox/tasks/{id}/execution-history`).
+- "View gateway job" as a standalone owner surface still doesn't exist;
+  the read-only `GET /admin/inbox/tasks/{id}/execution-history` route
+  (Wave 2C) covers linked jobs. No owner cancel route by design.
 - `schedule_expr` is not parsed (definition-only); overdue detection uses
   the 14-day report-age heuristic, not the cron expression.
-- Report-level follow-up provenance: designed in Wave 2C
-  (`research_task.source_report_id`, migration 121), not yet implemented.
+- Historical (pre-121) jobs and follow-ups remain honestly unlinked —
+  no backfill, ever.

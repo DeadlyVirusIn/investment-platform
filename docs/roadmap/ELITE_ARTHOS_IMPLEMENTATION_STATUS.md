@@ -272,3 +272,44 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   Backfill: NONE (no log/free-text parsing; history stays honestly
   unlinked). Overall: **WAVE 2C DESIGN APPROVED FOR IMPLEMENTATION** —
   awaits explicit authorization.
+
+### Wave 2C — Migration 121 IMPLEMENTED — 2026-07-13
+- **Authorized scope only** (122 untouched). Record:
+  `docs/architecture/RESEARCH_EXECUTION_PROVENANCE.md`.
+- **Migration `121_research_exec_provenance` APPLIED TO DEV** (backup
+  `.backups/devdb_full_20260713_pre121.dump` verified readable; row
+  counts unchanged; head 120→121; note: alembic version ids cap at
+  varchar(32)). Ephemeral 16-point validation matrix 16/16 (up/down/up,
+  FK/CHECK/RESTRICT/trigger refusals). **Prod verified untouched at 109**
+  (read-only SSH check).
+- **DB immutability triggers** `trg_arthos_agent_job_provenance` +
+  `trg_arthos_research_task_provenance` (DDL exported from the migration
+  module into the pg suite — zero drift).
+- **Gateway:** optional `research_task_id` on POST /agent/jobs (open|
+  paused accept, closed 422, unknown 422); task id joins the idempotency
+  fingerprint only-when-present (pre-121 hashes unchanged) — same key +
+  different task = 409, replay preserves the original link; transitions/
+  cancel preserve it (whitelist + trigger).
+- **Follow-up:** route server-stamps source_report_id (exact version);
+  pinned policy = follow-up allowed from ANY retained version, UI labels
+  "from vN (superseded…)" / "source version was not recorded".
+- **Execution history:** GET /admin/inbox/tasks/{id}/execution-history
+  (owner 404 posture, newest-first, cap 50 + overflow, redacted: no
+  request_hash/params/created_by/token hash).
+- **Mission Board `mission-board-2`:** linked jobs move their TASK card
+  (precedence running > review_needed > failed > stale > corrected >
+  delivered > queued; failure superseded by newer attempt OR
+  later-delivered report; task-linkage retries), execution summary +
+  expandable history on cards, follow-up "from vN" labels; historical
+  NULL-linked jobs keep board-1 standalone cards verbatim; ≤5 SELECTs
+  pinned.
+- **Tests:** 46 unit board + 18 pg board + 20 pg provenance + gateway/
+  inbox/authz suites → combined 161 passed; Wave-1 focused + gateway
+  http 233 passed (1 pre-existing route-scan failure byte-identical on
+  clean HEAD); web tsc/eslint/lint:portfolio/build green, Vitest 281.
+- **Live drill (fixtures cleaned, zero residue):** linked queued/running/
+  failed, retry suppressing failure, standalone historical job, follow-up
+  from superseded v1, live composite-FK + trigger rejections, execution
+  history 200/7ms, anon 404; screenshots
+  `board2-desktop-linked.png` + `board2-mobile-running.png`.
+- **Prod:** untouched (109). Migration 122 evidence gate: unchanged.

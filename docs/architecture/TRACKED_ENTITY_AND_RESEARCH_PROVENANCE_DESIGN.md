@@ -1,6 +1,9 @@
 # Tracked Entities & Research Provenance — Wave 2C Design Review
 
-**Status: DESIGN ONLY — no code, no migration generated, nothing applied.**
+**Status: migration-121 scope IMPLEMENTED (2026-07-13) — see
+`RESEARCH_EXECUTION_PROVENANCE.md` for the implementation record.
+Migration-122 scope (themes, task↔asset, report↔recommendation links)
+remains design-only, gated on 121-usage evidence.**
 Branch `feature/elite-arthos-provable-ideas @ 82c8b75` (local == origin).
 Alembic single head `120_system_posture_event`; dev DB at 120; prod at 109,
 untouched. Review roles: Principal Architect, DB Architect, Security,

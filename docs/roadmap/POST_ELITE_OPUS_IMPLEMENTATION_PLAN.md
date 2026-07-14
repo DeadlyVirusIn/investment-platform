@@ -253,6 +253,11 @@ evidence, migration 122). No backfill anywhere. Overall: **WAVE 2C
 DESIGN APPROVED FOR IMPLEMENTATION** — implementation awaits explicit
 authorization; nothing generated or applied (heads verified at 120,
 prod 109).
+**Migration-121 scope IMPLEMENTED 2026-07-13** (dev at 121, prod 109;
+record: `RESEARCH_EXECUTION_PROVENANCE.md`): task↔job link + follow-up
+source-report composite FK + DB immutability triggers + gateway
+submission field + execution-history route + Mission Board
+`mission-board-2`. Migration 122 remains gated on owner-usage evidence.
 
 **Wave 2 gates.** Dev-only until Inbox itself is promoted; board and links
 ride the same flags. Parallel: #5 and #6 independent; #7 after design
