@@ -339,3 +339,32 @@ during their build sprints; confirmed present, `alembic current` = 117.)
 - **Tests:** 24 unit + 14 pg new; combined Wave-1+2+3 selection **371
   passed**; web +6 (Vitest 287), tsc/eslint/lint:portfolio/build green.
 - **Prod:** untouched (109).
+
+### Wave 3A.1 — Historical evidence reconstruction — 2026-07-14
+- **Investigation-first; docs:** HISTORICAL_LABEL_ROOT_CAUSE.md,
+  OUTCOME_RECONSTRUCTION_AUDIT.md,
+  EXPERIMENT_LAB_EVIDENCE_UNLOCK_REPORT.md (+ validation-report
+  addendum — originals never rewritten). Backup
+  devdb_full_20260714_pre3a1.dump before any write.
+- **Root cause A (historical_label empty):** writer has ZERO callers
+  (never scheduled; BP-era artifact from a prior DB era) AND point-in-
+  time snapshots only exist from 2026-04-22. Rebuilt via the ORIGINAL
+  pipeline: 1,601 rows / 36 days / balanced classes.
+  **Trained-adapter gate: BLOCKED (≤2 folds < 4)** — no LightGBM
+  adapter built; unlock ≈ late 2026-08 via snapshot accumulation.
+- **Root cause B (2024-H2/2025 gap):** NOT an outcome defect —
+  recommendations were never generated for those windows (replay-era
+  coverage). Outcome backfill scope = 49 immaterial rows → **no inserts,
+  existing outcomes byte-untouched**. Real defect found instead:
+  Wave 3A POOLED up to 8 replay model_version variants (duplicate
+  correlated samples).
+- **Lab lab-1.1:** model_versions scoping in the hashed identity +
+  CRITICAL replay-pooling warning + matched event-horizon benchmark
+  (comparable accounting: per-event same-asset same-horizon same-entry).
+- **Re-runs (4 new, originals retained):** pooled matched excess +0.18%
+  mean / median ≈ 0 / share-beating CI 49.7–54.3% (indistinguishable
+  from no edge); live-engine-only (0.1.0) +0.82% excess, 66% share
+  (CI 57–74%) but 1 fold/109 events → INSUFFICIENT_EVIDENCE; 2024/2025
+  replay eras NEGATIVE excess (−0.60%); reproduction hash EXACT.
+- **Tests:** lab 42 green (+ pooling/scoping/matched pg pins); Vitest
+  287; tsc/eslint/lint:portfolio/build green. Prod untouched (109).

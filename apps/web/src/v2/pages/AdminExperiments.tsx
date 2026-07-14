@@ -248,13 +248,33 @@ function RunDetailView({ d }: { d: RunDetail }) {
       {m.benchmarks && (
         <p className="ink-muted text-[12px]">
           <strong className="ink-primary">Benchmarks (same universe/window):</strong>{' '}
-          {Object.entries(m.benchmarks).map(([k, v]) => (
-            <span key={k} className="mr-3 tabular-nums">
-              {k}: {'error' in v ? String(v.error) : pct(v.total_return as number)}
-            </span>
-          ))}
+          {Object.entries(m.benchmarks)
+            .filter(([k]) => k !== 'matched_event_horizon')
+            .map(([k, v]) => (
+              <span key={k} className="mr-3 tabular-nums">
+                {k}: {'error' in v ? String(v.error) : pct(v.total_return as number)}
+              </span>
+            ))}
         </p>
       )}
+      {(() => {
+        // Wave 3A.1 — the only return comparison on a COMPARABLE basis.
+        const meb = m.benchmarks?.matched_event_horizon;
+        if (!meb) return null;
+        if ('error' in meb) {
+          return <p className="ink-fainter text-[12px]">Matched event benchmark: {String(meb.error)}</p>;
+        }
+        return (
+          <p className="ink-muted text-[12px] tabular-nums">
+            <strong className="ink-primary">Matched event benchmark ({String(meb.basis)}):</strong>{' '}
+            engine {pct(meb.engine_mean_30d as number)} vs asset {pct(meb.benchmark_mean_30d as number)} ·
+            excess {pct(meb.excess_mean as number)} (median {pct(meb.excess_median as number)}) ·
+            beats asset in {pct(meb.share_events_beating_asset as number)} of {String(meb.events)} events
+            {Array.isArray(meb.share_beating_ci95) &&
+              ` (CI95 ${pct(meb.share_beating_ci95[0] as number)}–${pct(meb.share_beating_ci95[1] as number)})`}
+          </p>
+        );
+      })()}
       {m.cost_sensitivity && !('error' in m.cost_sensitivity) && (
         <p className="ink-muted text-[12px] tabular-nums">
           <strong className="ink-primary">Cost sensitivity (mean 30d):</strong>{' '}

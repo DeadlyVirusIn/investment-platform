@@ -41,6 +41,13 @@ function detail(over: Partial<Record<string, unknown>> = {}) {
         buy_and_hold: { total_return: 1.1189 },
         momentum_12_1: { total_return: 1.118 },
         neutral: { total_return: 0 },
+        matched_event_horizon: {
+          basis: 'per-event 30d horizon, identical entry price, asset buy-and-hold comparator',
+          events: 1812, engine_mean_30d: 0.0506, benchmark_mean_30d: 0.0488,
+          excess_mean: 0.0018, excess_median: 0.0,
+          share_events_beating_asset: 0.5204,
+          share_beating_ci95: [0.4974, 0.5434],
+        },
       },
       cost_sensitivity: {
         zero_cost: { net_mean_30d: 0.0292 },
@@ -109,6 +116,9 @@ describe('AdminExperiments', () => {
     expect(table.getByText('336')).toBeInTheDocument();       // censored
     expect(await screen.findByText(/Skipped folds: 2024-Q3/)).toBeInTheDocument();
     expect(screen.getByText(/Benchmarks \(same universe\/window\)/)).toBeInTheDocument();
+    // Wave 3A.1 — matched comparable-basis line renders with CI
+    expect(screen.getByText(/Matched event benchmark/)).toBeInTheDocument();
+    expect(screen.getByText(/beats asset in 52.0% of 1812 events \(CI95 49.7%–54.3%\)/)).toBeInTheDocument();
     expect(screen.getByText(/read-only verdict/)).toBeInTheDocument();
     expect(screen.getByText(/0\/3 folds beat the base-rate Brier/)).toBeInTheDocument();
   });

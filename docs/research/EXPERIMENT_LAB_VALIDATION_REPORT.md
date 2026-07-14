@@ -77,3 +77,18 @@ fold depth for any promotion claim. That is the honest, useful answer
 Wave 3A was built to give. Next evidence unlock: rebuild
 `historical_label` so the trained meta-labeler path (purged folds) can
 run, and extend the outcome corpus to close the 2024-H2/2025 fold gap.
+
+---
+
+## Addendum — Wave 3A.1 (2026-07-14): pooling defect disclosed; comparable accounting added
+
+The runs above POOLED up to 8 replay model_version variants of the same
+decisions (defect discovered in Wave 3A.1 — duplicate correlated samples
+inflated resolved counts). The numbers stand as recorded but must be read
+with that caveat; lab-1.1 now emits a CRITICAL warning on unscoped
+multi-version corpora and supports model_versions scoping. The
+strategy-vs-buy&hold contrast above (fold-mean 30d vs calendar-window
+total) is NOT a comparable basis; see the matched event-horizon benchmark
+in EXPERIMENT_LAB_EVIDENCE_UNLOCK_REPORT.md — on matched accounting the
+pooled per-event excess is +0.18% mean (median ≈ 0, share-beating CI
+49.7–54.3%). Original findings unchanged; nothing here was rewritten.

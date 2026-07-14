@@ -276,6 +276,22 @@ def test_metric_hash_deterministic_and_tolerant():
     assert metric_hash([{"a": 0.124}], s) != metric_hash([{"a": 0.123}], s)
 
 
+# ── Wave 3A.1: model-version scoping ───────────────────────────────────────
+
+def test_model_versions_change_spec_hash_and_are_normalized():
+    h0 = experiment_hash(validate_spec(_spec()))
+    s = validate_spec(_spec(model_versions=["0.1.0", " 0.1.0 ", "b"]))
+    assert s.model_versions == ("0.1.0", "b")
+    assert experiment_hash(s) != h0
+
+
+def test_model_versions_bounds():
+    with pytest.raises(SpecError):
+        validate_spec(_spec(model_versions=[str(i) for i in range(9)]))
+    with pytest.raises(SpecError):
+        validate_spec(_spec(model_versions="0.1.0"))  # not a list
+
+
 def test_environment_capture_has_no_secrets():
     env = environment_capture()
     flat = str(env).lower()

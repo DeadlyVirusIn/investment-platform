@@ -53,7 +53,10 @@ from apps.ml.lab.registry import (
     resolve_git_sha,
 )
 
-LAB_EVALUATOR_VERSION = "lab-1"
+#: lab-1.1 (Wave 3A.1): model_versions scoping + replay-pooling CRITICAL
+#: warning + matched event-horizon benchmark (comparable accounting).
+#: Original lab-1 runs remain untouched historical evidence.
+LAB_EVALUATOR_VERSION = "lab-1.1"
 SPLIT_POLICY_VERSION = "calendar-eval-1"   # evaluation windows, no training
 GATE_POLICY_VERSION = "lab-gates-1"
 
@@ -125,6 +128,11 @@ class ExperimentSpec:
     confidence_threshold: float = 60.0       # publication-band boundary
     seed: int = 42
     actions: tuple[str, ...] = ("Buy",)
+    #: Wave 3A.1 — model-version scoping. Dev history contains REPLAY
+    #: VARIANTS (same window re-generated under several model_version
+    #: strings); pooling them duplicates correlated decisions. Empty =
+    #: all versions, with a CRITICAL warning when >1 version pools.
+    model_versions: tuple[str, ...] = ()
 
 
 def validate_spec(raw: dict) -> ExperimentSpec:
@@ -208,13 +216,18 @@ def validate_spec(raw: dict) -> ExperimentSpec:
     actions = tuple(raw.get("actions", ("Buy",)))
     if not actions or set(actions) - {"Buy", "Sell", "Trim", "Watch", "Hold"}:
         raise SpecError("actions invalid")
+    mvs = raw.get("model_versions") or ()
+    if not isinstance(mvs, (list, tuple)) or len(mvs) > 8:
+        raise SpecError("model_versions must be a list of at most 8")
+    model_versions = tuple(sorted({str(v).strip()[:64] for v in mvs
+                                   if str(v).strip()}))
 
     return ExperimentSpec(
         name=name, engine=engine, target=target, universe=universe,
         universe_size=usize, start=start, end=end, fold_period=period,
         embargo_days=embargo, min_eval_rows=min_eval, benchmarks=bms,
         cost_scenarios=costs, confidence_threshold=thr, seed=seed,
-        actions=actions,
+        actions=actions, model_versions=model_versions,
     )
 
 
@@ -236,6 +249,7 @@ def spec_payload(spec: ExperimentSpec) -> dict:
         "confidence_threshold": spec.confidence_threshold,
         "seed": spec.seed,
         "actions": list(spec.actions),
+        "model_versions": list(spec.model_versions),
         "evaluator_version": LAB_EVALUATOR_VERSION,
         "split_policy_version": SPLIT_POLICY_VERSION,
     }
@@ -294,9 +308,16 @@ def dataset_fingerprint(db: Session, spec: ExperimentSpec,
         WHERE a.symbol = ANY(:syms) AND pb.ts >= :s AND pb.ts < :e
         """), {"syms": universe, "s": spec.start, "e": spec.end},
     ).mappings().one()
+    mv_clause = ""
+    rec_params: dict = {"syms": universe, "s": spec.start, "e": spec.end,
+                        "acts": list(spec.actions)}
+    if spec.model_versions:
+        mv_clause = "AND r.model_version = ANY(:mvs)"
+        rec_params["mvs"] = list(spec.model_versions)
     recs = db.execute(text(
-        """
+        f"""
         SELECT count(*) AS n, max(r.generated_at) AS max_gen,
+               count(DISTINCT r.model_version) AS n_versions,
                sum(CASE WHEN o.barrier_label IS NOT NULL THEN 1 ELSE 0 END)
                  AS resolved,
                sum(CASE WHEN o.barrier_label IS NULL THEN 1 ELSE 0 END)
@@ -305,10 +326,8 @@ def dataset_fingerprint(db: Session, spec: ExperimentSpec,
         JOIN asset a ON a.id = r.asset_id
         LEFT JOIN recommendation_outcome o ON o.recommendation_id = r.id
         WHERE a.symbol = ANY(:syms) AND r.generated_at >= :s
-          AND r.generated_at < :e AND r.action = ANY(:acts)
-        """),
-        {"syms": universe, "s": spec.start, "e": spec.end,
-         "acts": list(spec.actions)},
+          AND r.generated_at < :e AND r.action = ANY(:acts) {mv_clause}
+        """), rec_params,
     ).mappings().one()
     ca = db.execute(text(
         "SELECT count(*) FROM corporate_action c "
@@ -324,6 +343,8 @@ def dataset_fingerprint(db: Session, spec: ExperimentSpec,
         "price_assets": int(agg["assets"] or 0),
         "recommendations": int(recs["n"] or 0),
         "rec_max_generated_at": str(recs["max_gen"]),
+        "distinct_model_versions": int(recs["n_versions"] or 0),
+        "model_version_filter": list(spec.model_versions) or None,
         "resolved_outcomes": int(recs["resolved"] or 0),
         "censored_outcomes": int(recs["censored"] or 0),
         "corporate_actions": int(ca),
@@ -342,20 +363,28 @@ def dataset_fingerprint(db: Session, spec: ExperimentSpec,
 def load_decisions(db: Session, spec: ExperimentSpec,
                    universe: list[str]) -> list[dict]:
     """Stored engine decisions joined to outcomes — the evaluation corpus.
-    Bounded by universe + window; deterministic order."""
+    Bounded by universe + window; deterministic order. Optional
+    model_versions scoping (Wave 3A.1) — dev history contains replay
+    variants; unscoped runs pool them and get a CRITICAL warning."""
+    mv_clause = ""
+    params: dict = {"syms": universe, "s": spec.start, "e": spec.end,
+                    "acts": list(spec.actions)}
+    if spec.model_versions:
+        mv_clause = "AND r.model_version = ANY(:mvs)"
+        params["mvs"] = list(spec.model_versions)
     rows = db.execute(text(
-        """
+        f"""
         SELECT a.symbol, r.generated_at, r.action, r.conviction,
-               o.barrier_label, o.realized_30d_return, o.barrier_n_bars
+               r.model_version, r.asset_id,
+               o.barrier_label, o.realized_30d_return, o.barrier_n_bars,
+               o.price_at_recommendation
         FROM recommendation r
         JOIN asset a ON a.id = r.asset_id
         LEFT JOIN recommendation_outcome o ON o.recommendation_id = r.id
         WHERE a.symbol = ANY(:syms) AND r.generated_at >= :s
-          AND r.generated_at < :e AND r.action = ANY(:acts)
+          AND r.generated_at < :e AND r.action = ANY(:acts) {mv_clause}
         ORDER BY r.generated_at, a.symbol, r.id
-        """),
-        {"syms": universe, "s": spec.start, "e": spec.end,
-         "acts": list(spec.actions)},
+        """), params,
     ).mappings().all()
     return [dict(r) for r in rows]
 
@@ -571,6 +600,90 @@ def run_benchmarks(db: Session, spec: ExperimentSpec,
     return out
 
 
+MATCHED_HORIZON_DAYS = 30
+MATCHED_EXIT_TOLERANCE_DAYS = 7
+
+
+def matched_event_benchmark(db: Session, decisions: list[dict],
+                            universe: list[str]) -> dict:
+    """Wave 3A.1 comparable accounting — event-level comparison.
+
+    For every RESOLVED decision with a stored entry price
+    (price_at_recommendation) and stored 30d return, compute the SAME
+    asset's buy-and-hold return over the SAME event horizon: entry = the
+    stored entry price (identical entry convention), exit = last close at
+    or before entry+30 calendar days (within a 7-day tolerance; otherwise
+    the event is excluded and counted). excess = stored engine 30d return
+    − matched asset return. Same missing-data policy (excluded+counted),
+    same window, per event — no overlapping-portfolio claims."""
+    events = [d for d in decisions
+              if d["barrier_label"] in (1, -1)
+              and d["realized_30d_return"] is not None
+              and d["price_at_recommendation"] is not None]
+    if not events:
+        return {"error": "no resolved events with entry price + return"}
+
+    asset_ids = sorted({d["asset_id"] for d in events})
+    lo = min(d["generated_at"] for d in events)
+    hi = max(d["generated_at"] for d in events) + dt.timedelta(
+        days=MATCHED_HORIZON_DAYS + MATCHED_EXIT_TOLERANCE_DAYS)
+    bars = db.execute(text(
+        """
+        SELECT asset_id, ts, close FROM price_bar
+        WHERE asset_id = ANY(:aids) AND ts >= :lo AND ts < :hi
+        ORDER BY asset_id, ts
+        """), {"aids": asset_ids, "lo": lo, "hi": hi}).mappings().all()
+    by_asset: dict[str, list] = {}
+    for b in bars:
+        by_asset.setdefault(b["asset_id"], []).append(
+            (b["ts"], float(b["close"])))
+
+    import bisect
+    excess, engine_r, bench_r = [], [], []
+    excluded_no_exit_bar = 0
+    for d in events:
+        series = by_asset.get(d["asset_id"]) or []
+        target = d["generated_at"] + dt.timedelta(days=MATCHED_HORIZON_DAYS)
+        idx = bisect.bisect_right([t for t, _ in series], target) - 1
+        if idx < 0:
+            excluded_no_exit_bar += 1
+            continue
+        exit_ts, exit_px = series[idx]
+        if (target - exit_ts).days > MATCHED_EXIT_TOLERANCE_DAYS \
+                or exit_ts <= d["generated_at"]:
+            excluded_no_exit_bar += 1
+            continue
+        entry = float(d["price_at_recommendation"])
+        if entry <= 0:
+            excluded_no_exit_bar += 1
+            continue
+        b_ret = exit_px / entry - 1.0
+        e_ret = float(d["realized_30d_return"])
+        engine_r.append(e_ret)
+        bench_r.append(b_ret)
+        excess.append(e_ret - b_ret)
+
+    if not excess:
+        return {"error": "no events with a matched exit bar",
+                "excluded_no_exit_bar": excluded_no_exit_bar}
+    ex = np.array(excess)
+    pos = int((ex > 0).sum())
+    ci = _wilson_ci(pos, len(ex))
+    return {
+        "basis": (f"per-event {MATCHED_HORIZON_DAYS}d horizon, identical "
+                  "entry price, asset buy-and-hold comparator"),
+        "events": len(ex),
+        "excluded_no_exit_bar": excluded_no_exit_bar,
+        "engine_mean_30d": float(np.mean(engine_r)),
+        "benchmark_mean_30d": float(np.mean(bench_r)),
+        "excess_mean": float(ex.mean()),
+        "excess_median": float(np.median(ex)),
+        "excess_std": float(ex.std()) if len(ex) > 1 else None,
+        "share_events_beating_asset": pos / len(ex),
+        "share_beating_ci95": list(ci) if ci else None,
+    }
+
+
 # ---------------------------------------------------------------------------
 # 7. Cost sensitivity — flat per-position haircut scenarios
 # ---------------------------------------------------------------------------
@@ -774,8 +887,22 @@ def execute_experiment(
                 f"no usable folds ({len(skipped)} skipped below "
                 f"min_eval_rows={spec.min_eval_rows})")
 
+        # replay-variant pooling check (Wave 3A.1): multiple model_versions
+        # in one corpus = duplicated correlated decisions → CRITICAL.
+        versions_seen = sorted({d["model_version"] or "unknown"
+                                for d in decisions})
+        if len(versions_seen) > 1 and not spec.model_versions:
+            warnings.append(
+                f"CRITICAL replay pooling: {len(versions_seen)} "
+                f"model_versions pooled ({', '.join(versions_seen[:6])}"
+                f"{'…' if len(versions_seen) > 6 else ''}) — duplicate "
+                "replay variants inflate correlated samples; pin "
+                "model_versions in the spec")
+
         fold_metrics = [evaluate_fold(f, spec) for f in folds]
         benchmarks = run_benchmarks(db, spec, universe)
+        benchmarks["matched_event_horizon"] = matched_event_benchmark(
+            db, decisions, universe)
         costs = cost_sensitivity(fold_metrics, spec)
 
         total_resolved = sum(f["resolved"] for f in fold_metrics)
@@ -800,6 +927,7 @@ def execute_experiment(
             "hit_rate_dispersion": (float(np.std(hit_rates))
                                     if len(hit_rates) > 1 else None),
             "mean_brier": float(np.mean(briers)) if briers else None,
+            "model_versions_seen": versions_seen,
             "leakage_check": ("not-applicable: stored decisions evaluated "
                               "out-of-sample by construction (no training "
                               "in this adapter)"),

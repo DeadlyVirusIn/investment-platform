@@ -162,6 +162,25 @@ Rides the standard promotion plan; before enabling in prod: re-measure
 runtime against prod volumes, confirm registry migration 109 present
 (it is — prod head), owner smoke of one run + one reproduction.
 
+## Wave 3A.1 (lab-1.1, 2026-07-14)
+
+- `model_versions` spec scoping + CRITICAL replay-pooling warning: dev
+  history contains replay variants (same decisions under several
+  model_version strings); unscoped multi-version corpora now fail the
+  no-critical-warnings gate. Manifest records
+  `distinct_model_versions` + the filter.
+- **Matched event-horizon benchmark** (comparable accounting): per
+  resolved event, stored engine 30d return vs the same asset's
+  buy-and-hold over the same horizon from the same stored entry price;
+  excess distribution + share-beating with Wilson CI. Return-relative
+  promotion claims must use this basis; the calendar-window benchmarks
+  remain context only.
+- historical_label root cause + rebuild, outcome-gap audit (no backfill
+  justified), trained-adapter gate verdict (BLOCKED on temporal depth):
+  see `docs/research/HISTORICAL_LABEL_ROOT_CAUSE.md`,
+  `OUTCOME_RECONSTRUCTION_AUDIT.md`,
+  `EXPERIMENT_LAB_EVIDENCE_UNLOCK_REPORT.md`.
+
 ## Known limitations
 
 - Trained-model path (LightGBM meta-labeler) is data-blocked:

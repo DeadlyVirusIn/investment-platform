@@ -262,6 +262,66 @@ def test_spec_errors_are_422_shaped(seeded: Session):
     assert e.value.status_code == 422
 
 
+# ── Wave 3A.1: replay-pooling detection + matched event benchmark ─────────
+
+def test_replay_pooling_emits_critical_and_filter_silences_it(
+        seeded: Session):
+    # duplicate the fixture recommendations under a second model_version
+    seeded.execute(text(
+        "INSERT INTO recommendation (id, asset_id, generated_at, action, "
+        "conviction, model_version, snapshot_hash, created_at) "
+        "SELECT gen_random_uuid()::varchar, asset_id, generated_at, action,"
+        " conviction, 'fixture-replay-b', 'rb-' || snapshot_hash, now() "
+        "FROM recommendation WHERE model_version = 'fixture'"))
+    seeded.execute(text(
+        "INSERT INTO recommendation_outcome (id, recommendation_id, "
+        "barrier_label, realized_30d_return, barrier_n_bars, created_at, "
+        "updated_at) "
+        "SELECT gen_random_uuid()::varchar, r2.id, o.barrier_label, "
+        "o.realized_30d_return, o.barrier_n_bars, now(), now() "
+        "FROM recommendation r2 "
+        "JOIN recommendation r1 ON r1.generated_at = r2.generated_at "
+        " AND r1.asset_id = r2.asset_id AND r1.model_version = 'fixture' "
+        "JOIN recommendation_outcome o ON o.recommendation_id = r1.id "
+        "WHERE r2.model_version = 'fixture-replay-b'"))
+    seeded.commit()
+
+    pooled = lab.execute_experiment(seeded, _spec(name="pooled"))
+    warns = pooled["metrics"]["warnings"]
+    assert any(w.startswith("CRITICAL replay pooling") for w in warns)
+    assert pooled["metrics"]["summary"]["model_versions_seen"] == [
+        "fixture", "fixture-replay-b"]
+    # verdict can never be fully eligible with a CRITICAL warning
+    assert pooled["metrics"]["promotion_readiness"]["gates"][
+        "no_critical_warnings"]["pass"] is False
+
+    scoped = lab.execute_experiment(
+        seeded, _spec(name="scoped", model_versions=["fixture"]))
+    assert scoped["metrics"]["summary"]["model_versions_seen"] == ["fixture"]
+    assert not any("replay pooling" in w
+                   for w in scoped["metrics"]["warnings"])
+    # scoping halves the pooled corpus (dataset manifest level — fold
+    # selection may admit different windows, so compare pre-fold counts)
+    assert (scoped["metrics"]["dataset_manifest"]["resolved_outcomes"] * 2
+            == pooled["metrics"]["dataset_manifest"]["resolved_outcomes"])
+
+
+def test_matched_event_benchmark_reports_comparable_basis(seeded: Session):
+    # fixture outcomes lack price_at_recommendation → honest error path
+    out = lab.execute_experiment(seeded, _spec(name="matched-miss"))
+    meb = out["metrics"]["benchmarks"]["matched_event_horizon"]
+    assert meb == {"error": "no resolved events with entry price + return"}
+    # stamp entry prices, rerun → real matched accounting
+    seeded.execute(text(
+        "UPDATE recommendation_outcome SET price_at_recommendation = 100"))
+    seeded.commit()
+    out2 = lab.execute_experiment(seeded, _spec(name="matched-hit"))
+    meb2 = out2["metrics"]["benchmarks"]["matched_event_horizon"]
+    assert meb2["events"] > 0
+    assert "excess_mean" in meb2 and "share_events_beating_asset" in meb2
+    assert meb2["basis"].startswith("per-event 30d horizon")
+
+
 def test_flag_off_routes_absent():
     """Structural: the router is mounted only under EXPERIMENT_LAB_ENABLED
     (fail-closed, same pattern as every flag-mounted router)."""
