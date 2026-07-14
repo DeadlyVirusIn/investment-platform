@@ -146,7 +146,7 @@ export function ReflectionsReview() {
       if (lesson) {
         return {
           text: `on lesson "${lesson.title}"`,
-          to: `/v2/learn/lesson/${lesson.slug}`,
+          to: `/learn/lesson/${lesson.slug}`,
         };
       }
       return { text: `on lesson · ${r.targetId}` };
@@ -162,12 +162,12 @@ export function ReflectionsReview() {
       if (lessonSlug) {
         return {
           text: `on paper trade · ${pos ?? r.targetId}`,
-          to: `/v2/try/${lessonSlug}`,
+          to: `/try/${lessonSlug}`,
         };
       }
       return {
         text: `on paper trade · ${pos ?? r.targetId}`,
-        to: '/v2/portfolio',
+        to: '/portfolio',
       };
     }
     return { text: kindLabel(r.kind) };
@@ -236,13 +236,13 @@ export function ReflectionsReview() {
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
               <Link
-                to="/v2/learn"
+                to="/learn"
                 className="inline-flex items-center px-4 py-2 surface-elevated rounded-full text-meta ink-muted hover:ink-primary transition-colors"
               >
                 Browse lessons
               </Link>
               <Link
-                to="/v2/start"
+                to="/start"
                 className="inline-flex items-center px-4 py-2 surface-elevated rounded-full text-meta ink-muted hover:ink-primary transition-colors"
               >
                 Day 1 flow
@@ -322,19 +322,19 @@ export function ReflectionsReview() {
           <MetaLabel>Where to go next</MetaLabel>
           <div className="mt-4 flex flex-wrap gap-3">
             <Link
-              to="/v2/me"
+              to="/me"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Your ArthOS
             </Link>
             <Link
-              to="/v2/learn"
+              to="/learn"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Browse lessons
             </Link>
             <Link
-              to="/v2/today"
+              to="/today"
               className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
             >
               Today's briefing

@@ -122,10 +122,28 @@ export function useRecommendations() {
 // action = adjusted_action ?? action (policy may damp Buy->Hold).
 // NO static TODAYS_DESK / arthosData literals anywhere downstream.
 // ---------------------------------------------------------------
+// One engine factor behind a recommendation (already returned by
+// GET /recommendations). `direction` is bullish/bearish/neutral and
+// `score` is the signed contribution; `narrative` is the raw quant
+// string (e.g. "ATR(14)/price = 3.15%") — keep raw narratives to the
+// Layer-3 trace, never the beginner default surface.
+export interface RecEvidence {
+  factor_key: string;
+  family: string | null;
+  weight: string | null;
+  value: string | null;
+  threshold: string | null;
+  direction: string | null;   // "bullish" | "bearish" | "neutral"
+  score: string | null;       // signed numeric string
+  narrative: string | null;
+}
+
 export interface RecApi {
   id: string;
   asset_id: string;
   symbol: string | null;
+  name: string | null;              // human company name; null until Polygon backfill
+  sector: string | null;            // coded (e.g. "consumer_disc"); humanize via sectorLabel
   action: string | null;            // original engine action
   adjusted_action: string | null;   // post-policy (null = unchanged)
   confidence: string | null;        // numeric string e.g. "80.000000"
@@ -138,10 +156,19 @@ export interface RecApi {
   enough_data: boolean | null;
   engine_version: string | null;
   tags: string[] | null;
-  evidence: unknown[] | null;
+  evidence: RecEvidence[] | null;
   family_scores: Record<string, string | null> | null;
   policy: unknown;
   policy_adjustments: unknown[] | null;
+  // Wave 1A — read-safe publication-preflight projection. Present only when
+  // RECOMMENDATION_PREFLIGHT_ENABLED on the API; verdicts here are always
+  // READY or READY_WITH_LIMITATIONS (HOLD/BLOCKED never reach this list).
+  preflight?: {
+    verdict: 'READY' | 'READY_WITH_LIMITATIONS';
+    limitations: string[];
+    evaluated_at: string | null;
+    freshness_summary: string | null;
+  } | null;
 }
 
 export interface RecDiagnostics {
@@ -310,8 +337,15 @@ export function useExecutedSummary(includeReplay = false) {
   });
 }
 
+// `opts.enabled` defaults to true so existing GLOBAL callers (operator /
+// admin dashboards that intentionally omit portfolioId) are unchanged.
+// Per-user/investor surfaces MUST pass `{ enabled: !!portfolioId }` so the
+// hook does NOT fire an unscoped (all-portfolios) request while the canonical
+// portfolio id is still resolving — otherwise it would briefly render global
+// aggregates. See INVESTOR_DUE_DILIGENCE_AUDIT P0-1.
 export function useExecutedTrades(
   includeReplay = false, portfolioId?: string | null,
+  opts?: { enabled?: boolean },
 ) {
   const params = new URLSearchParams();
   if (includeReplay) params.set("include_replay", "true");
@@ -321,12 +355,14 @@ export function useExecutedTrades(
     queryKey: ["paper", "executed", "trades", includeReplay, portfolioId ?? null],
     queryFn: () => apiGet(`/paper/executed/trades${qs}`),
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
   });
 }
 
 export function useExecutedPositions(
   includeReplay = false, isOpen?: boolean,
   portfolioId?: string | null,
+  opts?: { enabled?: boolean },
 ) {
   const params = new URLSearchParams();
   if (includeReplay) params.set("include_replay", "true");
@@ -337,6 +373,33 @@ export function useExecutedPositions(
     queryKey: ["paper", "executed", "positions", includeReplay, isOpen, portfolioId ?? null],
     queryFn: () => apiGet(`/paper/executed/positions${qs}`),
     staleTime: 30_000,
+    enabled: opts?.enabled ?? true,
+  });
+}
+
+// Closed paper positions joined to the recommendation that opened them —
+// substrate for the Reflection Loop (expected vs happened). Real stored
+// data only; no fabricated commentary. (GET /paper/closed-recommendations)
+export interface ClosedRecommendation {
+  rec_id: string;
+  symbol: string;
+  name: string | null;
+  action: string | null;
+  confidence: number | null;
+  opened_at: string | null;
+  closed_at: string | null;
+  hold_days: number | null;
+  realized_pnl: number | null;
+  exit_reason: string | null;
+}
+
+export function useClosedRecommendations(portfolioId?: string | null) {
+  const qs = portfolioId ? `?portfolio_id=${encodeURIComponent(portfolioId)}` : "";
+  return useQuery<{ count: number; items: ClosedRecommendation[] }>({
+    queryKey: ["paper", "closed-recommendations", portfolioId ?? null],
+    queryFn: () => apiGet(`/paper/closed-recommendations${qs}`),
+    enabled: !!portfolioId,
+    staleTime: 60_000,
   });
 }
 

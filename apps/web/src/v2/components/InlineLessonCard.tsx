@@ -142,7 +142,7 @@ export function InlineLessonCard({
               Quick check
             </button>
             {hit.lesson.deep_body && (
-              <Link to={`/v2/learn/lesson/${hit.lesson.slug}`}
+              <Link to={`/learn/lesson/${hit.lesson.slug}`}
                     className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
                       fontSize: 12.5, fontWeight: 500,
                       border: '1px solid var(--border)', backgroundColor: 'transparent',

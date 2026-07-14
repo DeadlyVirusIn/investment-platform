@@ -262,9 +262,6 @@ function PatternCard({ pattern }: { pattern: PatternObservation }) {
             </ChipBtn>
           </>
         )}
-        <span className="ink-fainter ml-auto" style={{ fontSize: 11 }}>
-          ID: {pattern.rule_key}
-        </span>
       </div>
     </SurfaceCard>
   );
@@ -397,16 +394,16 @@ function NextRitual() {
         it resolves.
       </ArthVoice>
       <div className="mt-4 flex items-center gap-2 flex-wrap">
-        <Link to="/v2/today" className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
+        <Link to="/today" className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
           fontSize: 12.5, fontWeight: 600,
           backgroundColor: 'var(--brand)', color: 'var(--brand-foreground)',
         }}>Go to today's briefing →</Link>
-        <Link to="/v2/journal" className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
+        <Link to="/journal" className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
           fontSize: 12.5, fontWeight: 500,
           border: '1px solid var(--border)',
           backgroundColor: 'transparent', color: 'var(--foreground)',
         }}>Open your journal</Link>
-        <Link to="/v2/arth" className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
+        <Link to="/arth" className="inline-flex items-center gap-2 h-9 px-3 rounded-full" style={{
           fontSize: 12.5, fontWeight: 500,
           border: '1px solid var(--border)',
           backgroundColor: 'transparent', color: 'var(--foreground)',

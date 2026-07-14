@@ -37,6 +37,9 @@ from typing import Final, Literal
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from apps.api.src.options.data_provider._redact import (
+    redact_error_for_storage as _redact_store,
+)
 
 from apps.api.src.config import settings
 from apps.api.src.research.input_snapshot import build_input_snapshot
@@ -400,7 +403,7 @@ def run_single_asset_context_note(
             status="provider_error",
             operator_id=operator_id,
             error_code="provider_error",
-            error_message=str(exc)[:500],
+            error_message=_redact_store(str(exc))[:500],
         )
         session.commit()
         return ResearchRunResult(
@@ -434,7 +437,7 @@ def run_single_asset_context_note(
             status="token_violation",
             operator_id=operator_id,
             error_code="token_violation",
-            error_message=str(exc)[:500],
+            error_message=_redact_store(str(exc))[:500],
         )
         session.commit()
         return ResearchRunResult(

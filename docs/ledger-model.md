@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-07-09** — describes the pre-auth single-user Phase-0 design
+> (2026-04); superseded by the paper-trading book model in apps/api/src/domain/paper_trading/.
+> Kept for history; do not use for implementation.
+
 # Ledger Model
 
 ## Overview

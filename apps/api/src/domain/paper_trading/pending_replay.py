@@ -49,6 +49,7 @@ from apps.api.src.domain.paper_trading.auto_trader import (
     AutoTradeConfig, auto_trade_portfolio,
 )
 from apps.api.src.domain.paper_trading.paper_service import (
+    engine_tradable_portfolio_ids,
     snapshot_equity_now,
 )
 
@@ -150,12 +151,9 @@ def replay_pending_for_date(
     new_pending_count = 0
 
     with SessionFactory() as session:
-        portfolio_ids = [
-            p.id for p in session.scalars(
-                select(PaperPortfolio)
-                .where(PaperPortfolio.is_active.is_(True))
-            )
-        ]
+        # P1 2026-07-08: engine-tradable only — pending-fill replay re-invokes
+        # the auto-trader and must never touch per-user books (user:<id>:stock).
+        portfolio_ids = engine_tradable_portfolio_ids(session)
 
     for pid in portfolio_ids:
         try:

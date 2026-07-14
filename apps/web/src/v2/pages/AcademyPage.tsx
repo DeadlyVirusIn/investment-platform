@@ -81,7 +81,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
         <FadeIn>
           <PageHeader eyebrow="Not found" title="No academy at this path." />
           <Link
-            to="/v2/learn"
+            to="/learn"
             className="inline-flex items-center gap-1.5"
             style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 600 }}
           >
@@ -99,7 +99,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
     >
       <FadeIn>
         <Link
-          to="/v2/learn"
+          to="/learn"
           className="text-meta ink-fainter hover:ink-muted mb-6 inline-flex items-center gap-1.5 transition-colors"
         >
           <span aria-hidden>←</span> Learn
@@ -143,7 +143,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
               </h2>
               <div className="flex items-center gap-4 flex-wrap">
                 <Link
-                  to={`/v2/learn/lesson/${nextLesson.slug}`}
+                  to={`/learn/lesson/${nextLesson.slug}`}
                   className="inline-flex items-center justify-center gap-2 h-11 px-5 rounded-full text-[13.5px] font-semibold tracking-tight transition-colors hover:opacity-92"
                   style={{
                     backgroundColor: 'var(--brand)',
@@ -195,7 +195,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
                   }
                 >
                   <Link
-                    to={`/v2/learn/lesson/${lesson.slug}`}
+                    to={`/learn/lesson/${lesson.slug}`}
                     className="block px-5 py-5 sm:px-7 sm:py-6 transition-colors"
                     style={{ backgroundColor: 'transparent' }}
                     onMouseEnter={(e) => {
@@ -302,7 +302,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
               <p>{why}</p>
             </article>
             <Link
-              to="/v2/methodology"
+              to="/methodology"
               className="inline-flex items-center gap-1.5 mt-5 transition-colors"
               style={{ fontSize: 13, color: 'var(--brand)', fontWeight: 600 }}
             >
@@ -320,7 +320,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
           ).map((p, i) => (
             <FadeIn key={p.slug} delay={0.3 + i * 0.04}>
               <Link
-                to={`/v2/learn/${PATH_ROUTE[p.slug]}`}
+                to={`/learn/${PATH_ROUTE[p.slug]}`}
                 className="block h-full"
               >
                 <SurfaceCard className="h-full transition-colors">
@@ -369,7 +369,7 @@ export function AcademyPage({ pathSlug }: { pathSlug: string }) {
           style={{ borderTop: '1px solid var(--border)' }}
         >
           <Link
-            to="/v2/methodology"
+            to="/methodology"
             className="inline-flex items-center gap-1.5 transition-colors"
             style={{ fontSize: 12, color: 'var(--muted-foreground)' }}
           >

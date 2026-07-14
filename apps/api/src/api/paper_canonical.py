@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -43,9 +43,30 @@ def _iso(ts: dt.datetime | dt.date | None) -> str | None:
 
 
 @router.get("/stock")
-def canonical_stock(db: Session = Depends(get_session)) -> dict[str, Any]:
-    """Single-portfolio canonical contract for the stock practice book."""
-    pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
+def canonical_stock(
+    request: Request,
+    db: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Canonical stock practice book. M1: identity resolves from the session
+    cookie (authenticated user) or, only in demo/dev mode, the X-Auth-User-Id
+    device header. Resolved identity -> the caller's own ``user:<id>:stock``
+    book; truly anonymous callers fall back to the shared demo portfolio. A
+    spoofed device header outside demo mode yields anonymous, never a targeted
+    user's book."""
+    from apps.api.src.auth.identity import resolve_identity
+    from apps.api.src.domain.paper_trading.paper_service import (
+        resolve_user_stock_portfolio,
+    )
+    uid = resolve_identity(request, db)
+    if uid:
+        # Per-user isolation: get-or-create THIS user's OWN book via the single
+        # shared resolver. A cold user gets a fresh EMPTY book — it must NEVER
+        # fall back to the shared demo/Replay-Recovery portfolio.
+        pid = resolve_user_stock_portfolio(db, uid)
+        db.commit()
+    else:
+        # Truly anonymous callers only → shared demo portfolio.
+        pid = settings.CANONICAL_STOCK_PORTFOLIO_ID
     now = _now_utc()
 
     portfolio = db.execute(

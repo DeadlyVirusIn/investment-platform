@@ -1,3 +1,7 @@
+> **ARCHIVED 2026-07-09** — describes the pre-auth single-user Phase-0 design
+> (2026-04); superseded by the actual layout under apps/api/src/ and apps/worker/src/.
+> Kept for history; do not use for implementation.
+
 # Onboarding Guide
 
 > For future self: how to find things and where to add things.

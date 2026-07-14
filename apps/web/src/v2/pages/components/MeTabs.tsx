@@ -6,13 +6,13 @@
 import { Link, useLocation } from 'react-router-dom';
 
 const TABS: { label: string; to: string; match: (p: string) => boolean }[] = [
-  { label: 'Profile', to: '/v2/me', match: (p) => p.startsWith('/v2/me') },
+  { label: 'Profile', to: '/me', match: (p) => p.startsWith('/me') },
   {
     label: 'Journal',
-    to: '/v2/journal',
-    match: (p) => p.startsWith('/v2/journal') || p.startsWith('/v2/reflections'),
+    to: '/journal',
+    match: (p) => p.startsWith('/journal') || p.startsWith('/reflections'),
   },
-  { label: 'Report Card', to: '/v2/arth', match: (p) => p.startsWith('/v2/arth') },
+  { label: 'Report Card', to: '/arth', match: (p) => p.startsWith('/arth') },
 ];
 
 export function MeTabs() {

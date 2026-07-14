@@ -192,6 +192,65 @@ async def fetch_intraday_history(
     return closes
 
 
+def fetch_ticker_name_map(max_pages: int = 20) -> dict[str, str]:
+    """Bulk company-name lookup via the reference-tickers LIST endpoint.
+
+    Pages /v3/reference/tickers (active US stocks) and returns a
+    {SYMBOL: name} map. One call returns up to 1000 tickers, so the whole
+    universe is covered in a handful of requests (vs. per-ticker details,
+    which the free tier rate-limits hard). Empty dict when not configured
+    or on failure — caller leaves names untouched (null-safe).
+    """
+    key = _api_key()
+    if not key:
+        return {}
+    out: dict[str, str] = {}
+    url: str | None = f"{POLYGON_BASE}/v3/reference/tickers"
+    params: dict[str, str] | None = {
+        "market": "stocks", "active": "true", "limit": "1000", "apiKey": key,
+    }
+    pages = 0
+    try:
+        with httpx.Client(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
+            while url and pages < max_pages:
+                r = client.get(url, params=params)
+                r.raise_for_status()
+                data = r.json()
+                for item in data.get("results", []):
+                    sym = str(item.get("ticker") or "").upper()
+                    name = str(item.get("name") or "").strip()
+                    if sym and name:
+                        out[sym] = name
+                # next_url already carries the cursor; re-attach the key.
+                nxt = data.get("next_url")
+                url = f"{nxt}&apiKey={key}" if nxt else None
+                params = None
+                pages += 1
+    except Exception as exc:
+        logger.warning("Polygon ticker-name map fetch failed (page %d): %s", pages, exc)
+    return out
+
+
+def fetch_ticker_name(ticker: str) -> str | None:
+    """Single company name via ticker-details. Fallback for symbols absent
+    from the bulk list. None when not configured / not found / on failure."""
+    key = _api_key()
+    if not key or not ticker:
+        return None
+    url = f"{POLYGON_BASE}/v3/reference/tickers/{ticker.upper()}"
+    params = {"apiKey": key}
+    try:
+        with httpx.Client(timeout=TIMEOUT) as client:
+            r = client.get(url, params=params)
+            r.raise_for_status()
+            data = r.json()
+    except Exception as exc:
+        logger.warning("Polygon ticker-details fetch failed for %s: %s", ticker, exc)
+        return None
+    name = str((data.get("results") or {}).get("name") or "").strip()
+    return name or None
+
+
 def fetch_earnings(ticker: str, limit: int = 4) -> list[dict[str, Any]]:
     """Return recent + upcoming earnings events. Empty when not configured."""
     key = _api_key()

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
@@ -18,6 +19,14 @@ from apps.api.src.db.models import (
     PaperTrade,
     PriceBar,
 )
+from apps.api.src.domain.paper_trading.execution_costs import (
+    CostBreakdown,
+    avg_dollar_volume_for_asset,
+    compute_fill_costs,
+    load_cost_config,
+)
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_MAX_OPEN_POSITIONS = 30
@@ -230,6 +239,9 @@ class TradeResult:
     fill_ts: dt.datetime
     cash_after: Decimal
     realized_pnl: Decimal | None
+    # Priority 3 — populated only when the honest cost model fired
+    # (settings.PAPER_COST_MODEL_ENABLED). None on the legacy zero-cost path.
+    costs: CostBreakdown | None = None
 
 
 def submit_trade(
@@ -291,6 +303,41 @@ def submit_trade(
     if qty <= 0:
         raise PaperTradeRejected("quantity must be positive")
 
+    # Priority 3 — honest execution costs (default OFF → byte-identical
+    # legacy fills). Applies ONLY to the bare fill path: callers that pass
+    # fill_price_override / slippage_bps / commission (weekly rebalance)
+    # already bake in their own cost model and must not be double-charged.
+    costs: CostBreakdown | None = None
+    cost_stamp: dict | None = None
+    if (
+        fill_price_override is None
+        and slippage_bps is None
+        and commission is None
+    ):
+        cost_config = load_cost_config()
+        if cost_config.enabled:
+            costs = compute_fill_costs(
+                side, qty, fill_price,
+                avg_dollar_volume=avg_dollar_volume_for_asset(
+                    session, asset_id, submitted_at
+                ),
+                config=cost_config,
+            )
+            # Durable audit stamp: raw + effective price, full breakdown,
+            # model version + config — reconstruction never depends on
+            # backing costs out of the quantized effective fill.
+            cost_stamp = costs.as_stamp(
+                raw_fill_price=fill_price, config=cost_config
+            )
+            fill_price = costs.effective_fill_price
+            slippage_bps = costs.slippage_bps
+            commission = costs.commission
+            logger.info(
+                "paper_execution.cost_model side=%s asset_id=%s qty=%s %s",
+                side, asset_id, qty,
+                " ".join(f"{k}={v}" for k, v in costs.as_log_fields().items()),
+            )
+
     cash = _d(portfolio.cash)
     realized_pnl: Decimal | None = None
     # MP1S — track new/closed position so trade-id provenance can be stamped
@@ -316,6 +363,9 @@ def submit_trade(
                 )
 
         cost = qty * fill_price
+        if costs is not None:
+            # Honest ledger: commission leaves cash too (net notional).
+            cost += costs.commission
         if cost > cash:
             raise PaperTradeRejected(
                 f"insufficient cash: need {cost}, have {cash}"
@@ -368,6 +418,9 @@ def submit_trade(
                 f"insufficient position quantity: have {open_qty}, want {qty}"
             )
         proceeds = qty * fill_price
+        if costs is not None:
+            # Honest ledger: commission reduces sale proceeds (net notional).
+            proceeds -= costs.commission
         basis = _d(existing.avg_cost)
         realized_pnl = qty * (fill_price - basis)
 
@@ -397,6 +450,9 @@ def submit_trade(
         realized_pnl=realized_pnl,
         slippage_bps=slippage_bps,
         commission=commission if commission is not None else Decimal("0"),
+        # Priority 3 hardening — NULL on the legacy zero-cost path and for
+        # callers that bake their own costs (fill_price_override).
+        execution_cost_json=cost_stamp,
     )
     session.add(trade)
     session.flush()
@@ -415,6 +471,7 @@ def submit_trade(
         fill_ts=fill_ts,
         cash_after=_d(portfolio.cash),
         realized_pnl=realized_pnl,
+        costs=costs,
     )
 
 

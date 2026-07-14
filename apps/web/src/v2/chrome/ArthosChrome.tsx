@@ -12,23 +12,44 @@
 // is not yet ported.
 
 import { useEffect, useState, type ReactNode, type ComponentType } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sun,
   Moon,
   Search,
-  Sunrise,
   BookOpen,
   Compass,
   Sparkles,
   User,
+  LogOut,
+  Shield,
   type LucideProps,
 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { getTerm } from '../data/arthosData';
 import { useTheme } from './ThemeContext';
+import { GlobalTicker } from './GlobalTicker';
 import { useCommandPalette } from './CommandPalette';
-import { V2Rail } from './V2Rail';
+import { useSession } from '../state/SessionContext';
+import { apiGet } from '../../lib/api';
+
+// Owner-only nav gate. Probes GET /api/admin/overview using the same query
+// key AdminGuard uses, so this dedupes with the admin pages' own fetch. The
+// SERVER is the real enforcer — require_owner returns 404 for anyone but the
+// owner, so a non-owner's probe errors and the Admin link stays hidden. This
+// is purely cosmetic visibility; it never grants access. retry:false avoids
+// re-hammering the endpoint on the expected 404 for non-owners.
+function useIsOwner(): boolean {
+  const { isSuccess } = useQuery({
+    queryKey: ['admin', 'overview'],
+    queryFn: () => apiGet('/admin/overview'),
+    retry: false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  return isSuccess;
+}
 
 // Phase B visual-parity — nav item shape now carries an icon ref so
 // the new SideNav + restyled MobileBottomTab can render icon+label
@@ -71,6 +92,110 @@ function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 // ──────────────────────────────────────────────────────────────
+// AccountTile (M2) — session-aware footer control in the SideNav.
+// Logged out → "Sign in" link. Logged in → email + log-out button.
+// ──────────────────────────────────────────────────────────────
+function AccountTile() {
+  const { user, authenticated, signOut } = useSession();
+  const navigate = useNavigate();
+
+  if (!authenticated || !user) {
+    return (
+      <Link
+        to="/account"
+        className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md"
+        aria-label="Sign in"
+      >
+        <div
+          className="rounded-full flex items-center justify-center"
+          style={{
+            width: 32, height: 32,
+            backgroundColor: 'color-mix(in oklch, var(--brand) 15%, transparent)',
+            color: 'var(--brand)',
+          }}
+        >
+          <User className="w-4 h-4" strokeWidth={1.7} aria-hidden />
+        </div>
+        <div className="leading-tight">
+          <p className="font-semibold ink-primary" style={{ fontSize: 12.5 }}>Sign in</p>
+          <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>Save your portfolio</p>
+        </div>
+      </Link>
+    );
+  }
+
+  const label = user.email ?? user.display_name ?? 'You';
+  const initial = (label.trim()[0] ?? 'U').toUpperCase();
+  return (
+    <div className="flex items-center gap-1 min-w-0">
+      <Link
+        to="/account"
+        className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md min-w-0"
+        aria-label="Your account"
+      >
+        <div
+          className="rounded-full font-serif italic flex items-center justify-center"
+          style={{
+            width: 32, height: 32, fontSize: 14,
+            backgroundColor: 'color-mix(in oklch, var(--brand) 15%, transparent)',
+            color: 'var(--brand)',
+            fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}
+        >
+          {initial}
+        </div>
+        <div className="leading-tight min-w-0">
+          <p className="font-semibold ink-primary truncate" style={{ fontSize: 12.5, maxWidth: 120 }}>
+            {label}
+          </p>
+          <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>Signed in</p>
+        </div>
+      </Link>
+      <button
+        onClick={async () => { await signOut(); navigate('/discover'); }}
+        aria-label="Log out"
+        className="p-1.5 rounded-md transition-colors"
+        style={{ color: 'var(--muted-foreground)' }}
+      >
+        <LogOut className="w-3.5 h-3.5" strokeWidth={1.6} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+// AccountTopBarButton (M2) — compact account entry in the sticky TopBar so
+// mobile (no SideNav) users can reach sign in / their account.
+function AccountTopBarButton() {
+  const { user, authenticated } = useSession();
+  const label = authenticated && user ? (user.email ?? 'Account') : 'Sign in';
+  const initial = authenticated && user ? ((user.email ?? user.display_name ?? 'U').trim()[0] ?? 'U').toUpperCase() : null;
+  return (
+    <Link
+      to="/account"
+      aria-label={authenticated ? 'Your account' : 'Sign in'}
+      className="inline-flex items-center gap-1.5 ink-muted hover:ink-primary transition-colors p-1.5"
+    >
+      {initial ? (
+        <span
+          className="rounded-full font-serif italic flex items-center justify-center"
+          style={{
+            width: 24, height: 24, fontSize: 12,
+            backgroundColor: 'color-mix(in oklch, var(--brand) 15%, transparent)',
+            color: 'var(--brand)',
+            fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
+          }}
+        >
+          {initial}
+        </span>
+      ) : (
+        <User className="w-4 h-4" strokeWidth={1.5} aria-hidden />
+      )}
+      <span className="hidden sm:inline font-medium" style={{ fontSize: 12 }}>{label}</span>
+    </Link>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────
 // SideNav — fixed 248px desktop nav. Phase B visual-parity primitive.
 // Brand mark + wordmark + "AI Investing Copilot" subtitle + 6
 // icon+label rows + user-tile + theme toggle at the bottom.
@@ -78,6 +203,7 @@ function BrandMark({ size = 'md' }: { size?: 'sm' | 'md' }) {
 export function SideNav() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
+  const isOwner = useIsOwner();
   return (
     <aside
       className="hidden lg:flex fixed inset-y-0 left-0 z-40 w-[248px] flex-col backdrop-blur-xl"
@@ -88,7 +214,7 @@ export function SideNav() {
       }}
     >
       <Link
-        to="/v2/learn"
+        to="/discover"
         className="flex items-center gap-2.5 px-6 h-16 border-b"
         style={{ borderColor: 'var(--border)' }}
       >
@@ -170,6 +296,48 @@ export function SideNav() {
           );
         })}
 
+        {/* Owner-only — Admin console. Rendered only when the server's
+            /api/admin/overview probe succeeds (owner). Server-guarded;
+            non-owners never see this and cannot reach the pages. */}
+        {isOwner && (() => {
+          const active = location.pathname.startsWith('/admin');
+          return (
+            <Link
+              to="/admin"
+              className="flex items-center gap-3 px-3 h-10 rounded-lg font-medium transition-colors"
+              style={{
+                fontSize: 13.5,
+                backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+              }}
+              onMouseEnter={(e) => {
+                if (!active) {
+                  e.currentTarget.style.backgroundColor =
+                    'color-mix(in oklch, var(--sage-light) 60%, transparent)';
+                  e.currentTarget.style.color = 'var(--foreground)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!active) {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = 'var(--muted-foreground)';
+                }
+              }}
+            >
+              <Shield
+                style={{
+                  width: 17,
+                  height: 17,
+                  color: active ? 'var(--brand)' : 'var(--muted-foreground)',
+                }}
+                strokeWidth={active ? 2.1 : 1.7}
+                aria-hidden
+              />
+              <span>Admin</span>
+            </Link>
+          );
+        })()}
+
         {/* Secondary destinations — previously only in the mobile
             drawer, leaving them unreachable on desktop. Surfaced here
             as a quiet group so Notes/Watchlist/Methodology/System are
@@ -217,29 +385,33 @@ export function SideNav() {
               </Link>
             );
           })}
-          <p
-            className="px-3 pt-4 pb-1 font-semibold uppercase tracking-[0.14em]"
-            style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}
-          >
-            Engine room
-          </p>
-          {NAV_ENGINE_ROOM.map(({ to, label }) => {
-            const active = location.pathname.startsWith(to);
-            return (
-              <Link
-                key={to}
-                to={to}
-                className="flex items-center px-3 h-9 rounded-lg font-medium transition-colors"
-                style={{
-                  fontSize: 13,
-                  backgroundColor: active ? 'var(--sage-light)' : 'transparent',
-                  color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
-                }}
+          {NAV_ENGINE_ROOM.length > 0 && (
+            <>
+              <p
+                className="px-3 pt-4 pb-1 font-semibold uppercase tracking-[0.14em]"
+                style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}
               >
-                {label}
-              </Link>
-            );
-          })}
+                Engine room
+              </p>
+              {NAV_ENGINE_ROOM.map(({ to, label }) => {
+                const active = location.pathname.startsWith(to);
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    className="flex items-center px-3 h-9 rounded-lg font-medium transition-colors"
+                    style={{
+                      fontSize: 13,
+                      backgroundColor: active ? 'var(--sage-light)' : 'transparent',
+                      color: active ? 'var(--foreground)' : 'var(--muted-foreground)',
+                    }}
+                  >
+                    {label}
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </div>
       </nav>
 
@@ -247,37 +419,7 @@ export function SideNav() {
         className="px-3 py-4 flex items-center justify-between"
         style={{ borderTop: '1px solid var(--border)' }}
       >
-        <Link
-          to="/v2/me"
-          className="flex items-center gap-2.5 px-2 -ml-1 py-1 rounded-md"
-          aria-label="Your ArthOS"
-        >
-          <div
-            className="rounded-full font-serif italic flex items-center justify-center"
-            style={{
-              width: 32,
-              height: 32,
-              fontSize: 14,
-              backgroundColor:
-                'color-mix(in oklch, var(--brand) 15%, transparent)',
-              color: 'var(--brand)',
-              fontFamily: "'Instrument Serif', ui-serif, Georgia, serif",
-            }}
-          >
-            U
-          </div>
-          <div className="leading-tight">
-            <p
-              className="font-semibold ink-primary"
-              style={{ fontSize: 12.5 }}
-            >
-              You
-            </p>
-            <p style={{ fontSize: 10.5, color: 'var(--muted-foreground)' }}>
-              Beginner track
-            </p>
-          </div>
-        </Link>
+        <AccountTile />
         <button
           onClick={toggle}
           aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
@@ -324,7 +466,7 @@ export function TopBar({
       >
         <div className="mx-auto w-full max-w-screen-md lg:max-w-[1080px] px-5 lg:px-10 h-14 lg:h-16 flex items-center justify-between gap-4">
           {/* Mobile-only brand block (desktop handled by SideNav). */}
-          <Link to="/v2/learn" className="flex items-center gap-2 lg:hidden">
+          <Link to="/discover" className="flex items-center gap-2 lg:hidden">
             <BrandMark size="sm" />
             <span className="flex flex-col leading-none">
               <span
@@ -385,14 +527,18 @@ export function TopBar({
                 </span>
               </div>
             )}
+            <AccountTopBarButton />
             <button
               onClick={openPalette}
               aria-label="Search"
               className="ink-muted hover:ink-primary transition-colors p-2 inline-flex items-center gap-2"
             >
               <Search className="w-4 h-4" strokeWidth={1.5} />
+              {/* Platform-aware hint (audit P8/M8): Windows/Linux users see
+                  Ctrl+K, not the Mac-only ⌘K glyph. */}
               <kbd className="hidden sm:inline text-[10px] ink-fainter font-mono">
-                ⌘K
+                {typeof navigator !== 'undefined' && /mac|iphone|ipad/i.test(navigator.platform ?? '')
+                  ? '⌘K' : 'Ctrl+K'}
               </kbd>
             </button>
             <button
@@ -432,50 +578,48 @@ export function TopBar({
 // so the slot points at /v2/reflections (the user's local Decision
 // Journal in practice). Document the redirect for future migration:
 // when the Journal surface lands, swap the `to` here.
+// MVP "Ideas you can follow and prove" — primary nav collapsed to the
+// four approved tabs: Discover · My Portfolio · Learn · Me. Today,
+// Opportunities and Catalysts now fold into the single Discover feed;
+// the old routes remain reachable but carry no nav slot.
 const NAV_PRIMARY: NavItem[] = [
   {
-    label: 'Today',
-    to: '/v2/today',
-    icon: Sunrise,
-    match: (p) => p.startsWith('/v2/today'),
+    label: 'Discover',
+    to: '/discover',
+    icon: Sparkles,
+    match: (p) =>
+      p === '/' ||
+      p.startsWith('/discover') ||
+      p.startsWith('/opportunities') ||
+      p.startsWith('/today') ||
+      p.startsWith('/catalysts'),
   },
   {
-    label: 'Practice',
-    to: '/v2/portfolio',
+    label: 'My Portfolio',
+    shortLabel: 'Portfolio',
+    to: '/portfolio',
     icon: BookOpen,
     match: (p) =>
-      p.startsWith('/v2/portfolio') ||
-      p.startsWith('/v2/try') ||
-      p.startsWith('/v2/track-record') ||
-      // P1.5D2a — Options book is a Practice tab. Specific prefix; does
-      // NOT match /v2/options (engine-room diagnostics).
-      p.startsWith('/v2/options/portfolio'),
+      p.startsWith('/portfolio') ||
+      p.startsWith('/try') ||
+      p.startsWith('/track-record'),
   },
   {
     label: 'Learn',
-    to: '/v2/learn',
+    to: '/learn',
     icon: Compass,
     match: (p) =>
-      p === '/v2' || p.startsWith('/v2/learn') || p.startsWith('/v2/methodology'),
-  },
-  {
-    label: 'Opportunities',
-    shortLabel: 'Opps',
-    to: '/v2/opportunities',
-    icon: Sparkles,
-    match: (p) => p.startsWith('/v2/opportunities') || p.startsWith('/v2/catalysts'),
+      p.startsWith('/learn') || p.startsWith('/methodology'),
   },
   {
     label: 'Me',
-    to: '/v2/me',
+    to: '/me',
     icon: User,
-    // P1.5A — Me now owns Journal + Report Card (nav-collapsed off
-    // primary; routes unchanged). Highlight Me on those deep links.
     match: (p) =>
-      p.startsWith('/v2/me') ||
-      p.startsWith('/v2/journal') ||
-      p.startsWith('/v2/reflections') ||
-      p.startsWith('/v2/arth'),
+      p.startsWith('/me') ||
+      p.startsWith('/journal') ||
+      p.startsWith('/reflections') ||
+      p.startsWith('/arth'),
   },
 ];
 
@@ -487,12 +631,10 @@ const NAV_PRIMARY: NavItem[] = [
 // Explicit type keeps .map/.length valid on the empty array.
 const NAV_SECONDARY: { label: string; to: string }[] = [];
 
-// P1.2 — Engine room: diagnostics surfaces, deliberately separated from
-// the product nav so beginners never wander into cron matrices.
-const NAV_ENGINE_ROOM = [
-  { label: 'Options Diagnostics', to: '/v2/options' },
-  { label: 'System', to: '/v2/admin/observability' },
-];
+// Sprint C — operator/diagnostics surfaces are REMOVED from the beginner nav
+// entirely (Options Diagnostics, System). The routes still exist but are
+// reachable only behind the operator gate (/advanced), never linked here.
+const NAV_ENGINE_ROOM: { label: string; to: string }[] = [];
 
 function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation();
@@ -618,18 +760,22 @@ function NavDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
                 );
               })}
 
-              {/* P1.2 — Engine room group (diagnostics, separated) */}
-              <div className="text-meta ink-fainter mt-6">Engine room</div>
-              {NAV_ENGINE_ROOM.map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  onClick={onClose}
-                  className="font-serif text-[15px] ink-fainter hover:ink-primary inline-flex items-baseline gap-2 w-fit transition-colors"
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {/* Sprint C — engine-room group removed from beginner mobile nav. */}
+              {NAV_ENGINE_ROOM.length > 0 && (
+                <>
+                  <div className="text-meta ink-fainter mt-6">Engine room</div>
+                  {NAV_ENGINE_ROOM.map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={onClose}
+                      className="font-serif text-[15px] ink-fainter hover:ink-primary inline-flex items-baseline gap-2 w-fit transition-colors"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </>
+              )}
             </nav>
 
             {/* P1.2A — was a hardcoded fake edition/date; truthful copy only. */}
@@ -664,7 +810,7 @@ export function MobileBottomTab() {
         borderTop: '1px solid var(--border)',
       }}
     >
-      <div className="max-w-screen-md mx-auto px-1 grid grid-cols-5">
+      <div className="max-w-screen-md mx-auto px-1 grid grid-cols-4">
         {MOBILE_TABS.map(({ to, label, shortLabel, icon: Icon, match }) => {
           const active = match(location.pathname);
           const display = shortLabel ?? label;
@@ -737,12 +883,12 @@ export function ArthosPage({
     <div className="v2-has-rail min-h-screen surface-base ink-primary">
       <SideNav />
       <div className="lg:pl-[248px]">
-        {/* Vision-lock #9 — ArthOS market cockpit rail must remain
-            visible above main page content. Sticky stack composed of
-            TopStrip + MarketTicker + StatusRail. Restyled to the V2
-            sage/brand system via v2-rail.css. */}
-        <V2Rail />
+        {/* Sprint D — the operator market-cockpit rail (P&L / Regime / Engine /
+            health ticker) is removed from beginner mode. "What's moving today"
+            now lives as a plain-English section inside Discover instead. */}
         <TopBar progress={topBarProgress} eyebrow={topBarEyebrow} />
+        {/* Global running market tape — visible near the top on every main page. */}
+        <GlobalTicker />
         <main
           className={`mx-auto w-full ${widthClass} px-5 lg:px-10 pt-6 lg:pt-10 pb-32 lg:pb-16`}
         >

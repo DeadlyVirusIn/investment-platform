@@ -192,7 +192,7 @@ export function TryFromLesson() {
           <h1 className="font-serif ink-primary text-headline leading-tight mt-2 mb-6">
             No lesson at this path.
           </h1>
-          <Link to="/v2/learn" className="ink-muted underline">
+          <Link to="/learn" className="ink-muted underline">
             Back to Learn
           </Link>
         </FadeIn>
@@ -209,7 +209,7 @@ export function TryFromLesson() {
             This lesson doesn't have a paper-trade idea yet.
           </h1>
           <Link
-            to={`/v2/learn/lesson/${lessonSlug}`}
+            to={`/learn/lesson/${lessonSlug}`}
             className="ink-muted underline"
           >
             Back to the lesson
@@ -246,7 +246,7 @@ export function TryFromLesson() {
   return (
     <ArthosPage maxWidth="max-w-3xl">
       <Link
-        to={`/v2/learn/lesson/${lessonSlug}`}
+        to={`/learn/lesson/${lessonSlug}`}
         className="text-meta ink-fainter hover:ink-muted mb-10 inline-flex items-center gap-1.5 transition-colors"
       >
         <ArrowLeft className="size-3.5" aria-hidden /> Back to the lesson
@@ -376,7 +376,7 @@ export function TryFromLesson() {
                 Open the paper trade →
               </PillButton>
               <Link
-                to={`/v2/learn/lesson/${lessonSlug}`}
+                to={`/learn/lesson/${lessonSlug}`}
                 className="text-meta ink-fainter hover:ink-muted transition-colors"
               >
                 I'm not ready — back to the lesson
@@ -460,7 +460,7 @@ export function TryFromLesson() {
           <FadeIn delay={0.3}>
             <div className="mt-4 flex flex-wrap items-center gap-4">
               <Link
-                to="/v2/portfolio"
+                to="/portfolio"
                 className="inline-flex items-center px-5 py-3 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
               >
                 See practice account →

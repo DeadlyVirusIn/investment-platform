@@ -1,0 +1,1020 @@
+{
+ "study": "confidence_calibration_v1",
+ "generated_at": "2026-07-09T18:22:55.539386+00:00",
+ "score_definition": "recommendation.conviction (rule-engine agreement score, 0-100) interpreted as probability = conviction/100",
+ "outcome_definition": "recommendation_outcome.barrier_label == 1 (hit) vs -1 (miss); neutral 0 and unresolved excluded and counted",
+ "method": {
+  "splits": "calendar-quarter walk-forward, no random splits",
+  "embargo_days": 100,
+  "min_train": 500,
+  "bins": 10
+ },
+ "counts": {
+  "recommendations_total": 139742,
+  "outcome_rows_total": 139698,
+  "unresolved": 66364,
+  "neutral_label_0": 5,
+  "missing_entry_price": 0,
+  "null_conviction_buy": 0,
+  "buy_resolved_scored": 7752
+ },
+ "conviction_distribution": {
+  "min": 50.0,
+  "max": 66.67,
+  "mean": 61.05825851393189
+ },
+ "cohorts": {
+  "live": {
+   "n": 2809,
+   "label_bands": [
+    {
+     "band": "Low",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "Medium",
+     "n": 531,
+     "hits": 300,
+     "predicted_mean": 0.5,
+     "observed_rate": 0.5649717514124294,
+     "wilson_95": [
+      0.5224864035507392,
+      0.6065237557188464
+     ],
+     "verdict": "underconfident"
+    },
+    {
+     "band": "High",
+     "n": 2278,
+     "hits": 1240,
+     "predicted_mean": 0.6363365671641791,
+     "observed_rate": 0.5443371378402108,
+     "wilson_95": [
+      0.5238276172445843,
+      0.5646973706423927
+     ],
+     "verdict": "overconfident"
+    }
+   ],
+   "decile_bands": [
+    {
+     "band": "0-10",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "10-20",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "20-30",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "30-40",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "40-50",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "50-60",
+     "n": 531,
+     "hits": 300,
+     "predicted_mean": 0.5,
+     "observed_rate": 0.5649717514124294,
+     "wilson_95": [
+      0.5224864035507392,
+      0.6065237557188464
+     ],
+     "verdict": "underconfident"
+    },
+    {
+     "band": "60-70",
+     "n": 2278,
+     "hits": 1240,
+     "predicted_mean": 0.6363365671641791,
+     "observed_rate": 0.5443371378402108,
+     "wilson_95": [
+      0.5238276172445843,
+      0.5646973706423927
+     ],
+     "verdict": "overconfident"
+    },
+    {
+     "band": "70-80",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "80-90",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "90-100",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    }
+   ],
+   "identity_full_cohort": {
+    "n": 2809,
+    "hit_rate": 0.5482378070487718,
+    "identity": {
+     "brier": 0.2540047392274831,
+     "ece": 0.06232634389462442,
+     "mce": 0.08571692183722823,
+     "auc": 0.5201196360770829
+    },
+    "in_sample_base_rate_floor": {
+     "brier": 0.24767311397112543
+    },
+    "reliability_bins": [
+     {
+      "bin": [
+       0.0,
+       0.1
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.1,
+       0.2
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.2,
+       0.30000000000000004
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.30000000000000004,
+       0.4
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.4,
+       0.5
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.5,
+       0.6000000000000001
+      ],
+      "n": 1568,
+      "predicted_mean": 0.5661352040816325,
+      "observed_rate": 0.5223214285714286,
+      "wilson_95": [
+       0.4975729827921619,
+       0.5469607666645265
+      ]
+     },
+     {
+      "bin": [
+       0.6000000000000001,
+       0.7000000000000001
+      ],
+      "n": 1241,
+      "predicted_mean": 0.6667000000000002,
+      "observed_rate": 0.580983078162772,
+      "wilson_95": [
+       0.5533228119882148,
+       0.6081435143299287
+      ]
+     },
+     {
+      "bin": [
+       0.7000000000000001,
+       0.8
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.8,
+       0.9
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.9,
+       1.0
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   },
+   "walk_forward": {
+    "per_fold": [
+     {
+      "fold": "2026Q2",
+      "n_eval": 2809,
+      "skipped": "train<500 after embargo"
+     }
+    ],
+    "pooled": {}
+   },
+   "stability_by_year": {
+    "2026": {
+     "n": 2809,
+     "observed_rate": 0.5482378070487718,
+     "predicted_mean": 0.6105641509433961,
+     "wilson_95": [
+      0.5297800669539495,
+      0.5665637868912153
+     ],
+     "sufficient": true
+    }
+   },
+   "stability_by_trend_regime": {
+    "downtrend": {
+     "n": 11,
+     "observed_rate": 0.36363636363636365,
+     "predicted_mean": 0.6666999999999998,
+     "wilson_95": [
+      0.15166223614131383,
+      0.6462032231083628
+     ],
+     "sufficient": false
+    },
+    "sideways": {
+     "n": 269,
+     "observed_rate": 0.5985130111524164,
+     "predicted_mean": 0.6660802973977694,
+     "wilson_95": [
+      0.5389428646229788,
+      0.6553090383126441
+     ],
+     "sufficient": true
+    },
+    "uptrend": {
+     "n": 2529,
+     "observed_rate": 0.5436931593515223,
+     "predicted_mean": 0.604414946619217,
+     "wilson_95": [
+      0.5242287526011903,
+      0.5630250259217146
+     ],
+     "sufficient": true
+    }
+   },
+   "stability_by_vol_regime": {
+    "high": {
+     "n": 1991,
+     "observed_rate": 0.5379206428930186,
+     "predicted_mean": 0.6077485685585132,
+     "wilson_95": [
+      0.5159689086046604,
+      0.5597263245406681
+     ],
+     "sufficient": true
+    },
+    "low": {
+     "n": 15,
+     "observed_rate": 0.6666666666666666,
+     "predicted_mean": 0.6044533333333333,
+     "wilson_95": [
+      0.41713125151212976,
+      0.8482389930530876
+     ],
+     "sufficient": false
+    },
+    "medium": {
+     "n": 803,
+     "observed_rate": 0.5716064757160647,
+     "predicted_mean": 0.617659402241594,
+     "wilson_95": [
+      0.5371184551370121,
+      0.6054126191159763
+     ],
+     "sufficient": true
+    }
+   },
+   "stability_by_sector_top": {
+    "tech": {
+     "n": 886,
+     "observed_rate": 0.5711060948081265,
+     "predicted_mean": 0.6024563205417607,
+     "wilson_95": [
+      0.5382789777238892,
+      0.6033192572878254
+     ],
+     "sufficient": true
+    },
+    "industrials": {
+     "n": 646,
+     "observed_rate": 0.47523219814241485,
+     "predicted_mean": 0.6152910216718266,
+     "wilson_95": [
+      0.4369820839906782,
+      0.5137751466944611
+     ],
+     "sufficient": true
+    },
+    "healthcare": {
+     "n": 344,
+     "observed_rate": 0.6656976744186046,
+     "predicted_mean": 0.6006901162790698,
+     "wilson_95": [
+      0.6142576947059445,
+      0.7134776882959736
+     ],
+     "sufficient": true
+    },
+    "financials": {
+     "n": 211,
+     "observed_rate": 0.6303317535545023,
+     "predicted_mean": 0.6060189573459716,
+     "wilson_95": [
+      0.5634105175918754,
+      0.6925920442955801
+     ],
+     "sufficient": true
+    },
+    "energy": {
+     "n": 161,
+     "observed_rate": 0.40372670807453415,
+     "predicted_mean": 0.6406055900621118,
+     "wilson_95": [
+      0.33103548930683535,
+      0.4809051858625394
+     ],
+     "sufficient": true
+    },
+    "consumer_disc": {
+     "n": 144,
+     "observed_rate": 0.5763888888888888,
+     "predicted_mean": 0.6363631944444446,
+     "wilson_95": [
+      0.49472676416117145,
+      0.6540811491730998
+     ],
+     "sufficient": true
+    },
+    "materials": {
+     "n": 113,
+     "observed_rate": 0.5929203539823009,
+     "predicted_mean": 0.5976522123893805,
+     "wilson_95": [
+      0.5007298070856252,
+      0.6790006998571076
+     ],
+     "sufficient": true
+    },
+    "communication": {
+     "n": 94,
+     "observed_rate": 0.20212765957446807,
+     "predicted_mean": 0.618809574468085,
+     "wilson_95": [
+      0.13339378292301518,
+      0.2942525352075141
+     ],
+     "sufficient": false
+    }
+   }
+  },
+  "replay": {
+   "n": 4943,
+   "label_bands": [
+    {
+     "band": "Low",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "Medium",
+     "n": 707,
+     "hits": 392,
+     "predicted_mean": 0.5,
+     "observed_rate": 0.5544554455445545,
+     "wilson_95": [
+      0.5176216490150715,
+      0.5907006551382027
+     ],
+     "verdict": "underconfident"
+    },
+    {
+     "band": "High",
+     "n": 4236,
+     "hits": 2239,
+     "predicted_mean": 0.6290513456090652,
+     "observed_rate": 0.5285646836638338,
+     "wilson_95": [
+      0.5135128489644907,
+      0.5435647550667542
+     ],
+     "verdict": "overconfident"
+    }
+   ],
+   "decile_bands": [
+    {
+     "band": "0-10",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "10-20",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "20-30",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "30-40",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "40-50",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "50-60",
+     "n": 707,
+     "hits": 392,
+     "predicted_mean": 0.5,
+     "observed_rate": 0.5544554455445545,
+     "wilson_95": [
+      0.5176216490150715,
+      0.5907006551382027
+     ],
+     "verdict": "underconfident"
+    },
+    {
+     "band": "60-70",
+     "n": 4236,
+     "hits": 2239,
+     "predicted_mean": 0.6290513456090652,
+     "observed_rate": 0.5285646836638338,
+     "wilson_95": [
+      0.5135128489644907,
+      0.5435647550667542
+     ],
+     "verdict": "overconfident"
+    },
+    {
+     "band": "70-80",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "80-90",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    },
+    {
+     "band": "90-100",
+     "n": 0,
+     "hits": 0,
+     "predicted_mean": null,
+     "observed_rate": null,
+     "wilson_95": [
+      0.0,
+      1.0
+     ],
+     "verdict": "insufficient_data"
+    }
+   ],
+   "identity_full_cohort": {
+    "n": 4943,
+    "hit_rate": 0.5322678535302448,
+    "identity": {
+     "brier": 0.25905875016184504,
+     "ece": 0.07832520736394911,
+     "mce": 0.14149674796748002,
+     "auc": 0.4914670241293916
+    },
+    "in_sample_base_rate_floor": {
+     "brier": 0.24895878562855064
+    },
+    "reliability_bins": [
+     {
+      "bin": [
+       0.0,
+       0.1
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.1,
+       0.2
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.2,
+       0.30000000000000004
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.30000000000000004,
+       0.4
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.4,
+       0.5
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.5,
+       0.6000000000000001
+      ],
+      "n": 3098,
+      "predicted_mean": 0.5771788250484183,
+      "observed_rate": 0.5364751452550033,
+      "wilson_95": [
+       0.5188807026603764,
+       0.5539792396397075
+      ]
+     },
+     {
+      "bin": [
+       0.6000000000000001,
+       0.7000000000000001
+      ],
+      "n": 1845,
+      "predicted_mean": 0.6667000000000003,
+      "observed_rate": 0.5252032520325203,
+      "wilson_95": [
+       0.5023881226104465,
+       0.5479136447232178
+      ]
+     },
+     {
+      "bin": [
+       0.7000000000000001,
+       0.8
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.8,
+       0.9
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     },
+     {
+      "bin": [
+       0.9,
+       1.0
+      ],
+      "n": 0,
+      "predicted_mean": null,
+      "observed_rate": null,
+      "wilson_95": [
+       0.0,
+       1.0
+      ]
+     }
+    ]
+   },
+   "walk_forward": {
+    "per_fold": [
+     {
+      "fold": "2024Q1",
+      "n_eval": 189,
+      "skipped": "train<500 after embargo"
+     },
+     {
+      "fold": "2024Q2",
+      "n_eval": 73,
+      "skipped": "train<500 after embargo"
+     },
+     {
+      "fold": "2025Q1",
+      "n_eval": 137,
+      "skipped": "train<500 after embargo"
+     },
+     {
+      "fold": "2026Q1",
+      "n_eval": 712,
+      "skipped": "train<500 after embargo"
+     },
+     {
+      "fold": "2026Q2",
+      "n_eval": 3832,
+      "skipped": "train<500 after embargo"
+     }
+    ],
+    "pooled": {}
+   },
+   "stability_by_year": {
+    "2024": {
+     "n": 262,
+     "observed_rate": 0.6145038167938931,
+     "predicted_mean": 0.6099389312977099,
+     "wilson_95": [
+      0.5543175358729191,
+      0.6713807746999934
+     ],
+     "sufficient": true
+    },
+    "2025": {
+     "n": 137,
+     "observed_rate": 0.23357664233576642,
+     "predicted_mean": 0.644063503649635,
+     "wilson_95": [
+      0.17058889348268463,
+      0.3110983352906324
+     ],
+     "sufficient": true
+    },
+    "2026": {
+     "n": 4544,
+     "observed_rate": 0.5365316901408451,
+     "predicted_mean": 0.6096216549295775,
+     "wilson_95": [
+      0.5220077043706147,
+      0.5509939586600415
+     ],
+     "sufficient": true
+    }
+   },
+   "stability_by_trend_regime": {
+    "downtrend": {
+     "n": 21,
+     "observed_rate": 0.7142857142857143,
+     "predicted_mean": 0.6667000000000002,
+     "wilson_95": [
+      0.500432261771624,
+      0.8618632425437179
+     ],
+     "sufficient": false
+    },
+    "sideways": {
+     "n": 580,
+     "observed_rate": 0.603448275862069,
+     "predicted_mean": 0.6667000000000001,
+     "wilson_95": [
+      0.5630811376758759,
+      0.6424540622824689
+     ],
+     "sufficient": true
+    },
+    "uptrend": {
+     "n": 4342,
+     "observed_rate": 0.5218793182865039,
+     "predicted_mean": 0.6028269921695071,
+     "wilson_95": [
+      0.5070083756225762,
+      0.5367115795640095
+     ],
+     "sufficient": true
+    }
+   },
+   "stability_by_vol_regime": {
+    "high": {
+     "n": 3148,
+     "observed_rate": 0.5327191867852605,
+     "predicted_mean": 0.605601334180432,
+     "wilson_95": [
+      0.5152607106131879,
+      0.5500979038552551
+     ],
+     "sufficient": true
+    },
+    "low": {
+     "n": 133,
+     "observed_rate": 0.45112781954887216,
+     "predicted_mean": 0.6255781954887218,
+     "wilson_95": [
+      0.3691141956077144,
+      0.5358854536217595
+     ],
+     "sufficient": true
+    },
+    "medium": {
+     "n": 1662,
+     "observed_rate": 0.5379061371841155,
+     "predicted_mean": 0.6188487364620938,
+     "wilson_95": [
+      0.5138767196856109,
+      0.5617607238744491
+     ],
+     "sufficient": true
+    }
+   },
+   "stability_by_sector_top": {
+    "tech": {
+     "n": 1368,
+     "observed_rate": 0.6096491228070176,
+     "predicted_mean": 0.5974486842105263,
+     "wilson_95": [
+      0.5835252726497668,
+      0.6351588669768489
+     ],
+     "sufficient": true
+    },
+    "industrials": {
+     "n": 1063,
+     "observed_rate": 0.39793038570084666,
+     "predicted_mean": 0.609607996237065,
+     "wilson_95": [
+      0.36892366431719514,
+      0.42767219396204703
+     ],
+     "sufficient": true
+    },
+    "healthcare": {
+     "n": 493,
+     "observed_rate": 0.6369168356997972,
+     "predicted_mean": 0.610422920892495,
+     "wilson_95": [
+      0.593559434676233,
+      0.6781569433404226
+     ],
+     "sufficient": true
+    },
+    "energy": {
+     "n": 455,
+     "observed_rate": 0.6175824175824176,
+     "predicted_mean": 0.6205290109890109,
+     "wilson_95": [
+      0.5721197448410354,
+      0.661076199031534
+     ],
+     "sufficient": true
+    },
+    "financials": {
+     "n": 397,
+     "observed_rate": 0.5113350125944585,
+     "predicted_mean": 0.6161380352644836,
+     "wilson_95": [
+      0.4622903055971646,
+      0.5601624537970699
+     ],
+     "sufficient": true
+    },
+    "communication": {
+     "n": 302,
+     "observed_rate": 0.3741721854304636,
+     "predicted_mean": 0.607076821192053,
+     "wilson_95": [
+      0.3214957354445901,
+      0.43000961896108936
+     ],
+     "sufficient": true
+    },
+    "consumer_disc": {
+     "n": 218,
+     "observed_rate": 0.6055045871559633,
+     "predicted_mean": 0.6358018348623853,
+     "wilson_95": [
+      0.5393363379619832,
+      0.6680188199524927
+     ],
+     "sufficient": true
+    },
+    "consumer_stap": {
+     "n": 183,
+     "observed_rate": 0.45901639344262296,
+     "predicted_mean": 0.6388196721311477,
+     "wilson_95": [
+      0.3884002609024183,
+      0.5313178318563678
+     ],
+     "sufficient": true
+    }
+   }
+  }
+ }
+}

@@ -55,7 +55,7 @@ export function LessonPage() {
       <ArthosPage maxWidth="max-w-narrative">
         <div className="py-20">
           <p className="ink-muted">No lesson by that name.</p>
-          <Link to="/v2/learn" className="text-meta ink-muted mt-4 inline-block">
+          <Link to="/learn" className="text-meta ink-muted mt-4 inline-block">
             Back to Learn
           </Link>
         </div>
@@ -79,7 +79,7 @@ export function LessonPage() {
   return (
     <ArthosPage maxWidth="max-w-reading" topBarEyebrow="Learn">
       <Link
-        to="/v2/learn"
+        to="/learn"
         className="text-meta ink-fainter hover:ink-muted mb-8 inline-flex items-center gap-1.5 transition-colors"
       >
         <span aria-hidden>←</span> {path ? path.title : 'Learn'}
@@ -282,7 +282,7 @@ export function LessonPage() {
             is at stake.
           </p>
           <Link
-            to={`/v2/try/${slug}`}
+            to={`/try/${slug}`}
             className="inline-flex items-center justify-center gap-2 mt-5 h-11 px-5 rounded-full text-[13.5px] font-semibold tracking-tight transition-colors min-h-11 hover:opacity-92"
             style={{
               backgroundColor: 'var(--brand)',
@@ -302,7 +302,7 @@ export function LessonPage() {
           className="mt-24 pt-12 border-t border-hairline"
         >
           <Link
-            to={`/v2/today/pick/${connectedPosition.symbol}`}
+            to={`/today/pick/${connectedPosition.symbol}`}
             className="block surface-drawer p-8 hover:opacity-90 transition-opacity"
           >
             <div className="text-meta ink-fainter mb-3">

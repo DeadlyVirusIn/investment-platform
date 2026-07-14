@@ -4,25 +4,58 @@
 // arthosData static literals. Fields the backend lacks are omitted, never
 // fabricated. Honest not-found when the symbol has no live recommendation.
 
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
 import { useUserPrefs } from '../state/UserPrefsContext';
-import { CONFIDENCE_DOCTRINE } from '../lib/copy';
+import { useAddIdeaToPaper } from '@/lib/operator/modelPortfolios';
+import { ApiError } from '@/lib/api';
+import { confidenceDisplay } from '../lib/confidenceDisplay';
+import { freshnessInfo } from '../lib/freshness';
+import { lsGetRaw, lsSetRaw } from '@/lib/storage';
+import { PreflightLimitations } from '../components/PreflightLimitations';
+import { PostureBanner } from '../components/PostureBanner';
+import { WhatChangedSection } from '../components/WhatChanged';
+import { useIdeaTimeline } from './IdeaHistory';
+
+// Wave 1D — link appears only when a replay actually exists (flag on +
+// recorded lifecycle); silent otherwise.
+function HistoryLink({ symbol }: { symbol: string | undefined }) {
+  const timeline = useIdeaTimeline(symbol);
+  if (!timeline || !symbol) return null;
+  return (
+    <p className="mb-12 -mt-8">
+      <Link to={`/today/pick/${symbol}/history`}
+        className="text-[13px] font-semibold"
+        style={{ color: 'var(--brand)' }}>
+        See this idea's full history →
+      </Link>
+    </p>
+  );
+}
+// Elite ArthOS Sprints 2+6 — dev-only prototypes; both render null unless
+// their VITE_DEV_* flags are '1' (absent in every normal build).
+import { AttributionWorking } from '../components/AttributionWorking';
+import { ATTRIBUTION_FIXTURE } from '../components/attributionFixture';
+import { ThesisCardDev } from '../components/ThesisCardDev';
+import { plainThesis, ideaSignals } from '../lib/plainText';
+import { sectorLabel } from '../lib/companyMeta';
+import { CompanyTitle } from '../components/CompanyTitle';
+import { TickerBadge, FreshnessLine } from '../components/IdeaIdentity';
+import { PlanRows } from '../components/PlanRows';
+import { BothSidesCard } from '../components/BothSidesCard';
+import { RecommendationTrace } from '../components/RecommendationTrace';
+import { PersonalizationLens } from '../components/PersonalizationLens';
+import { FeedbackWidget } from '../components/FeedbackWidget';
+import type { RecMeta } from '../lib/personalization';
+import { whyNow } from '../lib/whyNow';
+import { useSymbolNews } from '@/lib/market/hooks';
 import {
   useTodaysRecommendations,
   effectiveAction,
-  confidenceNum,
   type RecApi,
 } from '@/lib/operator/hooks';
-
-interface EvidenceItem {
-  factor_key?: string;
-  family?: string;
-  direction?: string;
-  score?: string | null;
-  narrative?: string;
-}
 
 function FadeIn({ delay = 0, children }: { delay?: number; children: React.ReactNode }) {
   return (
@@ -36,6 +69,28 @@ function FadeIn({ delay = 0, children }: { delay?: number; children: React.React
   );
 }
 
+// P1 incident 2026-07-08 — status-aware "Add to paper" failure copy. The
+// generic "Try again" hid the real reasons (signed out, no practice cash
+// left, stale price data, rate limit). Specific, still internal-safe.
+function addToPaperErrorCopy(err: unknown): string {
+  if (err instanceof ApiError) {
+    const msg = (err.message || '').toLowerCase();
+    if (err.status === 401) {
+      return 'Sign in to add ideas to your own practice portfolio.';
+    }
+    if (err.status === 409 && msg.includes('insufficient cash')) {
+      return "Not enough practice cash left in your book for a $1,000 add. Free up cash by closing a practice position first.";
+    }
+    if (err.status === 409 && msg.includes('no price data')) {
+      return 'No recent price data for this symbol yet — try again a little later.';
+    }
+    if (err.status === 429) {
+      return 'Too many adds in a short time — please wait a bit and try again.';
+    }
+  }
+  return "Couldn't add to your paper book. Try again.";
+}
+
 function absTime(iso: string | null): string {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -45,11 +100,52 @@ function absTime(iso: string | null): string {
   });
 }
 
-function isFresh(rec: RecApi): boolean {
-  if (rec.stale_data) return false;
-  if (!rec.generated_at) return true;
-  const h = (Date.now() - new Date(rec.generated_at).getTime()) / 3600_000;
-  return !(Number.isFinite(h) && h > 30);
+// ArthOS recommendations are swing ideas (the engine's design horizon), so the
+// expected holding period is a real property of the strategy — not per-name.
+const HOLDING_PERIOD =
+  'Medium-term — these are swing ideas, usually held a few weeks to a few months.';
+
+// Plain "what to do next" framing for the engine's action.
+function actionPlain(action: string): { verb: string; explain: string; tone: 'pos' | 'neg' | 'muted' } {
+  switch (action) {
+    case 'Buy':
+      return { verb: 'Consider buying', tone: 'pos',
+        explain: "ArthOS sees more working for this than against it right now." };
+    case 'Trim':
+      return { verb: 'Consider trimming', tone: 'neg',
+        explain: "ArthOS would lighten up here — the risks outweigh the upside." };
+    case 'Sell':
+    case 'Exit':
+      return { verb: 'Consider stepping aside', tone: 'neg',
+        explain: "ArthOS would not hold this right now." };
+    default:
+      return { verb: 'Hold — no action today', tone: 'muted',
+        explain: "Nothing compelling to do right now; owners can sit tight." };
+  }
+}
+
+// Truthful freshness (audit C1) — shared mapping in lib/freshness.ts.
+
+// One-time explainer: clarifies "paper" the first time a user reaches an
+// idea detail. Dismiss persists in localStorage so it shows only once.
+function PaperExplainer() {
+  const KEY = 'arthos_seen_paper_explainer';
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (!lsGetRaw(KEY)) setShow(true);
+  }, []);
+  if (!show) return null;
+  return (
+    <div className="mt-3 rounded-xl px-3 py-2 flex items-start justify-between gap-3"
+      style={{ backgroundColor: 'color-mix(in oklch, var(--brand) 8%, transparent)', border: '1px solid var(--border)' }}>
+      <p className="ink-muted text-[12.5px] leading-relaxed">
+        Paper means practice money — no real money is used.
+      </p>
+      <button type="button"
+        onClick={() => { lsSetRaw(KEY, '1'); setShow(false); }}
+        className="text-[12px] ink-fainter hover:ink-muted shrink-0">Got it</button>
+    </div>
+  );
 }
 
 export function PickPage() {
@@ -57,11 +153,36 @@ export function PickPage() {
   const navigate = useNavigate();
   const { inWatchlist, toggleWatchlist } = useUserPrefs();
   const { data, isLoading } = useTodaysRecommendations();
+  const { data: news } = useSymbolNews(symbol);
+  const [sp] = useSearchParams();
+  const addIdea = useAddIdeaToPaper();
+  const autoFired = useRef(false);
 
   const recs: RecApi[] = data?.recommendations ?? [];
   const rec = symbol
     ? recs.find((r) => (r.symbol ?? '').toUpperCase() === symbol.toUpperCase())
     : undefined;
+
+  // Add this idea to the canonical paper book ($1,000), then go to My Portfolio.
+  const addToPaper = () => {
+    if (!rec?.symbol) return;
+    // No auto-navigate — show an inline confirmation so the user chooses
+    // (View portfolio / Continue exploring) instead of being yanked away.
+    addIdea.mutate({ symbol: rec.symbol });
+  };
+
+  // Reset the one-shot guard when navigating between symbols (the router
+  // reuses this component instance on param change).
+  useEffect(() => { autoFired.current = false; }, [symbol]);
+
+  // ?add=1 from the Discover card "Add to paper" CTA auto-fires once.
+  useEffect(() => {
+    if (sp.get('add') === '1' && rec?.symbol && !autoFired.current && !addIdea.isPending) {
+      autoFired.current = true;
+      addToPaper();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sp, rec?.symbol]);
 
   if (isLoading) {
     return (
@@ -81,7 +202,7 @@ export function PickPage() {
           <p className="ink-muted text-[13.5px] max-w-narrative">
             The engine did not surface this name in today's evaluated set. It may not have cleared data-sufficiency, or it isn't in the current universe.
           </p>
-          <Link to="/v2/opportunities" className="text-meta ink-muted mt-4 inline-block">
+          <Link to="/opportunities" className="text-meta ink-muted mt-4 inline-block">
             See the live desk →
           </Link>
         </div>
@@ -90,14 +211,15 @@ export function PickPage() {
   }
 
   const action = effectiveAction(rec) ?? 'Hold';
-  const conf = confidenceNum(rec);
-  const fresh = isFresh(rec);
+  const fresh = freshnessInfo(rec.generated_at, rec.stale_data);
   const watching = inWatchlist(rec.symbol ?? '');
-  const evidence = (rec.evidence ?? []) as EvidenceItem[];
-  const families = rec.family_scores ?? {};
+  const sig = ideaSignals(rec.family_scores);
+  const holding = HOLDING_PERIOD;
+  const sec = sectorLabel(rec.sector);
 
   return (
     <ArthosPage maxWidth="max-w-copy">
+      <PostureBanner />
       <button
         onClick={() => navigate(-1)}
         className="text-meta ink-fainter hover:ink-muted mb-12 inline-flex items-center gap-1.5 transition-colors"
@@ -107,8 +229,17 @@ export function PickPage() {
 
       <FadeIn>
         <div className="mb-10">
-          <div className="flex items-center justify-between gap-4 mb-2">
-            <div className="font-mono text-meta ink-fainter">{rec.symbol}</div>
+          <div className="flex items-center justify-between gap-4 mb-3">
+            {/* Ticker as a clear standalone badge + the action call — the symbol
+                leads, not buried inside the company-name parentheses. */}
+            <div className="flex items-center gap-2.5 min-w-0">
+              <TickerBadge symbol={rec.symbol} size="lg" />
+              <span className="font-semibold uppercase shrink-0"
+                style={{ fontSize: 12, letterSpacing: '0.05em',
+                  color: action.toLowerCase() === 'buy' ? 'var(--brand)' : 'var(--muted-foreground)' }}>
+                {action}
+              </span>
+            </div>
             <button
               onClick={() => rec.symbol && toggleWatchlist(rec.symbol)}
               className={`text-meta inline-flex items-center gap-1.5 transition-colors ${
@@ -120,21 +251,100 @@ export function PickPage() {
             </button>
           </div>
           <h1 className="font-serif text-headline ink-primary mb-3">
-            {rec.symbol} — {action}
+            <CompanyTitle symbol={rec.symbol} name={rec.name} showTickerWhenNamed={false} />
           </h1>
           <div className="text-meta ink-muted tabular-nums">
-            {rec.confidence_label ?? 'Medium'} confidence · {conf.toFixed(0)}
+            {sec && <>{sec}{' · '}</>}
+            {confidenceDisplay(rec.confidence_label)}
             {' · '}
-            <span style={{ color: fresh ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
-              {fresh ? 'fresh' : 'stale'}
+            <span style={{ color: fresh.tone === 'good' ? 'var(--brand)' : 'oklch(0.70 0.14 75)' }}>
+              {fresh.label.toLowerCase()}
             </span>
-            {rec.composite_score != null && <> · composite {Number(rec.composite_score).toFixed(3)}</>}
           </div>
-          {/* P1.3 — confidence doctrine (shared SSOT) */}
+          <FreshnessLine generatedAt={rec.generated_at} stale={rec.stale_data} className="mt-2" />
+          <PreflightLimitations rec={rec} />
+          {/* Phase 4 — beginner-safe explanation of what "confidence" means. */}
           <p className="ink-fainter text-[12px] leading-relaxed mt-2 max-w-narrative">
-            {CONFIDENCE_DOCTRINE}
+            Confidence means how strongly Arth’s model supports this idea based on
+            available data. It is not a guarantee.
           </p>
+          {/* MVP — add this idea to the paper book ($1,000). */}
+          <button type="button" onClick={addToPaper} disabled={addIdea.isPending}
+            className="mt-4 px-4 py-2 rounded-full"
+            style={{
+              fontSize: 13, fontWeight: 600, color: 'var(--background)',
+              backgroundColor: 'var(--brand)', border: 'none',
+              opacity: addIdea.isPending ? 0.6 : 1,
+              cursor: addIdea.isPending ? 'default' : 'pointer',
+            }}>
+            {addIdea.isPending ? 'Adding…' : 'Add to paper ($1,000)'}
+          </button>
+          {addIdea.isError && (
+            <p className="mt-2 text-[12px]" style={{ color: 'var(--destructive)' }}>
+              {addToPaperErrorCopy(addIdea.error)}
+            </p>
+          )}
+          {addIdea.isSuccess && (
+            <div className="mt-3 rounded-xl px-4 py-3 max-w-narrative" style={{
+              backgroundColor: 'color-mix(in oklch, var(--brand) 9%, transparent)',
+              border: '1px solid color-mix(in oklch, var(--brand) 26%, transparent)',
+            }}>
+              <p className="ink-primary text-[14px] font-semibold">✓ Added to your practice portfolio</p>
+              <p className="ink-muted text-[12.5px] leading-relaxed mt-1">
+                Track it using practice money before risking real money.
+              </p>
+              <div className="flex items-center gap-3 mt-3 flex-wrap">
+                <Link to="/portfolio" className="px-3 py-1.5 rounded-full"
+                  style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
+                  View portfolio
+                </Link>
+                <Link to="/discover" className="text-[12.5px]"
+                  style={{ color: 'var(--brand)', fontWeight: 600 }}>
+                  Continue exploring ideas →
+                </Link>
+              </div>
+            </div>
+          )}
+          <PaperExplainer />
         </div>
+      </FadeIn>
+
+      {/* Sprint J — "What do I do next?" — the decision, up front. ArthOS gives
+          a buy/hold/trim call, not fabricated price targets. */}
+      <FadeIn delay={0.03}>
+        <section className="mb-12 max-w-narrative">
+          <MetaLabel>What to do next</MetaLabel>
+          {(() => {
+            const act = actionPlain(action);
+            const color = act.tone === 'pos' ? 'var(--brand)'
+              : act.tone === 'neg' ? 'oklch(0.70 0.14 75)' : 'var(--foreground)';
+            return (
+              <>
+                <p className="font-serif leading-snug mt-3" style={{ fontSize: 24, color }}>{act.verb}</p>
+                <p className="ink-muted text-[14px] leading-relaxed mt-2">{act.explain}</p>
+              </>
+            );
+          })()}
+          {/* Plan — Entry / Target / Exit if wrong / Timeframe (Sprint K).
+              Real paper-planning zones when price + ATR are present, honest
+              placeholders otherwise. Never fabricated. */}
+          <div className="mt-5"><PlanRows rec={rec} /></div>
+        </section>
+      </FadeIn>
+
+      {/* M4 — honest personalization lens (explanation only; never changes the
+          recommendation). Hidden for anonymous/demo users. Swing ideas carry a
+          medium typical hold, so the lens reads horizon='medium'. */}
+      <FadeIn delay={0.035}>
+        <PersonalizationLens
+          meta={{
+            isOption: false,
+            action,
+            confidenceLabel: rec.confidence_label,
+            tags: rec.tags ?? [],
+            horizon: 'medium',
+          } as RecMeta}
+        />
       </FadeIn>
 
       <FadeIn delay={0.04}>
@@ -144,54 +354,139 @@ export function PickPage() {
             <span className="ink-primary text-[13px] tabular-nums">{absTime(rec.generated_at)}</span>
           </div>
           <p className="ink-fainter text-[12px] italic leading-relaxed">
-            Live engine{rec.engine_version ? ` · ${rec.engine_version}` : ''} · source: live
+            Generated from the latest market data.
           </p>
         </div>
       </FadeIn>
 
-      {rec.thesis && (
-        <FadeIn delay={0.06}>
-          <p className="font-serif text-subhead ink-primary leading-snug mb-16 max-w-narrative">
-            {rec.thesis}
-          </p>
-        </FadeIn>
-      )}
+      {/* Task 1 — "Why now?" timeliness line, from the rec's own driver +
+          freshness + any recent news catalyst (all data already on the page). */}
+      {(() => {
+        const wn = whyNow(rec, news?.items);
+        if (!wn) return null;
+        return (
+          <FadeIn delay={0.05}>
+            <section className="mb-12 max-w-narrative">
+              <div className="rounded-xl border border-hairline p-5 sm:p-6" style={{ borderLeft: '3px solid var(--brand)' }}>
+                <div className="text-[12px] font-semibold uppercase tracking-wide ink-fainter mb-2">{wn.label}</div>
+                <p className="ink-primary text-[15px] leading-relaxed">{wn.line}</p>
+                {wn.catalyst && (
+                  <a
+                    href={wn.catalyst.url ?? undefined}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 inline-block ink-muted text-[13px] leading-snug hover:ink-primary transition-colors"
+                  >
+                    “{wn.catalyst.title}” — {wn.catalyst.source} ↗
+                  </a>
+                )}
+              </div>
+            </section>
+          </FadeIn>
+        );
+      })()}
 
-      {evidence.length > 0 && (
-        <FadeIn delay={0.14}>
-          <section className="mb-20">
-            <MetaLabel>What the engine is seeing</MetaLabel>
-            <ul className="mt-6 space-y-6 max-w-copy">
-              {evidence.map((s, i) => (
-                <li key={i} className="grid sm:grid-cols-[1fr_auto] gap-x-8 gap-y-1.5 items-baseline border-t border-hairline pt-6">
-                  <div className="min-w-0">
-                    <div className="ink-primary text-[15px] leading-snug mb-1">
-                      {s.narrative ?? s.factor_key ?? 'factor'}
-                    </div>
-                    <div className="ink-fainter text-[12px] leading-relaxed">
-                      {s.family ?? ''}{s.direction ? ` · ${s.direction}` : ''}
-                    </div>
-                  </div>
-                  <div className="ink-muted text-[13px] tabular-nums leading-snug sm:text-right">
-                    {s.score != null ? Number(s.score).toFixed(3) : '—'}
-                  </div>
+      {/* Sprint H — "Why this idea exists" in plain investor language, derived
+          from the engine's real signals (no scores/jargon). Falls back to the
+          plain evidence narratives if family signals aren't present. */}
+      <FadeIn delay={0.06}>
+        <section className="mb-12 max-w-narrative">
+          <MetaLabel>Why this idea exists</MetaLabel>
+          <p className="font-serif text-subhead ink-primary leading-snug mt-3 mb-5">
+            {plainThesis(rec.thesis)
+              ?? `ArthOS flagged ${rec.symbol} as a ${action.toLowerCase()} based on what's working in its favor.`}
+          </p>
+          {sig.why.length > 0 ? (
+            <ul className="space-y-3">
+              {sig.why.map((w) => (
+                <li key={w} className="flex items-baseline gap-3 border-t border-hairline pt-3">
+                  <span aria-hidden style={{ color: 'var(--brand)', fontSize: 12 }}>▲</span>
+                  <span className="ink-primary text-[15px] leading-snug">{w}</span>
                 </li>
               ))}
             </ul>
-          </section>
-        </FadeIn>
-      )}
+          ) : (
+            // Phase 4 — beginner-safe fallback. Never expose raw engine
+            // narratives (SMA / RSI / ATR) when no plain signals are available.
+            <p className="ink-muted text-[14px] leading-relaxed">
+              Arth’s model rates this a {action.toLowerCase()} from current price and
+              market trend. The detailed signals aren’t available in plain language
+              for this name yet.
+            </p>
+          )}
+        </section>
+      </FadeIn>
 
-      {Object.keys(families).length > 0 && (
+      {/* P0-1 — Bull vs Bear: both sides + ArthOS's verdict, from real
+          stored evidence. Beginner-legible; raw factor detail stays in the
+          Layer-3 trace. */}
+      <FadeIn delay={0.09}>
+        <BothSidesCard rec={rec} />
+      </FadeIn>
+
+      {/* Wave 1C — narrative slot 4: what changed since the previous
+          update. Renders nothing when the delta flag is off. */}
+      <FadeIn delay={0.1}>
+        <WhatChangedSection symbol={rec.symbol ?? undefined} />
+        <HistoryLink symbol={rec.symbol ?? undefined} />
+      </FadeIn>
+
+      {/* Risks now live in the Bulls-vs-Bears card above; keep only the
+          honest caveat here to avoid a duplicate risk list. */}
+      <FadeIn delay={0.12}>
+        <section className="mb-12 max-w-narrative">
+          <MetaLabel>Before you act</MetaLabel>
+          <p className="ink-muted text-[14px] leading-relaxed mt-3">
+            This is ArthOS's current read, not a promise. It weakens if the
+            signals above reverse or the company's story changes. Markets fall as
+            well as rise — practice first with money you're fine simulating.
+          </p>
+        </section>
+      </FadeIn>
+
+      <FadeIn delay={0.16}>
+        <section className="mb-16 max-w-narrative">
+          <MetaLabel>Expected holding period</MetaLabel>
+          <p className="ink-primary text-[15px] leading-snug mt-3">{holding}</p>
+        </section>
+      </FadeIn>
+
+      {/* P0-2 — See the working: investor-grade audit trail (Layer-3),
+          from the same real stored evidence + policy. */}
+      <FadeIn delay={0.18}>
+        <RecommendationTrace rec={rec} />
+      </FadeIn>
+
+      {/* M5 — demand-validation feedback (collect-only; non-blocking). */}
+      <FadeIn delay={0.2}>
+        <FeedbackWidget surface="pick_detail" />
+      </FadeIn>
+
+      {/* Sprint I — Recent news & catalysts (real, from /news/symbol). */}
+      {news && news.items.length > 0 && (
         <FadeIn delay={0.18}>
-          <section className="mb-20">
-            <MetaLabel>Family scores</MetaLabel>
-            <ul className="mt-6 grid sm:grid-cols-2 gap-x-10 gap-y-3 max-w-copy">
-              {Object.entries(families).map(([k, v]) => (
-                <li key={k} className="flex items-baseline justify-between gap-4 border-t border-hairline pt-3">
-                  <span className="ink-primary text-[13.5px]">{k.replace(/_/g, ' ')}</span>
-                  <span className="ink-muted text-[13px] tabular-nums">
-                    {v != null ? Number(v).toFixed(3) : '—'}
+          <section className="mb-12 max-w-narrative">
+            <MetaLabel>Recent news &amp; catalysts</MetaLabel>
+            <ul className="mt-4 space-y-4">
+              {news.items.slice(0, 5).map((n) => (
+                <li key={n.id} className="border-t border-hairline pt-4">
+                  {n.category && (
+                    <span className="inline-block mb-1 px-2 py-0.5 rounded-full"
+                      style={{ fontSize: 10.5, textTransform: 'capitalize',
+                        color: 'var(--muted-foreground)', border: '1px solid var(--border)' }}>
+                      {n.category}
+                    </span>
+                  )}
+                  {n.url ? (
+                    <a href={n.url} target="_blank" rel="noopener noreferrer"
+                      className="block ink-primary text-[14.5px] leading-snug hover:opacity-70">
+                      {n.title}
+                    </a>
+                  ) : (
+                    <span className="block ink-primary text-[14.5px] leading-snug">{n.title}</span>
+                  )}
+                  <span className="block ink-fainter text-[11.5px] mt-1">
+                    {n.source} · {absTime(n.published_at)}
                   </span>
                 </li>
               ))}
@@ -200,16 +495,32 @@ export function PickPage() {
         </FadeIn>
       )}
 
+      {/* Fundamentals section removed for investor demo — it rendered an empty
+          "coming soon" placeholder on every idea detail. Restore when the
+          fundamentals data layer lands (see INVESTOR_DEMO_EXPERIENCE_AUDIT P2). */}
+
       <FadeIn delay={0.22}>
         <section className="border-t border-hairline pt-10 max-w-narrative">
           <p className="ink-muted text-[13px] leading-relaxed">
-            This is the live engine's read for {rec.symbol} as of {absTime(rec.generated_at)}.
-            Data sufficiency: {rec.enough_data ? 'sufficient' : 'limited'}.
+            ArthOS's read for {rec.symbol}, as of {absTime(rec.generated_at)}
+            {rec.enough_data ? '.' : ' — based on limited data, so treat it with extra caution.'}
           </p>
-          <Link to="/v2/opportunities" className="text-meta ink-primary mt-4 inline-block" style={{ fontWeight: 600 }}>
-            Back to the live desk →
-          </Link>
+          <div className="mt-4 flex items-center gap-5">
+            <Link to="/discover" className="text-meta ink-primary inline-block" style={{ fontWeight: 600 }}>
+              Back to ideas →
+            </Link>
+            {/* Embed a path to the glossary so unfamiliar terms are one tap away. */}
+            <Link to="/learn/glossary" className="text-meta ink-muted inline-block">
+              New to these terms? Glossary →
+            </Link>
+          </div>
         </section>
+
+        {/* Elite ArthOS dev previews — both components render null unless
+            VITE_DEV_ATTRIBUTION / VITE_DEV_THESIS are '1'; inert in every
+            normal build. They supplement, never replace, the narrative. */}
+        <AttributionWorking payload={ATTRIBUTION_FIXTURE} />
+        <ThesisCardDev />
       </FadeIn>
     </ArthosPage>
   );

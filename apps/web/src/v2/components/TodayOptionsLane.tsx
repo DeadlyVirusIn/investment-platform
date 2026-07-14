@@ -1,12 +1,13 @@
 // Today — Options lane. ALWAYS rendered (per product decision): users must
-// always know options exists, even when stale/disabled/no setups.
+// always know options exists.
 //
-// Phase A: the lane now leads with the best options setup (TodayOptionsHero),
-// mirroring the stock hero, instead of pipeline telemetry (universe /
-// engine-compatible / incompatible counts). Read-only. No trade controls.
+// Sprint M: the lane now uses the beginner-safe OptionsAdvancedSection
+// (collapsed disclosure, beginner language, advanced-practice warning) instead
+// of the trader-facing TodayOptionsHero, which leaked jargon (DTE/IV/etc.)
+// onto a beginner surface. Read-only. No trade controls.
 
-import { TodayOptionsHero } from './TodayOptionsHero';
+import { OptionsAdvancedSection } from './OptionsAdvancedSection';
 
 export function TodayOptionsLane() {
-  return <TodayOptionsHero />;
+  return <OptionsAdvancedSection />;
 }

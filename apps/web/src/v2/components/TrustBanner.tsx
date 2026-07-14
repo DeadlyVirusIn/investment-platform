@@ -24,7 +24,7 @@ export function TrustBanner() {
   const { data: book } = useCanonicalStockPortfolio();
   // P1.3 — closed outcomes = sells with realized P&L (Track Record's
   // exact definition). Drives the honest accuracy-publish meter.
-  const { data: tradesData } = useExecutedTrades(false, book?.portfolio_id);
+  const { data: tradesData } = useExecutedTrades(false, book?.portfolio_id, { enabled: !!book?.portfolio_id });
 
   const callCount = recs?.recommendations?.length ?? null;
   const totalRet = book?.total_return_pct ?? null;
@@ -45,7 +45,7 @@ export function TrustBanner() {
         {callCount == null
           ? (recsLoading
               ? "Loading Arth's published calls…"
-              : "Arth's record is unavailable right now.")
+              : "Arth's published calls will appear here shortly.")
           : callCount === 0
             ? 'No calls published yet.'
             : `${callCount} call${callCount === 1 ? '' : 's'} live · accuracy publishes at ${ACCURACY_THRESHOLD} closed outcomes (${Math.min(closedCount, ACCURACY_THRESHOLD)}/${ACCURACY_THRESHOLD} so far).`}
@@ -55,7 +55,7 @@ export function TrustBanner() {
           · practice book {totalRet >= 0 ? '+' : ''}{totalRet.toFixed(2)}%
         </span>
       )}
-      <Link to="/v2/arth"
+      <Link to="/arth"
             className="ml-auto"
             style={{ fontSize: 12, color: 'var(--brand)', fontWeight: 600 }}>
         See the full record →

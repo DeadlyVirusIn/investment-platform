@@ -1,7 +1,15 @@
 # Caddyfile — used in production (docker-compose.prod.yml).
 # In dev, Vite proxies /api directly; Caddy is not involved.
+#
+# Site address comes from the $ARTHOS_DOMAIN env var (set in the host-only .env):
+#   - a real domain (e.g. arthos.example.com) -> Caddy serves auto-HTTPS via
+#     ACME/Let's Encrypt on :443 (Option A). REQUIRES the domain's DNS A-record
+#     to already point at the VM IP before ACME can succeed.
+#   - ":80" -> plain HTTP, intended to sit BEHIND Cloudflare which terminates TLS
+#     (Option B); pair with AUTH_TRUST_PROXY_HEADERS=true + the Cloudflare CIDRs.
+# Default ":80" keeps Caddy from failing if ARTHOS_DOMAIN is unset.
 
-:80 {
+{$ARTHOS_DOMAIN::80} {
     # Route API requests to the FastAPI backend
     handle /api/* {
         reverse_proxy api:8000
@@ -19,6 +27,28 @@
     encode gzip zstd
 
     # Security headers
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        Referrer-Policy strict-origin-when-cross-origin
+        -Server
+    }
+}
+
+# Tunnel origin — Cloudflare Tunnel (arthos-tunnel) connects here over plain HTTP.
+# Bare ":8081" = HTTP only, NO auto-HTTPS and NO http->https redirect (Cloudflare
+# terminates TLS at the edge; an internal redirect would loop). Published to the
+# host loopback only (127.0.0.1:8081) in docker-compose.prod.yml.
+:8081 {
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+    handle {
+        root * /srv/web
+        try_files {path} /index.html
+        file_server
+    }
+    encode gzip zstd
     header {
         X-Content-Type-Options nosniff
         X-Frame-Options DENY

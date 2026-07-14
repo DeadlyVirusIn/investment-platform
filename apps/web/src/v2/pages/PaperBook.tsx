@@ -12,6 +12,9 @@
 // "—") whenever no price is available — we never fabricate a mark.
 
 import { ArthosPage, MetaLabel } from '../chrome/ArthosChrome';
+import { StatusPanel } from '../components/ui/StatusPanel';
+import { useSession } from '../state/SessionContext';
+import { CompanyTitle } from '../components/CompanyTitle';
 import { PracticeTabs } from './components/PracticeTabs';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -22,14 +25,41 @@ import {
   type CanonicalStockPortfolio,
 } from '@/lib/operator/hooks';
 
-function freshnessNote(f: string | undefined): string | null {
-  switch (f) {
-    case 'fresh': return null;
-    case 'degraded': return 'Snapshot slightly delayed.';
-    case 'stale': return 'Snapshot is stale — awaiting the next refresh.';
-    case 'unknown': return 'Snapshot timing unavailable.';
-    default: return null;
+// Age-aware snapshot honesty (audit H2): "slightly delayed" understated a
+// 3-day-old book. State the snapshot date and age plainly; escalate tone
+// past one day. Values shown are still real — just as of that timestamp.
+function snapshotStatus(f: string | undefined, asOf: string | null | undefined): {
+  title: string; detail: string; variant: 'warn' | 'info';
+} | null {
+  const ageDays = (() => {
+    if (!asOf) return null;
+    const t = new Date(asOf).getTime();
+    if (Number.isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / 86_400_000);
+  })();
+  const dateStr = asOf
+    ? new Date(asOf).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+  if ((ageDays != null && ageDays >= 1) || f === 'stale' || f === 'degraded') {
+    const age = ageDays == null ? null
+      : ageDays === 0 ? 'today' : ageDays === 1 ? '1 day old' : `${ageDays} days old`;
+    return {
+      variant: ageDays != null && ageDays > 1 ? 'warn' : 'info',
+      title: dateStr
+        ? `Snapshot from ${dateStr}${age && age !== 'today' ? ` — ${age}` : ''}`
+        : 'Snapshot is awaiting the next refresh',
+      detail: 'Nothing is lost — these are real practice positions, valued '
+        + 'as of that date. Prices refresh automatically after the next market close.',
+    };
   }
+  if (f === 'unknown') {
+    return {
+      variant: 'info',
+      title: 'Snapshot timing unavailable',
+      detail: 'The book is intact; the last-updated time could not be read.',
+    };
+  }
+  return null;
 }
 
 // ── display-only formatters (null → "—"; never fabricated) ──
@@ -43,15 +73,26 @@ const fmtSignedMoney = (v: number | null | undefined): string =>
         minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtSignedPct = (v: number | null | undefined): string =>
   v == null ? '—' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2)}%`;
+// Audit H1: raw float quantities ("1628.664495114 shares") read as a bug.
+// Whole shares stay whole; fractional shares round to 2 decimals (display
+// only — the ledger keeps full precision).
+const fmtShares = (v: number): string =>
+  Number.isInteger(v) ? v.toLocaleString()
+    : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const toneCls = (v: number | null | undefined): string =>
   v == null ? 'ink-primary' : v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'ink-primary';
 
 export function PaperBook() {
+  // Demo-book honesty (audit M2): anonymous visitors see the shared
+  // canonical engine book — it must NEVER be presented as "your"
+  // portfolio. Only a resolved authenticated session earns that word.
+  const { authenticated, loading: sessionLoading } = useSession();
+  const isDemo = !sessionLoading && !authenticated;
   const { data: book, isLoading } = useCanonicalStockPortfolio();
   const portfolioId = book?.portfolio_id;
   const {
     data: posData, isLoading: posLoading, isError: posError,
-  } = useExecutedPositions(false, true, portfolioId);
+  } = useExecutedPositions(false, true, portfolioId, { enabled: !!portfolioId });
   const positions = posData?.positions ?? [];
 
   const nav = book?.nav ?? null;
@@ -59,20 +100,47 @@ export function PaperBook() {
   const unreal = book?.unrealized_pnl ?? null;
   const real = book?.realized_pnl ?? null;
   const ret = book?.total_return_pct ?? null;
-  const note = freshnessNote(book?.freshness);
+  const note = snapshotStatus(book?.freshness, book?.as_of);
 
   return (
     <ArthosPage maxWidth="max-w-copy">
       <header className="mb-16 sm:mb-20">
-        <MetaLabel>Your practice portfolio</MetaLabel>
+        <MetaLabel>{isDemo ? 'Demo practice portfolio' : 'Your practice portfolio'}</MetaLabel>
         <h1 className="font-serif text-masthead ink-primary mt-3 mb-6 max-w-[18ch]">
-          Practice portfolio.
+          {isDemo ? 'Demo practice portfolio.' : 'Practice portfolio.'}
         </h1>
-        <p className="ink-muted leading-relaxed max-w-narrative">
-          A real practice account tracked on the backend — the same numbers
-          the briefing and homepage show. No real money. Follow the briefing,
-          and see what holds up over time.
-        </p>
+        {isDemo ? (
+          <>
+            <p className="ink-muted leading-relaxed max-w-narrative">
+              This is ArthOS's shared <strong>demo book</strong> — real paper
+              trades made by the engine with practice money, shown so you can
+              see how ideas are tracked to the end. It is illustrative and
+              doesn't belong to you.
+            </p>
+            <div className="mt-5 max-w-narrative">
+              <StatusPanel
+                variant="info"
+                title="Want a practice portfolio of your own?"
+                action={
+                  <Link to="/account" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
+                    style={{ fontSize: 12.5, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
+                    Create a free account →
+                  </Link>
+                }
+              >
+                Sign in and every idea you add is tracked privately under your
+                own book — practice money only, nothing real at risk.
+              </StatusPanel>
+            </div>
+          </>
+        ) : (
+          <p className="ink-muted leading-relaxed max-w-narrative">
+            This is your <strong>paper portfolio</strong> — practice money, nothing
+            real at risk. Every idea you follow or add is tracked here with live
+            prices, so you can see what actually holds up before you ever invest
+            real money.
+          </p>
+        )}
       </header>
 
       <PracticeTabs />
@@ -85,11 +153,41 @@ export function PaperBook() {
       >
         <MetaLabel>Book value</MetaLabel>
         {nav == null ? (
-          <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
-            {isLoading
-              ? 'Loading the practice account…'
-              : 'Practice account is unavailable right now.'}
-          </p>
+          isLoading ? (
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
+              Loading the practice account…
+            </p>
+          ) : (book?.open_positions_count ?? 0) > 0 || positions.length > 0 ? (
+            // Positions exist but no NAV snapshot yet (status=no_live_snapshot).
+            // NEVER say "unavailable" here — the user's add succeeded.
+            <div className="mt-3 max-w-narrative">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                <span className="px-2.5 py-0.5 rounded-full font-semibold uppercase"
+                  style={{ fontSize: 10.5, letterSpacing: '0.1em',
+                    backgroundColor: 'color-mix(in oklch, var(--brand) 12%, transparent)',
+                    color: 'var(--brand)',
+                    border: '1px solid color-mix(in oklch, var(--brand) 26%, transparent)' }}>
+                  Practice money
+                </span>
+                <span className="ink-muted text-[13px]">
+                  {(book?.open_positions_count ?? positions.length)} open position
+                  {(book?.open_positions_count ?? positions.length) === 1 ? '' : 's'}
+                </span>
+              </div>
+              <p className="font-serif text-subhead ink-primary leading-snug">
+                Your practice portfolio is being prepared
+              </p>
+              <p className="ink-muted leading-relaxed text-[15px] mt-2">
+                You've already added ideas to your practice account. Prices and
+                portfolio values update with the next market snapshot.
+              </p>
+            </div>
+          ) : (
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
+              No practice positions yet — add an idea from Discover to start your
+              practice book.
+            </p>
+          )
         ) : (
           <>
             <div className="font-serif text-headline ink-primary tabular-nums mt-3 mb-3">
@@ -142,7 +240,11 @@ export function PaperBook() {
               {' '}· source: {book?.source ?? 'live'}
             </p>
             {note && (
-              <p className="ink-fainter text-[12px] mt-2">{note}</p>
+              <div className="mt-3">
+                <StatusPanel variant={note.variant} title={note.title} role="status">
+                  {note.detail}
+                </StatusPanel>
+              </div>
             )}
           </>
         )}
@@ -180,17 +282,24 @@ export function PaperBook() {
         ) : positions.length === 0 ? (
           <div className="border-t border-hairline pt-12 pb-2">
             <p className="font-serif italic ink-muted text-[18px] leading-relaxed max-w-narrative mb-6">
-              No open positions yet.
+              Your portfolio is empty — let's fix that.
             </p>
             <p className="ink-muted leading-relaxed max-w-narrative mb-6 text-[15px]">
-              The briefing publishes a fresh desk of placements every weekday.
+              Follow a model portfolio or add a single idea to paper. It starts
+              tracking immediately and becomes your track record.
             </p>
-            <Link
-              to="/v2/today"
-              className="text-meta ink-primary hover:opacity-70 transition-opacity inline-flex items-center gap-1.5"
-            >
-              Open today's briefing <span aria-hidden>→</span>
-            </Link>
+            <div className="flex flex-wrap items-center gap-5">
+              <Link
+                to="/discover"
+                className="px-4 py-2 rounded-full inline-flex items-center gap-1.5"
+                style={{ fontSize: 13, fontWeight: 600, color: 'var(--background)', backgroundColor: 'var(--brand)' }}
+              >
+                Browse ideas <span aria-hidden>→</span>
+              </Link>
+              <Link to="/track-record" className="text-meta ink-muted hover:ink-primary transition-colors">
+                See track record →
+              </Link>
+            </div>
           </div>
         ) : (
           <ul className="space-y-px bg-hairline">
@@ -228,8 +337,8 @@ function PositionRow({ position }: { position: ExecutedPosition }) {
   return (
     <li className="surface-base py-6">
       <div className="flex items-baseline gap-3 mb-3 flex-wrap">
-        <span className="font-mono ink-primary text-[14px]">{position.symbol}</span>
-        <span className="text-meta ink-fainter">{qty} {units}</span>
+        <CompanyTitle symbol={position.symbol} className="ink-primary text-[14px]" />
+        <span className="text-meta ink-fainter">{fmtShares(qty)} {units}</span>
         <span className="text-meta ink-fainter">· {holdStatus}</span>
         {position.source !== 'live' && (
           <span className="text-meta ink-fainter">· {position.source}</span>
@@ -280,7 +389,7 @@ function RankCard({ title, rows, metric }: {
             const v = metric === 'day' ? p.day_pnl : p.unrealized_pnl;
             return (
               <li key={p.position_id} className="flex items-baseline justify-between gap-3">
-                <span className="font-mono ink-primary text-[13px]">{p.symbol}</span>
+                <CompanyTitle symbol={p.symbol} className="ink-primary text-[13px]" />
                 <span className={`tabular-nums text-[13px] ${toneCls(v)}`}>
                   {rankLine(p, metric)}
                 </span>

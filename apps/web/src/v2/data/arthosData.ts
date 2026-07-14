@@ -2012,15 +2012,15 @@ export interface SinceYesterdayItem {
 export const SINCE_YESTERDAY: SinceYesterdayItem[] = [
   {
     text: "We trimmed AMAT — fill cleared at $199.50. The thesis is intact; the size is now back to the band we sized at entry.",
-    link: { label: 'See the position', to: '/v2/today/pick/AMAT' },
+    link: { label: 'See the position', to: '/today/pick/AMAT' },
   },
   {
     text: "CRM half-position held; the cohort read confirmed for a third session.",
-    link: { label: 'See today\'s setups', to: '/v2/opportunities' },
+    link: { label: 'See today\'s setups', to: '/opportunities' },
   },
   {
     text: "One catalyst fired overnight: pre-CPI dispersion narrowed. Field note posted.",
-    link: { label: 'Read the note', to: '/v2/field-notes' },
+    link: { label: 'Read the note', to: '/field-notes' },
   },
 ];
 

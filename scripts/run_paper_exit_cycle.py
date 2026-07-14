@@ -216,6 +216,9 @@ def run_exit_cycle(
         JOIN paper_portfolio p ON p.id = pp.portfolio_id
         JOIN asset a ON a.id = pp.asset_id
         WHERE pp.is_open = TRUE AND p.is_active = TRUE
+          -- P1 2026-07-08: never exit-cycle per-user practice books;
+          -- the engine's TP/SL/max-hold rules apply to ENGINE books only.
+          AND p.name NOT LIKE 'user:%'
     """
     params: dict[str, Any] = {}
     if portfolio_id is not None:

@@ -232,8 +232,13 @@ def main(argv: list[str] | None = None) -> int:
             "[exploratory] eligible_soft_gate_candidates={}",
             len(candidates),
         )
+        # P1 2026-07-08: engine-tradable only — exploratory execution must
+        # never open positions inside per-user books (user:<id>:stock).
         portfolios = session.execute(
-            select(PaperPortfolio).where(PaperPortfolio.is_active.is_(True))
+            select(PaperPortfolio).where(
+                PaperPortfolio.is_active.is_(True),
+                PaperPortfolio.name.not_like("user:%"),
+            )
         ).scalars().all()
         logger.info(
             "[exploratory] active_portfolios={}", len(portfolios),

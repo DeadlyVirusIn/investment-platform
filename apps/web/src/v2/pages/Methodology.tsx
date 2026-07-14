@@ -11,6 +11,7 @@ import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { PageHeader } from '../components/ui/PageHeader';
+import { WorkflowDiagram } from '../components/WorkflowDiagram';
 
 function FadeIn({
   delay = 0,
@@ -73,6 +74,10 @@ export function Methodology() {
         <p className="ink-fainter leading-relaxed text-[14px] -mt-4 mb-12 sm:mb-16">
           5 sections · about 4 minutes
         </p>
+      </FadeIn>
+
+      <FadeIn delay={0.08}>
+        <WorkflowDiagram />
       </FadeIn>
 
       <Section n={1} title="What we watch" delay={0.1}>
@@ -176,19 +181,19 @@ export function Methodology() {
       <FadeIn delay={0.4}>
         <div className="mt-16 pt-10 border-t border-hairline flex flex-wrap gap-3">
           <Link
-            to="/v2/start"
+            to="/start"
             className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
           >
             Start the Day 1 flow
           </Link>
           <Link
-            to="/v2/today"
+            to="/today"
             className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
           >
             Today's briefing
           </Link>
           <Link
-            to="/v2/learn"
+            to="/learn"
             className="inline-flex items-center px-4 py-2 surface-drawer rounded-full text-meta ink-muted hover:ink-primary transition-colors"
           >
             Browse lessons

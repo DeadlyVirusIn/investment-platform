@@ -37,9 +37,17 @@ _BEARER_RE = re.compile(
     r"(?i)\bBearer\s+([A-Za-z0-9._\-+/=]{8,})"
 )
 
-# Query-string token params — group(2) captures the value
+# Query-string secret params — group(2) is the param name, group(3) the value.
+# CASE-INSENSITIVE (Polygon uses `apiKey` with a capital K — the prior
+# case-sensitive pattern missed it, which is how a live key reached the logs).
+# Value class includes % + . _ - so percent-encoded values AND keys containing
+# underscores/dots are matched. Param name is anchored right after ? or & so
+# `sort_key=` / `ticker=` are NOT falsely matched.
 _QUERY_PARAM_RE = re.compile(
-    r"([?&])(token|access_token|api_key|apikey)=([^&\s\"']+)"
+    r"(?i)([?&])("
+    r"api[-_]?key|apikey|access[-_]?token|refresh[-_]?token|token|"
+    r"client[-_]?secret|secret|signature|sig|password|passwd|pwd|auth|key"
+    r")=([^&#\s\"'<>]+)"
 )
 
 # Bare long alphanumeric tokens (32–80 chars). Bounded by word boundaries
@@ -51,10 +59,18 @@ _BARE_TOKEN_RE = re.compile(
     r"\b[A-Za-z0-9]{32,80}\b"
 )
 
-# Authorization header line (logs / repr output)
+# Authorization / api-key header lines (logs / repr / dict output). Matches
+# `Authorization: Bearer X`, `X-Api-Key: X`, `api_key: X`, `"token": "X"`.
 _AUTH_HEADER_RE = re.compile(
     r"(?i)(Authorization\s*:\s*Bearer\s+)([A-Za-z0-9._\-+/=]+)"
 )
+_HEADER_SECRET_RE = re.compile(
+    r"(?i)((?:x-api-key|api[-_]?key|x-auth-token|access[-_]?token|token|secret)"
+    r"[\"']?\s*[:=]\s*[\"']?)([A-Za-z0-9._\-+/=]{6,})"
+)
+
+# Bounded output — a single log line / stored error can never exceed this.
+_MAX_REDACTED_LEN = 4000
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +93,9 @@ def redact_token(text: str | None) -> str:
     s = _AUTH_HEADER_RE.sub(r"\1<REDACTED>", s)
     s = _BEARER_RE.sub("Bearer <REDACTED>", s)
     s = _QUERY_PARAM_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}=<REDACTED>", s)
+    s = _HEADER_SECRET_RE.sub(lambda m: f"{m.group(1)}<REDACTED>", s)
     s = _BARE_TOKEN_RE.sub(lambda m: f"<REDACTED:{len(m.group(0))}>", s)
-    return s
+    return s[:_MAX_REDACTED_LEN]
 
 
 def safe_url(url: Any) -> str:
@@ -161,8 +178,40 @@ def _scrub_kwargs(kw: dict) -> dict:
 safe_logger = _SafeLogger()
 
 
+# ---------------------------------------------------------------------------
+# Global boundary — a loguru patcher that scrubs EVERY emitted record's
+# message, regardless of which module logged it. This is the single choke
+# point that guarantees a provider exception string (e.g. an httpx
+# `raise_for_status()` error carrying `…apiKey=…` in the URL) can never reach
+# a sink unredacted, without every call site having to remember to scrub.
+# Install once at process start (api + worker main), AFTER logger.add().
+# ---------------------------------------------------------------------------
+def _redaction_patcher(record: "dict") -> None:  # loguru Record is a dict
+    msg = record.get("message")
+    if msg:
+        record["message"] = redact_token(msg)
+
+
+def install_global_redaction(target_logger=None):
+    """Attach the redaction patcher to loguru globally. Idempotent:
+    re-calling replaces the patcher with the same function. Does not touch
+    existing sinks (configure only sets the patcher when handlers is omitted)."""
+    lg = target_logger or _loguru_logger
+    lg.configure(patcher=_redaction_patcher)
+    return lg
+
+
+def redact_error_for_storage(text: str | None) -> str:
+    """Scrub + bound a string destined for durable storage (job_run.
+    error_message, agent_audit, etc.) — the DB path does NOT pass through the
+    loguru patcher, so writers must call this explicitly."""
+    return redact_token(text)
+
+
 __all__ = [
     "redact_token",
     "safe_url",
     "safe_logger",
+    "install_global_redaction",
+    "redact_error_for_storage",
 ]

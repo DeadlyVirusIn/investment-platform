@@ -230,6 +230,7 @@ async def run_recommendations_for_all_accounts() -> None:
 JobFn = Callable[[], Coroutine[Any, Any, None]]
 
 from apps.worker.src.jobs.backfill_prices import backfill_prices
+from apps.worker.src.jobs.refresh_company_names import refresh_company_names
 from apps.worker.src.jobs.compute_factor_snapshots import compute_factor_snapshots
 from apps.worker.src.jobs.compute_regime_snapshot import compute_regime_snapshot
 from apps.worker.src.jobs.fetch_news import fetch_news
@@ -257,6 +258,9 @@ from apps.worker.src.jobs.options_lifecycle_check import (
     run_options_lifecycle_check,
 )
 from apps.worker.src.jobs.run_weekly_rebalance import run_weekly_rebalance
+from apps.worker.src.jobs.evaluate_system_posture import (
+    evaluate_system_posture,
+)
 from apps.worker.src.jobs.score_outcomes import score_recommendation_outcomes
 from apps.worker.src.jobs.v2_promotion_snapshot import (
     run_v2_promotion_snapshot_job,
@@ -266,6 +270,9 @@ REGISTRY: dict[str, JobFn] = {
     # Ingestion (new: Tiingo → Yahoo fallback)
     "ingest_prices_daily": ingest_prices_daily,
     "backfill_prices": backfill_prices,
+    # Phase 2 — company-name backfill + nightly refresh from Polygon.
+    # Idempotent (only fills NULL names). Scheduled by migration 103.
+    "refresh_company_names": refresh_company_names,
     # Ingestion (legacy: Tiingo-only, kept for backward compat)
     "tiingo_backfill_eod": tiingo_backfill_eod,
     # Stock engine
@@ -286,6 +293,10 @@ REGISTRY: dict[str, JobFn] = {
     # (SCHEDULER_TZ=America/New_York → 03:00 UTC) — runs between
     # ingest_prices_daily (02:00 UTC) and run_paper_trading (03:30 UTC).
     "run_paper_exit_cycle": run_paper_exit_cycle_job,
+    # Wave 1B — Research Safe Mode posture evaluation. Flag-guarded no-op
+    # while SYSTEM_POSTURE_ENABLED is off; schedule row is created only by
+    # the enablement runbook (suggested cron: */15 * * * *).
+    "evaluate_system_posture": evaluate_system_posture,
     # Live-forward orchestrator (umbrella: candidates → paper trading → verify)
     "run_daily_pipeline": run_daily_pipeline_job,
     # V2 promotion-trigger weekly snapshot (Phase 8). Idempotent on

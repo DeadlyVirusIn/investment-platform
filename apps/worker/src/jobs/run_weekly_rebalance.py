@@ -10,10 +10,12 @@ from __future__ import annotations
 import datetime as dt
 
 from loguru import logger
-from sqlalchemy import select
 
 from apps.api.src.db import SessionLocal
 from apps.api.src.db.models import PaperPortfolio
+from apps.api.src.domain.paper_trading.paper_service import (
+    engine_tradable_portfolio_ids,
+)
 from apps.api.src.domain.stock_engine.portfolio.rebalance_engine import (
     DEFAULT_UNIVERSE,
     run_rebalance,
@@ -27,11 +29,9 @@ async def run_weekly_rebalance(
     target = as_of or dt.date.today()
 
     with SessionLocal() as session:
-        portfolio_ids = [
-            p.id for p in session.scalars(
-                select(PaperPortfolio).where(PaperPortfolio.is_active.is_(True))
-            )
-        ]
+        # P1 2026-07-08: engine-tradable only — never rebalance a user's
+        # own practice book (user:<id>:stock).
+        portfolio_ids = engine_tradable_portfolio_ids(session)
 
     for portfolio_id in portfolio_ids:
         try:

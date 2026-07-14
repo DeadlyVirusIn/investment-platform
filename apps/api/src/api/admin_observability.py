@@ -22,7 +22,7 @@ import datetime as dt
 import os
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -41,7 +41,9 @@ from apps.api.src.api.freshness import (
     _now_utc,
 )
 
-router = APIRouter(prefix="/admin", tags=["admin"])
+from apps.api.src.api.admin_guard import require_owner
+
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_owner)])
 
 def _derive_expected_db_head() -> str | None:
     """Expected DB head, derived from the Alembic migration scripts bundled

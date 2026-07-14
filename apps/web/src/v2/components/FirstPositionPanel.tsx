@@ -70,13 +70,13 @@ export function FirstPositionPanel() {
       </p>
       <div className="flex items-baseline gap-6 flex-wrap">
         <Link
-          to="/v2/portfolio"
+          to="/portfolio"
           className="text-meta ink-primary hover:opacity-70 transition-opacity inline-flex items-center gap-1.5"
         >
           Open paper book <span aria-hidden>→</span>
         </Link>
         <Link
-          to={`/v2/today/pick/${earliest.symbol}`}
+          to={`/today/pick/${earliest.symbol}`}
           className="text-meta ink-muted hover:ink-primary transition-colors"
         >
           Read the thesis →

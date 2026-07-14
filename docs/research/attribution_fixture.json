@@ -1,0 +1,70 @@
+{
+ "record": {
+  "model_version": "lgbm-3711c69290b2eac6",
+  "feature_schema_version": "fs-3a4fd7b8349bb46d",
+  "inference_at": "2026-07-09T12:00:00+00:00",
+  "method": "lightgbm_pred_contrib",
+  "raw_score": 2.560152075370904,
+  "base_value": 0.0019008480818778596,
+  "probability": 0.9282525865733261,
+  "contributions": [
+   {
+    "feature": "residual_momentum_20d",
+    "value": 2.0,
+    "contribution": 2.8135330027785477,
+    "beginner_label": "recent price momentum (about a month), market-adjusted",
+    "direction": "supporting"
+   },
+   {
+    "feature": "atr_percent_14",
+    "value": 4.0,
+    "contribution": -0.5112913250211314,
+    "beginner_label": "size of day-to-day price swings",
+    "direction": "cautionary"
+   },
+   {
+    "feature": "market_trend_bull",
+    "value": 1.0,
+    "contribution": 0.2560095495316074,
+    "beginner_label": "the overall market trend (bull)",
+    "direction": "supporting"
+   },
+   {
+    "feature": "market_trend_bear",
+    "value": 0.0,
+    "contribution": 0.0,
+    "beginner_label": "the overall market trend (bear)",
+    "direction": "supporting"
+   }
+  ],
+  "limitations": "These are the factors that influenced the model result \u2014 a statistical read of past patterns, not reasons the stock will rise or fall. Influences are measured in the model's internal score space; they are relative, can change as data updates, and do not imply causality."
+ },
+ "beginner_payload": {
+  "headline": "Factors that influenced the model result",
+  "supporting": [
+   {
+    "label": "recent price momentum (about a month), market-adjusted",
+    "relative_influence": 0.7857
+   },
+   {
+    "label": "the overall market trend (bull)",
+    "relative_influence": 0.0715
+   },
+   {
+    "label": "the overall market trend (bear)",
+    "relative_influence": 0.0
+   }
+  ],
+  "cautionary": [
+   {
+    "label": "size of day-to-day price swings",
+    "relative_influence": 0.1428
+   }
+  ],
+  "model_version": "lgbm-3711c69290b2eac6",
+  "feature_schema_version": "fs-3a4fd7b8349bb46d",
+  "as_of": "2026-07-09T12:00:00+00:00",
+  "limitations": "These are the factors that influenced the model result \u2014 a statistical read of past patterns, not reasons the stock will rise or fall. Influences are measured in the model's internal score space; they are relative, can change as data updates, and do not imply causality.",
+  "scope_note": "Attribution of the research (shadow) model \u2014 not the engine that published this idea."
+ }
+}

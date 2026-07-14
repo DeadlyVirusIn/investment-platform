@@ -87,6 +87,92 @@ def create_portfolio(session: Session, payload: PortfolioCreate) -> PaperPortfol
     return portfolio
 
 
+USER_STOCK_STARTING_CASH = Decimal("100000")
+
+# Per-user books are named ``user:<id>:stock``. This prefix is the ownership
+# boundary between engine-managed portfolios and user practice books.
+USER_BOOK_PREFIX = "user:"
+
+
+def user_stock_portfolio_name(user_id: str) -> str:
+    """Canonical name of a user's own stock paper book."""
+    return f"user:{user_id[:64]}:stock"
+
+
+def is_user_paper_book(name: str | None) -> bool:
+    """True for per-user practice books (``user:<id>:stock``).
+
+    P1 incident 2026-07-08: scheduled engine jobs (auto-trader, weekly
+    rebalance, exit cycle) swept EVERY active portfolio and deployed each
+    user's full starting cash into engine picks, breaking "Add to paper"
+    with 409 insufficient-cash. Engine jobs must never trade these books —
+    only the user acts on their own book."""
+    return bool(name) and name.startswith(USER_BOOK_PREFIX)
+
+
+def engine_tradable_portfolios_stmt():
+    """Select() of active portfolios the ENGINE may trade — excludes
+    per-user books. Single source for every scheduled trading job."""
+    return select(PaperPortfolio.id).where(
+        PaperPortfolio.is_active.is_(True),
+        PaperPortfolio.name.not_like(f"{USER_BOOK_PREFIX}%"),
+    )
+
+
+def engine_tradable_portfolio_ids(session: Session) -> list[str]:
+    """Active engine-tradable portfolio ids (never user books)."""
+    return list(session.scalars(engine_tradable_portfolios_stmt()))
+
+
+def user_paper_book_ids(session: Session) -> list[str]:
+    """Active per-user practice books. The engine may OBSERVE these
+    (daily equity snapshot for /paper/canonical/stock freshness) but must
+    never trade them."""
+    return list(
+        session.scalars(
+            select(PaperPortfolio.id).where(
+                PaperPortfolio.is_active.is_(True),
+                PaperPortfolio.name.like(f"{USER_BOOK_PREFIX}%"),
+            )
+        )
+    )
+
+
+def resolve_user_stock_portfolio(session: Session, user_id: str) -> str:
+    """Get-or-create the caller's OWN stock paper book (``user:<id>:stock``).
+
+    SINGLE source of per-user portfolio resolution — used by BOTH the read
+    endpoint (/paper/canonical/stock) and the write endpoints (add-to-paper,
+    follow). They therefore can never diverge, and a cold device gets a fresh
+    EMPTY personal book, never the shared demo/Replay-Recovery portfolio.
+    Race-safe: a lost create (unique-name collision) re-selects.
+    """
+    name = user_stock_portfolio_name(user_id)
+    pf = session.scalars(
+        select(PaperPortfolio).where(PaperPortfolio.name == name)
+    ).first()
+    if pf is not None:
+        return pf.id
+    try:
+        created = create_portfolio(
+            session,
+            PortfolioCreate(
+                name=name,
+                starting_cash=USER_STOCK_STARTING_CASH,
+                max_open_positions=100,
+            ),
+        )
+        return created.id
+    except ValueError:
+        # Lost a create race against a concurrent request — re-select.
+        again = session.scalars(
+            select(PaperPortfolio).where(PaperPortfolio.name == name)
+        ).first()
+        if again is None:
+            raise
+        return again.id
+
+
 def list_portfolios(session: Session) -> list[PaperPortfolio]:
     stmt = select(PaperPortfolio).order_by(
         PaperPortfolio.created_at.asc(), PaperPortfolio.id.asc()
