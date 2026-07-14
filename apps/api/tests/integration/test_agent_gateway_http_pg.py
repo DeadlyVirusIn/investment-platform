@@ -526,12 +526,17 @@ def test_p_route_no_book_yet_is_empty_not_error(gw_env):
 # Route scan — no mutating trade surface exists (spec §3/§7, NON-GOALS)
 # ---------------------------------------------------------------------------
 def _flatten_routes(routes) -> list:
-    """Recursively flatten nested-router route objects (this FastAPI keeps
-    included routers as a single nested entry in app.routes)."""
+    """Recursively flatten route objects. Older FastAPI kept included
+    routers as one nested entry; FastAPI >= ~0.13x flattens them into
+    plain APIRoute objects carrying the FULL include prefix (verified:
+    include_router(r, prefix='/api') yields path '/api/agent/…'). Handle
+    both shapes plus mounted sub-apps so no router is silently skipped."""
     out = []
     for r in routes:
-        inner = getattr(r, "original_router", None)  # fastapi _IncludedRouter
-        sub = getattr(inner, "routes", None) or getattr(r, "routes", None)
+        inner = getattr(r, "original_router", None)  # legacy _IncludedRouter
+        sub = getattr(inner, "routes", None)
+        if sub is None and type(r).__name__ == "Mount":  # sub-app mounts
+            sub = getattr(getattr(r, "app", None), "routes", None)
         if sub:
             out.extend(_flatten_routes(sub))
         elif getattr(r, "path", None) is not None:
@@ -539,25 +544,90 @@ def _flatten_routes(routes) -> list:
     return out
 
 
-def test_route_scan_no_trade_mutation_endpoints(gw_env):
-    app, client, s = gw_env
-    agent_routes = [r for r in _flatten_routes(app.routes)
-                    if r.path.startswith("/agent")]
-    assert agent_routes, "gateway routes must be mounted in this app"
-    for r in agent_routes:
+def _norm_path(path: str) -> str:
+    """Strip the app-level '/api' include prefix so the scan is stable
+    across FastAPI's included-router representations."""
+    return path[4:] if path.startswith("/api/") else path
+
+
+#: every write-capable gateway route, exhaustively (a NEW POST route not
+#: on this list is a scan failure — additions must be reviewed here)
+_ALLOWED_AGENT_POSTS = ("/agent/jobs", "/agent/drafts",
+                        "/agent/jobs/{job_uid}/cancel")
+#: floor: the gateway currently mounts 10 distinct paths; a scan that sees
+#: fewer than 8 is scanning the wrong thing (vacuity guard, the defect
+#: this test caught when FastAPI changed its route representation)
+_MIN_AGENT_ROUTES = 8
+
+
+def _scan_agent_routes(app) -> list[str]:
+    """Return violation strings for the gateway trade-mutation invariant.
+    Shared by the real scan and the mutation-proof test so the scanner
+    itself is provably non-vacuous. Order-independent."""
+    violations: list[str] = []
+    agent_routes = [(r, _norm_path(r.path)) for r in _flatten_routes(app.routes)
+                    if _norm_path(r.path).startswith("/agent")]
+    if len(agent_routes) < _MIN_AGENT_ROUTES:
+        violations.append(
+            f"vacuous scan: only {len(agent_routes)} /agent routes visible "
+            f"(need >= {_MIN_AGENT_ROUTES}) — route normalization broke")
+        return violations
+    for r, path in sorted(agent_routes, key=lambda t: t[1]):
         methods = getattr(r, "methods", set()) or set()
-        assert not ({"PUT", "PATCH", "DELETE"} & methods), r.path
+        if {"PUT", "PATCH", "DELETE"} & methods:
+            violations.append(f"forbidden method on {path}: {methods}")
         if "POST" in methods:
-            assert r.path in ("/agent/jobs", "/agent/drafts",
-                              "/agent/jobs/{job_uid}/cancel"), r.path
+            if path not in _ALLOWED_AGENT_POSTS:
+                violations.append(f"unapproved POST route: {path}")
             # no write-capable route may carry trade vocabulary at all
             for bad in ("trade", "order", "buy", "sell", "position"):
-                assert bad not in r.path.lower(), r.path
+                if bad in path.lower():
+                    violations.append(f"trade vocabulary on POST {path}")
         # trade-EXECUTION vocabulary banned on EVERY route (job cancel is a
         # queued-job control, not order cancellation; portfolio/trades is a
         # read-only history view — both legitimate)
         for bad in ("execute", "submit_trade", "/order", "broker"):
-            assert bad not in r.path.lower(), r.path
+            if bad in path.lower():
+                violations.append(f"execution vocabulary on {path}")
+    return violations
+
+
+def test_route_scan_no_trade_mutation_endpoints(gw_env):
+    app, client, s = gw_env
+    assert _scan_agent_routes(app) == []
+
+
+def test_route_scan_catches_synthetic_mutation_route(gw_env):
+    """Mutation-proof: the scanner must FAIL when a prohibited route is
+    introduced — proving it is not green merely because it sees nothing."""
+    from fastapi import FastAPI
+
+    poisoned = FastAPI()
+    poisoned.include_router(gw_router, prefix="/api")
+
+    @poisoned.post("/api/agent/trade/execute")   # synthetic, never real
+    def _synthetic():  # pragma: no cover — never called
+        return {}
+
+    @poisoned.delete("/api/agent/portfolio")     # forbidden method
+    def _synthetic2():  # pragma: no cover
+        return {}
+
+    violations = _scan_agent_routes(poisoned)
+    assert any("unapproved POST route: /agent/trade/execute" in v
+               or "trade vocabulary" in v for v in violations), violations
+    assert any("forbidden method on /agent/portfolio" in v
+               for v in violations), violations
+
+
+def test_route_scan_fails_on_vacuous_input():
+    """An app with no /agent routes must be reported as a vacuity failure,
+    never as a pass."""
+    from fastapi import FastAPI
+
+    empty = FastAPI()
+    violations = _scan_agent_routes(empty)
+    assert violations and "vacuous scan" in violations[0]
 
 
 def test_gateway_module_imports_no_execution_paths():
