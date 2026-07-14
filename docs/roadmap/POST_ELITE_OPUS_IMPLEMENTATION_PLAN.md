@@ -268,15 +268,20 @@ sign-off (owner).
 ## Wave 3 — evidence operations
 
 ### 8. Experiment Lab harness (the anchor; pre-existing Elite commitment)
-Build per `RESEARCH_RUN_REGISTRY_SPEC.md` + roadmap 31–90d: purged
-walk-forward harness (extend `scripts/research/walk_forward_baseline.py`
-into `domain/evaluation/lab.py`), cost/slippage sweeps reusing
-`execution_costs.py`, benchmarks (buy-and-hold, 12-1 momentum), writes every
-run to `research_run` (git_sha, config_hash, seed, metrics hash).
-Dependencies to ADD at this point (verified 2026-07-12, see gap review §2D):
-`statsmodels` (multipletests/BH), `Optuna` (sweeps, Postgres storage).
-`statsforecast` only if its `scipy<1.16` pin has relaxed — re-verify.
-Flag `EXPERIMENT_LAB_ENABLED` (job registration only; no user surface).
+**SHIPPED 2026-07-14 (Wave 3A).** `domain/evaluation/lab.py` +
+`/api/admin/experiments/*` + minimal `/admin/experiments` owner surface,
+flags `EXPERIMENT_LAB_ENABLED`/`VITE_EXPERIMENT_LAB` (off). NO migration
+(registry sufficient). Plan corrections found in Phase 0:
+`historical_label` is EMPTY on dev, so v1's adapter evaluates STORED
+recommendations + barrier outcomes (2,217 resolved in the real run);
+the purged-fold machinery (apps/ml/lab/splits) stands ready for the
+trained path once that dataset is rebuilt. **statsmodels/Optuna
+deliberately NOT added** — Wilson CIs suffice for v1, no sweep exists;
+hypothesis testing + BH = Wave 3A.2 with a nested-validation design.
+Real evidence: engine conviction FAILS its base-rate baseline (AUC
+0.41–0.50, 0/3 folds beat base-rate Brier) → verdict
+INSUFFICIENT_EVIDENCE; reproducibility metric-hash exact. Docs:
+`EXPERIMENT_LAB.md` + `EXPERIMENT_LAB_VALIDATION_REPORT.md`.
 
 ### 9. Experiment Comparison Arena (owner UI)
 `/admin/experiments`: table over research_run rows — OOS windows,

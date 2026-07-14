@@ -313,3 +313,29 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   history 200/7ms, anon 404; screenshots
   `board2-desktop-linked.png` + `board2-mobile-running.png`.
 - **Prod:** untouched (109). Migration 122 evidence gate: unchanged.
+
+### Wave 3A — Experiment Lab harness — 2026-07-14
+- **Spec:** `docs/architecture/EXPERIMENT_LAB.md`; validation:
+  `docs/research/EXPERIMENT_LAB_VALIDATION_REPORT.md`. **NO migration**
+  (research_run registry verified sufficient). Flags
+  `EXPERIMENT_LAB_ENABLED` + `VITE_EXPERIMENT_LAB` (default OFF).
+- **Files:** `domain/evaluation/lab.py` (spec canon+hash, dataset
+  fingerprint, calendar-eval-1 folds, stored_rules_engine adapter,
+  benchmarks/costs via apps/ml/lab reuse, lab-gates-1 verdict,
+  RegistryClient persistence, reproduce-as-new-linked-run),
+  `api/experiments.py`, `AdminExperiments.tsx` (+route).
+- **Decisions:** statsmodels NOT added (Wilson CIs via closed form;
+  hypothesis testing = Wave 3A.2); Optuna NOT added (no sweep; nested
+  validation required before any); synchronous bounded execution
+  (0.5s real run — no second scheduler); historical_label EMPTY on dev
+  ⇒ trained-model path data-blocked, stored-decision evaluation is the
+  v1 adapter.
+- **Real evidence (runs retained in dev registry):** top-30 universe →
+  2,217 resolved / 336 censored / 3 folds; hit 57.9% BUT conviction AUC
+  0.41–0.50 and base-rate Brier wins 0/3 folds; ECE 0.11+ in 2 folds;
+  net 30d +2.8% at expected cost vs buy&hold +111.9% same-window.
+  **Verdict INSUFFICIENT_EVIDENCE** (honest negative). Reproduction:
+  metric hash EXACT match, original byte-identical.
+- **Tests:** 24 unit + 14 pg new; combined Wave-1+2+3 selection **371
+  passed**; web +6 (Vitest 287), tsc/eslint/lint:portfolio/build green.
+- **Prod:** untouched (109).
