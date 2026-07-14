@@ -17,8 +17,8 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, select, text
+from sqlalchemy.orm import Session, aliased
 
 from apps.api.src.api.admin_guard import require_owner
 from apps.api.src.db import get_session
@@ -121,9 +121,38 @@ def list_tasks(
     rows = list(db.execute(
         select(ResearchTask).order_by(ResearchTask.created_at.desc()).limit(limit)
     ).scalars())
+    # Wave 2C — resolve source-report versions in ONE bounded query and
+    # mark whether that exact version is now superseded (a newer version
+    # exists in its chain). Historical follow-ups without a stored source
+    # simply carry nulls — never guessed.
+    src_ids = [t.source_report_id for t in rows if t.source_report_id]
+    src_meta: dict[str, dict] = {}
+    if src_ids:
+        newer = aliased(ResearchReport)
+        for rid, ver, maxv in db.execute(
+            select(
+                ResearchReport.id,
+                ResearchReport.version,
+                select(func.max(newer.version))
+                .where(newer.task_id == ResearchReport.task_id)
+                .correlate(ResearchReport)
+                .scalar_subquery(),
+            ).where(ResearchReport.id.in_(src_ids))
+        ):
+            src_meta[rid] = {"version": ver, "max": maxv}
     return {"tasks": [
         {"id": t.id, "title": t.title, "question": t.question,
-         "scope": t.scope, "created_at": _iso(t.created_at)}
+         "scope": t.scope, "created_at": _iso(t.created_at),
+         "status": t.status,
+         "follow_up_of_task_id": t.follow_up_of_task_id,
+         "source_report_id": t.source_report_id,
+         "source_report_version": src_meta.get(
+             t.source_report_id, {}).get("version"),
+         "source_report_superseded": (
+             src_meta[t.source_report_id]["version"]
+             < src_meta[t.source_report_id]["max"]
+             if t.source_report_id in src_meta else None),
+        }
         for t in rows
     ]}
 
@@ -245,6 +274,82 @@ def correct_report(
     return out
 
 
+EXECUTION_HISTORY_CAP = 50
+_SUMMARY_CLIP = 160
+
+
+@router.get("/tasks/{task_id}/execution-history")
+def execution_history(
+    task_id: str,
+    owner: dict = Depends(require_owner),
+    db: Session = Depends(get_session),
+    limit: int = Query(default=EXECUTION_HISTORY_CAP, ge=1,
+                       le=EXECUTION_HISTORY_CAP),
+) -> dict[str, Any]:
+    """Wave 2C — read-only execution provenance for ONE task: gateway jobs
+    whose research_task_id links here (migration 121). Owner-only (404
+    posture), zero writes, bounded and deterministic (created_at DESC,
+    job_uid tiebreak; hard cap + overflow disclosure). Redaction: no
+    request_hash, no params payload, no token hash, no created_by, no
+    stack traces — summaries are the already-capped columns re-clipped.
+    Attempts are numbered oldest=1; 'retry_of' marks any attempt that has
+    an earlier attempt on the same task (task linkage, not param
+    matching). No cancel action exists on this surface."""
+    task = db.get(ResearchTask, task_id)
+    if task is None:
+        raise HTTPException(status_code=404)
+    try:
+        rows = db.execute(
+            text(
+                "SELECT job_uid, job_type, status, token_prefix, "
+                "created_at, started_at, finished_at, "
+                "result_summary, error_summary "
+                "FROM agent_job WHERE research_task_id = :t "
+                "ORDER BY created_at DESC, job_uid LIMIT :lim"
+            ),
+            {"t": task_id, "lim": limit + 1},
+        ).mappings().all()
+        total = db.execute(
+            text("SELECT count(*) FROM agent_job "
+                 "WHERE research_task_id = :t"),
+            {"t": task_id},
+        ).scalar() or 0
+    except Exception:  # noqa: BLE001 — gateway store absent (pre-116 envs)
+        db.rollback()
+        return {"task_id": task_id, "attempts": [], "total": 0,
+                "overflow": 0,
+                "note": "gateway job store unavailable"}
+
+    shown = rows[:limit]
+    n = len(shown)
+
+    def _clip(s: str | None) -> str | None:
+        return (s or None) and s[:_SUMMARY_CLIP]
+
+    return {
+        "task_id": task_id,
+        "total": total,
+        "overflow": max(0, total - n),
+        "attempts": [
+            {
+                # newest-first list; attempt numbers count from oldest=1
+                "attempt": total - i,
+                "job_uid": r["job_uid"],
+                "job_type": r["job_type"],
+                "status": r["status"],
+                "token_prefix": r["token_prefix"],   # public display prefix
+                "queued_at": _iso(r["created_at"]),
+                "started_at": _iso(r["started_at"]),
+                "finished_at": _iso(r["finished_at"]),
+                "result_summary": _clip(r["result_summary"]),
+                "error_summary": _clip(r["error_summary"]),
+                "is_retry": (total - i) > 1,
+            }
+            for i, r in enumerate(shown)
+        ],
+    }
+
+
 @router.get("/mission-board")
 def get_mission_board(
     owner: dict = Depends(require_owner),
@@ -280,13 +385,20 @@ def create_follow_up(
     owner: dict = Depends(require_owner),
     db: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Wave 2A — create a follow-up task from a report. Provenance: the
-    structured link is TASK-level (follow_up_of_task_id — the schema's
-    existing supported field); report-ID/version provenance is echoed in
-    the response and audit log but NOT hidden in free-text fields —
-    structured report-level linking is explicitly deferred to entity
-    linking (migration 121). Never mutates the report; never launches any
-    agent job."""
+    """Wave 2A + 2C — create a follow-up task from a report. The server
+    stamps BOTH provenance facts (never client-supplied):
+    follow_up_of_task_id = the source report's task, and (migration 121)
+    source_report_id = the EXACT report row/version this follow-up came
+    from. The composite FK makes a cross-task source structurally
+    impossible; the DB trigger makes both immutable after insert.
+
+    VERSION POLICY (pinned): a follow-up may be created from ANY retained
+    version — pending, approved, rejected, or superseded (the Inbox UI
+    offers "Create follow-up" on every retained card, and asking a new
+    question about an old version is legitimate research). The stored link
+    names that exact version; surfaces render "from vN (superseded)"
+    rather than implying it is current. Never mutates the report; never
+    launches any agent job."""
     from loguru import logger
 
     src = db.get(ResearchReport, report_id)
@@ -298,6 +410,7 @@ def create_follow_up(
             schedule_expr=None,
             created_by=owner.get("email") or "owner",
             follow_up_of_task_id=src.task_id,
+            source_report_id=src.id,           # server-stamped, exact version
         )
     except inbox_service.ResearchInboxError as exc:
         _raise_http(exc)
@@ -308,6 +421,6 @@ def create_follow_up(
     return {
         "id": t.id, "title": t.title, "question": t.question,
         "scope": t.scope, "follow_up_of_task_id": src.task_id,
-        "source_report_id": report_id,          # echoed provenance
-        "source_report_version": src.version,   # (structured link: task-level)
+        "source_report_id": src.id,             # structured (migration 121)
+        "source_report_version": src.version,
     }

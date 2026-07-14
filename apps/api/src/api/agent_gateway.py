@@ -485,6 +485,11 @@ class JobSubmitBody(BaseModel):
     params: dict = Field(default_factory=dict)
     idempotency_key: str = Field(min_length=1, max_length=64)
     seed: int | None = Field(default=None, ge=0, le=jobs_svc.MAX_SEED)
+    # Wave 2C — optional task↔job provenance. Server-validated (task must
+    # exist and be open|paused), recorded at insert, immutable afterwards
+    # (DB trigger). Same idempotency key + different task = 409.
+    research_task_id: str | None = Field(default=None, min_length=1,
+                                         max_length=36)
 
 
 def _job_public(job: dict) -> dict:
@@ -520,6 +525,7 @@ def submit_job(
             job, replayed = jobs_svc.submit_job(
                 s, ident=ident, job_type=body.job_type, params=body.params,
                 idempotency_key=body.idempotency_key, seed=body.seed,
+                research_task_id=body.research_task_id,
             )
             s.commit()
         except jobs_svc.AgentJobError as exc:

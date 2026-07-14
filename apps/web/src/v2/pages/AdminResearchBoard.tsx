@@ -37,6 +37,17 @@ type TaskCard = {
     available: boolean; note?: string;
     parent_task_id?: string | null; parent_title?: string | null;
     depth?: number;
+    /** mission-board-2: exact source report version (null = not recorded). */
+    source_version?: number | null;
+    source_superseded?: boolean | null;
+  } | null;
+  /** mission-board-2: linked gateway-job execution summary (null = none). */
+  execution: {
+    attempts: number; retries: number;
+    active_status: string | null;
+    last_attempt_at: string | null;
+    last_error: string | null;
+    history_available: boolean;
   } | null;
   latest_report: {
     report_id: string; version: number; review_status: string;
@@ -112,6 +123,81 @@ function Pill({ color, children, title }: {
   );
 }
 
+type ExecutionAttempt = {
+  attempt: number; job_uid: string; job_type: string; status: string;
+  token_prefix: string | null;
+  queued_at: string | null; started_at: string | null;
+  finished_at: string | null;
+  result_summary: string | null; error_summary: string | null;
+  is_retry: boolean;
+};
+
+/** mission-board-2 — linked-job summary + expandable owner-only execution
+ *  history (read-only; fetched on demand from the typed history route).
+ *  No raw JSON, no params, no cancel action. */
+function ExecutionSummary({ card }: { card: TaskCard }) {
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState<{
+    attempts: ExecutionAttempt[]; total: number; overflow: number;
+  } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const ex = card.execution;
+  if (!ex) return null;
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && history === null && !failed) {
+      apiGet<{ attempts: ExecutionAttempt[]; total: number; overflow: number }>(
+        `/admin/inbox/tasks/${card.task_id}/execution-history`)
+        .then(setHistory)
+        .catch(() => setFailed(true));
+    }
+  }
+
+  return (
+    <div className="mt-1">
+      <p className="ink-fainter text-[11px] tabular-nums">
+        {ex.attempts} run{ex.attempts === 1 ? '' : 's'}
+        {ex.retries > 0 && ` (${ex.retries} ${ex.retries === 1 ? 'retry' : 'retries'})`}
+        {ex.active_status && ` · ${ex.active_status} now`}
+        {ex.last_error && ` · last failure: ${ex.last_error}`}
+      </p>
+      <button type="button" onClick={toggle} aria-expanded={open}
+        className="text-[11.5px] font-semibold mt-0.5"
+        style={{ color: 'var(--brand)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+        {open ? 'Hide execution history' : 'Execution history →'}
+      </button>
+      {open && (
+        <div className="mt-1.5">
+          {failed ? (
+            <p className="ink-fainter text-[11px]">Execution history is unavailable right now.</p>
+          ) : history === null ? (
+            <p className="ink-fainter text-[11px]" role="status">Loading history…</p>
+          ) : history.attempts.length === 0 ? (
+            <p className="ink-fainter text-[11px]">No recorded runs.</p>
+          ) : (
+            <ul className="space-y-1" aria-label="Execution attempts">
+              {history.attempts.map((a) => (
+                <li key={a.job_uid} className="ink-fainter text-[11px] tabular-nums rounded px-2 py-1"
+                  style={{ border: '1px solid var(--border)' }}>
+                  Attempt {a.attempt}{a.is_retry ? ' (retry)' : ''} · {a.job_type} · {a.status}
+                  {a.queued_at && ` · ${new Date(a.queued_at).toLocaleString()}`}
+                  {a.error_summary && <span> · {a.error_summary}</span>}
+                  {a.result_summary && a.status === 'succeeded' && <span> · {a.result_summary}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          {history && history.overflow > 0 && (
+            <p className="ink-fainter text-[11px] mt-1">+{history.overflow} earlier run{history.overflow === 1 ? '' : 's'} not shown.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CardView({ card }: { card: Card }) {
   const fresh = FRESHNESS_META[card.freshness] ?? FRESHNESS_META.unknown;
   return (
@@ -158,8 +244,18 @@ function CardView({ card }: { card: Card }) {
             <p className="ink-fainter text-[11px] mt-1">
               {card.follow_up?.available === false
                 ? (card.follow_up.note ?? 'relationship unavailable')
-                : `Follow-up to ${card.follow_up?.parent_title ?? 'an earlier task'}`}
+                : (
+                  <>
+                    Follow-up to {card.follow_up?.parent_title ?? 'an earlier task'}
+                    {card.follow_up?.source_version != null
+                      ? ` — from v${card.follow_up.source_version}${card.follow_up.source_superseded ? ' (superseded — a newer version exists)' : ''}`
+                      : ' — source version was not recorded'}
+                  </>
+                )}
             </p>
+          )}
+          {card.execution && (
+            <ExecutionSummary card={card} />
           )}
           {card.freshness !== 'fresh' && card.freshness_reason && (
             <p className="ink-fainter text-[11px] mt-1">{card.freshness_reason}</p>
@@ -177,7 +273,8 @@ function CardView({ card }: { card: Card }) {
             {card.job_status} · {card.token_prefix ?? 'token'} · {card.job_uid}
           </p>
           <p className="ink-fainter text-[11px] mt-1">
-            Gateway analytics job — not linked to a research task.
+            Standalone historical gateway job — recorded before task links
+            existed; never guessed onto a task.
           </p>
           {card.freshness_reason && card.freshness !== 'fresh' && (
             <p className="ink-fainter text-[11px] mt-1">{card.freshness_reason}</p>

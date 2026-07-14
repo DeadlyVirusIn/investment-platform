@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS agent_job (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     started_at TIMESTAMPTZ,
     finished_at TIMESTAMPTZ,
+    research_task_id VARCHAR(36) REFERENCES research_task(id)
+        ON DELETE RESTRICT,
     CONSTRAINT uq_agent_job_uid UNIQUE (job_uid),
     CONSTRAINT ck_agent_job_type CHECK (job_type IN
       ('calibration_study','walk_forward_baseline','drift_report','attribution_fixture')),
@@ -71,6 +73,9 @@ CREATE TABLE IF NOT EXISTS agent_job (
       (status <> 'failed' OR error_summary IS NOT NULL),
     CONSTRAINT ck_agent_job_params_size CHECK (pg_column_size(params) <= 16384)
 );
+-- migration-121 column (idempotent for tables created by earlier files)
+ALTER TABLE agent_job ADD COLUMN IF NOT EXISTS research_task_id VARCHAR(36)
+  REFERENCES research_task(id) ON DELETE RESTRICT;
 CREATE INDEX IF NOT EXISTS ix_agent_job_owner_status
   ON agent_job (created_by, status);
 CREATE TABLE IF NOT EXISTS agent_job_event (

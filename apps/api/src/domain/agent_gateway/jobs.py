@@ -207,10 +207,19 @@ def normalize_seed(seed: object) -> int:
     return seed
 
 
-def request_fingerprint(job_type: str, params: dict, seed: int | None) -> str:
-    """Canonical hash for idempotency conflict detection."""
-    blob = json.dumps({"t": job_type, "p": params, "s": seed},
-                      sort_keys=True, separators=(",", ":"))
+def request_fingerprint(job_type: str, params: dict, seed: int | None,
+                        research_task_id: str | None = None) -> str:
+    """Canonical hash for idempotency conflict detection.
+
+    Wave 2C: the task link is part of the request identity — reusing an
+    idempotency key with a DIFFERENT research_task_id is a 409 conflict,
+    never a silent replay or a link mutation. The key is added to the
+    blob ONLY when present, so every pre-121 fingerprint (and every
+    task-less submission) hashes exactly as before."""
+    payload: dict = {"t": job_type, "p": params, "s": seed}
+    if research_task_id is not None:
+        payload["rt"] = research_task_id
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode()).hexdigest()
 
 
@@ -260,9 +269,33 @@ def claim_idempotency(
 # ---------------------------------------------------------------------------
 # Submission
 # ---------------------------------------------------------------------------
+def _validate_research_task(db: Session, research_task_id: object) -> str | None:
+    """Wave 2C task↔job provenance: validate the OPTIONAL task link at
+    submit time. The task must exist and be executable (open|paused —
+    paused pauses scheduling INTENT, manual/agent execution stays
+    meaningful; closed tasks are retired and refuse new work). Bounded
+    422-shaped errors; single-tenant deployment so task-id probing by
+    owner-created tokens is owner-probing-owner (documented residual).
+    The link is immutable after insert (DB trigger + no update path)."""
+    if research_task_id is None:
+        return None
+    if not isinstance(research_task_id, str) or not research_task_id.strip():
+        raise InvalidJob("research_task_id must be a non-empty string")
+    tid = research_task_id.strip()[:36]
+    row = db.execute(
+        text("SELECT status FROM research_task WHERE id = :t"), {"t": tid}
+    ).mappings().first()
+    if row is None:
+        raise InvalidJob("unknown research_task_id")
+    if row["status"] not in ("open", "paused"):
+        raise InvalidJob("research task is closed")
+    return tid
+
+
 def submit_job(
     db: Session, *, ident: dict, job_type: str, params: object,
     idempotency_key: str, seed: object = None, git_sha: str = "dev",
+    research_task_id: object = None,
 ) -> tuple[dict, bool]:
     """Validate → idempotency claim → queue-cap check under advisory lock →
     insert agent_job + research_run registry row. Returns (job_dict,
@@ -273,8 +306,10 @@ def submit_job(
         raise InvalidJob("idempotency_key required (1-64 chars)")
     clean = validate_job(job_type, params)
     seed_val = normalize_seed(seed)
+    task_id = _validate_research_task(db, research_task_id)
     rhash = request_fingerprint(job_type, clean, seed_val
-                                if seed is not None else None)
+                                if seed is not None else None,
+                                research_task_id=task_id)
 
     job_id = str(uuid.uuid4())
     claimed, ref = claim_idempotency(
@@ -325,18 +360,21 @@ def submit_job(
             """
             INSERT INTO agent_job
               (id, job_uid, job_type, params, seed, status, token_prefix,
-               created_by, request_hash, research_run_id)
+               created_by, request_hash, research_run_id, research_task_id)
             VALUES
               (:id, :uid, :jt, CAST(:params AS jsonb), :seed, 'queued', :tp,
-               :cb, :rh, :rr)
+               :cb, :rh, :rr, :rt)
             """
         ),
         {"id": job_id, "uid": job_uid, "jt": job_type,
          "params": json.dumps(clean), "seed": seed_val,
          "tp": ident["token_prefix"], "cb": ident["created_by"][:64],
-         "rh": rhash, "rr": run_id},
+         "rh": rhash, "rr": run_id, "rt": task_id},
     )
-    _append_event(db, job_id, "queued", f"job {job_type} accepted")
+    # Bounded provenance identity in the event stream — never task body/scope.
+    _append_event(db, job_id, "queued",
+                  f"job {job_type} accepted"
+                  + (f" (task {task_id[:8]}…)" if task_id else ""))
     return get_job(db, ident, job_id_or_uid=job_id, by_id=True), False
 
 
@@ -349,7 +387,8 @@ def get_job(db: Session, ident: dict, *, job_id_or_uid: str,
         text(
             f"SELECT id, job_uid, job_type, params, seed, status, "
             f"result_summary, error_summary, created_at, started_at, "
-            f"finished_at, created_by FROM agent_job WHERE {col} = :v"
+            f"finished_at, created_by, research_task_id "
+            f"FROM agent_job WHERE {col} = :v"
         ),
         {"v": job_id_or_uid[:36]},
     ).mappings().first()
@@ -366,6 +405,8 @@ def get_job(db: Session, ident: dict, *, job_id_or_uid: str,
         "created_at": row["created_at"].isoformat(),
         "started_at": row["started_at"].isoformat() if row["started_at"] else None,
         "finished_at": row["finished_at"].isoformat() if row["finished_at"] else None,
+        # the caller's own claim, echoed back (immutable after insert)
+        "research_task_id": row["research_task_id"],
         "_id": row["id"],  # internal — routers must strip before serializing
     }
 

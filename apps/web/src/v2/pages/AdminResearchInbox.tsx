@@ -20,7 +20,15 @@ export function researchInboxEnabled(): boolean {
   return import.meta.env.VITE_RESEARCH_INBOX === '1';
 }
 
-type Task = { id: string; title: string; question: string; scope: string | null; created_at: string | null };
+type Task = {
+  id: string; title: string; question: string; scope: string | null;
+  created_at: string | null;
+  /** Wave 2C — structured follow-up provenance (nulls on historical rows). */
+  follow_up_of_task_id?: string | null;
+  source_report_id?: string | null;
+  source_report_version?: number | null;
+  source_report_superseded?: boolean | null;
+};
 type Report = {
   id: string; task_id: string; version: number; body: string;
   citations: unknown[] | null;
@@ -257,6 +265,15 @@ export function AdminResearchInbox() {
                     </div>
                     {task?.scope && (
                       <p className="ink-fainter text-[11.5px] mb-1.5">Scope: {task.scope}</p>
+                    )}
+                    {task?.follow_up_of_task_id && (
+                      <p className="ink-fainter text-[11.5px] mb-1.5">
+                        Follow-up to {taskById.get(task.follow_up_of_task_id)?.title ?? 'an earlier task'}
+                        {task.source_report_version != null
+                          ? <> — from v{task.source_report_version}
+                            {task.source_report_superseded && ' (that version is now superseded; it remains retained)'}</>
+                          : <> — follow-up source version was not recorded.</>}
+                      </p>
                     )}
                     <p className="ink-muted text-[13px] leading-relaxed max-w-narrative">
                       {r.body.length > 280 ? `${r.body.slice(0, 280)}…` : r.body}

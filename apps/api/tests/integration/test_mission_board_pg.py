@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS agent_job (
     started_at TIMESTAMPTZ,
     finished_at TIMESTAMPTZ
 );
+ALTER TABLE agent_job ADD COLUMN IF NOT EXISTS research_task_id VARCHAR(36)
+  REFERENCES research_task(id) ON DELETE RESTRICT;
 """
 
 
@@ -75,19 +77,22 @@ def _task(db, title="T", schedule=None, follow_up=None):
 
 
 def _job(db, uid, status, jt="drift_report", params=None, err=None,
-         created_shift_s=0):
+         created_shift_s=0, task_id=None):
     db.execute(text(
-        "INSERT INTO agent_job (id, job_uid, job_type, params, status, "
-        "token_prefix, created_by, error_summary, created_at, started_at, "
+        "INSERT INTO agent_job (id, job_uid, job_type, params, seed, "
+        "request_hash, status, "
+        "token_prefix, created_by, error_summary, research_task_id, "
+        "created_at, started_at, "
         "finished_at) VALUES (gen_random_uuid()::varchar, :u, :jt, "
-        "CAST(:p AS jsonb), :s, 'arthos_a', 'gw-owner', :e, "
+        "CAST(:p AS jsonb), 1, md5(CAST(:u AS varchar)), "
+        ":s, 'arthos_a', 'gw-owner', :e, :rt, "
         "now() + make_interval(secs => :shift), "
         "CASE WHEN CAST(:s AS varchar) IN ('running','failed','succeeded') "
         "THEN now() END, "
         "CASE WHEN CAST(:s AS varchar) IN ('failed','succeeded','cancelled') "
         "THEN now() END)"),
         {"u": uid, "jt": jt, "p": json.dumps(params or {}), "s": status,
-         "e": err, "shift": created_shift_s})
+         "e": err, "shift": created_shift_s, "rt": task_id})
     db.commit()
 
 
@@ -139,7 +144,7 @@ def test_full_board_scenarios(env: Session):
     assert by["stale-evidence"] == "stale"
     assert board["counts"]["running"] == 1
     assert board["counts"]["failed"] == 1
-    assert board["rule_set_version"] == "mission-board-1"
+    assert board["rule_set_version"] == "mission-board-2"
 
     # scheduled card is explicit that nothing auto-runs
     sched = next(c for c in _cards(board, "queued")
@@ -326,6 +331,100 @@ def test_route_filters_and_shape(env: Session):
     assert set(out) == {"rule_set_version", "generated_at",
                         "gateway_enabled", "counts", "columns",
                         "board_health", "source_freshness"}
+
+
+# ── mission-board-2: task-aware Running/Failed (migration 121) ─────────────
+
+def test_linked_running_job_moves_task_and_emits_no_job_card(env: Session):
+    db = env
+    t = _task(db, "linked-running")
+    _job(db, "agj_l1", "running", task_id=t.id)
+    board = _board(db)
+    running = _cards(board, "running")
+    assert [c["kind"] for c in running] == ["task"]
+    assert running[0]["title"] == "linked-running"
+    assert running[0]["execution"]["active_status"] == "running"
+    # the linked job is NOT duplicated as a standalone job card anywhere
+    all_cards = [c for col in board["columns"] for c in col["cards"]]
+    assert not any(c.get("job_uid") == "agj_l1" for c in all_cards)
+
+
+def test_linked_failed_then_retry_is_running_not_failed(env: Session):
+    db = env
+    t = _task(db, "linked-retry")
+    _job(db, "agj_lf", "failed", err="boom", task_id=t.id,
+         created_shift_s=-120)
+    _job(db, "agj_lr", "running", task_id=t.id)
+    board = _board(db)
+    assert board["counts"]["failed"] == 0
+    card = _cards(board, "running")[0]
+    assert card["kind"] == "task"
+    assert card["execution"]["attempts"] == 2
+    assert card["execution"]["retries"] == 1
+
+
+def test_linked_failed_without_retry_moves_task_to_failed(env: Session):
+    db = env
+    t = _task(db, "linked-failed")
+    _job(db, "agj_lx", "failed", err="ValueError: linked boom", task_id=t.id)
+    card = _cards(_board(db), "failed")[0]
+    assert card["kind"] == "task" and card["title"] == "linked-failed"
+    assert "ValueError" in card["freshness_reason"]
+
+
+def test_unlinked_historical_jobs_keep_board1_behavior(env: Session):
+    db = env
+    _task(db, "unrelated-task")
+    _job(db, "agj_h1", "running")            # NULL link — standalone card
+    board = _board(db)
+    running = _cards(board, "running")
+    assert [c["kind"] for c in running] == ["gateway_job"]
+    assert running[0]["job_uid"] == "agj_h1"
+
+
+def test_follow_up_card_carries_exact_source_version(env: Session):
+    db = env
+    parent = _task(db, "origin")
+    r1 = svc.create_report(db, parent.id, body="v1", citations=_cite(),
+                           provenance="human", created_by="owner@example.com")
+    # follow-up created from v1 via the route (server-stamped)
+    api.create_follow_up(
+        report_id=r1.id,
+        body=api.FollowUpBody(title="deeper", question="why?"),
+        owner=OWNER, db=db)
+    # v1 becomes superseded by a correction afterwards
+    svc.correct_report(db, r1.id, new_body="v2",
+                       created_by="owner@example.com")
+    card = next(c for c in _cards(_board(db), "queued")
+                if c["title"] == "deeper")
+    assert card["follow_up"]["source_version"] == 1
+    assert card["follow_up"]["source_superseded"] is True
+
+
+def test_query_count_bounded_with_links_and_sources(env: Session):
+    db = env
+    parent = _task(db, "qb-parent")
+    r1 = svc.create_report(db, parent.id, body="v1", citations=_cite(),
+                           provenance="human", created_by="owner@example.com")
+    api.create_follow_up(
+        report_id=r1.id,
+        body=api.FollowUpBody(title="qb-follow", question="q?"),
+        owner=OWNER, db=db)
+    _job(db, "agj_qb", "running", task_id=parent.id)
+    statements: list[str] = []
+    engine = db.get_bind()
+
+    def _spy(conn, cursor, stmt, params, ctx, executemany):
+        if stmt.strip().upper().startswith("SELECT"):
+            statements.append(stmt)
+
+    event.listen(engine, "before_cursor_execute", _spy)
+    try:
+        _board(db)
+    finally:
+        event.remove(engine, "before_cursor_execute", _spy)
+    # tasks + reports + parents + jobs + source-reports — never per-card
+    assert len(statements) <= 5
 
 
 def test_deterministic_output_between_calls(env: Session):

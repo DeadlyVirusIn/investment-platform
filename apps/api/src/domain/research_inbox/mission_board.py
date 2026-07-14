@@ -48,7 +48,15 @@ from apps.api.src.domain.research_inbox.service import (
 # docs/architecture/RESEARCH_MISSION_BOARD.md. Bump the version string when
 # any threshold or precedence rule changes.
 # ---------------------------------------------------------------------------
-MISSION_BOARD_RULE_SET_VERSION = "mission-board-1"
+#: mission-board-2 (Wave 2C): jobs carrying research_task_id (migration
+#: 121) contribute to their TASK's card — an active linked job moves the
+#: task to Running; the latest unsuperseded failed linked job moves it to
+#: Failed (superseded = a newer linked job in queued/running/succeeded OR
+#: a report delivered after the failure). Linked jobs never emit separate
+#: job cards. Historical NULL-linked jobs keep the mission-board-1
+#: behavior exactly (labelled job cards, parameter-based retry
+#: suppression) — a task association is never guessed.
+MISSION_BOARD_RULE_SET_VERSION = "mission-board-2"
 
 #: evidence age (newest citation observed_at): <=3d fresh, <=7d aging,
 #: >7d stale. The 7-day boundary is the Inbox's own staleness boundary
@@ -91,14 +99,14 @@ COLUMN_HELP = {
     "queued": "Research tasks that have not delivered a usable report yet. "
               "Nothing here runs automatically — schedules are definitions "
               "only.",
-    "running": "Agent Gateway research jobs currently queued or running. "
-               "Jobs are not linked to tasks in this system.",
+    "running": "Research being worked on: tasks with an active linked job, "
+               "plus older standalone gateway jobs that carry no task link.",
     "review_needed": "Generated reports waiting for your decision.",
     "delivered": "Current approved research with no corrections.",
     "corrected": "Research with retained earlier versions.",
     "stale": "Research that may no longer reflect current information.",
-    "failed": "Gateway jobs that ended without a usable result "
-              "(hidden when a newer retry exists).",
+    "failed": "Research runs that ended without a usable result "
+              "(hidden when a newer retry or report exists).",
 }
 
 FRESHNESS_VALUES = frozenset({"fresh", "aging", "stale", "unknown"})
@@ -191,32 +199,104 @@ def report_freshness(report: dict, now: datetime.datetime) -> tuple[str, str]:
     return "unknown", "no evidence timestamps stored"
 
 
-def classify_task(task: dict, chain: list[dict],
-                  now: datetime.datetime) -> dict | None:
-    """One task + its full version chain -> ONE board card (or None when
-    the task is off-board: closed with nothing delivered).
+def _execution_facts(jobs: list[dict], chain: list[dict],
+                     now: datetime.datetime) -> dict:
+    """Derive task-level execution facts from the task's LINKED jobs
+    (mission-board-2). `jobs` ascending by created_at.
 
-    Precedence (pinned): review_needed > stale > corrected > delivered
-    > queued. Failed/Running are unreachable for tasks — no producer.
+    failed_relevant = the newest failed job NOT superseded by (a) a newer
+    linked job in queued/running/succeeded — task-linkage retry rule,
+    never parameter matching — or (b) any report delivered after the
+    failure (the work eventually landed)."""
+    jobs = sorted(
+        jobs or [],
+        key=lambda j: ((_iso(j.get("created_at")) or ""),
+                       j.get("job_uid") or ""),
+    )
+    active = [j for j in jobs if j.get("status") in ("queued", "running")]
+    failed_relevant = None
+    for idx, j in enumerate(jobs):
+        if j.get("status") != "failed":
+            continue
+        newer_attempt = any(
+            o.get("status") in ("queued", "running", "succeeded")
+            for o in jobs[idx + 1:]
+        )
+        f_at = _as_utc(j.get("created_at"))
+        newer_report = any(
+            _as_utc(r.get("delivered_at")) is not None and f_at is not None
+            and _as_utc(r["delivered_at"]) > f_at
+            for r in chain
+        )
+        if not newer_attempt and not newer_report:
+            failed_relevant = j
+    last = jobs[-1] if jobs else None
+    stuck = any(
+        j.get("status") == "running" and _as_utc(j.get("started_at"))
+        and (now - _as_utc(j["started_at"]))
+        > datetime.timedelta(minutes=RUNNING_STUCK_MINUTES)
+        for j in active
+    )
+    return {
+        "jobs": jobs,
+        "active": active,
+        "failed_relevant": failed_relevant,
+        "last": last,
+        "stuck": stuck,
+    }
+
+
+def classify_task(task: dict, chain: list[dict],
+                  now: datetime.datetime,
+                  jobs: list[dict] | None = None) -> dict | None:
+    """One task + its full version chain + its LINKED gateway jobs -> ONE
+    board card (or None when the task is off-board: closed with nothing
+    delivered and no execution activity).
+
+    mission-board-2 precedence (pinned):
+        running (active linked job) > review_needed (pending latest report)
+        > failed (latest unsuperseded failed linked job) > stale >
+        corrected > delivered > queued.
+    Rationale: an in-flight run is the truthful "being worked on" state
+    even when a pending report exists (the card still surfaces the pending
+    review context); a pending report delivered AFTER a failure outranks
+    the failure (the failure is history once work landed); an approved
+    report delivered after a failed job suppresses Failed the same way.
     `chain` must be sorted ascending by version; latest version is current
-    (two versions of one task NEVER become two cards)."""
+    (two versions of one task NEVER become two cards; linked jobs never
+    become separate job cards)."""
     chain = sorted(chain, key=lambda r: r["version"])
     latest = chain[-1] if chain else None
     corrections = sum(
         1 for r in chain if r.get("supersedes_report_id") is not None)
     corrected_chain = corrections > 0
+    ex = _execution_facts(jobs or [], chain, now)
 
     has_usable = any(r["review_status"] == "approved" for r in chain)
 
     # -- column ------------------------------------------------------------
-    if latest is None:
+    if ex["active"]:
+        column = "running"
+        status = ex["active"][-1].get("status")
+        if ex["stuck"]:
+            freshness = "stale"
+            why = (f"linked job running for over {RUNNING_STUCK_MINUTES} "
+                   "minutes — the offline runner may have stopped")
+        else:
+            freshness, why = "fresh", f"linked job is {status}"
+    elif latest is not None and latest["review_status"] == "pending":
+        column = "review_needed"
+        freshness, why = report_freshness(latest, now)
+    elif ex["failed_relevant"] is not None:
+        column = "failed"
+        freshness = "unknown"
+        why = _clip(ex["failed_relevant"].get("error_summary"),
+                    STATUS_TEXT_CHARS) or "linked job failed"
+    elif latest is None:
         if task.get("status") == "closed":
             return None  # closed and never delivered: owner retired it
         column = "queued"
         freshness, why = "unknown", "no report delivered yet"
-    elif latest["review_status"] == "pending":
-        column = "review_needed"
-        freshness, why = report_freshness(latest, now)
     elif not has_usable:
         # every version rejected — the task is still waiting for a usable
         # answer; that is Queued (with context), not Delivered/Failed.
@@ -302,24 +382,48 @@ def classify_task(task: dict, chain: list[dict],
                 None,
             ),
         },
+        "execution": (
+            {
+                "attempts": len(ex["jobs"]),
+                "retries": max(0, len(ex["jobs"]) - 1),
+                "active_status": (ex["active"][-1].get("status")
+                                  if ex["active"] else None),
+                "last_attempt_at": _iso(ex["last"].get("created_at"))
+                if ex["last"] else None,
+                "last_error": (
+                    _clip(ex["failed_relevant"].get("error_summary"),
+                          STATUS_TEXT_CHARS)
+                    if ex["failed_relevant"] is not None else None),
+                "history_available": True,
+            }
+            if ex["jobs"] else None
+        ),
         "freshness": freshness,
         "freshness_reason": _clip(why, STATUS_TEXT_CHARS),
-        "sort_ts": _iso(delivered_at or task.get("created_at")),
+        "sort_ts": _iso(
+            (ex["last"].get("created_at") if column in ("running", "failed")
+             and ex["last"] else None)
+            or delivered_at or task.get("created_at")),
         "created_at": _iso(task.get("created_at")),
     }
     return card
 
 
 def classify_jobs(jobs: list[dict], now: datetime.datetime) -> list[dict]:
-    """Gateway jobs -> job cards for Running / Failed.
+    """HISTORICAL UNLINKED gateway jobs (research_task_id IS NULL) ->
+    standalone job cards for Running / Failed. This is the preserved
+    mission-board-1 behavior — a task association is NEVER guessed for
+    old jobs. Linked jobs must not reach this function (they contribute
+    to their task's card via classify_task).
 
     * Running: status queued|running (real rows only — the enum has no
       'claimed'/'cancellation requested'; verified against jobs.py).
     * Failed: status failed, UNLESS a newer job with the same job_type and
       byte-identical params exists in queued/running/succeeded — that newer
-      attempt supersedes the failure (retry rule).
+      attempt supersedes the failure (parameter-matching retry rule stays
+      ONLY for these unlinked historical jobs).
     * Cancelled is owner-initiated before start — not a failure; excluded.
-    * Jobs carry NO task linkage (no such column); cards say so."""
+    * Cards say the job is not linked to a task."""
     def _pkey(j: dict) -> str:
         try:
             return json.dumps(j.get("params") or {}, sort_keys=True)
@@ -451,7 +555,8 @@ def _fetch_jobs(db: Session, notes: list[str]) -> list[dict]:
         rows = db.execute(
             text(
                 "SELECT job_uid, job_type, params, status, token_prefix, "
-                "created_at, started_at, finished_at, error_summary "
+                "created_at, started_at, finished_at, error_summary, "
+                "research_task_id "
                 "FROM agent_job "
                 "WHERE status IN ('queued','running','failed','succeeded') "
                 "ORDER BY created_at DESC, job_uid LIMIT :cap"
@@ -502,6 +607,7 @@ def build_mission_board(
             "scope": t.scope, "schedule_expr": t.schedule_expr,
             "status": t.status,
             "follow_up_of_task_id": t.follow_up_of_task_id,
+            "source_report_id": getattr(t, "source_report_id", None),
             "created_at": t.created_at,
         }
         for t in task_rows
@@ -557,17 +663,63 @@ def build_mission_board(
 
     # 4) gateway jobs (bounded; zero queries when the gateway is off)
     jobs = _fetch_jobs(db, notes)
+    # mission-board-2 split: linked jobs feed their TASK's card; NULL-linked
+    # historical jobs keep the mission-board-1 standalone-card behavior.
+    scanned_ids = set(task_ids)
+    linked_by_task: dict[str, list[dict]] = {}
+    unlinked_jobs: list[dict] = []
+    dropped_linked = 0
+    for j in jobs:
+        tid = j.get("research_task_id")
+        if tid is None:
+            unlinked_jobs.append(j)
+        elif tid in scanned_ids:
+            linked_by_task.setdefault(tid, []).append(j)
+        else:
+            dropped_linked += 1  # task fell outside the (capped) scan
+    if dropped_linked:
+        notes.append(
+            f"{dropped_linked} linked job(s) reference tasks outside the "
+            f"task scan cap and are not shown.")
+
+    # 5) exact source-report versions for follow-up cards (one bounded
+    # query; historical follow-ups without a stored source stay null —
+    # never guessed).
+    source_meta: dict[str, dict] = {}
+    src_ids = {t["source_report_id"] for t in tasks if t["source_report_id"]}
+    if src_ids:
+        src_rows = db.execute(
+            select(ResearchReport.id, ResearchReport.version,
+                   ResearchReport.task_id)
+            .where(ResearchReport.id.in_(src_ids))
+        ).all()
+        max_by_task: dict[str, int] = {}
+        for tid2, chain_rows in reports_by_task.items():
+            max_by_task[tid2] = max(r["version"] for r in chain_rows)
+        for rid, ver, rtask in src_rows:
+            maxv = max_by_task.get(rtask)
+            source_meta[rid] = {
+                "version": ver,
+                "superseded": (ver < maxv) if maxv is not None else None,
+            }
 
     # -- derive cards (pure) -------------------------------------------------
     cards: list[dict] = []
     for t in tasks:
-        card = classify_task(t, reports_by_task.get(t["id"], []), now)
+        card = classify_task(t, reports_by_task.get(t["id"], []), now,
+                             jobs=linked_by_task.get(t["id"]))
         if card is None:
             continue
         if card["is_follow_up"]:
             card["follow_up"] = follow_up_summary(t["id"], parents)
+            meta = source_meta.get(t["source_report_id"] or "")
+            if card["follow_up"] is not None:
+                card["follow_up"]["source_version"] = (
+                    meta["version"] if meta else None)
+                card["follow_up"]["source_superseded"] = (
+                    meta["superseded"] if meta else None)
         cards.append(card)
-    cards.extend(classify_jobs(jobs, now))
+    cards.extend(classify_jobs(unlinked_jobs, now))
 
     # -- owner-safe filters (in memory; q never reaches SQL) ------------------
     if q:

@@ -147,12 +147,118 @@ def test_one_card_per_task_latest_version_is_current():
     assert c["latest_report"]["version"] == 2   # never two cards
 
 
-def test_tasks_never_reach_running_or_failed_and_no_blocked():
+def test_tasks_without_linked_jobs_never_reach_running_or_failed():
+    # mission-board-2: only a LINKED job can move a task into Running or
+    # Failed; without jobs the mission-board-1 truth holds, and no
+    # 'blocked' state exists anywhere.
     for chain in ([], [_report(1, "pending")], [_report(1, "approved")],
                   [_report(1, "rejected")]):
         c = classify_task(_task(), chain, NOW)
         if c is not None:
             assert c["column"] not in ("running", "failed", "blocked")
+
+
+# ── mission-board-2: linked-job task classification ────────────────────────
+
+def _ljob(uid="lj1", status="running", *, created_days=0.2,
+          started_days=0.1, err=None) -> dict:
+    return {"job_uid": uid, "job_type": "drift_report", "params": {},
+            "status": status, "token_prefix": "arthos_a",
+            "research_task_id": "t1",
+            "created_at": _ts(created_days),
+            "started_at": _ts(started_days) if started_days else None,
+            "finished_at": None, "error_summary": err}
+
+
+def test_active_linked_job_moves_task_to_running():
+    c = classify_task(_task(), [], NOW, jobs=[_ljob(status="queued",
+                                                    started_days=None)])
+    assert c["column"] == "running"
+    assert c["execution"]["active_status"] == "queued"
+    assert c["execution"]["attempts"] == 1
+
+
+def test_running_beats_pending_report_with_context_kept():
+    c = classify_task(_task(), [_report(1, "pending")], NOW,
+                      jobs=[_ljob()])
+    assert c["column"] == "running"               # pinned precedence
+    assert c["latest_report"]["review_status"] == "pending"  # context kept
+
+
+def test_failed_linked_job_moves_task_to_failed():
+    c = classify_task(_task(), [], NOW,
+                      jobs=[_ljob(status="failed", err="ValueError: x")])
+    assert c["column"] == "failed"
+    assert "ValueError" in c["freshness_reason"]
+    assert c["execution"]["last_error"].startswith("ValueError")
+
+
+def test_linked_retry_suppresses_old_failure_by_task_linkage():
+    old = _ljob("lj1", "failed", created_days=2, err="boom")
+    retry = _ljob("lj2", "running", created_days=0.1)
+    c = classify_task(_task(), [], NOW, jobs=[old, retry])
+    assert c["column"] == "running"
+    assert c["execution"]["retries"] == 1
+
+
+def test_completed_retry_clears_failure_and_reports_rule_applies():
+    old = _ljob("lj1", "failed", created_days=2, err="boom")
+    done = _ljob("lj2", "succeeded", created_days=0.5)
+    c = classify_task(_task(), [_report(1, "approved")], NOW,
+                      jobs=[old, done])
+    assert c["column"] == "delivered"             # succeeded retry supersedes
+
+
+def test_report_delivered_after_failure_suppresses_failed():
+    # approved report newer than the failed attempt: the work landed.
+    failed = _ljob("lj1", "failed", created_days=3, err="boom")
+    c = classify_task(_task(), [_report(1, "approved", delivered_days=1)],
+                      NOW, jobs=[failed])
+    assert c["column"] == "delivered"
+
+
+def test_pending_report_after_failed_job_is_review_needed():
+    failed = _ljob("lj1", "failed", created_days=3, err="boom")
+    c = classify_task(_task(), [_report(1, "pending", delivered_days=1)],
+                      NOW, jobs=[failed])
+    assert c["column"] == "review_needed"
+
+
+def test_failure_after_approved_report_is_failed():
+    # latest attempt failed AFTER the report was delivered → Failed.
+    failed = _ljob("lj1", "failed", created_days=0.5, err="boom")
+    c = classify_task(_task(), [_report(1, "approved", delivered_days=2)],
+                      NOW, jobs=[failed])
+    assert c["column"] == "failed"
+
+
+def test_stale_report_with_running_job_is_running():
+    c = classify_task(_task(), [_report(1, "approved", cite_days=20)], NOW,
+                      jobs=[_ljob()])
+    assert c["column"] == "running"               # refresh in flight
+
+
+def test_closed_task_with_active_linked_job_still_boards():
+    c = classify_task(_task(status="closed"), [], NOW, jobs=[_ljob()])
+    assert c is not None and c["column"] == "running"
+
+
+def test_stuck_linked_running_job_stays_running_with_stale_advisory():
+    c = classify_task(_task(), [], NOW,
+                      jobs=[_ljob(started_days=0.5)])   # 12h > 60min
+    assert c["column"] == "running"
+    assert c["freshness"] == "stale"
+
+
+def test_linked_job_task_stays_one_card_with_execution_summary():
+    c = classify_task(_task(), [_report(1, "approved")], NOW,
+                      jobs=[_ljob("a", "succeeded"), _ljob("b", "running")])
+    assert c["card_id"] == "task:t1"
+    assert c["execution"] == {
+        "attempts": 2, "retries": 1, "active_status": "running",
+        "last_attempt_at": c["execution"]["last_attempt_at"],
+        "last_error": None, "history_available": True,
+    }
 
 
 # ── freshness policy ───────────────────────────────────────────────────────
@@ -313,4 +419,4 @@ def test_ordering_is_deterministic_on_ties():
 
 
 def test_rule_set_version_pinned():
-    assert MISSION_BOARD_RULE_SET_VERSION == "mission-board-1"
+    assert MISSION_BOARD_RULE_SET_VERSION == "mission-board-2"

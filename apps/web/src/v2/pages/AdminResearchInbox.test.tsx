@@ -86,4 +86,33 @@ describe('AdminResearchInbox review states', () => {
     renderInbox();
     expect(await screen.findByText(/inbox is empty/i)).toBeInTheDocument();
   });
+
+  // Wave 2C — structured follow-up provenance (migration 121)
+  it('follow-up task context shows the exact source version + superseded note', async () => {
+    const parent = { id: 'p1', title: 'Origin task', question: 'q', scope: null, created_at: null };
+    const fu = {
+      id: 't1', title: 'Follow-up task', question: 'q', scope: null,
+      created_at: null, follow_up_of_task_id: 'p1', source_report_id: 'r9',
+      source_report_version: 2, source_report_superseded: true,
+    };
+    mockApi([report()], [fu, parent]);
+    renderInbox();
+    const label = await screen.findByText(/Follow-up to Origin task/);
+    expect(label.closest('p')?.textContent).toContain('from v2');
+    expect(label.closest('p')?.textContent).toContain('now superseded');
+  });
+
+  it('historical follow-up without a recorded source version says so', async () => {
+    const parent = { id: 'p1', title: 'Origin task', question: 'q', scope: null, created_at: null };
+    const fu = {
+      id: 't1', title: 'Old follow-up', question: 'q', scope: null,
+      created_at: null, follow_up_of_task_id: 'p1', source_report_id: null,
+      source_report_version: null, source_report_superseded: null,
+    };
+    mockApi([report()], [fu, parent]);
+    renderInbox();
+    const label = await screen.findByText(/Follow-up to Origin task/);
+    expect(label.closest('p')?.textContent)
+      .toContain('follow-up source version was not recorded');
+  });
 });

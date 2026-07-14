@@ -159,13 +159,21 @@ def create_task(
     schedule_expr: str | None = None,
     created_by: str = "owner",
     follow_up_of_task_id: str | None = None,
+    source_report_id: str | None = None,
 ) -> ResearchTask:
     """Create a standing research question (status='open').
 
     ``scope`` is a symbols CSV ("NVDA,TSM") or free theme text.
     ``schedule_expr`` is stored verbatim as a DEFINITION — this slice
     never parses or executes it. Follow-up tasks must point at an
-    existing task (provenance chain, RESTRICT at the DB layer)."""
+    existing task (provenance chain, RESTRICT at the DB layer).
+
+    ``source_report_id`` (Wave 2C, migration 121) records the EXACT report
+    version a follow-up was created from. It is only meaningful with
+    ``follow_up_of_task_id`` and MUST name a report belonging to that
+    parent task — validated here and structurally enforced by the
+    composite FK (source_report_id, follow_up_of_task_id) →
+    research_report(id, task_id). Immutable after insert (DB trigger)."""
     title = _clean(title)
     question = _clean(question)
     if not title or not question:
@@ -178,6 +186,17 @@ def create_task(
             raise TaskNotFound(
                 f"follow_up_of_task_id {follow_up_of_task_id!r} does not exist"
             )
+    if source_report_id:
+        if not follow_up_of_task_id:
+            raise InvalidInput(
+                "source_report_id requires follow_up_of_task_id")
+        src = db.get(ResearchReport, source_report_id)
+        if src is None:
+            raise ReportNotFound(
+                f"source_report_id {source_report_id!r} does not exist")
+        if src.task_id != follow_up_of_task_id:
+            raise InvalidInput(
+                "source report does not belong to the parent task")
 
     task = ResearchTask(
         title=title,
@@ -187,6 +206,7 @@ def create_task(
         status="open",
         created_by=created_by,
         follow_up_of_task_id=follow_up_of_task_id,
+        source_report_id=source_report_id,
     )
     db.add(task)
     db.commit()

@@ -19,7 +19,7 @@ function taskCard(over: Partial<Record<string, unknown>> = {}) {
     kind: 'task', card_id: `task:${over.task_id ?? 't1'}`, task_id: 't1',
     column: 'queued', title: 'NVDA supply chain', question_preview: 'What changed?',
     scope: null, task_status: 'open', schedule: { defined: false },
-    is_follow_up: false, follow_up: null, latest_report: null,
+    is_follow_up: false, follow_up: null, latest_report: null, execution: null,
     chain: { versions: 0, prior_retained: 0, corrections: 0, current_version: null, current_status: null },
     freshness: 'unknown', freshness_reason: 'no report delivered yet',
     ...over,
@@ -115,7 +115,8 @@ describe('AdminResearchBoard', () => {
       ],
     }));
     renderBoard();
-    expect(await screen.findByText('Follow-up to Root question')).toBeInTheDocument();
+    const label = await screen.findByText(/Follow-up to Root question/);
+    expect(label.closest('p')?.textContent).toContain('source version was not recorded');
     expect(screen.getByText(/relationship unavailable \(cycle detected\)/)).toBeInTheDocument();
   });
 
@@ -142,7 +143,7 @@ describe('AdminResearchBoard', () => {
     }));
     renderBoard();
     expect(await screen.findByText('evidence observed 12d ago')).toBeInTheDocument();
-    expect(screen.getByText(/not linked to a research task/i)).toBeInTheDocument();
+    expect(screen.getByText(/Standalone historical gateway job/i)).toBeInTheDocument();
     expect(screen.getByText('ValueError: boom')).toBeInTheDocument();
   });
 
@@ -189,6 +190,107 @@ describe('AdminResearchBoard', () => {
     expect(screen.getByText('NVDA supply chain')).toBeInTheDocument();
     expect(tabs.getByRole('button', { name: 'Queued (1)' })).toHaveAttribute('aria-pressed', 'true');
     vi.unstubAllGlobals();
+  });
+
+  it('task-aware Running card shows execution summary, no standalone job card', async () => {
+    mockApi(board({}, {
+      running: [taskCard({
+        column: 'running', title: 'Refresh in flight', freshness: 'fresh',
+        execution: {
+          attempts: 2, retries: 1, active_status: 'running',
+          last_attempt_at: new Date().toISOString(), last_error: null,
+          history_available: true,
+        },
+      })],
+    }));
+    renderBoard();
+    const col = within(await screen.findByRole('region', { name: /running column/i }));
+    expect(col.getByText('Refresh in flight')).toBeInTheDocument();
+    expect(col.getByText(/2 runs \(1 retry\) · running now/)).toBeInTheDocument();
+    expect(col.getByRole('button', { name: /execution history/i })).toBeInTheDocument();
+    expect(col.queryByText(/standalone historical gateway job/i)).not.toBeInTheDocument();
+  });
+
+  it('task-aware Failed card carries the bounded failure reason', async () => {
+    mockApi(board({}, {
+      failed: [taskCard({
+        column: 'failed', title: 'Broken run', freshness: 'unknown',
+        freshness_reason: 'ValueError: boom',
+        execution: {
+          attempts: 1, retries: 0, active_status: null,
+          last_attempt_at: new Date().toISOString(),
+          last_error: 'ValueError: boom', history_available: true,
+        },
+      })],
+    }));
+    renderBoard();
+    const col = within(await screen.findByRole('region', { name: /failed column/i }));
+    expect(col.getByText('Broken run')).toBeInTheDocument();
+    expect(col.getByText(/last failure: ValueError: boom/)).toBeInTheDocument();
+  });
+
+  it('execution history panel fetches and renders attempts on expand', async () => {
+    const boardPayload = board({}, {
+      running: [taskCard({
+        column: 'running', title: 'With history',
+        execution: {
+          attempts: 2, retries: 1, active_status: 'running',
+          last_attempt_at: new Date().toISOString(), last_error: null,
+          history_available: true,
+        },
+      })],
+    });
+    const history = {
+      task_id: 't1', total: 2, overflow: 0,
+      attempts: [
+        { attempt: 2, job_uid: 'agj2', job_type: 'drift_report', status: 'running', token_prefix: 'arthos_a', queued_at: new Date().toISOString(), started_at: null, finished_at: null, result_summary: null, error_summary: null, is_retry: true },
+        { attempt: 1, job_uid: 'agj1', job_type: 'drift_report', status: 'failed', token_prefix: 'arthos_a', queued_at: new Date().toISOString(), started_at: null, finished_at: null, result_summary: null, error_summary: 'TimeoutError: slow', is_retry: false },
+      ],
+    };
+    // @ts-expect-error -- fetch is a global in jsdom
+    global.fetch = vi.fn().mockImplementation((url: string) =>
+      Promise.resolve({
+        ok: true, status: 200, text: () => Promise.resolve(''),
+        json: () => Promise.resolve(
+          String(url).includes('execution-history') ? history : boardPayload),
+      } as Response));
+    renderBoard();
+    fireEvent.click(await screen.findByRole('button', { name: /execution history/i }));
+    expect(await screen.findByText(/Attempt 2 \(retry\) · drift_report · running/)).toBeInTheDocument();
+    expect(screen.getByText(/TimeoutError: slow/)).toBeInTheDocument();
+  });
+
+  it('follow-up cards show exact source version, superseded note, and fallback', async () => {
+    mockApi(board({}, {
+      queued: [
+        taskCard({
+          card_id: 'task:v2', title: 'From v2', is_follow_up: true,
+          follow_up: { available: true, parent_title: 'Origin', depth: 1, source_version: 2, source_superseded: true },
+        }),
+        taskCard({
+          card_id: 'task:norec', title: 'Historical', is_follow_up: true,
+          follow_up: { available: true, parent_title: 'Origin', depth: 1, source_version: null, source_superseded: null },
+        }),
+      ],
+    }));
+    renderBoard();
+    expect(await screen.findByText(/Follow-up to Origin — from v2 \(superseded — a newer version exists\)/)).toBeInTheDocument();
+    expect(screen.getByText(/Follow-up to Origin — source version was not recorded/)).toBeInTheDocument();
+  });
+
+  it('standalone historical job card is labelled and never guessed onto a task', async () => {
+    mockApi(board({}, {
+      running: [{
+        kind: 'gateway_job', card_id: 'job:agj_h', column: 'running',
+        title: 'Gateway job — drift_report', job_uid: 'agj_h',
+        job_type: 'drift_report', job_status: 'running', token_prefix: 'arthos_a',
+        task_link: null, queued_at: null, started_at: null,
+        freshness: 'fresh', freshness_reason: 'job is running',
+      }],
+    }));
+    renderBoard();
+    expect(await screen.findByText(/Standalone historical gateway job/)).toBeInTheDocument();
+    expect(screen.getByText(/never guessed onto a task/)).toBeInTheDocument();
   });
 
   it('404 → owner-only posture; error → retry panel, no raw diagnostics', async () => {

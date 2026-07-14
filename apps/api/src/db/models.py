@@ -15,6 +15,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     Index,
     Integer,
     Numeric,
@@ -2421,6 +2422,12 @@ class ResearchTask(Base):
     follow_up_of_task_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("research_task.id", ondelete="RESTRICT")
     )
+    # Wave 2C (migration 121) — origin provenance: the EXACT report version
+    # this follow-up was created from. Server-stamped only; immutable after
+    # insert (DB trigger arthos_research_task_provenance + no update path).
+    # The COMPOSITE FK below makes it structurally impossible for the source
+    # report to belong to any task other than the follow-up parent.
+    source_report_id: Mapped[str | None] = mapped_column(String(36))
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
     )
@@ -2430,11 +2437,28 @@ class ResearchTask(Base):
             "status IN ('open','paused','closed')",
             name="ck_research_task_status",
         ),
+        CheckConstraint(
+            "source_report_id IS NULL OR follow_up_of_task_id IS NOT NULL",
+            name="ck_research_task_source_needs_parent",
+        ),
+        # use_alter: research_task ⇄ research_report FKs are cyclic; the
+        # composite FK is added post-create so create_all/drop_all resolve.
+        ForeignKeyConstraint(
+            ["source_report_id", "follow_up_of_task_id"],
+            ["research_report.id", "research_report.task_id"],
+            ondelete="RESTRICT",
+            name="fk_research_task_source_report",
+            use_alter=True,
+        ),
         Index("ix_research_task_status", "status"),
         Index("ix_research_task_follow_up", "follow_up_of_task_id"),
     )
 
-    reports: Mapped[list[ResearchReport]] = relationship(back_populates="task")
+    # explicit foreign_keys: migration 121 added a SECOND FK path between
+    # these tables (task.source_report_id → report); the collection join
+    # stays on report.task_id.
+    reports: Mapped[list[ResearchReport]] = relationship(
+        back_populates="task", foreign_keys="ResearchReport.task_id")
 
 
 class ResearchReport(Base):
@@ -2475,6 +2499,10 @@ class ResearchReport(Base):
 
     __table_args__ = (
         UniqueConstraint("task_id", "version", name="uq_research_report_task_version"),
+        # Wave 2C (migration 121) — redundant with the PK on id; exists ONLY
+        # as the composite-FK target for research_task.source_report_id so
+        # the DB itself enforces "source report belongs to the parent task".
+        UniqueConstraint("id", "task_id", name="uq_research_report_id_task"),
         CheckConstraint("version >= 1", name="ck_research_report_version"),
         CheckConstraint(
             "provenance IN ('generated','human')",
@@ -2494,7 +2522,8 @@ class ResearchReport(Base):
         Index("ix_research_report_review", "review_status"),
     )
 
-    task: Mapped[ResearchTask] = relationship(back_populates="reports")
+    task: Mapped[ResearchTask] = relationship(
+        back_populates="reports", foreign_keys=[task_id])
 
 
 # ---------------------------------------------------------------------------
