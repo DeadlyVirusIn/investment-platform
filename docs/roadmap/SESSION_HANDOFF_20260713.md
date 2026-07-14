@@ -157,3 +157,10 @@ Consolidation review verdict: READY FOR CONSOLIDATION BRANCH —
 phase-1/ledger is the exact merge base (elite strict descendant, zero
 conflicts); plan in docs/roadmap/ELITE_MERGE_BACK_PLAN.md awaits explicit
 approval. Prod untouched at 109 / 1fb6e28.
+
+## Addendum 2026-07-14 (2) — consolidation executed
+Integration branch `integration/elite-arthos-consolidation` created:
+merge `acb6eb6` (zero conflicts) + doc `4d26523`; gates G1–G8 green (4
+pre-existing test failures paired-run-proven); draft PR into
+phase-1/ledger opened, NOT merged. Tags pre-elite-consolidation-{ledger,
+elite} pushed. Prod untouched (109/1fb6e28). All Elite flags off.

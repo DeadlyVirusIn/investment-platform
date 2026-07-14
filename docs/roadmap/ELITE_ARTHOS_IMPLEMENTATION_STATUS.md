@@ -391,3 +391,20 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   via short-lived `integration/elite-arthos-consolidation` ·
   **READY FOR CONSOLIDATION BRANCH** — execution awaits explicit
   approval.
+
+### Consolidation EXECUTED — 2026-07-14 (Integrated on review branch; PR pending)
+- Tags `pre-elite-consolidation-ledger` (d4286e7) + `-elite` (a055c63)
+  pushed. Branch `integration/elite-arthos-consolidation`: merge commit
+  `acb6eb6` (--no-ff, ZERO conflicts; merge tree OID == elite tree OID —
+  identity-proof) + `4d26523` (release-line incident doc carried).
+- Gates: G1 PASS (ephemeral 109→121→109→121 with data-survival; single
+  head; ORM ⊆ migrations) · G2 PASS w/ 4 pre-existing failures
+  (paired-run proven: 480+12+63 passed) · G3 PASS (tsc/eslint/
+  lint:portfolio/build/Vitest 287) · G4 PASS (zero credential findings)
+  · G5 PASS (rec endpoint parity 66-87ms vs 65-70ms) · G6 PASS WITH
+  EXPLAINED BASELINE DIFFERENCES (18 inherited always-on routes; zero
+  Elite routes; 2 inert registry entries; zero Elite writes; identical
+  rec sets +name/sector from approved UX commits) · G7 PASS (boots on
+  109-only DB, flags off, zero errors) · G8 this report.
+- **NOT merged into phase-1/ledger. NOT deployed. Prod at 109/1fb6e28.**
+  Evidence: `docs/roadmap/ELITE_INTEGRATION_REPORT.md`.
