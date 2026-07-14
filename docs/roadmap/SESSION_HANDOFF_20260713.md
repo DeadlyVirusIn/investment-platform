@@ -164,3 +164,10 @@ merge `acb6eb6` (zero conflicts) + doc `4d26523`; gates G1–G8 green (4
 pre-existing test failures paired-run-proven); draft PR into
 phase-1/ledger opened, NOT merged. Tags pre-elite-consolidation-{ledger,
 elite} pushed. Prod untouched (109/1fb6e28). All Elite flags off.
+
+## Addendum 2026-07-14 (3) — MERGED
+PR #26 merged: phase-1/ledger @ 3ad3ca7 (merge commit, parents d4286e7 +
+1e56110). Prod untouched (109/1fb6e28); all Elite flags default-off.
+Stage-B kickoff checklist: docs/roadmap/STAGE_B_PROMOTION_KICKOFF.md
+(PLAN ONLY — approval point A pending). Route-scan test fix pending
+(normalization defect, invariant intact).

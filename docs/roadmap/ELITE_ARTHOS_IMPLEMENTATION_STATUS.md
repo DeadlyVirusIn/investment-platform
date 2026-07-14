@@ -408,3 +408,25 @@ during their build sprints; confirmed present, `alembic current` = 117.)
   109-only DB, flags off, zero errors) · G8 this report.
 - **NOT merged into phase-1/ledger. NOT deployed. Prod at 109/1fb6e28.**
   Evidence: `docs/roadmap/ELITE_INTEGRATION_REPORT.md`.
+
+### MERGED — 2026-07-14
+**Integrated into `phase-1/ledger`; production not promoted; all
+Elite/Post-Elite flags remain default-off; Stage-B production promotion
+requires separate approval.**
+- PR **#26** merged (merge commit, no squash): `3ad3ca7` — parents
+  `d4286e7` (prior ledger) + `1e56110` (integration head).
+- `phase-1/ledger` new head: `3ad3ca7` (local == origin).
+- Integration branch retained: `integration/elite-arthos-consolidation`
+  @ `1e56110`. Elite branch retained: `a055c63`.
+- Tags: `pre-elite-consolidation-ledger` (d4286e7),
+  `pre-elite-consolidation-elite` (a055c63).
+- Gate evidence: `ELITE_INTEGRATION_REPORT.md` (G1–G8).
+- Production untouched at migration 109 / `1fb6e28` (prior read-only
+  verification 2026-07-13). Stage-B kickoff checklist (plan only):
+  `STAGE_B_PROMOTION_KICKOFF.md`.
+- Known follow-up: `test_route_scan_no_trade_mutation_endpoints` is a
+  deterministic test-normalization defect (FastAPI 0.136 flattens
+  included routers with the full `/api` prefix, so the scan filter goes
+  vacuous and its own guard assert fires). Security invariant itself
+  verified intact via G6 route diff. Fix = normalize the `/api` prefix
+  in the test + add a route-count floor; do NOT weaken assertions.
