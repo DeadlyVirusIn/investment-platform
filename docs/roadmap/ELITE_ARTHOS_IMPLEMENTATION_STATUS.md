@@ -443,3 +443,16 @@ requires separate approval.**
   (P-1 job_run orphans; P-2 prod checkout drift). Report:
   `STAGE_B_V1_PROD_CLONE_REHEARSAL_REPORT.md`. Production NOT mutated;
   prod stays 109/`1d9b175`(+drift). Next: Approval Point B.
+
+### PRODUCTION REBUILD — 2026-07-15
+**REBUILD COMPLETE — PRODUCTION ON 7e0af44, DB 109, ELITE FLAGS OFF.**
+api/worker-cron/worker-tickloop rebuilt from a clean 7e0af44 checkout
+(new images ae721095/c7da1bbd/c6c84a13) + web force-recreated on the
+clean source; PostgreSQL + caddy untouched. Rollback generation tagged
+pre-elite-rebuild-20260715 (stageb1 generation retired, IDs recorded);
+checkout drift closed at source (archived first). Verification all
+green: DB 109, orphans 0, zero 110–121 tables, zero Elite writes,
+always-on 200 (local + public HTTPS), all Elite routes 404, 0 error
+lines, paper inventory intact. Disk 87→97(build)→92% (OCI expansion
+still recommended). Migrations 110–121 NOT applied — Approval Point B
+still pending. Evidence: docs/ops/PRODUCTION_REBUILD_REPORT_20260715.md.

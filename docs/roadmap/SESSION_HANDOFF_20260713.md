@@ -187,3 +187,9 @@ local). P-2: drift = committed-equivalent (admin-era file-copy deploys);
 no live edits; image replacement clears it. Verdict: READY TO REBUILD ON
 DB 109 — FLAGS OFF. Prod DB stays 109; no Elite flags; no containers
 replaced yet. Log: docs/ops/P1_P2_REMEDIATION_LOG_20260715.md.
+
+## Addendum 2026-07-15 (2) — PRODUCTION REBUILT
+Prod now runs phase-1/ledger @ 7e0af44 (DB still 109, all Elite flags
+off/absent). Rollback: compose-*:pre-elite-rebuild-20260715 +
+checkout_drift_20260715.tar.gz. Watch the next nightly (03:30 ET).
+Next decision: Approval Point B (migrations 110–121, flags stay off).
