@@ -179,3 +179,11 @@ PASS WITH REMEDIATIONS (P-1 job_run orphan FK finding, P-2 prod drift
 6e3d8be8…, git-ignored); clone container pgv1clone stopped+retained at
 migration 121. Approval Point B pending (apply 110-121 to prod, flags
 off).
+
+## Addendum 2026-07-15 — P-1/P-2 remediations DONE
+P-1: production repaired (419 orphans deleted, FK truly validated,
+restore clean; backup proddb_pre_p1_20260715.dump on VM + CSV archive
+local). P-2: drift = committed-equivalent (admin-era file-copy deploys);
+no live edits; image replacement clears it. Verdict: READY TO REBUILD ON
+DB 109 — FLAGS OFF. Prod DB stays 109; no Elite flags; no containers
+replaced yet. Log: docs/ops/P1_P2_REMEDIATION_LOG_20260715.md.

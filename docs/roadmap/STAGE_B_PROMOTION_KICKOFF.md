@@ -135,3 +135,18 @@ inventory. Remediations before Approval B: P-1 (419 job_run orphans
 under a "valid" FK — restore always errors until repaired) and P-2
 (prod checkout drift: 1d9b175 + 3 dirty files). Approval Point B not
 crossed.
+
+## Remediation status — 2026-07-15
+**P-1 RESOLVED IN PRODUCTION**: 419 orphan job_run rows (prod-genesis
+dev-clone artifact, root-caused) archived to CSV + deleted in one
+guarded clone-tested transaction; FK re-added with FULL validation
+(convalidated now genuinely true); restore-after-cleanup proven ZERO
+errors; fresh pre-apply backup retained (~/backups/
+proddb_pre_p1_20260715.dump, sha256 7586097d…). **P-2 RESOLVED
+(analysis)**: all three audited drifted files are COMMITTED_EQUIVALENT_
+EXISTS (two byte-identical to committed blobs, config a strict subset
+of ledger's); drift mechanism = file-copy deploys of the admin era;
+checkout drift eliminated by the next image replacement — no live
+edits. Evidence: docs/ops/P1_P2_REMEDIATION_LOG_20260715.md.
+**Rebuild readiness: READY TO REBUILD ON DB 109 — FLAGS OFF** (rebuild
+execution + Approval Point B each remain separate explicit decisions).
