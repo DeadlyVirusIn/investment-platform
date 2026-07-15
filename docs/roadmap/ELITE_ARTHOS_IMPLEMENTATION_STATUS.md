@@ -430,3 +430,16 @@ requires separate approval.**
   vacuous and its own guard assert fires). Security invariant itself
   verified intact via G6 route diff. Fix = normalize the `/api` prefix
   in the test + add a route-count floor; do NOT weaken assertions.
+
+### Stage-B V1 rehearsal + route-scan fix — 2026-07-14
+- **Route-scan test fixed** (`8f199dc`): FastAPI 0.136 flattens included
+  routers with the full '/api' prefix → scan was vacuous and its guard
+  fired. Fix normalizes paths, keeps every assertion, adds an
+  8-route vacuity floor + exhaustive POST allowlist + mutation-proof
+  tests (synthetic POST /agent/trade/execute + DELETE must be caught;
+  zero-route input must fail). Gateway http 31 passed; combined gateway/
+  authz/paper selection 149 passed.
+- **V1 production-clone rehearsal completed** — PASS WITH REMEDIATIONS
+  (P-1 job_run orphans; P-2 prod checkout drift). Report:
+  `STAGE_B_V1_PROD_CLONE_REHEARSAL_REPORT.md`. Production NOT mutated;
+  prod stays 109/`1d9b175`(+drift). Next: Approval Point B.

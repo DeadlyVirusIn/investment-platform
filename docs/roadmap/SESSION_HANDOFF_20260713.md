@@ -171,3 +171,11 @@ PR #26 merged: phase-1/ledger @ 3ad3ca7 (merge commit, parents d4286e7 +
 Stage-B kickoff checklist: docs/roadmap/STAGE_B_PROMOTION_KICKOFF.md
 (PLAN ONLY — approval point A pending). Route-scan test fix pending
 (normalization defect, invariant intact).
+
+## Addendum 2026-07-14 (4) — route-scan fix + V1 rehearsal
+phase-1/ledger: 8f199dc (route-scan fix) + V1 report commit. V1 verdict
+PASS WITH REMEDIATIONS (P-1 job_run orphan FK finding, P-2 prod drift
+1d9b175+3 dirty files). Backup .backups/proddb_v1_20260714.dump (sha256
+6e3d8be8…, git-ignored); clone container pgv1clone stopped+retained at
+migration 121. Approval Point B pending (apply 110-121 to prod, flags
+off).

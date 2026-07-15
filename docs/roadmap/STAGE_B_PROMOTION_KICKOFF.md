@@ -123,3 +123,15 @@ B. V1 green → approve prod migration window (110–121).
 C. Migrations verified → approve code deploy (flags off).
 D. V2–V5 green → approve flag stage 2 (lease). Subsequent flags: one
    approval each, in order, with its smoke + rollback evidence.
+
+## V1 STATUS — 2026-07-14: production-clone rehearsal completed
+**V1 PASS WITH REMEDIATIONS** — full evidence in
+`STAGE_B_V1_PROD_CLONE_REHEARSAL_REPORT.md`. PG 17.10 (120 compatible);
+fresh prod backup restored (checksum-verified) = backup-restorability
+proof; 110→121 sequential clean (<8s, no rewrite — 115 metadata-only);
+downgrade+re-upgrade repeatable; both code eras boot on DB 121;
+feature-off write audit zero; paper isolation proven on the real 73-book
+inventory. Remediations before Approval B: P-1 (419 job_run orphans
+under a "valid" FK — restore always errors until repaired) and P-2
+(prod checkout drift: 1d9b175 + 3 dirty files). Approval Point B not
+crossed.
