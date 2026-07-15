@@ -193,3 +193,10 @@ Prod now runs phase-1/ledger @ 7e0af44 (DB still 109, all Elite flags
 off/absent). Rollback: compose-*:pre-elite-rebuild-20260715 +
 checkout_drift_20260715.tar.gz. Watch the next nightly (03:30 ET).
 Next decision: Approval Point B (migrations 110–121, flags stay off).
+
+## Addendum 2026-07-15 (3) — disk expanded; 48h watch running
+Root fs now 41G @ 67% (14G free) via LVM reallocation (oled backed up +
+shrunk to 4G; no reboot; all services healthy). 48h observation window
+ends 2026-07-17 22:36 UTC — run the checklist in
+docs/ops/STAGE_B_PREAPPROVAL_READINESS_20260717.md, then Approval
+Point B decision. DB 109; flags off; prod on 7e0af44.

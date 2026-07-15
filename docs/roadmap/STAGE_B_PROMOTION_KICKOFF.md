@@ -150,3 +150,12 @@ checkout drift eliminated by the next image replacement — no live
 edits. Evidence: docs/ops/P1_P2_REMEDIATION_LOG_20260715.md.
 **Rebuild readiness: READY TO REBUILD ON DB 109 — FLAGS OFF** (rebuild
 execution + Approval Point B each remain separate explicit decisions).
+
+## Pre-Approval-B status — 2026-07-15
+Disk blocker RESOLVED: cloud volume was already 50GB; guest LVM
+reallocated (oled 15G→4G after backup; root 29.5→40.5GiB, xfs_growfs
+online) → **41G @ 67%, 14GB free** — target exceeded, zero downtime,
+Postgres untouched. 48h observation IN PROGRESS (window 2026-07-15
+22:36 → 2026-07-17 22:36 UTC; baseline green; two nightly cycles to
+record). Evidence + checklists:
+docs/ops/STAGE_B_PREAPPROVAL_READINESS_20260717.md.
