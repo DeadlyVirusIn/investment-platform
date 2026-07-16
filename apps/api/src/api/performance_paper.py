@@ -29,11 +29,14 @@ import datetime as dt
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
+from apps.api.src.domain.paper_trading.paper_service import public_book_label
 
 
 router = APIRouter(prefix="/performance/paper", tags=["performance"])
@@ -74,6 +77,14 @@ def _excl(include_replay: bool, etype: str, alias: str) -> str:
         f"AND m.entity_id = {alias}.id::text "
         f"AND m.source IN ('replay','test'))"
     )
+
+
+def _request_is_owner(request: Request, db: Session) -> bool:
+    uid = resolve_identity(request, db)
+    if not uid:
+        return False
+    email, role = _email_and_role(db, uid)
+    return role == "owner" or is_owner(email)
 
 
 def _f(v: Any) -> float | None:
@@ -962,6 +973,7 @@ def _next_trading_day(d: dt.date) -> dt.date:
 
 @router.get("/pending-fills")
 def pending_fills(
+    request: Request,
     db: Session = Depends(get_session),
     as_of: str | None = Query(
         None, description="ISO date; defaults to latest skip JSONL date.",
@@ -977,6 +989,8 @@ def pending_fills(
       * joins symbols + portfolio names + latest price_bar from DB
       * never writes
     """
+    request_is_owner = _request_is_owner(request, db)
+
     import json
     from pathlib import Path
 
@@ -1142,7 +1156,10 @@ def pending_fills(
             ),
             "as_of_date": target_date.isoformat(),
             "portfolio_id": r.get("portfolio_id"),
-            "portfolio_name": pf_by_id.get(r.get("portfolio_id")),
+            "portfolio_name": public_book_label(
+                pf_by_id.get(r.get("portfolio_id")) or "",
+                is_owner=request_is_owner,
+            ) if pf_by_id.get(r.get("portfolio_id")) else None,
             "expected_fill_rule": "next_bar",
             "current_status": current_status,
             "blocker": blocker,
@@ -3191,6 +3208,7 @@ def paper_exit_analytics(
 
 @router.get("/risk-dashboard")
 def paper_risk_dashboard(
+    request: Request,
     db: Session = Depends(get_session),
     include_replay: bool = Query(
         False,
@@ -3213,6 +3231,8 @@ def paper_risk_dashboard(
     fabricating a zero.
 
     Read-only. No execution surface."""
+    request_is_owner = _request_is_owner(request, db)
+    user_books_filter = "" if request_is_owner else " AND p.name NOT LIKE 'user:%'"
     excl_pos = _excl(include_replay, "paper_position", "pp")
     excl_pt = _excl(include_replay, "paper_trade", "pt")
 
@@ -3330,14 +3350,16 @@ def paper_risk_dashboard(
         LEFT JOIN paper_position pp
           ON pp.portfolio_id = p.id
         LEFT JOIN last_px ON last_px.asset_id = pp.asset_id
-        WHERE p.is_active = TRUE
+        WHERE p.is_active = TRUE{user_books_filter}
         GROUP BY p.id, p.name
         ORDER BY notional_usd DESC NULLS LAST
     """)).mappings().all()
     concentration_by_portfolio = [
         {
             "portfolio_id": str(r["portfolio_id"]),
-            "portfolio_name": r["portfolio_name"],
+            "portfolio_name": public_book_label(
+                r["portfolio_name"], is_owner=request_is_owner
+            ),
             "n_open": int(r["n_open"]),
             "notional_usd": _f(r["notional_usd"]),
         }
@@ -3420,7 +3442,9 @@ def paper_risk_dashboard(
     portfolios = [
         {
             "portfolio_id": str(r["portfolio_id"]),
-            "portfolio_name": r["portfolio_name"],
+            "portfolio_name": public_book_label(
+                r["portfolio_name"], is_owner=request_is_owner
+            ),
             "snapshot_date": r["snapshot_date"].isoformat(),
             "nav": _f(r["total_equity"]),
             "cash": _f(r["cash"]),

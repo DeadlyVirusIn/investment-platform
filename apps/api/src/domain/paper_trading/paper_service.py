@@ -94,6 +94,21 @@ USER_STOCK_STARTING_CASH = Decimal("100000")
 USER_BOOK_PREFIX = "user:"
 
 
+def public_book_label(name: str, *, is_owner: bool) -> str:
+    """Return a non-identifying label for a paper book shown to public users.
+
+    Per-user book names contain a durable user identifier and must never leave
+    a non-owner API response. Owners retain the raw labels needed by operator
+    dashboards. The shared canonical demo account has a stable public label.
+    """
+    if is_owner:
+        return name
+    if is_user_paper_book(name):
+        return "Your practice book"
+    if name == "Replay Recovery Account":
+        return "Demo book"
+    return name
+
 def user_stock_portfolio_name(user_id: str) -> str:
     """Canonical name of a user's own stock paper book."""
     return f"user:{user_id[:64]}:stock"
