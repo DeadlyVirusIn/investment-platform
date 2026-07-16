@@ -25,7 +25,7 @@ vi.mock('../chrome/ArthosChrome', () => ({
 }));
 vi.mock('./components/PracticeTabs', () => ({ PracticeTabs: () => null }));
 
-import { PaperBook } from './PaperBook';
+import { PaperBook, estimatedLivePositionsValue, getBookNarrative } from './PaperBook';
 
 function renderBook() {
   return render(<MemoryRouter><PaperBook /></MemoryRouter>);
@@ -44,7 +44,7 @@ beforeEach(() => {
 });
 
 describe('PaperBook demo/user presentation', () => {
-  it('signed-out + engine book → labeled Demo, never "Your", sign-in CTA', () => {
+  it('signed-out empty book → labeled Demo, never "Your", sign-in CTA', () => {
     bookState.data = DEMO_BOOK;
     renderBook();
     expect(screen.getByRole('heading', { name: /demo practice portfolio/i })).toBeInTheDocument();
@@ -77,5 +77,26 @@ describe('PaperBook demo/user presentation', () => {
     renderBook();
     expect(screen.getByText(/your practice portfolio/i)).toBeInTheDocument();
     expect(screen.getByText(/your portfolio is empty/i)).toBeInTheDocument();
+  });
+});
+
+describe('PaperBook truth helpers', () => {
+  it('uses the device-book narrative only for anonymous visitors with positions', () => {
+    expect(getBookNarrative(false, false, 0)).toBe('demo');
+    expect(getBookNarrative(false, false, 1)).toBe('device');
+    expect(getBookNarrative(true, false, 1)).toBe('account');
+    expect(getBookNarrative(false, true, 1)).toBe('neutral');
+    expect(getBookNarrative(false, false, 0, true)).toBe('neutral');
+  });
+
+  it('sums only market values with live prices', () => {
+    expect(estimatedLivePositionsValue([
+      { current_price: 10, market_value: 25 },
+      { current_price: null, market_value: 99 },
+      { current_price: 15, market_value: 30 },
+    ] as never)).toBe(55);
+    expect(estimatedLivePositionsValue([
+      { current_price: null, market_value: 99 },
+    ] as never)).toBeNull();
   });
 });

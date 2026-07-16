@@ -81,19 +81,43 @@ const fmtShares = (v: number): string =>
     : v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const toneCls = (v: number | null | undefined): string =>
   v == null ? 'ink-primary' : v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'ink-primary';
+export type BookNarrative = 'demo' | 'device' | 'account' | 'neutral';
+
+export function getBookNarrative(
+  authenticated: boolean,
+  sessionLoading: boolean,
+  positionsCount: number,
+  positionsLoading = false,
+): BookNarrative {
+  if (sessionLoading || positionsLoading) return 'neutral';
+  if (authenticated) return 'account';
+  // The API sends the browser's device id but does not return an ownership
+  // flag. Until it does, anonymous positions are our best signal that this is
+  // the visitor's device-scoped book; an empty anonymous book uses the demo.
+  return positionsCount > 0 ? 'device' : 'demo';
+}
+
+export function estimatedLivePositionsValue(positions: ExecutedPosition[]): number | null {
+  const priced = positions.filter((position) =>
+    position.current_price != null && position.market_value != null,
+  );
+  return priced.length > 0
+    ? priced.reduce((total, position) => total + (position.market_value ?? 0), 0)
+    : null;
+}
 
 export function PaperBook() {
-  // Demo-book honesty (audit M2): anonymous visitors see the shared
-  // canonical engine book — it must NEVER be presented as "your"
-  // portfolio. Only a resolved authenticated session earns that word.
   const { authenticated, loading: sessionLoading } = useSession();
-  const isDemo = !sessionLoading && !authenticated;
   const { data: book, isLoading } = useCanonicalStockPortfolio();
   const portfolioId = book?.portfolio_id;
   const {
     data: posData, isLoading: posLoading, isError: posError,
   } = useExecutedPositions(false, true, portfolioId, { enabled: !!portfolioId });
   const positions = posData?.positions ?? [];
+  const narrative = getBookNarrative(authenticated, sessionLoading, positions.length, posLoading);
+  const isDemo = narrative === 'demo';
+  const isDeviceBook = narrative === 'device';
+  const estimatedValue = estimatedLivePositionsValue(positions);
 
   const nav = book?.nav ?? null;
   const cash = book?.cash ?? null;
@@ -105,9 +129,9 @@ export function PaperBook() {
   return (
     <ArthosPage maxWidth="max-w-copy">
       <header className="mb-16 sm:mb-20">
-        <MetaLabel>{isDemo ? 'Demo practice portfolio' : 'Your practice portfolio'}</MetaLabel>
+        <MetaLabel>{isDemo ? 'Demo practice portfolio' : isDeviceBook ? 'Your practice book (this browser)' : narrative === 'account' ? 'Your practice portfolio' : 'Practice portfolio'}</MetaLabel>
         <h1 className="font-serif text-masthead ink-primary mt-3 mb-6 max-w-[18ch]">
-          {isDemo ? 'Demo practice portfolio.' : 'Practice portfolio.'}
+          {isDemo ? 'Demo practice portfolio.' : isDeviceBook ? 'Your practice book.' : 'Practice portfolio.'}
         </h1>
         {isDemo ? (
           <>
@@ -133,12 +157,38 @@ export function PaperBook() {
               </StatusPanel>
             </div>
           </>
-        ) : (
+        ) : isDeviceBook ? (
+          <div className="max-w-narrative">
+            <p className="ink-muted leading-relaxed">
+              This is your <strong>practice book in this browser</strong> — practice
+              money, nothing real at risk. It stays on this device.
+            </p>
+            <div className="mt-5">
+              <StatusPanel
+                variant="info"
+                title="Want a private account?"
+                action={
+                  <Link to="/account" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
+                    style={{ fontSize: 12.5, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
+                    Create a free account →
+                  </Link>
+                }
+              >
+                Creating an account starts a fresh private book. Ideas added
+                before signing in stay in this browser's book.
+              </StatusPanel>
+            </div>
+          </div>
+        ) : narrative === 'account' ? (
           <p className="ink-muted leading-relaxed max-w-narrative">
             This is your <strong>paper portfolio</strong> — practice money, nothing
             real at risk. Every idea you follow or add is tracked here with live
             prices, so you can see what actually holds up before you ever invest
             real money.
+          </p>
+        ) : (
+          <p className="ink-muted leading-relaxed max-w-narrative">
+            Loading this practice portfolio…
           </p>
         )}
       </header>
@@ -174,13 +224,32 @@ export function PaperBook() {
                   {(book?.open_positions_count ?? positions.length) === 1 ? '' : 's'}
                 </span>
               </div>
-              <p className="font-serif text-subhead ink-primary leading-snug">
-                Your practice portfolio is being prepared
-              </p>
-              <p className="ink-muted leading-relaxed text-[15px] mt-2">
-                You've already added ideas to your practice account. Prices and
-                portfolio values update with the next market snapshot.
-              </p>
+              {estimatedValue != null ? (
+                <>
+                  <div className="font-serif text-headline ink-primary tabular-nums leading-snug">
+                    {fmtMoney(estimatedValue)}
+                  </div>
+                  <p className="ink-muted leading-relaxed text-[15px] mt-2">
+                    Estimated from live prices — official book value posts with
+                    the next market snapshot.
+                  </p>
+                  {cash != null && (
+                    <p className="ink-muted leading-relaxed text-[15px] mt-1">
+                      Cash: <span className="ink-primary tabular-nums">{fmtMoney(cash)}</span>.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-serif text-subhead ink-primary leading-snug">
+                    Your practice portfolio is being prepared
+                  </p>
+                  <p className="ink-muted leading-relaxed text-[15px] mt-2">
+                    You've already added ideas to your practice account. Prices and
+                    portfolio values update with the next market snapshot.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
@@ -265,6 +334,12 @@ export function PaperBook() {
             <span className="text-meta ink-fainter">{positions.length} held</span>
           )}
         </div>
+
+        {positions.length > 0 && (
+          <p className="text-meta ink-fainter -mt-4 mb-5 max-w-narrative">
+            Paper fills are priced at the last completed market close — the open date shows that pricing day.
+          </p>
+        )}
 
         {posError ? (
           <div className="border-t border-hairline pt-12 pb-2">

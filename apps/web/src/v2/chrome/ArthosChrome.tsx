@@ -65,6 +65,10 @@ interface NavItem {
   match: (path: string) => boolean;
 }
 
+export function isPortfolioNavActive(path: string): boolean {
+  return path === '/portfolio' || path.startsWith('/portfolio/');
+}
+
 // ──────────────────────────────────────────────────────────────
 // BrandMark — small "A" tile in brand color. Used in SideNav + mobile
 // TopBar so the AI Investing Copilot identity is permanently visible.
@@ -600,7 +604,7 @@ const NAV_PRIMARY: NavItem[] = [
     to: '/portfolio',
     icon: BookOpen,
     match: (p) =>
-      p.startsWith('/portfolio') ||
+      isPortfolioNavActive(p) ||
       p.startsWith('/try') ||
       p.startsWith('/track-record'),
   },
