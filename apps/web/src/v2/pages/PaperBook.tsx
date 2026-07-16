@@ -335,23 +335,27 @@ export function PaperBook() {
         )}
       </motion.section>
 
-      {/* ── P&L explanation — reconcile the headline day P&L honestly ── */}
-      {nav != null && book && (
+      {/* ── P&L explanation — reconcile the headline day P&L honestly ──
+          Suppressed while neutral: a cached book from a still-resolving
+          session must not surface numbers before ownership is known. ── */}
+      {narrative !== 'neutral' && nav != null && book && (
         <PnlExplanation book={book} positions={positions} />
       )}
 
-      {/* ── Attribution summary — what's moving the book ── */}
-      {positions.length > 0 && <AttributionSummary positions={positions} />}
+      {/* ── Attribution summary — what's moving the book (same neutral gate) ── */}
+      {narrative !== 'neutral' && positions.length > 0 && (
+        <AttributionSummary positions={positions} />
+      )}
 
       <section className="mb-20">
         <div className="flex items-baseline justify-between mb-8 flex-wrap gap-4">
           <MetaLabel>Open positions</MetaLabel>
-          {positions.length > 0 && (
+          {narrative !== 'neutral' && positions.length > 0 && (
             <span className="text-meta ink-fainter">{positions.length} held</span>
           )}
         </div>
 
-        {positions.length > 0 && (
+        {narrative !== 'neutral' && positions.length > 0 && (
           <p className="ink-fainter -mt-4 mb-5 max-w-narrative text-[12.5px] leading-relaxed normal-case tracking-normal">
             Paper adds fill at the opening price of the most recent trading day — the open date shows that day, which can be earlier than the day you added.
           </p>

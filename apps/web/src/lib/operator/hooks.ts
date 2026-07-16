@@ -56,11 +56,15 @@ export interface CanonicalStockPortfolio {
 }
 
 export function useCanonicalStockPortfolio() {
-  const { user } = useSession();
+  const { user, loading } = useSession();
   const authScope = user?.id ?? "anonymous";
   return useQuery<CanonicalStockPortfolio>({
     queryKey: ["paper", "canonical", "stock", authScope],
     queryFn: () => apiGet<CanonicalStockPortfolio>("/paper/canonical/stock"),
+    // Don't fetch until the session resolves: firing under the "anonymous"
+    // scope while a valid cookie is present would cache the authenticated
+    // user's book under the anonymous key (Sol review, 019f6c32).
+    enabled: !loading,
     staleTime: 30_000,
     refetchInterval: 60_000,
   });

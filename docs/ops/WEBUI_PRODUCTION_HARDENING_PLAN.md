@@ -22,13 +22,24 @@ Precondition: inspect the VM's **effective** Caddy routing before rollout. The V
 From the repository root on the VM, after owner approval:
 
 ```sh
-# 1. Build the dist image and populate the volume (one-shot; exits 0)
+# 0. BACKUP the live serving config before any change (rollback source):
+cp infra/caddy/Caddyfile ~/backups/Caddyfile.pre-webstatic.$(date +%Y%m%d)
+docker inspect caddy:2-alpine >/dev/null 2>&1 && \
+  docker tag $(docker compose -f infra/compose/docker-compose.yml \
+    -f infra/compose/docker-compose.prod.yml images -q caddy) \
+    caddy:rollback-pre-webstatic 2>/dev/null || true
+
+# 1. Build the dist image and populate the volume. The 'web' service is a
+#    one-shot: run it in the FOREGROUND so publishing completes before Caddy
+#    is recreated (do NOT use detached -d here, or verification can race the
+#    still-running publisher):
 docker compose --env-file .env \
   -f infra/compose/docker-compose.yml \
   -f infra/compose/docker-compose.prod.yml build web
 docker compose --env-file .env \
   -f infra/compose/docker-compose.yml \
-  -f infra/compose/docker-compose.prod.yml up -d web
+  -f infra/compose/docker-compose.prod.yml run --rm web
+# Expect "web dist synced" and exit 0 before continuing.
 
 # 2. Activate the new Caddyfile + compose healthcheck — Caddy MUST be
 #    recreated (the Caddyfile is a read-only bind mount and the healthcheck

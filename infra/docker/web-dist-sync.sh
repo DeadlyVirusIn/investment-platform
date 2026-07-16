@@ -17,14 +17,21 @@ DST=/srv/web
 mkdir -p "$DST/assets"
 cp -a "$SRC/assets/." "$DST/assets/"
 
+# Root files (sw.js, etc.) except index.html — write to a temp name on the
+# SAME volume, then atomically rename, so an interrupted copy never leaves a
+# truncated live file (cp truncates the destination before writing).
 for f in "$SRC"/*; do
   base=$(basename "$f")
   [ "$base" = "index.html" ] && continue
   [ "$base" = "assets" ] && continue
-  cp -a "$f" "$DST/"
+  cp -a "$f" "$DST/.$base.tmp"
+  mv -f "$DST/.$base.tmp" "$DST/$base"
 done
 
-cp "$SRC/index.html" "$DST/index.html"
+# index.html LAST and atomically — this is the publish "switch"; it references
+# only assets already present above.
+cp "$SRC/index.html" "$DST/.index.html.tmp"
+mv -f "$DST/.index.html.tmp" "$DST/index.html"
 
 for f in "$DST"/assets/*; do
   base=$(basename "$f")
