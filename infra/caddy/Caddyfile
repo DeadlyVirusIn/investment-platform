@@ -10,16 +10,30 @@
 # Default ":80" keeps Caddy from failing if ARTHOS_DOMAIN is unset.
 
 {$ARTHOS_DOMAIN::80} {
+    # Local/static health endpoint, independent of API availability.
+    handle /healthz {
+        respond "ok" 200
+    }
+
     # Route API requests to the FastAPI backend
     handle /api/* {
         reverse_proxy api:8000
     }
 
+    # Vite's content-hashed assets are safe to cache for a year.
+    @assets path /assets/*
+    handle @assets {
+        root * /srv/web
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server
+    }
+
     # Serve the pre-built React SPA for everything else.
-    # The `try_files` directive enables client-side routing.
+    # `try_files` enables client-side routing; HTML/fallbacks must revalidate.
     handle {
         root * /srv/web
         try_files {path} /index.html
+        header Cache-Control "no-cache"
         file_server
     }
 
@@ -40,12 +54,22 @@
 # terminates TLS at the edge; an internal redirect would loop). Published to the
 # host loopback only (127.0.0.1:8081) in docker-compose.prod.yml.
 :8081 {
+    handle /healthz {
+        respond "ok" 200
+    }
     handle /api/* {
         reverse_proxy api:8000
+    }
+    @assets path /assets/*
+    handle @assets {
+        root * /srv/web
+        header Cache-Control "public, max-age=31536000, immutable"
+        file_server
     }
     handle {
         root * /srv/web
         try_files {path} /index.html
+        header Cache-Control "no-cache"
         file_server
     }
     encode gzip zstd

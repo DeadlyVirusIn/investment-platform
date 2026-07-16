@@ -27,8 +27,24 @@ services:
     restart: always
     mem_limit: 1g      # observed 51M at rest; daily pipeline (pandas/ML) spikes
 
-  # web is defined in the base compose (Vite dev/HMR server); cap it here too.
+  # Replace the base Vite dev/HMR service with a one-shot static-dist sync.
   web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+    image: arthos-web-dist:prod
+    command: ["sh", "-c", "rm -rf /srv/web/* && cp -a /opt/dist/. /srv/web/ && echo 'web dist synced'"]
+    # Base-file bind mounts /app and the node_modules volume still merge under
+    # compose override semantics. They are harmless: dist lives in /opt/dist.
+    volumes:
+      - web_dist:/srv/web
+    # `!reset` is required: compose merges list keys by union, so a bare
+    # `ports: []` would still publish the base file's 127.0.0.1:5173.
+    ports: !reset []
+    environment: !reset {}
+    restart: "no"
+    healthcheck:
+      disable: true
     mem_limit: 384m    # observed 106M
 
   db:
@@ -61,14 +77,20 @@ services:
       - ../caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-      # Web static build must be pre-built and copied here:
-      # docker build -f infra/docker/web.Dockerfile -t invest-web . && docker cp ...
+      # The one-shot web service populates this volume from its image build.
       - web_dist:/srv/web:ro
     depends_on:
       api:
         condition: service_healthy
     networks:
       - backend
+    healthcheck:
+      # caddy:2-alpine includes BusyBox wget; this site is always local HTTP.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/healthz || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
 volumes:
   caddy_data:

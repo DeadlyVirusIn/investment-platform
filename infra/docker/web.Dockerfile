@@ -17,15 +17,14 @@ COPY apps/web/ .
 # Build static assets
 RUN npm run build
 
-# ---- Serve stage ----
-# Caddy in prod compose mounts web_dist volume from this image's /app/dist.
-# We use a minimal image just to hold the files; Caddy serves them.
+# ---- Distribution stage ----
+# Keep dist outside /app: the base compose service bind-mounts source at /app.
+# This image copies the build into the web_dist volume; Caddy serves that volume.
 FROM node:20-alpine AS dist
 
-WORKDIR /app/dist
+WORKDIR /opt/dist
 
 COPY --from=builder /app/dist .
 
-# This container isn't meant to run a process — Caddy reads the volume.
-# If you want a self-contained image, swap to caddy:2-alpine and COPY dist → /srv/web.
-CMD ["sh", "-c", "echo 'Static assets ready in /app/dist' && tail -f /dev/null"]
+# One-shot volume population for the production compose overlay.
+CMD ["sh", "-c", "rm -rf /srv/web/* && cp -a /opt/dist/. /srv/web/ && echo 'web dist synced'"]
