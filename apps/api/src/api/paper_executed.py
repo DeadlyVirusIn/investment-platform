@@ -32,85 +32,118 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
+from apps.api.src.domain.paper_trading.paper_service import (
+    is_user_paper_book,
+    user_stock_portfolio_name,
+)
 
 
 router = APIRouter()
 
+
+def _require_readable_portfolio(
+    request: Request, db: Session, portfolio_id: str | None
+) -> str | None:
+    """Return a permitted portfolio id, hiding other users' books as 404."""
+    uid = resolve_identity(request, db)
+    if uid:
+        email, role = _email_and_role(db, uid)
+        if role == "owner" or is_owner(email):
+            return portfolio_id
+    if not portfolio_id:
+        raise HTTPException(status_code=400, detail="portfolio_id is required")
+    name = db.execute(
+        text("SELECT name FROM paper_portfolio WHERE id = :pid"),
+        {"pid": portfolio_id},
+    ).scalar()
+    if name is None or (is_user_paper_book(name) and name != user_stock_portfolio_name(uid or "")):
+        raise HTTPException(status_code=404)
+    return portfolio_id
 
 # ---------------------------------------------------------------------------
 # /paper/executed/summary
 # ---------------------------------------------------------------------------
 @router.get("/paper/executed/summary")
 def executed_summary(
+    request: Request,
     db: Session = Depends(get_session),
+    portfolio_id: str | None = None,
     include_replay: bool = Query(False),
 ) -> dict[str, Any]:
     """Counts of executed trades / open positions across portfolios.
 
     `include_replay=False` (default) excludes rows tagged as replay
     in `replay_recovery_manifest`. Audit dashboards pass `true`."""
+    portfolio_id = _require_readable_portfolio(request, db, portfolio_id)
+    params = {"pid": portfolio_id} if portfolio_id else {}
+    tf = " AND pt.portfolio_id = :pid" if portfolio_id else ""
+    pf = " AND pp.portfolio_id = :pid" if portfolio_id else ""
+
     excl = _exclusion_clause(include_replay, "paper_trade", "pt")
     excl_pos = _exclusion_clause(include_replay, "paper_position", "pp")
 
     trades_total = db.execute(text(f"""
-        SELECT count(*) FROM paper_trade pt WHERE 1=1 {excl}
-    """)).scalar() or 0
+        SELECT count(*) FROM paper_trade pt WHERE 1=1 {tf} {excl}
+    """), params).scalar() or 0
     trades_buy = db.execute(text(f"""
         SELECT count(*) FROM paper_trade pt
-        WHERE side = 'buy' {excl}
-    """)).scalar() or 0
+        WHERE side = 'buy' {tf} {excl}
+    """), params).scalar() or 0
     trades_sell = db.execute(text(f"""
         SELECT count(*) FROM paper_trade pt
-        WHERE side = 'sell' {excl}
-    """)).scalar() or 0
+        WHERE side = 'sell' {tf} {excl}
+    """), params).scalar() or 0
     open_positions = db.execute(text(f"""
         SELECT count(*) FROM paper_position pp
-        WHERE is_open = true {excl_pos}
-    """)).scalar() or 0
+        WHERE is_open = true {pf} {excl_pos}
+    """), params).scalar() or 0
     distinct_symbols = db.execute(text(f"""
-        SELECT count(DISTINCT pt.asset_id) FROM paper_trade pt WHERE 1=1 {excl}
-    """)).scalar() or 0
+        SELECT count(DISTINCT pt.asset_id) FROM paper_trade pt WHERE 1=1 {tf} {excl}
+    """), params).scalar() or 0
     portfolios_with_activity = db.execute(text(f"""
-        SELECT count(DISTINCT pt.portfolio_id) FROM paper_trade pt WHERE 1=1 {excl}
-    """)).scalar() or 0
+        SELECT count(DISTINCT pt.portfolio_id) FROM paper_trade pt WHERE 1=1 {tf} {excl}
+    """), params).scalar() or 0
     first_fill = db.execute(text(f"""
-        SELECT min(pt.fill_ts)::date FROM paper_trade pt WHERE 1=1 {excl}
-    """)).scalar()
+        SELECT min(pt.fill_ts)::date FROM paper_trade pt WHERE 1=1 {tf} {excl}
+    """), params).scalar()
     last_fill = db.execute(text(f"""
-        SELECT max(pt.fill_ts)::date FROM paper_trade pt WHERE 1=1 {excl}
-    """)).scalar()
-    has_replay_rows = db.execute(text("""
-        SELECT count(*) > 0 FROM replay_recovery_manifest
-        WHERE entity_type = 'paper_trade' AND source IN ('replay','test')
-    """)).scalar() or False
+        SELECT max(pt.fill_ts)::date FROM paper_trade pt WHERE 1=1 {tf} {excl}
+    """), params).scalar()
+    has_replay_rows = db.execute(text(f"""
+        SELECT count(*) > 0 FROM replay_recovery_manifest m
+        JOIN paper_trade pt ON m.entity_id = pt.id::text
+        WHERE m.entity_type = 'paper_trade' AND m.source IN ('replay','test') {tf}
+    """), params).scalar() or False
 
     # Always-on split counts so the UI can show
     # "live + recovered replay" simultaneously regardless of the
     # include_replay toggle. NOT filtered by `excl`.
-    live_trades_count = db.execute(text("""
+    live_trades_count = db.execute(text(f"""
         SELECT count(*) FROM paper_trade pt
         WHERE NOT EXISTS (
           SELECT 1 FROM replay_recovery_manifest m
           WHERE m.entity_type = 'paper_trade'
             AND m.entity_id = pt.id::text
             AND m.source IN ('replay','test')
-        )
-    """)).scalar() or 0
-    replay_trades_count = db.execute(text("""
+        ) {tf}
+    """), params).scalar() or 0
+    replay_trades_count = db.execute(text(f"""
         SELECT count(*) FROM paper_trade pt
         WHERE EXISTS (
           SELECT 1 FROM replay_recovery_manifest m
           WHERE m.entity_type = 'paper_trade'
             AND m.entity_id = pt.id::text
             AND m.source IN ('replay','test')
-        )
-    """)).scalar() or 0
-    live_open_positions_count = db.execute(text("""
+        ) {tf}
+    """), params).scalar() or 0
+    live_open_positions_count = db.execute(text(f"""
         SELECT count(*) FROM paper_position pp
         WHERE pp.is_open = true
           AND NOT EXISTS (
@@ -118,9 +151,9 @@ def executed_summary(
             WHERE m.entity_type = 'paper_position'
               AND m.entity_id = pp.id::text
               AND m.source IN ('replay','test')
-          )
-    """)).scalar() or 0
-    replay_open_positions_count = db.execute(text("""
+          ) {pf}
+    """), params).scalar() or 0
+    replay_open_positions_count = db.execute(text(f"""
         SELECT count(*) FROM paper_position pp
         WHERE pp.is_open = true
           AND EXISTS (
@@ -128,8 +161,8 @@ def executed_summary(
             WHERE m.entity_type = 'paper_position'
               AND m.entity_id = pp.id::text
               AND m.source IN ('replay','test')
-          )
-    """)).scalar() or 0
+          ) {pf}
+    """), params).scalar() or 0
 
     return {
         "include_replay": include_replay,
@@ -155,6 +188,7 @@ def executed_summary(
 # ---------------------------------------------------------------------------
 @router.get("/paper/executed/trades")
 def executed_trades(
+    request: Request,
     db: Session = Depends(get_session),
     side: Literal["buy", "sell"] | None = None,
     portfolio_id: str | None = None,
@@ -163,6 +197,7 @@ def executed_trades(
 ) -> dict[str, Any]:
     """Executed paper_trade rows joined to asset symbol + portfolio
     name + provenance flag."""
+    portfolio_id = _require_readable_portfolio(request, db, portfolio_id)
     where = ["1=1"]
     params: dict[str, Any] = {"limit": limit}
     if side is not None:
@@ -233,12 +268,14 @@ def executed_trades(
 # ---------------------------------------------------------------------------
 @router.get("/paper/executed/positions")
 def executed_positions(
+    request: Request,
     db: Session = Depends(get_session),
     is_open: bool | None = Query(None),
     portfolio_id: str | None = None,
     include_replay: bool = Query(False),
 ) -> dict[str, Any]:
     """paper_position rows joined to symbol + portfolio name + provenance."""
+    portfolio_id = _require_readable_portfolio(request, db, portfolio_id)
     where = ["1=1"]
     params: dict[str, Any] = {}
     if is_open is not None:
@@ -349,6 +386,7 @@ _ALLOWED_TYPES = {"paper_trade", "paper_position"}
 
 @router.get("/paper/closed-recommendations")
 def closed_recommendations(
+    request: Request,
     db: Session = Depends(get_session),
     portfolio_id: str | None = Query(None),
     include_replay: bool = Query(False),
@@ -361,6 +399,7 @@ def closed_recommendations(
     still exists; every field is real stored data (no fabricated commentary).
     GET-only, no writes.
     """
+    portfolio_id = _require_readable_portfolio(request, db, portfolio_id)
     excl = _exclusion_clause(include_replay, "paper_position", "p")
     where_pid = " AND p.portfolio_id = :pid" if portfolio_id else ""
     params: dict[str, Any] = {"lim": limit}

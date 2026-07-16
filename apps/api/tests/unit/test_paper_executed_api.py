@@ -136,3 +136,45 @@ def test_no_post_added_to_paper_executed():
                   "@router.patch")
     for f in forbidden:
         assert f not in src, f"forbidden HTTP verb: {f}"
+
+class _PortfolioResult:
+    def __init__(self, name): self.name = name
+    def scalar(self): return self.name
+
+
+class _PortfolioDb:
+    def __init__(self, name): self.name = name
+    def execute(self, *_args, **_kwargs): return _PortfolioResult(self.name)
+
+
+def _request():
+    from starlette.requests import Request
+    return Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+
+
+def test_portfolio_gate_requires_an_explicit_id_for_anonymous(monkeypatch):
+    import apps.api.src.api.paper_executed as mod
+    monkeypatch.setattr(mod, "resolve_identity", lambda *_: None)
+    from fastapi import HTTPException
+    with pytest.raises(HTTPException) as exc:
+        mod._require_readable_portfolio(_request(), _PortfolioDb(None), None)
+    assert exc.value.status_code == 400
+
+
+@pytest.mark.parametrize("uid,name,status", [
+    (None, "user:other:stock", 404),
+    (None, "shared-demo", 200),
+    ("me", "user:me:stock", 200),
+    ("me", "user:other:stock", 404),
+])
+def test_portfolio_gate_hides_other_users_books(monkeypatch, uid, name, status):
+    import apps.api.src.api.paper_executed as mod
+    monkeypatch.setattr(mod, "resolve_identity", lambda *_: uid)
+    monkeypatch.setattr(mod, "_email_and_role", lambda *_: (None, None))
+    from fastapi import HTTPException
+    if status == 404:
+        with pytest.raises(HTTPException) as exc:
+            mod._require_readable_portfolio(_request(), _PortfolioDb(name), "pid")
+        assert exc.value.status_code == 404
+    else:
+        assert mod._require_readable_portfolio(_request(), _PortfolioDb(name), "pid") == "pid"

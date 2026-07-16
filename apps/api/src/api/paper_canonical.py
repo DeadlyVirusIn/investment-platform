@@ -19,6 +19,10 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
 from apps.api.src.db import get_session
+from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.domain.paper_trading.paper_service import (
+    resolve_user_stock_portfolio,
+)
 
 # Reuse the freshness SLA classifier so the portfolio freshness band
 # matches the rest of the product (intraday vs overnight tiers).
@@ -53,10 +57,6 @@ def canonical_stock(
     book; truly anonymous callers fall back to the shared demo portfolio. A
     spoofed device header outside demo mode yields anonymous, never a targeted
     user's book."""
-    from apps.api.src.auth.identity import resolve_identity
-    from apps.api.src.domain.paper_trading.paper_service import (
-        resolve_user_stock_portfolio,
-    )
     uid = resolve_identity(request, db)
     if uid:
         # Per-user isolation: get-or-create THIS user's OWN book via the single
@@ -100,6 +100,7 @@ def canonical_stock(
         # live snapshot yet.
         return {
             "portfolio_id": pid,
+            "book_scope": "user" if uid else "shared_demo",
             "name": portfolio.name if portfolio is not None else None,
             "nav": None, "cash": None, "positions_value": None,
             "realized_pnl": None, "unrealized_pnl": None, "daily_pnl": None,
@@ -154,6 +155,7 @@ def canonical_stock(
 
     return {
         "portfolio_id": pid,
+        "book_scope": "user" if uid else "shared_demo",
         "name": portfolio.name,
         "nav": nav,
         "cash": float(snap.cash),

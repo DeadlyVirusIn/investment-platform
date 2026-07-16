@@ -10,6 +10,7 @@ Read-only / GET-only.
 from __future__ import annotations
 
 import re
+import pytest
 from pathlib import Path
 
 
@@ -77,3 +78,37 @@ def test_no_writes_in_source():
         assert not re.search(pat, src, re.IGNORECASE), (
             f"write found in read-only endpoint: {pat}"
         )
+
+
+def test_book_scope_is_returned_for_both_canonical_stock_branches():
+    src = Path("apps/api/src/api/paper_canonical.py").read_text(encoding="utf-8")
+    assert src.count('"book_scope": "user" if uid else "shared_demo"') == 2
+
+class _CanonicalResult:
+    def __init__(self, first=None, scalar=0):
+        self._first, self._scalar = first, scalar
+    def first(self): return self._first
+    def scalar(self): return self._scalar
+
+
+class _CanonicalDb:
+    def __init__(self): self.calls = 0
+    def commit(self): pass
+    def execute(self, *_args, **_kwargs):
+        self.calls += 1
+        if self.calls == 1:
+            from types import SimpleNamespace
+            return _CanonicalResult(SimpleNamespace(name="book", starting_cash=100000))
+        if self.calls == 2:
+            return _CanonicalResult(None)
+        return _CanonicalResult()
+
+
+@pytest.mark.parametrize("uid,scope", [(None, "shared_demo"), ("user-id", "user")])
+def test_canonical_stock_returns_book_scope(monkeypatch, uid, scope):
+    import apps.api.src.api.paper_canonical as mod
+    from starlette.requests import Request
+    monkeypatch.setattr(mod, "resolve_identity", lambda *_: uid)
+    monkeypatch.setattr(mod, "resolve_user_stock_portfolio", lambda *_: "user-pid")
+    request = Request({"type": "http", "method": "GET", "path": "/", "headers": []})
+    assert mod.canonical_stock(request, _CanonicalDb())["book_scope"] == scope
