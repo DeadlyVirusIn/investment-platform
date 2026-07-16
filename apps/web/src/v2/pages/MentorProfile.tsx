@@ -5,7 +5,7 @@
 // pattern guardrails. Honesty mode: missing evidence → "Too early to
 // tell." — never speculation.
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { MeTabs } from './components/MeTabs';
@@ -24,6 +24,33 @@ import { useEvents } from '../lib/arth/events';
 import { useDecisions } from '../lib/arth/decisions';
 import { CONTEXTUAL_LESSONS } from '../lib/arth/contextualLessons';
 import { seed2eMentorDemo } from '../lib/arth/demoSeed2e';
+import { useSession } from '../state/SessionContext';
+import { getProfile, type ProfileData } from '../../lib/profile';
+
+const PROFILE_LABELS: Record<keyof Pick<ProfileData, 'investing_experience' | 'investing_goal' | 'risk_comfort' | 'time_horizon' | 'preferred_style'>, Record<string, string>> = {
+  investing_experience: { none: 'New to investing', beginner: 'Beginner', intermediate: 'Intermediate', experienced: 'Experienced' },
+  investing_goal: { learn: 'Learn the ropes', grow_wealth: 'Grow wealth', income: 'Generate income', preserve: 'Preserve capital', retirement: 'Retirement' },
+  risk_comfort: { low: 'Low', medium: 'Medium', high: 'High' },
+  time_horizon: { short: 'Short (under 1 yr)', medium: 'Medium (1–5 yrs)', long: 'Long (5+ yrs)' },
+  preferred_style: { steady: 'Steady', balanced: 'Balanced', growth: 'Growth' },
+};
+
+const PROFILE_ROWS: { key: keyof typeof PROFILE_LABELS; label: string }[] = [
+  { key: 'investing_experience', label: 'Experience' },
+  { key: 'investing_goal', label: 'Goal' },
+  { key: 'risk_comfort', label: 'Risk comfort' },
+  { key: 'time_horizon', label: 'Horizon' },
+  { key: 'preferred_style', label: 'Style' },
+];
+
+function profileAnswerRows(profile: ProfileData | null) {
+  if (!profile) return [];
+  return PROFILE_ROWS.flatMap(({ key, label }) => {
+    const value = profile[key];
+    const answer = value ? PROFILE_LABELS[key][value] : undefined;
+    return answer ? [{ label, answer }] : [];
+  });
+}
 
 export function MentorProfile() {
   // Demo seed via ?seedMentor=1 (capture only).
@@ -35,6 +62,26 @@ export function MentorProfile() {
     } catch { /* ignore */ }
   }, []);
 
+  const { authenticated, loading: sessionLoading } = useSession();
+  const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    if (sessionLoading) return;
+    if (!authenticated) {
+      setProfile(null);
+      setProfileLoading(false);
+      return;
+    }
+    setProfileLoading(true);
+    getProfile()
+      .then((response) => { if (alive) setProfile(response.profile); })
+      .catch(() => { if (alive) setProfile(null); })
+      .finally(() => { if (alive) setProfileLoading(false); });
+    return () => { alive = false; };
+  }, [authenticated, sessionLoading]);
+
   const streak = useStreak();
   const memory = useMemoryNotes();
   const patterns = useVisiblePatterns();
@@ -42,7 +89,7 @@ export function MentorProfile() {
   const events = useEvents();
   const decisions = useDecisions();
 
-  const declared = memory.filter((m) => m.category === 'told_me' && !m.retired);
+  const profileRows = profileAnswerRows(profile);
   const seen = memory.filter((m) => m.category === 'seen' && !m.retired).slice(0, 5);
 
   const strengths = useMemo(() => deriveStrengths(), [events, decisions]);
@@ -77,13 +124,21 @@ export function MentorProfile() {
       <StreakHero streak={streak} />
 
       <Section title="What you've told me">
-        {declared.length === 0 ? (
-          <TooEarly>Once you finish onboarding, the things you told me about your horizon, risk tolerance, and comfort with structures will live here.</TooEarly>
-        ) : (
+        {!profileLoading && profileRows.length === 0 && (
+          <TooEarly>
+            Answer a few profile questions and what you tell me will live here. <Link to="/profile" className="ink-primary underline">Answer questions →</Link>
+          </TooEarly>
+        )}
+        {!profileLoading && profileRows.length > 0 && (
           <div className="space-y-2">
-            {declared.map((m) => (
-              <Bullet key={m.id} tone="declared">{m.text}</Bullet>
+            {profileRows.map((row) => (
+              <p key={row.label} className="ink-primary" style={{ fontSize: 14, lineHeight: 1.55 }}>
+                <span className="ink-muted">{row.label} — </span>{row.answer}
+              </p>
             ))}
+            <Link to="/profile" className="inline-block ink-primary underline pt-1" style={{ fontSize: 13 }}>
+              Edit →
+            </Link>
           </div>
         )}
       </Section>

@@ -136,7 +136,7 @@ export function ReviewerProof() {
             Try today's idea →
           </Link>
         )}
-        <Link to="/account"
+        <Link to="/account?mode=signup"
           className="inline-flex items-center px-4 h-10 rounded-full"
           style={{ fontSize: 13, fontWeight: 600, border: '1px solid var(--border)', color: 'var(--foreground)' }}>
           Create a free practice account

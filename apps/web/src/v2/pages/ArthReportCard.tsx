@@ -97,7 +97,7 @@ export function ArthReportCard() {
         <ul className="space-y-2 ink-primary" style={{ fontSize: 13.5, lineHeight: 1.5 }}>
           <li>ArthOS weighs many signals about each company and writes a plain-language reason (the thesis) for every idea.</li>
           <li>It adjusts for risk — for example, easing back in choppy markets — and always shows you the reasoning on the idea page.</li>
-          <li>Every idea shows a plain confidence level and when it was last updated.</li>
+          <li>Every idea shows whether it clears the buy bar and when it was last updated.</li>
           <li>An audited closed-outcome track record is not yet established; this page will surface it honestly when it is.</li>
         </ul>
       </SectionWrap>

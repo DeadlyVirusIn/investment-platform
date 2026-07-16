@@ -3,7 +3,7 @@
 // no profile, no personalization — just authentication.
 
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { ArthosPage } from '../chrome/ArthosChrome';
 import { useSession } from '../state/SessionContext';
 import { login as apiLogin, signup as apiSignup } from '../../lib/auth';
@@ -16,9 +16,12 @@ type Mode = 'login' | 'signup';
 
 export function AccountPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, authenticated, loading: sessionLoading, refresh, signOut } = useSession();
 
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>(() =>
+    searchParams.get('mode') === 'signup' ? 'signup' : 'login',
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -29,12 +32,15 @@ export function AccountPage() {
   const [betaSent, setBetaSent] = useState(false);
 
   useEffect(() => {
+    setMode(searchParams.get('mode') === 'signup' ? 'signup' : 'login');
+  }, [searchParams]);
+
+  useEffect(() => {
     if (!authenticated) { setProfileComplete(null); return; }
     let alive = true;
     getProfile().then((r) => { if (alive) setProfileComplete(r.complete); }).catch(() => {});
     return () => { alive = false; };
   }, [authenticated]);
-
   const emailValid = /\S+@\S+/.test(email.trim());
   const passwordValid = password.length >= MIN_PASSWORD;
   const canSubmit = emailValid && passwordValid && !submitting;
@@ -233,6 +239,11 @@ export function AccountPage() {
 
         {/* Why trust ArthOS with an account (audit H7) — stated, not implied. */}
         <ul className="mt-8 pt-5 space-y-2" style={{ borderTop: '1px solid var(--border)' }}>
+          {mode === 'signup' && (
+            <li className="ink-muted" style={{ fontSize: 12.5, lineHeight: 1.55 }}>
+              If you added practice ideas before creating an account, they stay in this browser&apos;s book — your account starts a fresh private book.
+            </li>
+          )}
           {[
             'Practice money only — no bank link, no card, nothing real at risk.',
             'Your portfolio and profile are private to your account.',

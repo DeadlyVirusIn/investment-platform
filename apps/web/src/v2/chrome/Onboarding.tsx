@@ -99,9 +99,9 @@ export function Onboarding() {
               </button>
             </div>
             <p className="mt-3 ink-fainter text-[13px] leading-relaxed max-w-narrative">
-              <strong className="ink-muted">Begin Day 1</strong> is a ~5-minute guided lesson — read one
-              idea, see one real decision, write one note, watch a trade play out. Paper-only; nothing
-              real is at stake.
+              <strong className="ink-muted">Begin Day 1</strong> is a guided first session — four short
+              steps, about 27 minutes in total. Stop at any step; progress is saved on this device.
+              Paper-only; nothing real is at stake.
             </p>
 
             <div className="mt-10 max-w-narrative">
