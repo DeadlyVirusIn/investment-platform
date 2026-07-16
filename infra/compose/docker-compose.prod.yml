@@ -13,7 +13,9 @@ version: "3.9"
 services:
   # Override api to disable localhost-only port binding
   api:
-    ports: []          # not exposed directly; Caddy proxies internally
+    # `!reset` (not a bare []) — compose union-merges list keys, so a plain
+    # `ports: []` keeps the base file's 127.0.0.1:8000 publish.
+    ports: !reset []   # not exposed directly; Caddy proxies internally
     restart: always
     mem_limit: 768m    # ~6.7x observed (115M); spikes spill to swap, not OOM
 
@@ -33,7 +35,10 @@ services:
       context: ../..
       dockerfile: infra/docker/web.Dockerfile
     image: arthos-web-dist:prod
-    command: ["sh", "-c", "rm -rf /srv/web/* && cp -a /opt/dist/. /srv/web/ && echo 'web dist synced'"]
+    # web-dist-sync (baked into the image) publishes assets first and
+    # index.html last, then prunes stale assets — an interrupted sync never
+    # leaves the live tree empty.
+    command: ["web-dist-sync"]
     # Base-file bind mounts /app and the node_modules volume still merge under
     # compose override semantics. They are harmless: dist lives in /opt/dist.
     volumes:
@@ -49,7 +54,9 @@ services:
 
   db:
     restart: always
-    ports: []          # never expose postgres publicly in prod
+    # `!reset` for the same union-merge reason as api above (base publishes
+    # 127.0.0.1:54329).
+    ports: !reset []   # never expose postgres publicly in prod
     mem_limit: 1.25g   # most headroom — query/shared_buffers; swap behind it
 
   caddy:

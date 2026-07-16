@@ -25,6 +25,11 @@ FROM node:20-alpine AS dist
 WORKDIR /opt/dist
 
 COPY --from=builder /app/dist .
+COPY infra/docker/web-dist-sync.sh /usr/local/bin/web-dist-sync
+RUN chmod +x /usr/local/bin/web-dist-sync
 
 # One-shot volume population for the production compose overlay.
-CMD ["sh", "-c", "rm -rf /srv/web/* && cp -a /opt/dist/. /srv/web/ && echo 'web dist synced'"]
+# The script publishes assets first and index.html last so an interrupted
+# sync never leaves the live site empty (review finding: rm-rf-first swap
+# had a window where /assets/* misses could be cached as immutable).
+CMD ["web-dist-sync"]
