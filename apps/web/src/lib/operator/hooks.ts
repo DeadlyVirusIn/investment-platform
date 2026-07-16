@@ -3,6 +3,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { apiGet } from "@/lib/api";
+import { useSession } from "@/v2/state/SessionContext";
 import type {
   PaperSummary, CurrentState, EquityPoint, TradeRow,
   DecisionRow, PerformanceAttribution, ShadowSignal, SystemHealth,
@@ -49,11 +50,16 @@ export interface CanonicalStockPortfolio {
   source_snapshot_id: string | null;
   source: "live";
   status: "live" | "no_live_snapshot";
+  // Absent while clients and servers are rolling forward. Never infer
+  // ownership from positions when this is unavailable.
+  book_scope?: "user" | "shared_demo";
 }
 
 export function useCanonicalStockPortfolio() {
+  const { user } = useSession();
+  const authScope = user?.id ?? "anonymous";
   return useQuery<CanonicalStockPortfolio>({
-    queryKey: ["paper", "canonical", "stock"],
+    queryKey: ["paper", "canonical", "stock", authScope],
     queryFn: () => apiGet<CanonicalStockPortfolio>("/paper/canonical/stock"),
     staleTime: 30_000,
     refetchInterval: 60_000,
@@ -364,13 +370,15 @@ export function useExecutedPositions(
   portfolioId?: string | null,
   opts?: { enabled?: boolean },
 ) {
+  const { user } = useSession();
+  const authScope = user?.id ?? "anonymous";
   const params = new URLSearchParams();
   if (includeReplay) params.set("include_replay", "true");
   if (isOpen !== undefined) params.set("is_open", String(isOpen));
   if (portfolioId) params.set("portfolio_id", portfolioId);
   const qs = params.toString() ? `?${params.toString()}` : "";
   return useQuery<{ count: number; positions: ExecutedPosition[]; include_replay: boolean }>({
-    queryKey: ["paper", "executed", "positions", includeReplay, isOpen, portfolioId ?? null],
+    queryKey: ["paper", "executed", "positions", includeReplay, isOpen, portfolioId ?? null, authScope],
     queryFn: () => apiGet(`/paper/executed/positions${qs}`),
     staleTime: 30_000,
     enabled: opts?.enabled ?? true,

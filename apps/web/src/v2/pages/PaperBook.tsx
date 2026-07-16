@@ -86,38 +86,52 @@ export type BookNarrative = 'demo' | 'device' | 'account' | 'neutral';
 export function getBookNarrative(
   authenticated: boolean,
   sessionLoading: boolean,
-  positionsCount: number,
-  positionsLoading = false,
+  bookScope: CanonicalStockPortfolio['book_scope'],
+  canonicalLoading = false,
+  canonicalError = false,
 ): BookNarrative {
-  if (sessionLoading || positionsLoading) return 'neutral';
-  if (authenticated) return 'account';
-  // The API sends the browser's device id but does not return an ownership
-  // flag. Until it does, anonymous positions are our best signal that this is
-  // the visitor's device-scoped book; an empty anonymous book uses the demo.
-  return positionsCount > 0 ? 'device' : 'demo';
+  if (sessionLoading || canonicalLoading || canonicalError) return 'neutral';
+  if (bookScope === 'shared_demo') return 'demo';
+  if (bookScope === 'user') return authenticated ? 'account' : 'device';
+  // Older API responses do not establish anonymous ownership. Be
+  // conservative until the authoritative scope field is available.
+  return authenticated ? 'account' : 'demo';
+}
+
+export function isPricedPosition(position: ExecutedPosition): boolean {
+  return Number.isFinite(position.current_price)
+    && Number.isFinite(position.market_value)
+    && (position.market_value as number) >= 0;
 }
 
 export function estimatedLivePositionsValue(positions: ExecutedPosition[]): number | null {
-  const priced = positions.filter((position) =>
-    position.current_price != null && position.market_value != null,
-  );
+  const priced = positions.filter(isPricedPosition);
   return priced.length > 0
-    ? priced.reduce((total, position) => total + (position.market_value ?? 0), 0)
+    ? priced.reduce((total, position) => total + (position.market_value as number), 0)
     : null;
 }
 
 export function PaperBook() {
   const { authenticated, loading: sessionLoading } = useSession();
-  const { data: book, isLoading } = useCanonicalStockPortfolio();
+  const { data: book, isLoading, isError: bookError } = useCanonicalStockPortfolio();
   const portfolioId = book?.portfolio_id;
   const {
     data: posData, isLoading: posLoading, isError: posError,
   } = useExecutedPositions(false, true, portfolioId, { enabled: !!portfolioId });
   const positions = posData?.positions ?? [];
-  const narrative = getBookNarrative(authenticated, sessionLoading, positions.length, posLoading);
+  const narrative = getBookNarrative(
+    authenticated,
+    sessionLoading,
+    book?.book_scope,
+    isLoading,
+    bookError,
+  );
   const isDemo = narrative === 'demo';
   const isDeviceBook = narrative === 'device';
   const estimatedValue = estimatedLivePositionsValue(positions);
+  const pricedPositionsCount = positions.filter(isPricedPosition).length;
+  const openPositionsCount = book?.open_positions_count ?? positions.length;
+  const hasOpenPositions = openPositionsCount > 0 || positions.length > 0;
 
   const nav = book?.nav ?? null;
   const cash = book?.cash ?? null;
@@ -146,7 +160,7 @@ export function PaperBook() {
                 variant="info"
                 title="Want a practice portfolio of your own?"
                 action={
-                  <Link to="/account" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
+                  <Link to="/account?mode=signup" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
                     style={{ fontSize: 12.5, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
                     Create a free account →
                   </Link>
@@ -161,14 +175,14 @@ export function PaperBook() {
           <div className="max-w-narrative">
             <p className="ink-muted leading-relaxed">
               This is your <strong>practice book in this browser</strong> — practice
-              money, nothing real at risk. It stays on this device.
+              money, nothing real at risk. It's tracked for this browser.
             </p>
             <div className="mt-5">
               <StatusPanel
                 variant="info"
                 title="Want a private account?"
                 action={
-                  <Link to="/account" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
+                  <Link to="/account?mode=signup" className="px-3.5 py-1.5 rounded-full inline-block font-semibold"
                     style={{ fontSize: 12.5, color: 'var(--brand-foreground)', backgroundColor: 'var(--brand)' }}>
                     Create a free account →
                   </Link>
@@ -182,7 +196,7 @@ export function PaperBook() {
         ) : narrative === 'account' ? (
           <p className="ink-muted leading-relaxed max-w-narrative">
             This is your <strong>paper portfolio</strong> — practice money, nothing
-            real at risk. Every idea you follow or add is tracked here with live
+            real at risk. Every idea you follow or add is tracked here with latest available
             prices, so you can see what actually holds up before you ever invest
             real money.
           </p>
@@ -201,13 +215,19 @@ export function PaperBook() {
         transition={{ duration: 0.5 }}
         className="mb-20"
       >
-        <MetaLabel>Book value</MetaLabel>
-        {nav == null ? (
-          isLoading ? (
-            <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
-              Loading the practice account…
-            </p>
-          ) : (book?.open_positions_count ?? 0) > 0 || positions.length > 0 ? (
+        <MetaLabel>{narrative !== 'neutral' && nav == null && hasOpenPositions
+          ? 'Invested in open positions (priced positions only)'
+          : 'Book value'}</MetaLabel>
+        {narrative === 'neutral' ? (
+          // While the session/book are still resolving (or errored), never
+          // render numbers — a cached book from another identity could leak.
+          <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
+            {bookError
+              ? "Couldn't load this practice portfolio right now. Try again shortly."
+              : 'Loading this practice portfolio…'}
+          </p>
+        ) : nav == null ? (
+          hasOpenPositions ? (
             // Positions exist but no NAV snapshot yet (status=no_live_snapshot).
             // NEVER say "unavailable" here — the user's add succeeded.
             <div className="mt-3 max-w-narrative">
@@ -220,8 +240,8 @@ export function PaperBook() {
                   Practice money
                 </span>
                 <span className="ink-muted text-[13px]">
-                  {(book?.open_positions_count ?? positions.length)} open position
-                  {(book?.open_positions_count ?? positions.length) === 1 ? '' : 's'}
+                  {openPositionsCount} open position
+                  {openPositionsCount === 1 ? '' : 's'}
                 </span>
               </div>
               {estimatedValue != null ? (
@@ -230,30 +250,26 @@ export function PaperBook() {
                     {fmtMoney(estimatedValue)}
                   </div>
                   <p className="ink-muted leading-relaxed text-[15px] mt-2">
-                    Estimated from live prices — official book value posts with
-                    the next market snapshot.
+                    Estimated from latest available prices. Cash isn't known until the next market snapshot records the official book value.
+                    {pricedPositionsCount < positions.length
+                      && ` · ${pricedPositionsCount} of ${positions.length} positions priced`}
                   </p>
-                  {cash != null && (
-                    <p className="ink-muted leading-relaxed text-[15px] mt-1">
-                      Cash: <span className="ink-primary tabular-nums">{fmtMoney(cash)}</span>.
-                    </p>
-                  )}
                 </>
               ) : (
                 <>
                   <p className="font-serif text-subhead ink-primary leading-snug">
-                    Your practice portfolio is being prepared
+                    {isDemo ? 'This demo book is being prepared' : 'This practice portfolio is being prepared'}
                   </p>
                   <p className="ink-muted leading-relaxed text-[15px] mt-2">
-                    You've already added ideas to your practice account. Prices and
-                    portfolio values update with the next market snapshot.
+                    Open positions are recorded. Prices and official portfolio values
+                    update with the next market snapshot.
                   </p>
                 </>
               )}
             </div>
           ) : (
             <p className="ink-muted leading-relaxed max-w-narrative text-[15px] mt-3">
-              No practice positions yet — add an idea from Discover to start your
+              No practice positions yet — add an idea from Discover to start this
               practice book.
             </p>
           )
@@ -294,7 +310,7 @@ export function PaperBook() {
             {(cash ?? 0) < 0 && (
               <p className="ink-muted leading-relaxed max-w-narrative text-[13px] mt-3">
                 Cash is negative after a ledger correction on Jun 12. Arth
-                pauses new buys until sales rebuild cash; your book value is
+                pauses new buys until sales rebuild cash; the book value is
                 unaffected.
               </p>
             )}
@@ -336,32 +352,40 @@ export function PaperBook() {
         </div>
 
         {positions.length > 0 && (
-          <p className="text-meta ink-fainter -mt-4 mb-5 max-w-narrative">
-            Paper fills are priced at the last completed market close — the open date shows that pricing day.
+          <p className="ink-fainter -mt-4 mb-5 max-w-narrative text-[12.5px] leading-relaxed normal-case tracking-normal">
+            Paper adds fill at the opening price of the most recent trading day — the open date shows that day, which can be earlier than the day you added.
           </p>
         )}
 
-        {posError ? (
+        {narrative === 'neutral' ? (
           <div className="border-t border-hairline pt-12 pb-2">
             <p className="ink-muted leading-relaxed max-w-narrative text-[15px]">
-              Couldn't load your holdings right now. They'll reappear on the
+              {bookError
+                ? "Couldn't load this practice portfolio right now. Try again shortly."
+                : 'Loading this practice portfolio…'}
+            </p>
+          </div>
+        ) : posError ? (
+          <div className="border-t border-hairline pt-12 pb-2">
+            <p className="ink-muted leading-relaxed max-w-narrative text-[15px]">
+              Couldn't load the holdings right now. They'll reappear on the
               next refresh.
             </p>
           </div>
         ) : posLoading && positions.length === 0 ? (
           <div className="border-t border-hairline pt-12 pb-2">
             <p className="ink-muted leading-relaxed max-w-narrative text-[15px]">
-              Loading your holdings…
+              Loading holdings…
             </p>
           </div>
         ) : positions.length === 0 ? (
           <div className="border-t border-hairline pt-12 pb-2">
             <p className="font-serif italic ink-muted text-[18px] leading-relaxed max-w-narrative mb-6">
-              Your portfolio is empty — let's fix that.
+              {isDemo ? 'This demo book has no open positions yet.' : "Your portfolio is empty — let's fix that."}
             </p>
             <p className="ink-muted leading-relaxed max-w-narrative mb-6 text-[15px]">
               Follow a model portfolio or add a single idea to paper. It starts
-              tracking immediately and becomes your track record.
+              tracking immediately and becomes {isDemo ? 'a track record.' : 'your track record.'}
             </p>
             <div className="flex flex-wrap items-center gap-5">
               <Link

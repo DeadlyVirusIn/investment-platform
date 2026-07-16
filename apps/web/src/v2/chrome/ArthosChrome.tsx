@@ -65,8 +65,12 @@ interface NavItem {
   match: (path: string) => boolean;
 }
 
+export function isNavPathActive(path: string, route: string): boolean {
+  return path === route || path.startsWith(`${route}/`);
+}
+
 export function isPortfolioNavActive(path: string): boolean {
-  return path === '/portfolio' || path.startsWith('/portfolio/');
+  return isNavPathActive(path, '/portfolio');
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -605,8 +609,8 @@ const NAV_PRIMARY: NavItem[] = [
     icon: BookOpen,
     match: (p) =>
       isPortfolioNavActive(p) ||
-      p.startsWith('/try') ||
-      p.startsWith('/track-record'),
+      isNavPathActive(p, '/try') ||
+      isNavPathActive(p, '/track-record'),
   },
   {
     label: 'Learn',

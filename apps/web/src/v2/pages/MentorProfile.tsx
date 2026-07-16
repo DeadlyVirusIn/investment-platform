@@ -27,12 +27,14 @@ import { seed2eMentorDemo } from '../lib/arth/demoSeed2e';
 import { useSession } from '../state/SessionContext';
 import { getProfile, type ProfileData } from '../../lib/profile';
 
-const PROFILE_LABELS: Record<keyof Pick<ProfileData, 'investing_experience' | 'investing_goal' | 'risk_comfort' | 'time_horizon' | 'preferred_style'>, Record<string, string>> = {
+const PROFILE_LABELS: Record<keyof Pick<ProfileData, 'investing_experience' | 'investing_goal' | 'risk_comfort' | 'time_horizon' | 'preferred_style' | 'liquidity_need' | 'options_experience'>, Record<string, string>> = {
   investing_experience: { none: 'New to investing', beginner: 'Beginner', intermediate: 'Intermediate', experienced: 'Experienced' },
   investing_goal: { learn: 'Learn the ropes', grow_wealth: 'Grow wealth', income: 'Generate income', preserve: 'Preserve capital', retirement: 'Retirement' },
   risk_comfort: { low: 'Low', medium: 'Medium', high: 'High' },
   time_horizon: { short: 'Short (under 1 yr)', medium: 'Medium (1–5 yrs)', long: 'Long (5+ yrs)' },
   preferred_style: { steady: 'Steady', balanced: 'Balanced', growth: 'Growth' },
+  liquidity_need: { low: 'Not soon', medium: 'Maybe', high: 'Could be soon' },
+  options_experience: { none: 'None', learning: 'Learning', experienced: 'Experienced' },
 };
 
 const PROFILE_ROWS: { key: keyof typeof PROFILE_LABELS; label: string }[] = [
@@ -41,6 +43,8 @@ const PROFILE_ROWS: { key: keyof typeof PROFILE_LABELS; label: string }[] = [
   { key: 'risk_comfort', label: 'Risk comfort' },
   { key: 'time_horizon', label: 'Horizon' },
   { key: 'preferred_style', label: 'Style' },
+  { key: 'liquidity_need', label: 'Might need the money' },
+  { key: 'options_experience', label: 'Options experience' },
 ];
 
 function profileAnswerRows(profile: ProfileData | null) {
