@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
 from apps.api.src.auth.identity import resolve_identity
 from apps.api.src.api.admin_guard import _email_and_role, is_owner
 from apps.api.src.domain.paper_trading.paper_execution import (
@@ -50,7 +51,7 @@ def _jsonable(v: Any) -> Any:
 
 def _request_is_owner(request: Request, session: Session) -> bool:
     """Use the admin guard ownership predicate without exposing a 403."""
-    uid = resolve_identity(request, session)
+    uid = ident.session_user_id(session, request.cookies.get(ident.SESSION_COOKIE))
     if not uid:
         return False
     email, role = _email_and_role(session, uid)
@@ -67,10 +68,10 @@ def _require_portfolio_access(
     """Return an authorized portfolio; denied books are always hidden as 404."""
     portfolio = get_portfolio(session, portfolio_id)
     if portfolio is None:
-        raise HTTPException(status_code=404, detail="portfolio not found")
+        raise HTTPException(status_code=404, detail="Not Found")
     uid = resolve_identity(request, session)
     if not uid:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Not Found")
     if _request_is_owner(request, session):
         return portfolio
     own_book = user_stock_portfolio_name(uid)
@@ -78,7 +79,7 @@ def _require_portfolio_access(
         not is_user_paper_book(portfolio.name) or portfolio.name == own_book
     )
     if not allowed:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status_code=404, detail="Not Found")
     return portfolio
 
 

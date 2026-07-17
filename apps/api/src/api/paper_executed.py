@@ -37,6 +37,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
 from apps.api.src.auth.identity import resolve_identity
 from apps.api.src.api.admin_guard import _email_and_role, is_owner
 from apps.api.src.domain.paper_trading.paper_service import (
@@ -54,8 +55,9 @@ def _require_readable_portfolio(
 ) -> str | None:
     """Return a permitted portfolio id, hiding other users' books as 404."""
     uid = resolve_identity(request, db)
-    if uid:
-        email, role = _email_and_role(db, uid)
+    owner_uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    if owner_uid:
+        email, role = _email_and_role(db, owner_uid)
         if role == "owner" or is_owner(email):
             return portfolio_id
     if not portfolio_id:
@@ -69,7 +71,7 @@ def _require_readable_portfolio(
     return portfolio_id
 
 def _request_is_owner(request: Request, db: Session) -> bool:
-    uid = resolve_identity(request, db)
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
     if not uid:
         return False
     email, role = _email_and_role(db, uid)

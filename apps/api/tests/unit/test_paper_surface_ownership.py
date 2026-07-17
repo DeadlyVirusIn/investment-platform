@@ -127,6 +127,9 @@ class _Result:
     def all(self):
         return self.rows
 
+    def fetchall(self):
+        return self.rows
+
     def scalar(self):
         return self.value
 
@@ -177,3 +180,69 @@ def test_risk_dashboard_filters_and_redacts_user_books(monkeypatch):
     monkeypatch.setattr(mod, "_request_is_owner", lambda *_: True)
     owner = mod.paper_risk_dashboard(_request(), owner_db)
     assert "user:private-user-id:stock" in str(owner)
+
+def test_owner_elevation_ignores_device_header_without_session(monkeypatch):
+    from apps.api.src.api import paper
+
+    request = Request({
+        "type": "http", "method": "GET", "path": "/",
+        "headers": [(b"x-auth-user-id", b"owner")],
+    })
+    monkeypatch.setattr(paper.ident, "session_user_id", lambda *_: None)
+    monkeypatch.setattr(paper, "resolve_identity", lambda *_: "owner")
+    assert paper._request_is_owner(request, object()) is False
+
+
+class _ForeignFunnelDb:
+    def execute(self, *_args, **_kwargs):
+        return _Result(scalar="user:other:stock")
+
+
+def test_funnel_by_portfolio_hides_foreign_user_book(monkeypatch):
+    from apps.api.src.api import paper_funnel
+
+    monkeypatch.setattr(paper_funnel, "_request_is_owner", lambda *_: False)
+    monkeypatch.setattr(paper_funnel, "resolve_identity", lambda *_: "me")
+    with pytest.raises(HTTPException) as exc:
+        paper_funnel._require_readable_portfolio(_request(), _ForeignFunnelDb(), "foreign")
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Not Found"
+
+
+class _EquityDb:
+    def __init__(self):
+        self.names = {
+            "foreign": "user:other:stock",
+            "demo": "Replay Recovery Account",
+            "own": "user:me:stock",
+        }
+
+    def execute(self, statement, params=None):
+        if "SELECT name FROM paper_portfolio" in str(statement):
+            return _Result(scalar=self.names.get(params["pid"]))
+        return _Result(rows=[])
+
+
+def test_operator_equity_scopes_user_books(monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from apps.api.src.api import operator
+
+    app = FastAPI()
+    app.include_router(operator.router)
+    app.dependency_overrides[operator.get_session] = lambda: _EquityDb()
+    client = TestClient(app)
+
+    monkeypatch.setattr(operator, "_request_is_owner", lambda *_: False)
+    monkeypatch.setattr(operator, "resolve_identity", lambda *_: None)
+    foreign = client.get("/paper/equity?portfolio_id=foreign")
+    assert foreign.status_code == 404
+    assert foreign.json() == {"detail": "Not Found"}
+    assert client.get("/paper/equity?portfolio_id=demo").status_code == 200
+
+    monkeypatch.setattr(operator, "resolve_identity", lambda *_: "me")
+    assert client.get("/paper/equity?portfolio_id=own").status_code == 200
+
+    monkeypatch.setattr(operator, "_request_is_owner", lambda *_: True)
+    assert client.get("/paper/equity?portfolio_id=foreign").status_code == 200

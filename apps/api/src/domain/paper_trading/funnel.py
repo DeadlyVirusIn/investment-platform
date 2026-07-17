@@ -139,7 +139,7 @@ def upsert_funnel_row(
 
 
 def recent_rows(
-    session: Session, *, days: int = 14,
+    session: Session, *, days: int = 14, include_user_books: bool = False,
 ) -> list[dict[str, Any]]:
     rows = session.execute(
         text(
@@ -156,12 +156,14 @@ def recent_rows(
                    SUM(skip_cash_constraint)         AS skip_cash_constraint,
                    SUM(skip_execution_failure)       AS skip_execution_failure,
                    SUM(skip_unknown_reason)          AS skip_unknown_reason
-              FROM paper_execution_funnel
+              FROM paper_execution_funnel f
+              JOIN paper_portfolio p ON p.id = f.portfolio_id
              WHERE run_date >= CURRENT_DATE - (:days)::int
+               AND (:include_user_books OR p.name NOT LIKE 'user:%')
              GROUP BY run_date ORDER BY run_date DESC
             """
         ),
-        {"days": days},
+        {"days": days, "include_user_books": include_user_books},
     ).mappings().all()
     return [dict(r) for r in rows]
 
@@ -193,7 +195,7 @@ def by_portfolio(
 
 
 def reason_distribution(
-    session: Session, *, days: int = 14,
+    session: Session, *, days: int = 14, include_user_books: bool = False,
 ) -> dict[str, int]:
     row = session.execute(
         text(
@@ -207,16 +209,18 @@ def reason_distribution(
               SUM(skip_cash_constraint)         AS cash_constraint,
               SUM(skip_execution_failure)       AS execution_failure,
               SUM(skip_unknown_reason)          AS unknown_reason
-              FROM paper_execution_funnel
+              FROM paper_execution_funnel f
+              JOIN paper_portfolio p ON p.id = f.portfolio_id
              WHERE run_date >= CURRENT_DATE - (:days)::int
+               AND (:include_user_books OR p.name NOT LIKE 'user:%')
             """
         ),
-        {"days": days},
+        {"days": days, "include_user_books": include_user_books},
     ).mappings().one()
     return {k: int(v or 0) for k, v in dict(row).items()}
 
 
-def saturation_snapshot(session: Session) -> list[dict[str, Any]]:
+def saturation_snapshot(session: Session, *, include_user_books: bool = False) -> list[dict[str, Any]]:
     """Latest saturation state per portfolio. Reads from the most
     recent funnel row + live position count + cash."""
     rows = session.execute(
@@ -251,8 +255,9 @@ def saturation_snapshot(session: Session) -> list[dict[str, Any]]:
               FROM paper_portfolio pp
               LEFT JOIN oc ON oc.portfolio_id = pp.id
               LEFT JOIN latest l ON l.portfolio_id = pp.id
+             WHERE (:include_user_books OR pp.name NOT LIKE 'user:%')
              ORDER BY pp.created_at
             """
-        )
+        ), {"include_user_books": include_user_books}
     ).mappings().all()
     return [dict(r) for r in rows]

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
 from apps.api.src.auth.identity import resolve_identity
 from apps.api.src.api.admin_guard import _email_and_role, is_owner
 from apps.api.src.domain.paper_trading.paper_service import (
@@ -39,6 +40,9 @@ router = APIRouter(prefix="/paper/canonical", tags=["paper-canonical"])
 
 
 def _request_is_owner(request: Request, db: Session, uid: str | None) -> bool:
+    # `uid` remains the resolved caller identity for own-book selection, but
+    # owner elevation must follow the session-cookie-only admin guard path.
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
     if not uid:
         return False
     try:

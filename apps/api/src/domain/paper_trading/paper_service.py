@@ -122,7 +122,7 @@ def is_user_paper_book(name: str | None) -> bool:
     user's full starting cash into engine picks, breaking "Add to paper"
     with 409 insufficient-cash. Engine jobs must never trade these books —
     only the user acts on their own book."""
-    return bool(name) and name.startswith(USER_BOOK_PREFIX)
+    return bool(name) and name.strip().lower().startswith(USER_BOOK_PREFIX)
 
 
 def engine_tradable_portfolios_stmt():

@@ -34,9 +34,13 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
 from apps.api.src.auth.identity import resolve_identity
 from apps.api.src.api.admin_guard import _email_and_role, is_owner
-from apps.api.src.domain.paper_trading.paper_service import public_book_label
+from apps.api.src.domain.paper_trading.paper_service import (
+    is_user_paper_book,
+    public_book_label,
+)
 
 
 router = APIRouter(prefix="/performance/paper", tags=["performance"])
@@ -80,7 +84,7 @@ def _excl(include_replay: bool, etype: str, alias: str) -> str:
 
 
 def _request_is_owner(request: Request, db: Session) -> bool:
-    uid = resolve_identity(request, db)
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
     if not uid:
         return False
     email, role = _email_and_role(db, uid)
@@ -475,13 +479,14 @@ STALE_PRICE_DAYS = 7
 
 
 def _open_position_rows(
-    db: Session, *, include_replay: bool,
+    db: Session, *, include_replay: bool, include_user_books: bool,
 ) -> list[dict[str, Any]]:
     """Per-open-position row with latest-price join + freshness flags.
 
     Shared between /open-positions, /unrealized, and /exit-tracking so
     the three endpoints agree on the same source rows."""
     excl_pos = _excl(include_replay, "paper_position", "pp")
+    user_books_filter = "" if include_user_books else " AND p.name NOT LIKE 'user:%'"
     rows = db.execute(text(f"""
         WITH last_px AS (
             SELECT DISTINCT ON (asset_id) asset_id, close, ts
@@ -501,11 +506,12 @@ def _open_position_rows(
           coalesce(m.source, 'live') AS source,
           m.replay_run_id    AS replay_run_id
         FROM paper_position pp
+        JOIN paper_portfolio p ON p.id = pp.portfolio_id
         JOIN asset a ON a.id = pp.asset_id
         LEFT JOIN last_px ON last_px.asset_id = pp.asset_id
         LEFT JOIN replay_recovery_manifest m
           ON m.entity_type = 'paper_position' AND m.entity_id = pp.id::text
-        WHERE pp.is_open = true {excl_pos}
+        WHERE pp.is_open = true {excl_pos}{user_books_filter}
         ORDER BY pp.opened_at DESC
     """)).mappings().all()
 
@@ -585,13 +591,17 @@ def _open_position_rows(
 
 @router.get("/open-positions")
 def open_positions(
+    request: Request,
     db: Session = Depends(get_session),
     include_replay: bool = Query(False),
 ) -> dict[str, Any]:
     """Per-open-position rows with unrealized PnL when price data is
     available. Returns rows even when no price_bar is present so the
     UI can render "unavailable" instead of pretending zero."""
-    rows = _open_position_rows(db, include_replay=include_replay)
+    rows = _open_position_rows(
+        db, include_replay=include_replay,
+        include_user_books=_request_is_owner(request, db),
+    )
     live_count = sum(1 for r in rows if not r["is_replay"])
     replay_count = sum(1 for r in rows if r["is_replay"])
     return {
@@ -607,6 +617,7 @@ def open_positions(
 
 @router.get("/unrealized")
 def unrealized_summary(
+    request: Request,
     db: Session = Depends(get_session),
     include_replay: bool = Query(False),
 ) -> dict[str, Any]:
@@ -614,7 +625,10 @@ def unrealized_summary(
     rows are reported in separate sub-totals so the UI never silently
     rolls them together. Skips rows where unrealized cannot be
     computed; surfaces those counts explicitly."""
-    rows = _open_position_rows(db, include_replay=True)
+    rows = _open_position_rows(
+        db, include_replay=True,
+        include_user_books=_request_is_owner(request, db),
+    )
 
     def _bucket(rows_in: list[dict[str, Any]]) -> dict[str, Any]:
         ok = [r for r in rows_in if r["unrealized_status"] == "ok"]
@@ -673,6 +687,7 @@ def unrealized_summary(
 
 @router.get("/exit-tracking")
 def exit_tracking(
+    request: Request,
     db: Session = Depends(get_session),
     include_replay: bool = Query(False),
 ) -> dict[str, Any]:
@@ -687,7 +702,10 @@ def exit_tracking(
         symbol/strategy; surfacing them is a follow-up.)
       * Diagnostic labels are constrained to a frozen vocabulary so
         downstream UI cannot drift into action wording."""
-    rows = _open_position_rows(db, include_replay=include_replay)
+    rows = _open_position_rows(
+        db, include_replay=include_replay,
+        include_user_books=_request_is_owner(request, db),
+    )
 
     diagnostics: list[dict[str, Any]] = []
     for r in rows:
@@ -1098,6 +1116,8 @@ def pending_fills(
     items: list[dict[str, Any]] = []
     ready_count = 0
     for r in raw_rows:
+        if not request_is_owner and is_user_paper_book(pf_by_id.get(r.get("portfolio_id"))):
+            continue
         aid = r.get("asset_id")
         latest_ts = latest_ts_by_asset.get(aid)
         # Parse submitted_at as a tz-aware datetime so we can compare
@@ -3238,7 +3258,7 @@ def paper_risk_dashboard(
 
     # 1. Latest snapshot per active portfolio -------------------------
     # Phase L M079: canonical user-facing performance — live-only.
-    snap_rows = db.execute(text("""
+    snap_rows = db.execute(text(f"""
         SELECT DISTINCT ON (s.portfolio_id)
                s.portfolio_id, p.name AS portfolio_name,
                s.snapshot_date, s.total_equity, s.cash,
@@ -3247,7 +3267,7 @@ def paper_risk_dashboard(
         FROM paper_equity_snapshot s
         JOIN paper_portfolio p ON p.id = s.portfolio_id
         WHERE p.is_active = TRUE
-          AND s.source = 'live'
+          AND s.source = 'live'{user_books_filter}
         ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC, s.id DESC
     """)).mappings().all()
 
@@ -3284,13 +3304,15 @@ def paper_risk_dashboard(
     # 2. Open positions count --------------------------------------
     open_positions_count = db.execute(text(
         f"SELECT count(*) FROM paper_position pp "
-        f"WHERE pp.is_open = TRUE {excl_pos}"
+        f"JOIN paper_portfolio p ON p.id = pp.portfolio_id "
+        f"WHERE pp.is_open = TRUE {excl_pos}{user_books_filter}"
     )).scalar() or 0
 
     # 3. Realized P&L (sum across all sells) -----------------------
     realized_pnl_total = db.execute(text(
         f"SELECT coalesce(sum(pt.realized_pnl), 0) FROM paper_trade pt "
-        f"WHERE pt.realized_pnl IS NOT NULL {excl_pt}"
+        f"JOIN paper_portfolio p ON p.id = pt.portfolio_id "
+        f"WHERE pt.realized_pnl IS NOT NULL {excl_pt}{user_books_filter}"
     )).scalar() or 0
 
     # 4. Concentration by symbol (top_n by notional) ---------------
@@ -3311,9 +3333,10 @@ def paper_risk_dashboard(
           (count(*) FILTER (WHERE last_px.close IS NULL) > 0)::bool
             AS any_mark_missing
         FROM paper_position pp
+        JOIN paper_portfolio p ON p.id = pp.portfolio_id
         JOIN asset a ON a.id = pp.asset_id
         LEFT JOIN last_px ON last_px.asset_id = pp.asset_id
-        WHERE pp.is_open = TRUE {excl_pos}
+        WHERE pp.is_open = TRUE {excl_pos}{user_books_filter}
         GROUP BY a.symbol
         ORDER BY notional_usd DESC NULLS LAST
         LIMIT :n
@@ -3368,14 +3391,14 @@ def paper_risk_dashboard(
 
     # 6. Max drawdown from total daily equity -----------------------
     # Phase L M079: canonical drawdown — live-only.
-    dd_row = db.execute(text("""
+    dd_row = db.execute(text(f"""
         WITH series AS (
             SELECT s.snapshot_date::date AS d,
                    sum(s.total_equity) AS equity
             FROM paper_equity_snapshot s
             JOIN paper_portfolio p ON p.id = s.portfolio_id
             WHERE p.is_active = TRUE
-              AND s.source = 'live'
+              AND s.source = 'live'{user_books_filter}
             GROUP BY s.snapshot_date::date
             ORDER BY 1
         ),
@@ -3419,8 +3442,9 @@ def paper_risk_dashboard(
         pending_note = f"pending-fills probe error: {exc}"
 
     # 8. Replay vs live trade split (always-on) ---------------------
-    live_trades = db.execute(text("""
+    live_trades = db.execute(text(f"""
         SELECT count(*) FROM paper_trade pt
+        JOIN paper_portfolio p ON p.id = pt.portfolio_id
         WHERE NOT EXISTS (
           SELECT 1 FROM replay_recovery_manifest m
           WHERE m.entity_type = 'paper_trade'
@@ -3428,8 +3452,9 @@ def paper_risk_dashboard(
             AND m.source IN ('replay','test')
         )
     """)).scalar() or 0
-    replay_trades = db.execute(text("""
+    replay_trades = db.execute(text(f"""
         SELECT count(*) FROM paper_trade pt
+        JOIN paper_portfolio p ON p.id = pt.portfolio_id
         WHERE EXISTS (
           SELECT 1 FROM replay_recovery_manifest m
           WHERE m.entity_type = 'paper_trade'
@@ -3494,6 +3519,7 @@ def paper_risk_dashboard(
 
 @router.get("/trade-quality")
 def paper_trade_quality(
+    request: Request,
     db: Session = Depends(get_session),
     include_replay: bool = Query(
         False,
@@ -3532,6 +3558,7 @@ def paper_trade_quality(
         include_replay=include_replay,
         limit=limit,
         max_hold_days=max_hold_days,
+        include_user_books=_request_is_owner(request, db),
     )
 
 
