@@ -16,6 +16,10 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
+from apps.api.src.domain.paper_trading.paper_service import (
+    public_book_label,
+)
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -38,7 +42,7 @@ def _trading_days(a: dt.date, b: dt.date) -> int:
 
 
 def _fetch_trade_rows(
-    session: Session, *, include_replay: bool, limit: int,
+    session: Session, *, include_replay: bool, limit: int, include_user_books: bool,
 ) -> list[dict[str, Any]]:
     """Eligible paper_trade rows joined to symbol + position state +
     fill-day bar + latest bar. SELL rows are always emitted; BUY
@@ -93,9 +97,9 @@ def _fetch_trade_rows(
           ORDER BY ts DESC LIMIT 1
         ) lb ON TRUE
         WHERE
-              t.side = 'sell'
-           OR (t.side = 'buy' AND coalesce(pp.is_open, FALSE) = TRUE)
-          {excl}
+              (t.side = 'sell'
+               OR (t.side = 'buy' AND coalesce(pp.is_open, FALSE) = TRUE))
+          {excl}{"" if include_user_books else " AND p.name NOT LIKE 'user:%'"}
         ORDER BY t.fill_ts DESC
         LIMIT :n
     """
@@ -154,6 +158,7 @@ def assemble_quality_report(
     max_hold_days: int = DEFAULT_MAX_HOLD_DAYS,
     limit: int = 200,
     as_of: dt.date | None = None,
+    include_user_books: bool = False,
 ) -> dict[str, Any]:
     """Top-level entry. Returns scored items + an aggregate
     breakdown the frontend can render."""
@@ -161,6 +166,7 @@ def assemble_quality_report(
         as_of = dt.datetime.now(dt.timezone.utc).date()
     rows = _fetch_trade_rows(
         session, include_replay=include_replay, limit=limit,
+        include_user_books=include_user_books,
     )
     items: list[dict[str, Any]] = []
     grade_counts: dict[str, int] = {}
@@ -176,7 +182,9 @@ def assemble_quality_report(
             "trade_id": str(r["id"]),
             "symbol": r["instrument"],
             "portfolio_id": str(r["portfolio_id"]),
-            "portfolio_name": r["portfolio_name"],
+            "portfolio_name": public_book_label(
+                r["portfolio_name"], is_owner=include_user_books
+            ),
             "side": r["side"],
             "is_open": (r["side"] == "buy"),
             "fill_ts": (

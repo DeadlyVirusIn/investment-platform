@@ -37,10 +37,12 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
 from apps.api.src.auth.identity import resolve_identity
 from apps.api.src.api.admin_guard import _email_and_role, is_owner
 from apps.api.src.domain.paper_trading.paper_service import (
     is_user_paper_book,
+    public_book_label,
     user_stock_portfolio_name,
 )
 
@@ -53,8 +55,9 @@ def _require_readable_portfolio(
 ) -> str | None:
     """Return a permitted portfolio id, hiding other users' books as 404."""
     uid = resolve_identity(request, db)
-    if uid:
-        email, role = _email_and_role(db, uid)
+    owner_uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    if owner_uid:
+        email, role = _email_and_role(db, owner_uid)
         if role == "owner" or is_owner(email):
             return portfolio_id
     if not portfolio_id:
@@ -67,6 +70,12 @@ def _require_readable_portfolio(
         raise HTTPException(status_code=404)
     return portfolio_id
 
+def _request_is_owner(request: Request, db: Session) -> bool:
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    if not uid:
+        return False
+    email, role = _email_and_role(db, uid)
+    return role == "owner" or is_owner(email)
 # ---------------------------------------------------------------------------
 # /paper/executed/summary
 # ---------------------------------------------------------------------------
@@ -198,6 +207,7 @@ def executed_trades(
     """Executed paper_trade rows joined to asset symbol + portfolio
     name + provenance flag."""
     portfolio_id = _require_readable_portfolio(request, db, portfolio_id)
+    request_is_owner = _request_is_owner(request, db)
     where = ["1=1"]
     params: dict[str, Any] = {"limit": limit}
     if side is not None:
@@ -240,7 +250,7 @@ def executed_trades(
         out.append({
             "trade_id": r.trade_id,
             "portfolio_id": r.portfolio_id,
-            "portfolio_name": r.portfolio_name,
+            "portfolio_name": public_book_label(r.portfolio_name, is_owner=request_is_owner),
             "symbol": r.symbol,
             "side": r.side,
             "quantity": float(r.quantity) if r.quantity is not None else None,
@@ -276,6 +286,7 @@ def executed_positions(
 ) -> dict[str, Any]:
     """paper_position rows joined to symbol + portfolio name + provenance."""
     portfolio_id = _require_readable_portfolio(request, db, portfolio_id)
+    request_is_owner = _request_is_owner(request, db)
     where = ["1=1"]
     params: dict[str, Any] = {}
     if is_open is not None:
@@ -351,7 +362,7 @@ def executed_positions(
         out.append({
             "position_id": r.position_id,
             "portfolio_id": r.portfolio_id,
-            "portfolio_name": r.portfolio_name,
+            "portfolio_name": public_book_label(r.portfolio_name, is_owner=request_is_owner),
             "symbol": r.symbol,
             "quantity": qty,
             "avg_cost": avg,

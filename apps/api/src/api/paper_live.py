@@ -35,11 +35,18 @@ from decimal import Decimal
 from typing import Any, Literal
 
 import httpx
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
+from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
+from apps.api.src.domain.paper_trading.paper_service import (
+    is_user_paper_book,
+    public_book_label,
+)
 from apps.api.src.db.models import (
     Asset, PaperPortfolio, PaperPosition, PriceBar,
 )
@@ -102,6 +109,55 @@ def _dec(v: Any) -> Decimal:
     return Decimal(str(v))
 
 
+def _request_is_owner(request: Request, session: Session) -> bool:
+    uid = ident.session_user_id(session, request.cookies.get(ident.SESSION_COOKIE))
+    if not uid:
+        return False
+    email, role = _email_and_role(session, uid)
+    return role == "owner" or is_owner(email)
+
+
+def _public_live_nav_payload(
+    payload: dict[str, Any], *, request_is_owner: bool
+) -> dict[str, Any]:
+    """Personalize cached data without caching a privileged raw-name view."""
+    out = dict(payload)
+    visible_portfolios = [
+        portfolio for portfolio in payload["portfolios"]
+        if request_is_owner or not is_user_paper_book(portfolio["name"])
+    ]
+    out["portfolios"] = [
+        {
+            **portfolio,
+            "name": public_book_label(
+                portfolio["name"], is_owner=request_is_owner
+            ),
+        }
+        for portfolio in visible_portfolios
+    ]
+    if not request_is_owner:
+        aggregate_fields = (
+            ("live_cash", "cash"),
+            ("live_holdings", "holdings_value"),
+            ("starting_total", "starting_cash"),
+            ("unrealized_pnl_total", "unrealized_pnl"),
+        )
+        totals = {
+            target: sum(Decimal(str(p.get(source, 0))) for p in visible_portfolios)
+            for target, source in aggregate_fields
+        }
+        out.update({key: _str(value) for key, value in totals.items()})
+        out["live_estimated_nav"] = _str(
+            totals["live_cash"] + totals["live_holdings"]
+        )
+        # The cached official snapshot is global and could include hidden
+        # books, so it cannot be used for a public drift calculation.
+        out["official_nav_snapshot"] = None
+        out["drift_pct"] = None
+    out["n_portfolios_active"] = len(out["portfolios"])
+    return out
+
+
 def _str(v: Decimal) -> str:
     return f"{v:.4f}"
 
@@ -112,6 +168,7 @@ def _str(v: Decimal) -> str:
 
 @router.get("/live-nav")
 async def get_live_nav(
+    request: Request,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """Live MTM NAV across all active paper portfolios.
@@ -138,6 +195,7 @@ async def get_live_nav(
     surface as HTTP error — payload still returns with `polygon_status`
     flag and EOD fallback prices applied.
     """
+    request_is_owner = _request_is_owner(request, session)
     now_epoch = time.time()
 
     # Fast path — cache hit without lock.
@@ -151,7 +209,9 @@ async def get_live_nav(
             "live-nav cache hit",
             extra={"age_s": now_epoch - _CACHE["ts"]},
         )
-        return cached
+        return _public_live_nav_payload(
+            cached, request_is_owner=request_is_owner
+        )
 
     # Cache miss — acquire lock and re-check (thundering-herd guard).
     async with _CACHE_LOCK:
@@ -163,7 +223,9 @@ async def get_live_nav(
             cached = dict(_CACHE["payload"])
             cached["cache_hit"] = True
             logger.debug("live-nav cache hit (post-lock)")
-            return cached
+            return _public_live_nav_payload(
+                cached, request_is_owner=request_is_owner
+            )
 
         logger.info(
             "live-nav cache miss — refetching",
@@ -172,8 +234,9 @@ async def get_live_nav(
         payload = await _build_live_nav_payload(session, now_epoch)
         _CACHE["ts"] = now_epoch
         _CACHE["payload"] = payload
-        return payload
-
+        return _public_live_nav_payload(
+            payload, request_is_owner=request_is_owner
+        )
 
 async def _build_live_nav_payload(
     session: Session, now_epoch: float,

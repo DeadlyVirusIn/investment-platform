@@ -23,11 +23,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
+from apps.api.src.domain.paper_trading.paper_service import public_book_label
 
 
 router = APIRouter(prefix="/performance/paper", tags=["alpha-lab"])
@@ -104,14 +107,20 @@ def _age_bucket(days: int) -> str:
 
 @router.get("/alpha-lab")
 def alpha_lab(
+    request: Request,
     db: Session = Depends(get_session),
     limit: int = Query(20, ge=1, le=100),
 ) -> dict[str, Any]:
+    owner_uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    request_is_owner = False
+    if owner_uid:
+        email, role = _email_and_role(db, owner_uid)
+        request_is_owner = role == "owner" or is_owner(email)
     today = dt.datetime.now(dt.timezone.utc).date()
     replay_set = _replay_ids(db)
 
     # Open positions joined to latest price_bar for mark.
-    open_rows = db.execute(text("""
+    open_rows = db.execute(text(f"""
         WITH latest_bar AS (
             SELECT DISTINCT ON (asset_id)
                    asset_id, ts::date AS bar_date,
@@ -128,7 +137,7 @@ def alpha_lab(
         JOIN paper_portfolio p ON p.id = pp.portfolio_id
         JOIN asset a ON a.id = pp.asset_id
         LEFT JOIN latest_bar lb ON lb.asset_id = pp.asset_id
-        WHERE pp.is_open = TRUE AND p.is_active = TRUE
+        WHERE pp.is_open = TRUE AND p.is_active = TRUE {"" if request_is_owner else "AND p.name NOT LIKE 'user:%'"}
     """)).mappings().all()
 
     open_items: list[dict[str, Any]] = []
@@ -155,7 +164,9 @@ def alpha_lab(
         item = {
             "position_id": r["id"],
             "portfolio_id": r["portfolio_id"],
-            "portfolio_name": r["portfolio_name"],
+            "portfolio_name": public_book_label(
+                r["portfolio_name"], is_owner=request_is_owner
+            ),
             "symbol": r["symbol"],
             "asset_id": r["asset_id"],
             "quantity": qty,
@@ -199,7 +210,7 @@ def alpha_lab(
 
     # Closed paper trades (sell rows) joined back to entry trade for
     # holding-day calc + symbol.
-    closed_rows = db.execute(text("""
+    closed_rows = db.execute(text(f"""
         SELECT t.id AS trade_id, p.name AS portfolio_name,
                t.portfolio_id, a.symbol, t.quantity,
                t.fill_price AS exit_price, t.fill_ts AS exit_ts,
@@ -207,7 +218,7 @@ def alpha_lab(
         FROM paper_trade t
         JOIN paper_portfolio p ON p.id = t.portfolio_id
         JOIN asset a ON a.id = t.asset_id
-        WHERE t.side = 'sell'
+        WHERE t.side = 'sell' {"" if request_is_owner else "AND p.name NOT LIKE 'user:%'"}
         ORDER BY t.fill_ts DESC
         LIMIT 200
     """)).mappings().all()
@@ -222,7 +233,9 @@ def alpha_lab(
         closed_realized += pnl
         closed_items.append({
             "trade_id": str(r["trade_id"]),
-            "portfolio_name": r["portfolio_name"],
+            "portfolio_name": public_book_label(
+                r["portfolio_name"], is_owner=request_is_owner
+            ),
             "portfolio_id": str(r["portfolio_id"]),
             "symbol": r["symbol"],
             "quantity": float(r["quantity"]),
@@ -245,8 +258,11 @@ def alpha_lab(
     )[:limit]
 
     # Live vs replay counts come from paper_trade buy rows.
-    trade_rows = db.execute(text("""
-        SELECT id FROM paper_trade WHERE side = 'buy'
+    trade_rows = db.execute(text(f"""
+        SELECT t.id FROM paper_trade t
+        JOIN paper_portfolio p ON p.id = t.portfolio_id
+        WHERE t.side = 'buy'
+          {"" if request_is_owner else "AND p.name NOT LIKE 'user:%'"}
     """)).all()
     total_buys = len(trade_rows)
     replay_buys = sum(
@@ -302,14 +318,14 @@ def alpha_lab(
 
     # Paper portfolio aggregate from latest equity snapshot.
     # Phase L M079: canonical alpha-lab summary — live-only.
-    snap = db.execute(text("""
+    snap = db.execute(text(f"""
         SELECT DISTINCT ON (s.portfolio_id)
                s.snapshot_date, sum(s.total_equity)
                OVER (PARTITION BY s.snapshot_date) AS total_eq,
                s.cash, s.unrealized_pnl
         FROM paper_equity_snapshot s
         JOIN paper_portfolio p ON p.id = s.portfolio_id
-        WHERE p.is_active = TRUE
+        WHERE p.is_active = TRUE {"" if request_is_owner else "AND p.name NOT LIKE 'user:%'"}
           AND s.source = 'live'
         ORDER BY s.portfolio_id, s.snapshot_date DESC, s.recorded_at DESC, s.id DESC
     """)).all()

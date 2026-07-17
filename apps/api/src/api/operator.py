@@ -18,11 +18,19 @@ import json
 import statistics as st
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from apps.api.src.auth import identity as ident
+from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
+from apps.api.src.api.paper import _request_is_owner
 from apps.api.src.db import get_session
+from apps.api.src.domain.paper_trading.paper_service import (
+    is_user_paper_book,
+    user_stock_portfolio_name,
+)
 
 router = APIRouter(tags=["operator"])
 
@@ -30,6 +38,16 @@ PORTFOLIO_ID = "default"
 
 
 # ---------------------------------------------------------------------------
+
+def _require_operator_owner(request: Request, db: Session) -> None:
+    """Keep legacy aggregate/operator surfaces out of public responses."""
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    if not uid:
+        raise HTTPException(status_code=404, detail="Not Found")
+    email, role = _email_and_role(db, uid)
+    if role != "owner" and not is_owner(email):
+        raise HTTPException(status_code=404, detail="Not Found")
+
 # /paper/summary
 # ---------------------------------------------------------------------------
 # Reads real paper-trading state from paper_equity_snapshot keyed
@@ -91,7 +109,8 @@ def _prev_day_snapshots(
 
 
 @router.get("/paper/summary")
-def paper_summary(db: Session = Depends(get_session)) -> dict[str, Any]:
+def paper_summary(request: Request, db: Session = Depends(get_session)) -> dict[str, Any]:
+    _require_operator_owner(request, db)
     latest_rows = _latest_active_snapshots(db)
     if not latest_rows:
         return {
@@ -336,6 +355,7 @@ def paper_state(db: Session = Depends(get_session)) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 @router.get("/paper/equity")
 def paper_equity(
+    request: Request,
     db: Session = Depends(get_session),
     from_: str | None = Query(None, alias="from"),
     to: str | None = None,
@@ -348,6 +368,24 @@ def paper_equity(
     and starting capital are scoped to that ONE portfolio — no
     aggregation, no test/demo contamination. M079: source='live' only.
     """
+    if portfolio_id:
+        if not _request_is_owner(request, db):
+            name = db.execute(
+                text("SELECT name FROM paper_portfolio WHERE id = :pid"),
+                {"pid": portfolio_id},
+            ).scalar()
+            uid = resolve_identity(request, db)
+            if (
+                name is None
+                or (
+                    is_user_paper_book(name)
+                    and name != user_stock_portfolio_name(uid or "")
+                )
+            ):
+                raise HTTPException(status_code=404, detail="Not Found")
+    else:
+        _require_operator_owner(request, db)
+
     start = dt.date.fromisoformat(from_) if from_ else dt.date(2020, 1, 1)
     end = dt.date.fromisoformat(to) if to else dt.date.today()
     pid_clause = "AND s.portfolio_id = :pid" if portfolio_id else ""

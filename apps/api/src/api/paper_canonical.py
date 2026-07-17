@@ -19,8 +19,11 @@ from sqlalchemy.orm import Session
 
 from apps.api.src.config import settings
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
 from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
 from apps.api.src.domain.paper_trading.paper_service import (
+    public_book_label,
     resolve_user_stock_portfolio,
 )
 
@@ -34,6 +37,19 @@ from apps.api.src.api.freshness import (
 )
 
 router = APIRouter(prefix="/paper/canonical", tags=["paper-canonical"])
+
+
+def _request_is_owner(request: Request, db: Session, uid: str | None) -> bool:
+    # `uid` remains the resolved caller identity for own-book selection, but
+    # owner elevation must follow the session-cookie-only admin guard path.
+    uid = ident.session_user_id(db, request.cookies.get(ident.SESSION_COOKIE))
+    if not uid:
+        return False
+    try:
+        email, role = _email_and_role(db, uid)
+    except Exception:  # lightweight test/session doubles may not expose users
+        return False
+    return role == "owner" or is_owner(email)
 
 
 def _iso(ts: dt.datetime | dt.date | None) -> str | None:
@@ -58,6 +74,7 @@ def canonical_stock(
     spoofed device header outside demo mode yields anonymous, never a targeted
     user's book."""
     uid = resolve_identity(request, db)
+    request_is_owner = _request_is_owner(request, db, uid)
     if uid:
         # Per-user isolation: get-or-create THIS user's OWN book via the single
         # shared resolver. A cold user gets a fresh EMPTY book — it must NEVER
@@ -101,7 +118,10 @@ def canonical_stock(
         return {
             "portfolio_id": pid,
             "book_scope": "user" if uid else "shared_demo",
-            "name": portfolio.name if portfolio is not None else None,
+            "name": (
+                public_book_label(portfolio.name, is_owner=request_is_owner)
+                if portfolio is not None else None
+            ),
             "nav": None, "cash": None, "positions_value": None,
             "realized_pnl": None, "unrealized_pnl": None, "daily_pnl": None,
             "daily_pnl_prior_snapshot_date": None,
@@ -156,7 +176,7 @@ def canonical_stock(
     return {
         "portfolio_id": pid,
         "book_scope": "user" if uid else "shared_demo",
-        "name": portfolio.name,
+        "name": public_book_label(portfolio.name, is_owner=request_is_owner),
         "nav": nav,
         "cash": float(snap.cash),
         "positions_value": float(snap.positions_value),

@@ -5,10 +5,13 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from apps.api.src.db import get_session
+from apps.api.src.auth import identity as ident
+from apps.api.src.auth.identity import resolve_identity
+from apps.api.src.api.admin_guard import _email_and_role, is_owner
 from apps.api.src.domain.paper_trading.paper_execution import (
     PaperTradeRejected,
     submit_trade,
@@ -25,9 +28,12 @@ from apps.api.src.domain.paper_trading.paper_service import (
     list_open_positions,
     list_portfolios,
     list_trades,
+    is_user_paper_book,
+    public_book_label,
     resolve_asset_id,
     snapshot_equity_now,
     trade_counts,
+    user_stock_portfolio_name,
 )
 
 router = APIRouter(prefix="/paper", tags=["paper-trading"])
@@ -43,10 +49,51 @@ def _jsonable(v: Any) -> Any:
     return v
 
 
-def _portfolio_summary(portfolio, breakdown: dict[str, Any]) -> dict[str, Any]:
+def _request_is_owner(request: Request, session: Session) -> bool:
+    """Use the admin guard ownership predicate without exposing a 403."""
+    uid = ident.session_user_id(session, request.cookies.get(ident.SESSION_COOKIE))
+    if not uid:
+        return False
+    email, role = _email_and_role(session, uid)
+    return role == "owner" or is_owner(email)
+
+
+def _require_portfolio_access(
+    request: Request,
+    session: Session,
+    portfolio_id: str,
+    *,
+    write: bool,
+):
+    """Return an authorized portfolio; denied books are always hidden as 404."""
+    portfolio = get_portfolio(session, portfolio_id)
+    if portfolio is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+    uid = resolve_identity(request, session)
+    if not uid:
+        raise HTTPException(status_code=404, detail="Not Found")
+    if _request_is_owner(request, session):
+        return portfolio
+    own_book = user_stock_portfolio_name(uid)
+    allowed = portfolio.name == own_book if write else (
+        not is_user_paper_book(portfolio.name) or portfolio.name == own_book
+    )
+    if not allowed:
+        raise HTTPException(status_code=404, detail="Not Found")
+    return portfolio
+
+
+def _require_owner(request: Request, session: Session) -> None:
+    if not _request_is_owner(request, session):
+        raise HTTPException(status_code=404)
+
+
+def _portfolio_summary(
+    portfolio, breakdown: dict[str, Any], *, request_is_owner: bool
+) -> dict[str, Any]:
     return {
         "id": portfolio.id,
-        "name": portfolio.name,
+        "name": public_book_label(portfolio.name, is_owner=request_is_owner),
         "starting_cash": portfolio.starting_cash,
         "cash": breakdown["cash"],
         "positions_value": breakdown["positions_value"],
@@ -63,20 +110,25 @@ def _portfolio_summary(portfolio, breakdown: dict[str, Any]) -> dict[str, Any]:
 
 
 @router.get("/portfolios")
-def get_portfolios(session: Session = Depends(get_session)) -> dict[str, Any]:
+def get_portfolios(
+    request: Request, session: Session = Depends(get_session)
+) -> dict[str, Any]:
+    _require_owner(request, session)
     portfolios = list_portfolios(session)
     out = []
     for p in portfolios:
         breakdown = compute_equity_breakdown(session, p)
-        out.append(_portfolio_summary(p, breakdown))
+        out.append(_portfolio_summary(p, breakdown, request_is_owner=True))
     return _jsonable({"portfolios": out, "count": len(out)})
 
 
 @router.post("/portfolios", status_code=201)
 def post_portfolio(
     payload: PortfolioCreate,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    _require_owner(request, session)
     try:
         portfolio = create_portfolio(session, payload)
     except ValueError as exc:
@@ -84,17 +136,16 @@ def post_portfolio(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     session.commit()
     breakdown = compute_equity_breakdown(session, portfolio)
-    return _jsonable(_portfolio_summary(portfolio, breakdown))
+    return _jsonable(_portfolio_summary(portfolio, breakdown, request_is_owner=True))
 
 
 @router.get("/portfolios/{portfolio_id}")
 def get_portfolio_detail(
     portfolio_id: str,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    portfolio = get_portfolio(session, portfolio_id)
-    if portfolio is None:
-        raise HTTPException(status_code=404, detail="portfolio not found")
+    portfolio = _require_portfolio_access(request, session, portfolio_id, write=False)
     breakdown = compute_equity_breakdown(session, portfolio)
     counts = trade_counts(session, portfolio_id)
     positions = list_open_positions(session, portfolio_id)
@@ -102,7 +153,9 @@ def get_portfolio_detail(
     drawdown = compute_paper_max_drawdown(snapshots)
     conf_validation = compute_confidence_validation(session, portfolio_id)
     return _jsonable({
-        **_portfolio_summary(portfolio, breakdown),
+        **_portfolio_summary(
+            portfolio, breakdown, request_is_owner=_request_is_owner(request, session)
+        ),
         "open_positions": positions,
         "trade_counts": counts,
         "validation": {
@@ -116,10 +169,10 @@ def get_portfolio_detail(
 def post_trade(
     portfolio_id: str,
     payload: TradeRequest,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    if get_portfolio(session, portfolio_id) is None:
-        raise HTTPException(status_code=404, detail="portfolio not found")
+    _require_portfolio_access(request, session, portfolio_id, write=True)
     try:
         asset_id = resolve_asset_id(session, payload.asset_id, payload.symbol)
         result = submit_trade(
@@ -151,11 +204,11 @@ def post_trade(
 @router.get("/portfolios/{portfolio_id}/trades")
 def get_trades(
     portfolio_id: str,
+    request: Request,
     limit: int = 500,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    if get_portfolio(session, portfolio_id) is None:
-        raise HTTPException(status_code=404, detail="portfolio not found")
+    _require_portfolio_access(request, session, portfolio_id, write=False)
     trades = list_trades(session, portfolio_id, limit=limit)
     counts = trade_counts(session, portfolio_id)
     return _jsonable({"trades": trades, "count": len(trades), "counts": counts})
@@ -164,11 +217,10 @@ def get_trades(
 @router.get("/portfolios/{portfolio_id}/equity")
 def get_equity(
     portfolio_id: str,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    portfolio = get_portfolio(session, portfolio_id)
-    if portfolio is None:
-        raise HTTPException(status_code=404, detail="portfolio not found")
+    portfolio = _require_portfolio_access(request, session, portfolio_id, write=False)
     breakdown = compute_equity_breakdown(session, portfolio)
     snapshots = get_equity_curve(session, portfolio_id)
     return _jsonable({
@@ -187,11 +239,10 @@ def get_equity(
 @router.post("/portfolios/{portfolio_id}/snapshot", status_code=201)
 def post_snapshot(
     portfolio_id: str,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    portfolio = get_portfolio(session, portfolio_id)
-    if portfolio is None:
-        raise HTTPException(status_code=404, detail="portfolio not found")
+    portfolio = _require_portfolio_access(request, session, portfolio_id, write=True)
     # Phase L M079: operator-triggered snapshot via API → operator_manual.
     snap = snapshot_equity_now(session, portfolio, source="operator_manual")
     session.commit()
